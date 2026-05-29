@@ -1,0 +1,599 @@
+
+import React, { useState, useEffect } from 'react';
+import { User, FeedPhoto } from '../types';
+import { BackIcon, BrazilFlagIcon, MaleIcon, FemaleIcon, RankIcon, MoreVerticalIcon, PencilIcon, ChevronRightIcon, CopyIcon, PlayIcon, HeartIcon, DetailsIcon, VIPBadgeIcon, ShieldIcon, LiveIndicatorIcon, TrashIcon } from './icons';
+import BlockReportModal from './BlockReportModal';
+import { useTranslation } from '../i18n';
+import { api } from '../services/api';
+import { socketService } from '../services/socket';
+import { LoadingSpinner } from './Loading';
+import AvatarWithFrame from './ui/AvatarWithFrame';
+import { useUserStatus, formatLastSeen } from '../hooks/useUserStatus';
+import { base64ConversionService, processUserImages, isValidImageUrl } from '../services/base64ConversionService';
+
+interface UserProfileScreenProps {
+  user: User;
+  isCurrentUser: boolean;
+  onBack: () => void;
+  onEdit: () => void;
+  onOpenTopFans: () => void;
+  onOpenFollowing: () => void;
+  onOpenFans: () => void;
+  onFollow: (user: User) => void;
+  onStartChat: (user: User) => void;
+  onBlockUser: (user: User) => void;
+  onReportUser: (user: User) => void;
+  onOpenPhotoViewer: (photos: FeedPhoto[], index: number) => void;
+  lastPhotoLikeUpdate: number;
+  onPhotoLiked: () => void;
+  onPhotoRemoved?: (updatedUser: User) => void;
+  onPhotoUploaded?: () => void; // Callback para quando nova foto é upload
+}
+
+const IMAGE_PLACEHOLDER = '/placeholders/avatar-placeholder.svg';
+
+const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  if (e.currentTarget.src !== IMAGE_PLACEHOLDER && !e.currentTarget.src.includes(IMAGE_PLACEHOLDER)) {
+    e.currentTarget.src = IMAGE_PLACEHOLDER;
+  }
+};
+
+const formatNumber = (num: any): string => {
+    const numericValue = Number(num);
+    if (num === null || num === undefined || isNaN(numericValue)) {
+        return '0';
+    }
+    if (numericValue >= 1000000) {
+        return (numericValue / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    }
+    if (numericValue >= 1000) {
+        return (numericValue / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    }
+    return String(numericValue);
+};
+
+const formatDuration = (seconds?: number) => {
+    if (!seconds) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+const isVideoUrl = (url: string) => {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase();
+    return lowerUrl.includes('data:video') || 
+           lowerUrl.endsWith('.mp4') || 
+           lowerUrl.endsWith('.webm') || 
+           lowerUrl.endsWith('.mov') ||
+           lowerUrl.includes('video');
+};
+
+const StatItem: React.FC<{ value: string | number; label: string; onClick?: () => void }> = ({ value, label, onClick }) => (
+    <button onClick={onClick} className="text-center focus:outline-none disabled:cursor-default" disabled={!onClick}>
+        <p className="text-white">{value}</p>
+        <p className="text-sm text-white">{label}</p>
+    </button>
+);
+
+const ProfileTab: React.FC<{ label: string; icon: React.ReactNode; isActive: boolean; onClick: () => void }> = ({ label, icon, isActive, onClick }) => (
+    <button onClick={onClick} className={`py-3 font-medium transition-colors relative flex items-center ${isActive ? 'text-white' : 'text-gray-500'}`}>
+        {icon}
+        {label}
+        {isActive && <div className="absolute bottom-0 left-0 right-0 h-1 bg-purple-500 rounded-full"></div>}
+    </button>
+);
+
+const UserProfileScreen: React.FC<UserProfileScreenProps> = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans, onOpenFollowing, onOpenFans, onFollow, onStartChat, onBlockUser, onReportUser, onOpenPhotoViewer, lastPhotoLikeUpdate, onPhotoLiked, onPhotoRemoved, onPhotoUploaded }) => {
+    const { t } = useTranslation();
+    const [activeTab, setActiveTab] = useState('Obras');
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [likedPhotos, setLikedPhotos] = useState<FeedPhoto[]>([]);
+    const [isLoadingLikes, setIsLoadingLikes] = useState(false);
+    const [obras, setObras] = useState<FeedPhoto[]>([]);
+    const [isLoadingObras, setIsLoadingObras] = useState(false);
+    
+    // Hook para status online do usuário
+    const { status: userStatus, isLoading: statusLoading } = useUserStatus(user.id);
+    // 🔧 SINCRONIZAÇÃO: Buscar dados frescos do usuário da API ao montar
+    // Garante que enviados, receptores e diamonds reflitam o banco de dados real
+    const [freshUser, setFreshUser] = useState<User>(user);
+    const [lastUserUpdate, setLastUserUpdate] = useState<number>(Date.now());
+    
+    useEffect(() => {
+        let isMounted = true;
+        let timeoutId: NodeJS.Timeout;
+        
+        // Adicionar debounce mais longo e verificar se realmente precisa atualizar
+        timeoutId = setTimeout(async () => {
+            const now = Date.now();
+            // Só atualizar se passou mais de 2 segundos desde a última atualização
+            if (now - lastUserUpdate > 2000) {
+                try {
+                    const data = await api.getUser(user.id);
+                    if (isMounted && data) {
+                        // Processar automaticamente imagens Base64
+                        const processedData = await processUserImages(data);
+                        setFreshUser(processedData);
+                        setLastUserUpdate(now);
+                    }
+                } catch (error) {
+                    /* fallback: usar dados originais e processar localmente */
+                    if (isMounted) {
+                        const processedUser = await processUserImages(user);
+                        setFreshUser(processedUser);
+                    }
+                }
+            }
+        }, 1000); // 1 segundo de debounce
+        
+        return () => { 
+            isMounted = false;
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [user.id, lastUserUpdate]);
+
+    // 🎁 WEBSOCKET: Atualizar contadores em tempo real quando receber presentes
+    useEffect(() => {
+        const handleGiftReceived = (data: any) => {
+            // Verificar se o presente é para este usuário
+            if (data.toUser?.id === user.id) {
+                console.log(`🎁 [PROFILE] Presente recebido em tempo real: ${data.fromUser?.name} -> ${data.gift?.name} x${data.quantity}`);
+                
+                // Atualizar freshUser com novos valores
+                setFreshUser(prev => ({
+                    ...prev,
+                    receptores: (prev?.receptores || 0) + (data.gift?.price * data.quantity),
+                    diamonds: (prev?.diamonds || 0) + (data.gift?.price * data.quantity)
+                }));
+            }
+        };
+
+        // Escutar eventos de presentes
+        socketService.on('live_gift_received', handleGiftReceived);
+        socketService.on('gift_received', handleGiftReceived);
+
+        return () => {
+            socketService.off('live_gift_received', handleGiftReceived);
+            socketService.off('gift_received', handleGiftReceived);
+        };
+    }, [user.id]);
+
+    // Obras - usar API para buscar do ProfilePhoto (banco)
+    useEffect(() => {
+        let isMounted = true;
+        if (activeTab === 'Obras') {
+            setIsLoadingObras(true);
+            api.getUserPhotos(user.id).then(response => {
+                if (isMounted) {
+                    // Extrair array da propriedade data da resposta da API
+                    const photos = response?.data || [];
+                    // Transformar dados da API para formato FeedPhoto
+                    const transformedData = photos.map(photo => ({
+                        id: photo.obraId, // Mapear obraId para id
+                        photoUrl: photo.photoUrl,
+                        url: photo.photoUrl,
+                        likes: 0,
+                        isLiked: false,
+                        user: user
+                    }));
+                    setObras(transformedData);
+                    setIsLoadingObras(false);
+                }
+            }).catch(err => {
+                console.error('Erro ao buscar obras:', err);
+                if (isMounted) setIsLoadingObras(false);
+            });
+        }
+        return () => { isMounted = false; };
+    }, [activeTab, user.id, lastPhotoLikeUpdate, onPhotoUploaded]);
+
+    useEffect(() => {
+        let isMounted = true;
+        if (activeTab === 'Curtidas') {
+            setIsLoadingLikes(true);
+            api.getLikedPhotos(user.id).then(data => {
+                if (isMounted) {
+                    setLikedPhotos(data || []);
+                    setIsLoadingLikes(false);
+                }
+            }).catch(err => {
+                if (isMounted) setIsLoadingLikes(false);
+            });
+        }
+        return () => { isMounted = false; };
+      }, [activeTab, user.id, lastPhotoLikeUpdate]);
+
+    const handleToggleLike = async (photoId: string, tab: 'obras' | 'curtidas') => {
+        const list = tab === 'obras' ? obras : likedPhotos;
+        const listSetter = tab === 'obras' ? setObras : setLikedPhotos;
+
+        const photoIndex = list.findIndex(p => p.id === photoId);
+        if (photoIndex === -1) return;
+
+        const originalPhoto = list[photoIndex];
+        const originalList = [...list];
+
+        // Optimistic update
+        const updatedPhoto = {
+            ...originalPhoto,
+            isLiked: !originalPhoto.isLiked,
+            likes: originalPhoto.isLiked ? originalPhoto.likes - 1 : originalPhoto.likes + 1,
+        };
+        const newList = [...list];
+        newList[photoIndex] = updatedPhoto;
+        listSetter(newList);
+
+        try {
+            const response = await api.likePhoto(photoId);
+            if (response.success) {
+                // Sync with server state
+                const finalPhoto = {
+                    ...updatedPhoto,
+                    isLiked: response.isLiked,
+                    likes: response.likes,
+                };
+                const finalList = [...originalList]; 
+                finalList[photoIndex] = finalPhoto;
+                
+                if (tab === 'curtidas' && !response.isLiked) {
+                    listSetter(finalList.filter(p => p.id !== photoId));
+                } else {
+                    listSetter(finalList);
+                }
+
+                onPhotoLiked();
+            } else {
+                listSetter(originalList);
+            }
+        } catch (error) {
+            listSetter(originalList);
+        }
+    };
+
+    const handleRemovePhoto = async (photoId: string) => {
+        if (!isCurrentUser) return;
+        const newObrasList = obras.filter(p => p.id !== photoId);
+        try {
+            // Endpoint dedicado DELETE /user/photo/:photoId - remove do banco
+            await api.profile.deleteImage(photoId, user.id);
+            setObras(newObrasList);
+            const fresh = await api.getUser(user.id);
+            if (fresh) {
+                setFreshUser(fresh);
+                onPhotoRemoved?.(fresh);
+            }
+        } catch (e) {
+            console.error('Erro ao remover foto:', e);
+        }
+    };
+
+    const getGender = (gender?: 'male' | 'female' | 'not_specified') => {
+        switch (gender) {
+            case 'male': return t('common.male');
+            case 'female': return t('common.female');
+            default: return t('common.notSpecified');
+        }
+    }
+
+    const handleFollowClick = () => {
+        onFollow(user);
+    };
+    
+    const handleUnfriend = () => {
+        onFollow(user); 
+        setIsModalOpen(false);
+    };
+    
+    const handleBlock = () => {
+        onBlockUser(user);
+        setIsModalOpen(false);
+    };
+
+    const handleReport = () => {
+        onReportUser(user);
+        setIsModalOpen(false);
+    };
+    
+    const detailItems = [
+        { label: t('editProfile.nickname'), value: freshUser.name || 'Não especificado', show: !!freshUser.name },
+        { label: t('editProfile.gender'), value: getGender(freshUser.gender), show: !!freshUser.gender && freshUser.gender !== 'not_specified' },
+        { label: t('editProfile.birthday'), value: freshUser.birthday || 'Não especificado', show: !!freshUser.birthday },
+        { label: t('editProfile.bio'), value: freshUser.bio || 'Não especificado', show: !!freshUser.bio },
+        { label: t('editProfile.residence'), value: freshUser.residence || 'Não especificado', show: !!freshUser.residence },
+        { label: t('editProfile.emotionalStatus'), value: freshUser.emotional_status || 'Não especificado', show: !!freshUser.emotional_status },
+        { label: t('editProfile.tags'), value: freshUser.tags || 'Não especificado', show: !!freshUser.tags },
+        { label: t('editProfile.profession'), value: freshUser.profession || 'Não especificado', show: !!freshUser.profession },
+    ].filter(item => item.show);
+
+    const hasDetails = detailItems.length > 0;
+
+    // Simplificado - sem frames para navegação isolada
+    const frameGlowClass = '';
+
+
+    return (
+        <div className="absolute inset-0 bg-black z-50 flex flex-col text-white">
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-24">
+                <header className="relative h-48">
+                    {/* Removendo imagem de capa que está atrapalhando o layout */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#111111] to-black"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent"></div>
+                    
+                    {/* Status online no canto superior direito */}
+                    <div className="absolute top-72 right-4 text-sm text-gray-400 text-right">
+                        {statusLoading ? (
+                            <span>Online agora</span>
+                        ) : userStatus ? (
+                            <span className={userStatus.is_online ? 'text-green-400' : 'text-gray-400'}>
+                                {userStatus.is_online ? 'Online agora' : formatLastSeen(userStatus.last_seen || new Date().toISOString())}
+                            </span>
+                        ) : (
+                            <span className="text-gray-400">Online agora</span>
+                        )}
+                    </div>
+                    
+                    <div className="absolute top-4 left-4 flex items-center z-10">
+                        <button onClick={onBack} className="w-8 h-8 bg-black/30 rounded-full flex items-center justify-center">
+                            <BackIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                        <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+                        <button onClick={onBack} className="w-8 h-8 bg-black/30 rounded-full flex items-center justify-center">
+                            <BackIcon className="w-5 h-5" />
+                        </button>
+                        <div className="flex items-center space-x-2">
+                            {isCurrentUser && (
+                               <button onClick={onEdit} className="w-8 h-8 bg-black/30 rounded-full flex items-center justify-center">
+                                   <PencilIcon className="w-5 h-5" />
+                               </button>
+                            )}
+                           <button onClick={() => setIsModalOpen(true)} className="w-8 h-8 bg-black/30 rounded-full flex items-center justify-center">
+                               <MoreVerticalIcon className="w-5 h-5" />
+                           </button>
+                        </div>
+                    </div>
+                     <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
+                        <div className="relative w-24 h-24">
+                            <AvatarWithFrame 
+                                user={user} 
+                                size="lg" 
+                                className="w-24 h-24"
+                            />
+
+                            {user.isLive && user.streamStatus === 'active' && (
+                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/60 rounded-md px-2 py-1 flex items-center space-x-1.5 backdrop-blur-sm z-10">
+                                  <LiveIndicatorIcon className="w-4 h-4 text-green-400" />
+                                  <span className="text-xs font-bold text-white uppercase tracking-wider">{t('footer.live')}</span>
+                                </div>
+                            )}
+                            {freshUser.isAvatarProtected && (
+                                <div className="absolute -top-1 -right-1 bg-gray-900 rounded-full p-1 transition-opacity duration-300">
+                                    <ShieldIcon className="w-6 h-6 text-blue-400" />
+                                </div>
+                            )}
+                            <div className="absolute -bottom-1 -right-1 bg-gray-800 rounded-full p-0.5 z-20">
+                                <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                                    <BrazilFlagIcon />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <main className="px-4 pt-14">
+                    <div className="flex flex-col items-center">
+                        <h1 className="text-2xl font-bold mt-2 flex items-center space-x-2">
+                        <span>{user.name}</span>
+                        {user.isVIP && <VIPBadgeIcon className="w-6 h-6" />}
+                        </h1>
+                        <div className="flex items-center space-x-2 text-sm text-gray-400">
+                        <span>{t('profile.id')}: {user.identification}</span>
+                        <button className="text-gray-500 hover:text-white"><CopyIcon className="h-4 w-4" /></button>
+                        </div>
+
+                        <div className="flex items-center space-x-2 my-2">
+                            {user.age && (
+                                <span className={`text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center space-x-1 ${user.gender === 'male' ? 'bg-blue-500' : 'bg-pink-500'}`}>
+                                    {user.gender === 'male' ? <MaleIcon className="h-3 w-3" /> : <FemaleIcon className="h-3 w-3" />}
+                                    <span>{user.age}</span>
+                                </span>
+                            )}
+                            <span className="bg-purple-600 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center space-x-1">
+                                <RankIcon className="h-3 w-3" />
+                                <span>{user.level}</span>
+                            </span>
+                        </div>
+
+                        <p className="text-sm text-gray-400">{user.location} | {user.distance}</p>
+                    </div>
+                    
+
+                    <div className="grid grid-cols-4 gap-2 my-4 text-center">
+                        <StatItem value={formatNumber(freshUser.fans)} label={t('profile.fans')} onClick={onOpenFans} />
+                        <StatItem value={formatNumber(freshUser.following)} label={t('profile.following')} onClick={onOpenFollowing} />
+                        {/* 🔧 SINCRONIZAÇÃO: receptores e enviados vêm da API (banco de dados real) */}
+                        <StatItem value={formatNumber(freshUser.receptores)} label={t('profile.receivers')} />
+                        <StatItem value={formatNumber(freshUser.enviados)} label={t('profile.senders')} />
+                    </div>
+
+                    <button onClick={onOpenTopFans} className="bg-[#1c1c1e] p-3 rounded-lg flex items-center justify-between w-full text-left hover:bg-gray-800/50 transition-colors">
+                        <div className="flex items-center">
+                             <span className="font-semibold mr-4">{t('profile.topFans')}</span>
+                             <div className="flex -space-x-2">
+                                {user.topFansAvatars?.slice(0, 3).map((avatar, index) => (
+                                    <img key={index} src={avatar} alt={`Fan ${index + 1}`} className="w-8 h-8 rounded-full ring-2 ring-[#1c1c1e]" />
+                                ))}
+                             </div>
+                        </div>
+                        <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                    </button>
+
+                    <nav className="flex space-x-8 mt-4 border-b border-gray-800">
+                       <ProfileTab label={t('profile.tabs.works')} icon={<PlayIcon className="w-4 h-4 mr-1.5" />} isActive={activeTab === 'Obras'} onClick={() => setActiveTab('Obras')} />
+                       <ProfileTab label={t('profile.tabs.likes')} icon={<HeartIcon className="w-4 h-4 mr-1.5" />} isActive={activeTab === 'Curtidas'} onClick={() => setActiveTab('Curtidas')} />
+                       <ProfileTab label={t('profile.tabs.details')} icon={<DetailsIcon className="w-4 h-4 mr-1.5" />} isActive={activeTab === 'Detalhes'} onClick={() => setActiveTab('Detalhes')} />
+                    </nav>
+
+                    {activeTab === 'Obras' && (
+                        isLoadingObras ? (
+                            <div className="flex justify-center items-center h-48"><LoadingSpinner /></div>
+                        ) : obras.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-1 mt-4">
+                                {obras.map((obra, index) => {
+                                    const isVideo = isVideoUrl(obra.photoUrl);
+                                                    
+                                    return (
+                                        <button 
+                                            key={obra.id}
+                                            onClick={() => onOpenPhotoViewer(obras, index)}
+                                            className="relative group aspect-[3/4] bg-[#2c2c2e] focus:outline-none overflow-hidden"
+                                        >
+                                            {isCurrentUser && (
+                                                <div
+                                                    onClick={(e) => { e.stopPropagation(); handleRemovePhoto(obra.id); }}
+                                                    className="absolute top-1 right-1 z-20 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg cursor-pointer"
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleRemovePhoto(obra.id); } }}
+                                                    aria-label="Remover foto"
+                                                >
+                                                    <TrashIcon className="w-3.5 h-3.5" />
+                                                </div>
+                                            )}
+                                            {isVideo ? (
+                                                <div className="w-full h-full relative">
+                                                    <video 
+                                                        src={obra.photoUrl} 
+                                                        className="w-full h-full object-cover" 
+                                                        muted 
+                                                        playsInline
+                                                        preload="metadata"
+                                                    />
+                                                    <div className="absolute top-1 right-1 bg-black/40 rounded-full p-1">
+                                                        <PlayIcon className="w-3 h-3 text-white" />
+                                                    </div>
+                                                    {obra.duration && (
+                                                        <div className="absolute bottom-1 right-1 bg-black/60 rounded px-1 py-0.5 text-[10px] text-white font-medium">
+                                                            {formatDuration(obra.duration)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <img 
+                                                    src={isValidImageUrl(obra.photoUrl) ? obra.photoUrl : IMAGE_PLACEHOLDER} 
+                                                    onError={handleImageError} 
+                                                    alt={`Obra ${index + 1}`} 
+                                                    className="w-full h-full object-cover" 
+                                                />
+                                            )}
+
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none opacity-50"></div>
+                                            
+                                            <div className="absolute bottom-1 left-1 flex items-center space-x-0.5 text-white text-xs font-bold drop-shadow-md z-10">
+                                                 <HeartIcon className={`w-3 h-3 ${obra.isLiked ? 'text-red-500' : 'text-white'}`} fill={obra.isLiked ? 'currentColor' : 'none'} />
+                                                 <span>{formatNumber(obra.likes)}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-48 text-gray-500">
+                                <p>{t('profile.noWorks')}</p>
+                            </div>
+                        )
+                    )}
+                     {activeTab === 'Curtidas' && (
+                        isLoadingLikes ? (
+                            <div className="flex justify-center items-center h-48"><LoadingSpinner /></div>
+                        ) : likedPhotos.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-1 mt-4">
+                                {likedPhotos.map((photo, index) => {
+                                     const isVideo = isVideoUrl(photo.photoUrl);
+                                    return (
+                                    <button 
+                                        key={photo.id}
+                                        onClick={() => onOpenPhotoViewer(likedPhotos, index)}
+                                        className="relative group aspect-[3/4] bg-[#2c2c2e] focus:outline-none overflow-hidden"
+                                    >
+                                        {isVideo ? (
+                                            <div className="w-full h-full relative">
+                                                 <video src={photo.photoUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                                                 <div className="absolute top-1 right-1 bg-black/40 rounded-full p-1"><PlayIcon className="w-3 h-3 text-white" /></div>
+                                                  {photo.duration && (
+                                                        <div className="absolute bottom-1 right-1 bg-black/60 rounded px-1 py-0.5 text-[10px] text-white font-medium">
+                                                            {formatDuration(photo.duration)}
+                                                        </div>
+                                                    )}
+                                            </div>
+                                        ) : (
+                                            <img 
+                                                src={isValidImageUrl(photo.photoUrl) ? photo.photoUrl : IMAGE_PLACEHOLDER} 
+                                                onError={handleImageError} 
+                                                alt={`Liked photo ${index + 1}`} 
+                                                className="w-full h-full object-cover" 
+                                            />
+                                        )}
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none opacity-50"></div>
+                                        
+                                        <div className="absolute bottom-1 left-1 flex items-center space-x-0.5 text-white text-xs font-bold drop-shadow-md z-10">
+                                            <HeartIcon className={`w-3 h-3 ${photo.isLiked ? 'text-red-500' : 'text-white'}`} fill={photo.isLiked ? 'currentColor' : 'none'} />
+                                            <span>{formatNumber(photo.likes)}</span>
+                                        </div>
+                                    </button>
+                                )})}
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-48 text-gray-500">
+                                <p>{t('profile.noLikes')}</p>
+                            </div>
+                        )
+                    )}
+                     {activeTab === 'Detalhes' && (
+                        hasDetails ? (
+                            <div className="bg-[#1c1c1e] rounded-lg p-4 mt-4 text-sm">
+                                <h2 className="text-lg font-bold mb-4 text-white">{t('profile.profileInfo')}</h2>
+                                <div className="space-y-4">
+                                    {detailItems.map((item) => (
+                                        <div key={item.label} className="flex items-start">
+                                            <span className="text-gray-400 w-28 flex-shrink-0">{item.label}</span>
+                                            <span className="text-white break-words">{item.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center h-48 text-gray-500">
+                                <p>{t('profile.noDetails')}</p>
+                            </div>
+                        )
+                    )}
+                </main>
+            </div>
+            
+            {!isCurrentUser && (
+                <footer className="absolute bottom-0 left-0 right-0 bg-black p-3 flex-shrink-0 z-10 border-t border-gray-800/50">
+                    <div className="flex items-center space-x-3">
+                        <button onClick={handleFollowClick} className={`flex-1 font-bold py-3 rounded-full transition-colors ${user.isFollowed ? 'bg-gray-700 text-gray-300' : 'bg-purple-600 text-white'}`}>
+                            {user.isFollowed ? t('common.following') : t('common.follow')}
+                        </button>
+                        <button onClick={() => onStartChat(user)} className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-full transition-colors">
+                            {t('common.chat')}
+                        </button>
+                    </div>
+                </footer>
+            )}
+
+            <BlockReportModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                onBlock={handleBlock}
+                onReport={handleReport} 
+                onUnfriend={user.isFollowed ? handleUnfriend : undefined} 
+            />
+        </div>
+    );
+};
+
+export default UserProfileScreen;

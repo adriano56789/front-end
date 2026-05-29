@@ -1,0 +1,3 @@
+srs/trunk/conf/srs.conf text eol=lf
+srs/trunk/conf/docker.conf text eol=lf
+*.conf text eol=lf

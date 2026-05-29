@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  signaling:
+    image: registry.cn-hangzhou.aliyuncs.com/ossrs/signaling:1
+    container_name: livego-signaling
+    restart: unless-stopped
+    ports:
+      - "1989:1989"
+    command: ./bin/signaling -listen 1989
+    depends_on:
+      - srs
+
+  emqx:
+    image: emqx/emqx:latest
+    container_name: livego-emqx
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "8083:8083"
+      - "8084:8084"
+      - "18083:18083"
+    environment:
+      EMQX_NODE_NAME: emqx@livego.store
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: ${EMQX_ADMIN_PASSWORD:-livego_emqx_prod}
+      EMQX_ALLOW_ANONYMOUS: "false"
+      EMQX_AUTHENTICATION__1__ENABLE: "true"
+      EMQX_AUTHENTICATION__1__MECHANISM: password_based
+      EMQX_AUTHENTICATION__1__BACKEND: internal
+      EMQX_AUTHENTICATION__1__PASSWORD_HASH: sha256
+      EMQX_LISTENERS__WS__DEFAULT__ENABLE: "true"
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  srs:
+    image: ossrs/srs:6
+    container_name: livego-srs
+    restart: unless-stopped
+    command: ["./objs/srs", "-c", "conf/srs.conf"]
+    ports:
+      - "1935:1935"
+      - "1985:1985"
+      - "1990:1990"
+      - "8080:8080"
+      - "8088:8088"
+      - "8000:8000/udp"
+    environment:
+      CANDIDATE: ${CANDIDATE:-72.60.249.175}
+    volumes:
+      - ./srs/trunk/conf/srs.conf:/usr/local/srs/conf/srs.conf:ro
+
+volumes:
+  emqx-data:
+  emqx-log:

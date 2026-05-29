@@ -1,0 +1,490 @@
+import React, { ReactNode, ReactElement, SVGProps } from "react";
+
+export interface Streamer {
+  id: string;
+  hostId: string;
+  name: string;
+  avatar: string;
+  location: string;
+  time: string;
+  message: string;
+  tags: string[];
+  isHot?: boolean;
+  icon?: string;
+  country?: string;
+  viewers?: number;
+  isPrivate?: boolean;
+  quality?: string;
+  demoVideoUrl?: string;
+  diamonds?: number; // 🔧 CORREÇÃO: Adicionar diamonds para o contador da live
+  category?: string; // Categoria da stream
+  // Ingest & Playback fields
+  rtmpIngestUrl?: string;
+  srtIngestUrl?: string;
+  streamKey?: string;
+  playbackUrl?: string;
+  isLive?: boolean;
+  // SRS WebRTC Integration fields
+  token?: string;
+  vhost?: string;
+  app?: string;
+  stream?: string;
+  // Backend status fields
+  streamStatus?: string;
+  startTime?: Date;
+  endTime?: Date;
+  // WebRTC and LiveGo compatibility fields
+  webrtcUrl?: string;
+  flvUrl?: string;
+  hlsUrl?: string; // URL HLS para reprodução no ExoPlayer (Android) e LivePlayer (Web)
+  liveId?: string;
+  pushUrl?: string;
+}
+
+export interface LiveSetup {
+  // Dados padrão da live
+  defaultTitle: string;
+  defaultDescription: string;
+  defaultCategory: string;
+  defaultTags: string[];
+  defaultCover?: string;
+  
+  // Configurações e permissões
+  isPrivateDefault: boolean;
+  allowedViewLevels: string[];
+  defaultRegion: string;
+  
+  // Contexto da transmissão
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  userCountry?: string;
+  
+  // Flags de configuração
+  features: {
+    allowGifts: boolean;
+    allowComments: boolean;
+    allowPK: boolean;
+    allowBeauty: boolean;
+    requireCamera: boolean;
+    requireMicrophone: boolean;
+  };
+  
+  // Limites e restrições
+  limits: {
+    maxTitleLength: number;
+    maxDescriptionLength: number;
+    maxTags: number;
+    minViewers: number;
+  };
+  
+  // Status da preparação
+  isSetupComplete: boolean;
+  lastSetupAt?: string;
+}
+
+export interface Country {
+  name:string;
+  code: string;
+}
+
+export enum ToastType {
+  Error = 'error',
+  Success = 'success',
+  Info = 'info'
+}
+
+// Estados de publish SRS para UI
+export enum SrsPublishState {
+  IDLE = 'idle',                    // Inativo/parado
+  PREPARING = 'preparing',          // Preparando mídia
+  CONNECTING = 'connecting',        // Conectando ao SRS
+  PUBLISHING = 'publishing',         // Publicando ativamente
+  RECONNECTING = 'reconnecting',    // Reconectando
+  ICE_FAILED = 'ice_failed',         // Falha de ICE
+  NO_INGEST = 'no_ingest',          // Sem ingest de mídia
+  NETWORK_ERROR = 'network_error',  // Erro de rede
+  SRS_ERROR = 'srs_error',          // Erro do servidor SRS
+  PERMISSION_DENIED = 'permission_denied' // Permissão negada
+}
+
+// Informações de status do publish SRS
+export interface SrsPublishStatus {
+  state: SrsPublishState;
+  streamId?: string;
+  streamUrl?: string;
+  iceConnectionState?: RTCIceConnectionState;
+  signalingState?: RTCSignalingState;
+  bytesSent?: number;
+  packetsLost?: number;
+  rtt?: number;
+  lastUpdate: Date;
+  error?: string;
+}
+
+// Props para componente de status de publish
+export interface PublishStatusProps {
+  status: SrsPublishStatus;
+  isBroadcaster: boolean;
+  className?: string;
+}
+
+export interface ToastData {
+  id: string;
+  type: ToastType;
+  message: string;
+}
+
+export interface Like {
+    id: string;
+    fan: {
+        id: string;
+        name: string;
+        avatarUrl: string;
+    };
+    obra: {
+        id: string;
+        title: string;
+    };
+    timestamp: string;
+}
+
+export interface Gift {
+  name: string;
+  price?: number;
+  icon: string;
+  component?: ReactElement<SVGProps<SVGSVGElement>>;
+  category: 'Popular' | 'Luxo' | 'Atividade' | 'VIP' | 'Efeito' | 'Entrada';
+  triggersAutoFollow?: boolean;
+  videoUrl?: string;
+}
+
+export interface Obra {
+  id: string;
+  url: string;
+  duration?: number; // Duration in seconds
+}
+
+export interface User {
+  isBroadcaster: import("react/jsx-runtime").JSX.Element;
+  id: string;
+  identification: string;
+  name: string;
+  avatarUrl: string;
+  coverUrl?: string;
+  photos?: string[];
+  country?: string;
+  age?: number;
+  gender?: 'male' | 'female' | 'not_specified';
+  level: number;
+  xp?: number;
+  rank?: number;
+  location?: string;
+  distance?: string;
+  fans: number;
+  following: number;
+  receptores: number;
+  enviados: number;
+  topFansAvatars?: string[];
+  isLive?: boolean;
+  isFollowed?: boolean;
+  isFriend?: boolean;
+  isOnline?: boolean;
+  lastSeen?: string;
+  currentStreamId?: string;
+  diamonds: number;
+  earnings: number;
+  earnings_withdrawn: number;
+  withdrawal_method?: {
+    method: string;
+    details: any;
+  };
+  bio?: string;
+  obras?: Obra[];
+  curtidas?: Like[];
+  birthday?: string;
+  residence?: string;
+  emotional_status?: string;
+  tags?: string;
+  profession?: string;
+  isVIP?: boolean;
+  vipSubscriptionDate?: string;
+  vipExpirationDate?: string;
+  isAvatarProtected?: boolean;
+  activeFrameId?: string | null;
+  ownedFrames: { frameId: string; expirationDate: string; }[];
+  chatPermission?: 'all' | 'followers' | 'none';
+  pipEnabled?: boolean;
+  locationPermission?: 'granted' | 'denied' | 'prompt';
+  showActivityStatus?: boolean;
+  showLocation?: boolean;
+  privateStreamSettings?: {
+      privateInvite: boolean;
+      followersOnly: boolean;
+      fansOnly: boolean;
+      friendsOnly: boolean;
+  };
+  platformEarnings?: number;
+  adminWithdrawalMethod?: { email: string; };
+  frameExpiration?: string | null;
+  geoLocation?: {
+    type: 'Point';
+    coordinates: number[];
+  };
+}
+
+export interface LevelInfo {
+  level: number;
+  xp: number;
+  xpForCurrentLevel: number;
+  xpForNextLevel: number;
+  progress: number;
+  privileges: string[];
+  nextRewards: string[];
+}
+
+export type Visitor = User & { visitTimestamp: string };
+
+export interface EligibleUser extends User {
+  giftsSent: {
+    name: string;
+    icon: string;
+    quantity: number;
+    component?: ReactElement<SVGProps<SVGSVGElement>>;
+  }[];
+  sessionContribution: number;
+}
+
+export interface Conversation {
+  id: string;
+  friend: User;
+  lastMessage: string;
+  timestamp: string;
+  unreadCount?: number;
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  from: string;
+  to: string;
+  text: string;
+  imageUrl?: string;
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'read' | 'sending' | 'failed';
+  type?: 'system-friend-notification';
+  // Dados do remetente incluídos pela API
+  senderName?: string;
+  senderAvatar?: string;
+  senderAge?: number;
+  senderLevel?: number;
+  senderIdentification?: string;
+  senderBirthday?: string;
+}
+
+export type RankedUser = User & { contribution: number; gender: 'male' | 'female' | 'not_specified'; age: number; };
+
+export interface StreamSummaryData {
+  viewers: number;
+  duration: number;
+  coins: number;
+  followers: number;
+  members: number;
+  fans: number;
+  user: {
+    name: string;
+    avatarUrl: string;
+  };
+}
+
+export interface LiveSessionState {
+  startTime: number;
+  viewers: number;
+  peakViewers: number;
+  coins: number;
+  followers: number;
+  members: number;
+  fans: number;
+  events: any[];
+  isMicrophoneMuted?: boolean;
+  isStreamMuted?: boolean;
+  isAutoFollowEnabled?: boolean;
+  isAutoPrivateInviteEnabled?: boolean;
+}
+
+export interface EndStreamSummary {
+  streamId: string;
+  title: string;
+  startTime: number;
+  endTime: number;
+  duration: number;
+  viewers: number;
+  coins: number;
+  followers: number;
+  members: number;
+  fans: number;
+  user: {
+    name: string;
+    avatarUrl: string;
+  };
+}
+
+export interface NotificationSettings {
+  newMessages: boolean;
+  streamerLive: boolean;
+  followedPosts: boolean;
+  pedido: boolean;
+  interactive: boolean;
+}
+
+export interface BeautySettings {
+    // Efeitos de beleza com valores numéricos
+    'Branquear'?: number;
+    'Alisar a pele'?: number;
+    'Ruborizar'?: number;
+    'Contraste'?: number;
+    // Filtro pré-definido selecionado
+    selectedFilter?: string;
+    // Aba ativa do painel
+    activeTab?: 'Recomendar' | 'Beleza';
+    // Efeito selecionado na aba Beleza
+    selectedEffect?: string;
+    // Permitir outros efeitos futuros
+    [key: string]: number | string | undefined;
+}
+
+export interface BeautyEffect {
+  name: string;
+  icon?: string;
+  img?: string;
+}
+
+export interface BeautyEffectsData {
+  filters: BeautyEffect[];
+  effects: BeautyEffect[];
+}
+
+export interface PurchaseRecord {
+  id: string;
+  userId: string;
+  type: 'purchase_diamonds' | 'withdraw_earnings' | 'withdraw_platform_earnings' | 'purchase_frame' | 'platform_fee_income';
+  description: string;
+  amountBRL: number;
+  amountCoins: number;
+  status: 'Concluído' | 'Pendente' | 'Cancelado';
+  timestamp: string;
+}
+
+export interface FeedPhoto {
+  id: string;
+  photoUrl: string;
+  user: User;
+  likes: number;
+  isLiked: boolean;
+  duration?: number; // Duration in seconds if it's a video
+}
+
+export interface GoogleAccount {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+}
+
+export interface StreamHistoryEntry {
+  id: string;
+  streamerId: string;
+  name: string;
+  avatar: string;
+  startTime: number;
+  endTime: number;
+}
+
+export interface SRSRequest {
+  streamUrl: string;
+  sdp: string;
+}
+
+export interface SRSResponse {
+  code: number;
+  desc?: string;
+  sdp: string;
+  sessionid: string;
+  // Enhanced Metadata fields
+  streamId?: string;
+  broadcasterName?: string;
+  playbackUrl?: string;
+  participants?: { id: string; name: string; avatar: string }[];
+}
+
+export interface SRSPlayResponse extends SRSResponse {}
+
+export interface SRSStreamInfo {
+    id: string;
+    clients: number;
+    kbps: {
+        recv_30s: number;
+        send_30s: number;
+    };
+    create: string;
+}
+
+// --- Checkout & Payment Types ---
+
+export interface DiamondPackage {
+    id: string;
+    diamonds: number;
+    price: number;
+    bonus?: number;
+}
+
+export interface Order {
+    id: string;
+    userId: string;
+    packageId: string;
+    amount: number; // BRL
+    diamonds: number;
+    status: 'pending' | 'paid' | 'failed' | 'cancelled';
+    paymentMethod?: 'pix' | 'credit_card';
+    createdAt: string;
+    updatedAt: string;
+    pixCode?: string;
+    pixExpiration?: string;
+}
+
+export interface PixPaymentResponse {
+    success: boolean;
+    pixCode: string;
+    qrCode: string;
+    expiration: string;
+    orderId: string;
+}
+
+export interface CreditCardPaymentRequest {
+    orderId: string;
+    cardToken: string; // Token seguro gerado pelo frontend
+    payerEmail: string;
+    payerName: string;
+    installments?: number;
+}
+
+export interface LiveNotification {
+  id: string;
+  userId: string; // Receiver
+  streamerId: string;
+  streamerName: string;
+  streamerAvatar: string;
+  streamId: string;
+  read: boolean;
+  createdAt: string;
+  message?: string;
+}
+
+export interface Invitation {
+  id: string;
+  inviterId: string;
+  inviteeId: string;
+  roomId: string;
+  status: 'pending' | 'accepted' | 'declined';
+  timestamp: string;
+}

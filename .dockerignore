@@ -1,0 +1,17 @@
+node_modules/
+.git/
+*.md
+.env
+.env.*
+.gitignore
+dist/
+backend/node_modules/
+backend/dist/
+android/
+srs/trunk/3rdparty/openssl-1.1-fit
+srs/trunk/3rdparty/srt-1-fit
+srs/trunk/3rdparty/gperftools-2-fit
+srs/trunk/3rdparty/gtest-fit
+srs/.git/
+nginx/.git/
+coturn/.git/

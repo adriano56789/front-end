@@ -1,0 +1,325 @@
+/* ===================================================================
+   LIVEGO - Estilos Globais Responsivos
+   =================================================================== */
+
+/* Reset e Configurações Base */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: manipulation;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Container Principal do App */
+.app-container {
+  height: 100vh;
+  height: 100dvh; /* viewport height dinâmico para mobile */
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0); /* Espaço para barra do Android */
+}
+
+/* Container de Conteúdo */
+.content-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0)); /* Espaço para o footer */
+}
+
+/* Páginas Fixas - Sem scroll da página inteira */
+.page-container {
+  height: 100vh;
+  height: 100dvh; /* viewport height dinâmico para mobile */
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: #f8f9fa;
+  padding-bottom: env(safe-area-inset-bottom, 0); /* Safe area para Android */
+}
+
+.page-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 1rem;
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0)); /* Espaço para footer + safe area */
+}
+
+/* Header Fixo */
+.page-header {
+  flex-shrink: 0;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  padding: 1rem;
+  z-index: 100;
+}
+
+/* Footer Fixo */
+.page-footer {
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #e9ecef;
+  padding: 1rem;
+  z-index: 100;
+}
+
+/* Responsividade para Dispositivos Móveis */
+@media (max-width: 768px) {
+  .page-content {
+    padding: 0.75rem;
+  }
+  
+  .page-header,
+  .page-footer {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-content {
+    padding: 0.5rem;
+  }
+  
+  .page-header,
+  .page-footer {
+    padding: 0.5rem;
+  }
+}
+
+/* Prevenir Pull-to-Refresh e Scroll Excessivo */
+body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scrollbar Customizado */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* WebView Android Compatibility */
+@supports (-webkit-touch-callout: none) {
+  .page-container {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+  
+  .content-container {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevenir Zoom em Inputs no iOS */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Animações Suaves */
+.transition-smooth {
+  transition: all 0.3s ease;
+}
+
+/* Classes Utilitárias */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+.no-scroll {
+  overflow: hidden;
+}
+
+.scroll-y {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Responsividade de Texto */
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 13px;
+  }
+}
+
+/* Imagens Responsivas */
+.img-responsive {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Botões Responsivos */
+.btn-responsive {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+  min-height: 44px; /* Mínimo para toque em mobile */
+}
+
+@media (max-width: 768px) {
+  .btn-responsive {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.9rem;
+  }
+}
+
+/* Cards Responsivos */
+.card-responsive {
+  padding: 1rem;
+  margin: 0.5rem 0;
+  border-radius: 0.5rem;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 768px) {
+  .card-responsive {
+    padding: 0.75rem;
+    margin: 0.25rem 0;
+  }
+}
+
+/* Grid Responsivo */
+.grid-responsive {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+/* Segurança para WebView */
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Safe area específica para bottom (barra de navegação) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  height: calc(4rem + env(safe-area-inset-bottom, 0));
+}
+
+/* Container principal com safe area */
+.safe-area-container {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  min-height: 100vh;
+  min-height: 100dvh; /* viewport height dinâmico */
+}
+
+/* Footer com safe area garantida */
+.footer-safe-area {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1C1C1E;
+  border-top: 1px solid rgba(229, 231, 235, 0.5);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  z-index: 50;
+}
+
+/* Content container com margem para footer */
+.content-with-footer {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0));
+}
+
+/* Ajuste específico para Android WebView */
+@supports (-webkit-touch-callout: none) {
+  .safe-area-bottom {
+    /* Forçar altura mínima em dispositivos Android */
+    min-height: calc(4rem + 16px);
+  }
+  
+  .footer-safe-area {
+    /* Garantir que o footer fique acima da barra de navegação do Android */
+    padding-bottom: max(env(safe-area-inset-bottom, 0), 16px);
+  }
+}
+
+/* Meta tag para viewport height correto */
+@viewport {
+  height: 100vh;
+  width: 100vw;
+}
