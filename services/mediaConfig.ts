@@ -19,7 +19,7 @@ export const getApiBaseUrl = (): string => trimSlash(env.apiBaseUrl);
 export const getVideoHttpBaseUrl = (): string => {
   const fromEnv = import.meta.env.VITE_SRS_HTTP_URL as string | undefined;
   if (fromEnv) return trimSlash(fromEnv);
-
+  if (import.meta.env.PROD) return '/srs';
   return `http://${SRS_HOST}:${SRS_HTTP_PORT}`;
 };
 
@@ -67,14 +67,20 @@ export const isNativeRtmpBridge = (): boolean =>
   'Android' in window &&
   typeof (window as Window & { Android?: { startRTMP?: (k: string) => void } }).Android?.startRTMP === 'function';
 
-/** WHIP endpoint — SRS native HTTP API (Default: 1985) */
+/** WHIP endpoint — via nginx proxy em producao, direto em dev */
 export const getWhipEndpointUrl = (streamKey: string): string => {
   const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
+  const fromEnv = import.meta.env.VITE_SRS_WHIP_URL as string | undefined;
+  if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+  if (import.meta.env.PROD) return `/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
   return `http://${SRS_HOST}:${SRS_API_PORT}/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
 };
 
-/** WHEP endpoint — SRS native HTTP API (Default: 1985) */
+/** WHEP endpoint — via nginx proxy em producao, direto em dev */
 export const getWhepEndpointUrl = (streamKey: string): string => {
   const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
+  const fromEnv = import.meta.env.VITE_SRS_WHEP_URL as string | undefined;
+  if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+  if (import.meta.env.PROD) return `/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
   return `http://${SRS_HOST}:${SRS_API_PORT}/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
 };
