@@ -11,5 +11,7 @@ services:
     volumes:
       - /etc/letsencrypt/live/livego.store-0001/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
       - /etc/letsencrypt/live/livego.store-0001/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
+      - /etc/letsencrypt/live/api.livego.store/fullchain.pem:/etc/nginx/ssl/api-fullchain.pem:ro
+      - /etc/letsencrypt/live/api.livego.store/privkey.pem:/etc/nginx/ssl/api-privkey.pem:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
