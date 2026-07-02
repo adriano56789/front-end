@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+                  import React, { useState, useEffect, useRef, useMemo } from 'react';
 import OnlineUsersModal from './live/OnlineUsersModal';
+const OnlineUsersModalAny: any = OnlineUsersModal;
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
 import EntryChatMessage from './live/EntryChatMessage';
 import ChatScreen from './ChatScreen';
 import ToolsModal from './ToolsModal';
+const ToolsModalAny: any = ToolsModal;
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon } from './icons';
 import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
@@ -26,7 +28,7 @@ import { socketService } from '../services/socket';
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
-import LiveCallInvitation from '../src/components/LiveCallInvitation';
+import { useLiveKit } from '../hooks/useLiveKit';
 
 interface ChatMessageType {
     id: number;
@@ -81,16 +83,31 @@ interface StreamRoomProps {
 const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: number }> = ({ follower, followed, level }) => {
     const { t } = useTranslation();
     return (
-        <div className="bg-purple-500/30 rounded-full p-1.5 px-3 flex items-center self-start text-xs">
-            <span className="text-purple-300 font-bold">{follower}</span>
-            {level && (
-                <span className="bg-purple-600 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center space-x-1 ml-2">
-                    <RankIcon className="h-3 w-3" />
-                    <span>{level}</span>
-                </span>
-            )}
-            <span className="text-gray-200 ml-1.5">{t('streamRoom.followed')}</span>
-            <span className="text-purple-300 font-bold ml-1.5">{followed}! 🎉</span>
+        <div className="flex items-center gap-2 text-xs bg-transparent rounded-[18px] px-3 py-1 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap">
+            <span 
+                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[13px]"
+                style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
+            >
+                {follower}
+            </span>
+            
+            {/* Glossy Silver metal level badge matching the screenshot */}
+            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[16px]">
+                Lvl. {level || 1}
+            </span>
+
+            <span 
+                className="text-zinc-300 font-sans font-semibold text-[13px] ml-0.5 tracking-wide"
+                style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
+            >
+                {t('streamRoom.followed')}
+            </span>
+            <span 
+                className="text-[#c084fc] font-extrabold ml-0.5 font-sans text-[13px]"
+                style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
+            >
+                {followed}! 🎉
+            </span>
         </div>
     );
 };
@@ -118,23 +135,31 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
     const [isCoHostModalOpen, setIsCoHostModalOpen] = useState(false);
+    const [coHostModalMode, setCoHostModalMode] = useState<'cohost' | 'battle'>('cohost');
     const [isOnlineUsersOpen, setOnlineUsersOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const lastLoggedUrlRef = useRef<string>('');
     // Função para gerar URL HLS do stream
     const getStreamUrl = () => {
         // 🎥 USANDO URLs REAIS DO BACKEND
         // Priorizar URL HLS retornada pelo backend para garantir Network requests
         if (streamer.hlsUrl) {
-            console.log(`🔗 [StreamRoom] Usando HLS URL do backend: ${streamer.hlsUrl}`);
+            if (lastLoggedUrlRef.current !== streamer.hlsUrl) {
+                console.log(`🔗 [StreamRoom] Usando HLS URL do backend: ${streamer.hlsUrl}`);
+                lastLoggedUrlRef.current = streamer.hlsUrl;
+            }
             return streamer.hlsUrl;
         }
         
         // Fallback para URL construída via proxy HTTPS (caso backend não retorne hlsUrl)
-        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || 'https://api.livego.store/api/video/http';
+        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('livego.store') ? `${window.location.origin}/api/video/http` : 'https://api.livego.store/api/video/http');
         const fallbackUrl = `${httpBase}/live/${streamer.id}.m3u8`;
-        console.log(`⚠️ [StreamRoom] Usando fallback HLS URL: ${fallbackUrl}`);
+        if (lastLoggedUrlRef.current !== fallbackUrl) {
+            console.log(`⚠️ [StreamRoom] Usando fallback HLS URL: ${fallbackUrl}`);
+            lastLoggedUrlRef.current = fallbackUrl;
+        }
         return fallbackUrl;
     };
     const [isRankingOpen, setIsRankingOpen] = useState(false);
@@ -150,6 +175,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
+    const [moderatorIds, setModeratorIds] = useState<string[]>([]);
 
     // Estado para likes da transmissão
     const [likes, setLikes] = useState(0);
@@ -157,6 +183,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     // State to track if video is actually playing to hide the cover image
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+    const [isLocalMuted, setIsLocalMuted] = useState(false);
 
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const nextGiftId = useRef(0);
@@ -170,7 +197,212 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         lastUpdate: new Date()
     });
 
-    const isBroadcaster = streamer.hostId === currentUser.id;
+    const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+
+    // Conectar à sala LiveKit SFU real para chat e sinalização descentralizada
+    const {
+        room: lkRoom,
+        connect: connectLiveKit,
+        disconnect: disconnectLiveKit,
+    } = useLiveKit();
+
+    useEffect(() => {
+        if (!streamer.id || !currentUser.id) return;
+
+        let active = true;
+        const identity = isBroadcaster 
+          ? `streamer_${currentUser.id}` 
+          : `viewer_${currentUser.id || 'user_' + Math.random().toString(36).slice(2, 6)}`;
+
+        const startConnection = async () => {
+          try {
+            console.log(`[StreamRoom-LiveKit] Conectando à sala LiveKit SFU: ${streamer.id}...`);
+            const res = await api.getLiveKitToken(streamer.id, identity, isBroadcaster);
+            if (res.success && active) {
+              await connectLiveKit(res.serverUrl, res.token);
+            }
+          } catch (err) {
+            console.error('[StreamRoom-LiveKit] Falha ao conectar ao LiveKit SFU:', err);
+          }
+        };
+
+        startConnection();
+
+        return () => {
+          active = false;
+          disconnectLiveKit();
+        };
+    }, [streamer.id, currentUser.id, isBroadcaster]);
+
+    // Escutar por mensagens de chat reais e sinalizações completas vindas do canal de dados do LiveKit
+    useEffect(() => {
+        if (!lkRoom) return;
+
+        // Buscar lista inicial de usuários online via API real
+        const loadInitialOnlineUsers = async () => {
+            try {
+                const users = await api.getStreamOnlineUsers(streamer.id);
+                if (users) {
+                    setOnlineUsers(users);
+                    updateLiveSession({ viewers: users.length });
+                }
+            } catch (err) {
+                console.warn('[StreamRoom-LiveKit] Erro ao carregar usuários iniciais:', err);
+            }
+        };
+        loadInitialOnlineUsers();
+
+        // 1. Tratador de Participante Entrando
+        const handleParticipantConnected = async (participant: any) => {
+            const identity = participant.identity;
+            console.log(`[StreamRoom-LiveKit] Participante entrou na sala: ${identity}`);
+            let parsedUserId = identity;
+            if (identity.startsWith('viewer_')) {
+                parsedUserId = identity.substring('viewer_'.length);
+            } else if (identity.startsWith('streamer_')) {
+                parsedUserId = identity.substring('streamer_'.length);
+            }
+
+            try {
+                const userProfile = await api.getUser(parsedUserId);
+                if (userProfile) {
+                    setOnlineUsers(prev => {
+                        const exists = prev.find(u => u.id === userProfile.id);
+                        if (!exists) {
+                            const newUser = { ...userProfile, value: 0 };
+                            const updated = [...prev, newUser];
+                            updateLiveSession({ viewers: updated.length });
+                            return updated;
+                        }
+                        return prev;
+                    });
+                } else {
+                    setOnlineUsers(prev => {
+                        const exists = prev.find(u => u.id === parsedUserId);
+                        if (!exists) {
+                            const newUser = {
+                                id: parsedUserId,
+                                name: identity,
+                                avatarUrl: 'https://via.placeholder.com/40',
+                                level: 1,
+                                value: 0,
+                                identification: parsedUserId,
+                                fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
+                            };
+                            const updated = [...prev, newUser];
+                            updateLiveSession({ viewers: updated.length });
+                            return updated;
+                        }
+                        return prev;
+                    });
+                }
+            } catch (e) {
+                console.error('[StreamRoom-LiveKit] Erro ao carregar perfil de participante:', e);
+            }
+        };
+
+        // 2. Tratador de Participante Saindo
+        const handleParticipantDisconnected = (participant: any) => {
+            const identity = participant.identity;
+            console.log(`[StreamRoom-LiveKit] Participante saiu da sala: ${identity}`);
+            let parsedUserId = identity;
+            if (identity.startsWith('viewer_')) {
+                parsedUserId = identity.substring('viewer_'.length);
+            } else if (identity.startsWith('streamer_')) {
+                parsedUserId = identity.substring('streamer_'.length);
+            }
+
+            setOnlineUsers(prev => {
+                const updated = prev.filter(u => u.id !== parsedUserId);
+                updateLiveSession({ viewers: updated.length });
+                return updated;
+            });
+        };
+
+        // 3. Tratador de dados (Chat, Likes, Presentes) via canal de dados LiveKit
+        const handleDataReceived = (data: any) => {
+            if (!data) return;
+            console.log('[StreamRoom-LiveKit] Sinalização recebida via Data Channel:', data.type);
+
+            if (data.type === 'chat_message' || data.type === 'chat') {
+                setMessages(prev => {
+                    if (prev.some(m => m.id === data.id)) return prev;
+                    return [...prev, data];
+                });
+            } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
+                const payload: GiftPayload = {
+                    fromUser: {
+                        id: data.from?.id || data.fromUser?.id,
+                        identification: data.from?.identification || data.fromUser?.identification || data.from?.id,
+                        name: data.from?.name || data.fromUser?.name || 'Usuário',
+                        avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '',
+                        level: data.from?.level || data.fromUser?.level || 1,
+                        fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
+                    },
+                    toUser: {
+                        id: data.toUser?.id,
+                        name: data.toUser?.name || 'Streamer'
+                    },
+                    gift: gifts?.find((g: any) => g.name === data.gift?.name || g.id === data.gift?.id) || {
+                        name: data.gift?.name,
+                        price: data.gift?.price || 0,
+                        icon: data.gift?.icon || '🎁',
+                        category: data.gift?.category || 'Popular'
+                    },
+                    quantity: data.quantity || 1,
+                    roomId: streamer.id,
+                    id: data.id || (Date.now() + Math.random())
+                };
+
+                const isSenderSelf = (data.from?.id === currentUser?.id) ||
+                                     (data.fromUser?.id === currentUser?.id) ||
+                                     (payload.fromUser?.id === currentUser?.id);
+
+                if (!isSenderSelf) {
+                    setGiftQueue(prev => [...prev, payload]);
+                    setFullscreenGiftQueue(prev => [...prev, payload]);
+                    postGiftChatMessage(payload);
+                }
+
+                if (data.toUser?.id === streamer.id) {
+                    updateLiveSession({
+                        coins: (liveSession?.coins || 0) + ((data.gift?.price || 0) * (data.quantity || 1))
+                    });
+                }
+            } else if (data.type === 'stream_liked') {
+                if (data.streamId === streamer.id) {
+                    setLikes(data.totalLikes);
+                    if (data.userId === currentUser.id) {
+                        setIsLiked(true);
+                    }
+                }
+            } else if (data.type === 'stream_unliked') {
+                if (data.streamId === streamer.id) {
+                    setLikes(data.totalLikes);
+                    if (data.userId === currentUser.id) {
+                        setIsLiked(false);
+                    }
+                }
+            }
+        };
+
+        lkRoom.on('participantConnected', handleParticipantConnected);
+        lkRoom.on('participantDisconnected', handleParticipantDisconnected);
+        lkRoom.on('data_received', handleDataReceived);
+
+        // Pré-carregar participantes que já estão conectados na sala do LiveKit
+        if (lkRoom.remoteParticipants) {
+            lkRoom.remoteParticipants.forEach((p: any) => {
+                handleParticipantConnected(p);
+            });
+        }
+
+        return () => {
+            lkRoom.off('participantConnected', handleParticipantConnected);
+            lkRoom.off('participantDisconnected', handleParticipantDisconnected);
+            lkRoom.off('data_received', handleDataReceived);
+        };
+    }, [lkRoom, streamer.id, currentUser.id, gifts, liveSession]);
 
     const isFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
 
@@ -298,96 +530,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         fetchInitialUsers();
         fetchInitialLikes();
 
-        // REMOVIDO: Polling automático de usuários online
-        // A busca agora ocorre apenas em eventos reais (entrada/saída via WebSocket)
-        setOnlineUsersInterval(null);
-
-        socketService.connect();
-        socketService.joinRoom(streamer.id);
-
-        // Escutar usuários entrando na stream
-        socketService.onUserJoined((data) => {
-            // Adicionar usuário à lista de online users
-            setOnlineUsers(prev => {
-                const exists = prev.find(u => u.id === data.userId);
-                if (!exists) {
-                    const newUser: User & { value: number } = {
-                        id: data.userId,
-                        name: data.userName,
-                        avatarUrl: data.userAvatar,
-                        level: data.userLevel,
-                        value: 0,
-                        identification: data.userId,
-                        fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
-                    };
-                    const updated = [...prev, newUser];
-                    updateLiveSession({ viewers: updated.length });
-                    return updated;
-                }
-                return prev;
-            });
-        });
-
-        // Escutar usuários saindo da stream
-        socketService.onUserLeft((data) => {
-            // Remover usuário da lista de online users
-            setOnlineUsers(prev => {
-                const updated = prev.filter(u => u.id !== data.userId);
-                updateLiveSession({ viewers: updated.length });
-                return updated;
-            });
-        });
-
-        // Escutar atualizações de contagem de viewers
-        socketService.onViewersCountUpdated((data) => {
-            updateLiveSession({ viewers: data.count });
-        });
-
-        // Escutar likes em tempo real
-        const handleStreamLiked = (data: { streamId: string; totalLikes: number; userId: string }) => {
-            if (data.streamId === streamer.id) {
-                setLikes(data.totalLikes);
-                // Se o próprio usuário deu like, atualizar estado
-                if (data.userId === currentUser.id) {
-                    setIsLiked(true);
-                }
-            }
-        };
-
-        const handleStreamUnliked = (data: { streamId: string; totalLikes: number; userId: string }) => {
-            if (data.streamId === streamer.id) {
-                setLikes(data.totalLikes);
-                // Se o próprio usuário removeu like, atualizar estado
-                if (data.userId === currentUser.id) {
-                    setIsLiked(false);
-                }
-            }
-        };
-
-        socketService.on('stream_liked', handleStreamLiked);
-        socketService.on('stream_unliked', handleStreamUnliked);
-
         return () => {
-            // Marcar que está saindo para evitar múltiplas chamadas
-            hasLeft = true;
-
-            // Limpar listeners WebSocket
-            socketService.off('user_joined_stream');
-            socketService.off('user_left_stream');
-            socketService.off('viewers_count_updated');
-            socketService.off('stream_liked', handleStreamLiked);
-            socketService.off('stream_unliked', handleStreamUnliked);
-
             // Marcar usuário como offline ao sair da stream (apenas uma vez)
-            if (hasJoined && !hasLeft) {
+            if (hasJoined) {
                 api.leaveStream(streamer.id, currentUser.id).then(success => {
                     if (success) {
-                    } else {
+                        console.log('✅ Desconectado do stream com sucesso.');
                     }
                 });
             }
-
-            socketService.leaveRoom(streamer.id);
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
 
@@ -401,18 +552,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 return;
             }
 
-            const messageKey = quantity > 1 ? 'streamRoom.sentMultipleGiftsMessage' : 'streamRoom.sentGiftMessage';
-            const messageOptions = { quantity, giftName: gift.name || 'Presente', receiverName: toUser.name };
-
             const giftMessage: ChatMessageType = {
                 id: Date.now() + Math.random(),
                 type: 'chat',
-                user: fromUser.name,
+                user: 'Sistema', // Under 'Sistema', ChatMessage styles it with a gorgeous purple glowing border
                 level: fromUser.level || 1,
                 message: (
-                    <span className="inline-flex items-center">
-                        {t(messageKey, messageOptions)}
-                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon || '🎁'}</span>}
+                    <span className="inline-flex items-center gap-1">
+                        <span className="font-extrabold text-[#c084fc] hover:underline">{fromUser.name}</span>
+                        <span className="text-purple-250">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
+                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block" }) : <span className="text-base">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
                 avatar: fromUser.avatarUrl || '',
@@ -446,118 +595,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
     }, [currentFullscreenGift, fullscreenGiftQueue]);
 
-    useEffect(() => {
-        const handleNewMessage = (message: any) => {
-            setMessages(prev => [...prev, message]);
-        };
-        socketService.on('receive_message', handleNewMessage);
 
-        const handleNewGift = (data: any) => {
-            // Converter dados do WebSocket para formato GiftPayload
-            const payload: GiftPayload = {
-                fromUser: {
-                    id: data.from.id,
-                    identification: data.from.identification || data.from.id,
-                    name: data.from.name,
-                    avatarUrl: data.from.avatarUrl,
-                    coverUrl: data.from.coverUrl,
-                    photos: data.from.photos,
-                    country: data.from.country,
-                    age: data.from.age,
-                    gender: data.from.gender,
-                    level: data.from.level || 1,
-                    xp: data.from.xp,
-                    rank: data.from.rank,
-                    location: data.from.location,
-                    distance: data.from.distance,
-                    fans: data.from.fans || 0,
-                    following: data.from.following || 0,
-                    receptores: data.from.receptores || 0,
-                    enviados: data.from.enviados || 0,
-                    topFansAvatars: data.from.topFansAvatars,
-                    isLive: data.from.isLive,
-                    isFollowed: data.from.isFollowed,
-                    isFriend: data.from.isFriend,
-                    isOnline: data.from.isOnline,
-                    lastSeen: data.from.lastSeen,
-                    currentStreamId: data.from.currentStreamId,
-                    diamonds: data.from.diamonds || 0,
-                    earnings: data.from.earnings || 0,
-                    earnings_withdrawn: data.from.earnings_withdrawn || 0,
-                    withdrawal_method: data.from.withdrawal_method,
-                    bio: data.from.bio,
-                    obras: data.from.obras,
-                    curtidas: data.from.curtidas,
-                    birthday: data.from.birthday,
-                    residence: data.from.residence,
-                    emotional_status: data.from.emotional_status,
-                    tags: data.from.tags,
-                    profession: data.from.profession,
-                    isVIP: data.from.isVIP,
-                    vipSubscriptionDate: data.from.vipSubscriptionDate,
-                    vipExpirationDate: data.from.vipExpirationDate,
-                    isAvatarProtected: data.from.isAvatarProtected,
-                    activeFrameId: data.from.activeFrameId,
-                    ownedFrames: data.from.ownedFrames || [],
-                    chatPermission: data.from.chatPermission,
-                    pipEnabled: data.from.pipEnabled,
-                    locationPermission: data.from.locationPermission,
-                    showActivityStatus: data.from.showActivityStatus,
-                    showLocation: data.from.showLocation,
-                    privateStreamSettings: data.from.privateStreamSettings,
-                    platformEarnings: data.from.platformEarnings,
-                    adminWithdrawalMethod: data.from.adminWithdrawalMethod,
-                    frameExpiration: data.from.frameExpiration,
-                    geoLocation: data.from.geoLocation
-                },
-                toUser: { 
-                    id: data.toUser.id, 
-                    name: data.toUser.name 
-                },
-                gift: {
-                    name: data.gift.name,
-                    price: data.gift.price,
-                    icon: data.gift.icon,
-                    category: data.gift.category || 'Popular'
-                },
-                quantity: data.quantity,
-                roomId: streamer.id,
-                id: Date.now() + Math.random() // ID único para este gift
-            };
-
-            // Pular se o remetente for o próprio usuário (já adicionou otimisticamente)
-            if (data.fromUser?.id !== currentUser.id) {
-                // Adicionar à fila de animação (nova fila para GiftQueueManager)
-                setGiftQueue(prev => [...prev, payload]);
-                // Adicionar à fila de animação em tela cheia (mantida para fullscreen)
-                setFullscreenGiftQueue(prev => [...prev, payload]);
-                // Adicionar mensagem de presente ao chat
-                postGiftChatMessage(payload);
-            }
-            
-            // ATUALIZAR EM TEMPO REAL VIA WEBSOCKET
-            if (data.toUser?.id === streamer.id) {
-                // Atualizar diamonds do streamer em tempo real
-                updateLiveSession({
-                    coins: (liveSession?.coins || 0) + (data.gift?.price * data.quantity)
-                });
-                
-                console.log(`🎁 [LIVE GIFT] Atualizado em tempo real: +${data.gift?.price * data.quantity} moedas, +${data.quantity} presentes`);
-            }
-            
-            console.log(`🎁 [LIVE GIFT] Recebido em tempo real: ${data.fromUser?.name} -> ${data.toUser?.name} (${data.quantity}x ${data.gift?.name})`);
-        };
-        
-        // Escutar o novo evento de presente em tempo real
-        socketService.on('live_gift_received', handleNewGift);
-        socketService.on('gift_received', handleNewGift);
-
-        return () => {
-            socketService.off('receive_message', handleNewMessage);
-            socketService.off('gift_received', handleNewGift);
-            socketService.off('live_gift_received', handleNewGift);
-        };
-    }, [streamer.id, updateLiveSession, currentUser.id, t, onOpenFriendRequests, liveSession, refreshStreamRoomData]);
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
@@ -568,14 +606,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             user: currentUser.name,
             level: currentUser.level,
             message: chatInput.trim(),
-            avatar: currentUser.avatarUrl,
+            avatar: currentUser.avatarUrl || currentUser.avatar,
             gender: currentUser.gender,
             age: currentUser.age,
             activeFrameId: currentUser.activeFrameId,
             frameExpiration: currentUser.frameExpiration,
+            fullUser: currentUser,
         };
         setMessages(prev => [...prev, messagePayload]);
-        socketService.sendMessage(streamer.id, messagePayload);
+        
+        // Transmitir mensagem real via LiveKit Chat (data channel)
+        if (lkRoom && lkRoom.state === 'connected') {
+            lkRoom.sendChatMessage(messagePayload);
+        } else {
+            console.warn('[StreamRoom] LiveKit não está conectado. Mensagem exibida apenas localmente.');
+        }
+        
         setChatInput('');
     };
 
@@ -608,6 +654,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(false);
+                    // Emitir via canal de dados real do LiveKit
+                    if (lkRoom && lkRoom.state === 'connected') {
+                        lkRoom.sendData({
+                            type: 'stream_unliked',
+                            streamId: streamer.id,
+                            totalLikes: response.totalLikes,
+                            userId: currentUser.id
+                        });
+                    }
                 }
             } else {
                 // Dar like
@@ -615,6 +670,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(true);
+                    // Emitir via canal de dados real do LiveKit
+                    if (lkRoom && lkRoom.state === 'connected') {
+                        lkRoom.sendData({
+                            type: 'stream_liked',
+                            streamId: streamer.id,
+                            totalLikes: response.totalLikes,
+                            userId: currentUser.id
+                        });
+                    }
                 }
             }
         } catch (error) {
@@ -627,6 +691,47 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
     }, [messages]);
+
+    // Periodic gold system announcements to simulate live stream events in real-time, free and lightweight
+    useEffect(() => {
+        // Welcome message on join
+        const welcomeTimeout = setTimeout(() => {
+            setMessages(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                type: 'chat',
+                user: 'Sistema',
+                message: 'Bem-vindo à sala de transmissão ao vivo! Siga as diretrizes de convivência e apoie o streamer compartilhando a live ou enviando presentes! 🎉',
+                level: 1,
+            }]);
+        }, 1200);
+
+        const systemEvents = [
+            'Novo evento de presente ativado! Envie presentes para subir no ranking de patrocinadores!',
+            'Toque na tela repetidamente para enviar likes e impulsionar a transmissão!',
+            'Quer ter destaque supremo com molduras brilhantes e efeitos de entrada? Adquira já o passe de VIP no perfil!',
+            'Dica de segurança: Não compartilhe dados pessoais no chat público. Mantenha a live segura para todos.',
+            'O modo PK Battle está liberado! O streamer pode ativar o modo PK para disputar curtidas com outros streamers!',
+            'Participe do ranking de contribuição semanal tocando no troféu no cabeçalho.'
+        ];
+
+        let index = Math.floor(Math.random() * systemEvents.length);
+        const eventInterval = setInterval(() => {
+            const nextEvent = systemEvents[index % systemEvents.length];
+            setMessages(prev => [...prev, {
+                id: Date.now() + Math.random(),
+                type: 'chat',
+                user: 'Sistema',
+                message: nextEvent,
+                level: 1,
+            }]);
+            index++;
+        }, 35000); // Send beautifully every 35 seconds
+
+        return () => {
+            clearTimeout(welcomeTimeout);
+            clearInterval(eventInterval);
+        };
+    }, [streamer.name]);
 
     // Monitorar status de publish usando apenas controle do backend (SRS apenas para ingestão)
     useEffect(() => {
@@ -704,9 +809,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         onStartPKBattle(opponent);
     };
 
-    const handleOpenCoHostModal = (e: React.MouseEvent) => {
+    const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
         e.stopPropagation();
         setIsToolsOpen(false);
+        setCoHostModalMode(mode || 'cohost');
         setIsCoHostModalOpen(true);
     };
 
@@ -775,9 +881,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     };
 
     const handleViewChatUserProfile = (user: ChatMessageType) => {
-        if (!user.user || !user.avatar) return;
+        if (!user.user) return;
+        if (user.user === 'Sistema') return;
         const userProfile = constructUserFromMessage(user);
-        onViewProfile(userProfile);
+        
+        // Se for o próprio usuário logado, exibe Perfil. Caso contrário, abre o modal de ações
+        if (userProfile.id === currentUser.id) {
+            onViewProfile(userProfile);
+        } else {
+            setUserActionModalState({ isOpen: true, user: userProfile });
+        }
     };
 
     const handleSendGift = async (gift: Gift, quantity: number) => {
@@ -815,19 +928,34 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // Enviar presento imediatamente (optimistic UI)
             postGiftChatMessage(giftPayload);
             setFullscreenGiftQueue(prev => [...prev, giftPayload]);
-            socketService.sendGift(
-                streamer.id,
-                currentUser.id,
-                currentUser.name,
-                currentUser.avatarUrl,
-                streamer.id,
-                streamer.name,
-                gift.name,
-                gift.name,
-                gift.icon || '🎁',
-                gift.price || 0,
-                quantity
-            );
+
+            // Enviar via canal de dados real do LiveKit
+            if (lkRoom && lkRoom.state === 'connected') {
+                lkRoom.sendData({
+                    type: 'live_gift_received',
+                    from: {
+                        id: currentUser.id,
+                        identification: currentUser.identification || currentUser.id,
+                        name: currentUser.name,
+                        avatarUrl: currentUser.avatarUrl,
+                        level: currentUser.level || 1,
+                    },
+                    toUser: {
+                        id: streamer.hostId || streamer.id,
+                        name: streamer.name || 'Streamer'
+                    },
+                    gift: {
+                        id: gift.name,
+                        name: gift.name,
+                        price: gift.price,
+                        icon: gift.icon,
+                        category: gift.category
+                    },
+                    quantity: quantity,
+                    roomId: streamer.id,
+                    id: giftPayload.id
+                });
+            }
 
             // Now, call the API in the background
             try {
@@ -943,7 +1071,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     };
     const handleMakeModerator = (user: User) => {
         api.makeModerator(streamer.id, user.id, currentUser.id);
-        addToast(ToastType.Success, `${user.name} agora é um moderador.`);
+        const isModNow = moderatorIds.includes(user.id);
+        if (isModNow) {
+            setModeratorIds(prev => prev.filter(id => id !== user.id));
+            addToast(ToastType.Info, `${user.name} foi removido dos moderadores.`);
+        } else {
+            setModeratorIds(prev => [...prev, user.id]);
+            addToast(ToastType.Success, `Sucesso! ${user.name} foi promovido a Moderador/Admin com sucesso! 🎉`);
+        }
     };
     const handleMentionUser = (user: User) => {
         setChatInput(prev => `${prev}@${user.name} `);
@@ -957,7 +1092,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const handleToggleSound = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!isBroadcaster) return;
+        if (!isBroadcaster) {
+            setIsLocalMuted(prev => {
+                const updatedMuted = !prev;
+                addToast(ToastType.Info, updatedMuted ? 'Áudio da live silenciado localmente.' : 'Áudio da live ativado localmente.');
+                return updatedMuted;
+            });
+            return;
+        }
         addToast(ToastType.Info, !(liveSession?.isStreamMuted) ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
         await api.toggleStreamSound(streamer.id);
     };
@@ -991,7 +1133,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     
     return (
-        <div className="absolute inset-0 bg-gray-900 text-white font-sans z-10"
+        <div className="absolute inset-0 bg-black text-white font-sans z-10"
             onMouseDown={(e) => handlePointerDown(e.clientX, e.clientY)}
             onMouseUp={(e) => handlePointerUp(e.clientX, e.clientY)}
             onTouchStart={(e) => handlePointerDown(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
@@ -1030,8 +1172,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     />
                 )}
 
-                {/* Video Layer - Player HLS profissional */}
-                <LivePlayer url={getStreamUrl()} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} />
+                {/* Video Layer - Player HLS profissional integrado com LiveKit SFU */}
+                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} room={lkRoom} />
+
+
 
                 {/* Dark Gradient Overlay */}
                 <div className={`absolute inset-0 bg-gradient-to-b from-transparent to-black/70 pointer-events-none transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0'}`} style={{ zIndex: 15 }}></div>
@@ -1056,143 +1200,61 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             />
 
             {/* 3. Header UI */}
-            <header className={`p-3 bg-transparent absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            <header className={`p-4 flex flex-col gap-2 bg-transparent absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                 <div className="flex justify-between items-start">
-                    {/* Left side */}
-                    <div className="flex items-start space-x-2">
-                        <div className="flex flex-col space-y-2">
-                            {/* Publish Status Indicator simplificado (apenas para broadcasters) - TEMPORARIAMENTE ESCONDIDO */}
-                            {false && isBroadcaster && (
-                                <div className={`flex items-center space-x-2 rounded-lg px-3 py-2 mb-2 ${
-                                    publishStatus.state === 'publishing' ? 'bg-green-900/50' :
-                                    publishStatus.state === 'connecting' ? 'bg-blue-900/50' :
-                                    publishStatus.state === SrsPublishState.ICE_FAILED || publishStatus.state === SrsPublishState.NETWORK_ERROR ? 'bg-red-900/50' :
-                                    'bg-gray-800'
-                                }`}>
-                                    <div className={`w-4 h-4 ${
-                                        publishStatus.state === 'publishing' ? 'text-green-400 animate-pulse' :
-                                        publishStatus.state === 'connecting' ? 'text-blue-400' :
-                                        publishStatus.state === SrsPublishState.ICE_FAILED || publishStatus.state === SrsPublishState.NETWORK_ERROR ? 'text-red-400' :
-                                        'text-gray-400'
-                                    }`}>
-                                        {publishStatus.state === 'publishing' ? (
-                                            <svg fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                                            </svg>
-                                        ) : publishStatus.state === 'connecting' ? (
-                                            <div className="animate-spin">...</div>
-                                        ) : (
-                                            <svg fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className={`text-sm font-medium ${
-                                            publishStatus.state === 'publishing' ? 'text-green-400' :
-                                            publishStatus.state === 'connecting' ? 'text-blue-400' :
-                                            publishStatus.state === SrsPublishState.ICE_FAILED || publishStatus.state === SrsPublishState.NETWORK_ERROR ? 'text-red-400' :
-                                            'text-gray-400'
-                                        }`}>
-                                            {publishStatus.state === 'publishing' ? 'Ao Vivo' :
-                                             publishStatus.state === 'connecting' ? 'Conectando...' :
-                                             publishStatus.state === SrsPublishState.ICE_FAILED || publishStatus.state === SrsPublishState.NETWORK_ERROR ? 'Falha na Conexão' :
-                                             'Inativo'}
-                                        </div>
-                                        {publishStatus.state === 'publishing' && (
-                                            <div className="flex items-center space-x-1">
-                                                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                                                <span className="text-xs text-green-400">LIVE</span>
-                                            </div>
-                                        )}
-                                    </div>
+                    {/* Left side (User Info) */}
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); streamerDisplayUser && onViewProfile(streamerDisplayUser); }} 
+                            className="flex items-center gap-2 text-left shrink-0 cursor-pointer focus:outline-none"
+                        >
+                            <div className="profile-gradient-ring rounded-full" style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)', padding: '2px' }}>
+                                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-black flex-shrink-0 flex items-center justify-center bg-black">
+                                    <AvatarWithFrame
+                                        user={streamerDisplayUser || ({
+                                            id: streamer.hostId,
+                                            name: streamer.name,
+                                            avatarUrl: streamer.avatar,
+                                            identification: streamer.hostId,
+                                            level: 1,
+                                            diamonds: 0,
+                                            fans: 0,
+                                            following: 0,
+                                            receptores: 0,
+                                            enviados: 0,
+                                            earnings: 0,
+                                            earnings_withdrawn: 0,
+                                            ownedFrames: [],
+                                            isOnline: true,
+                                            isVIP: false,
+                                            isAvatarProtected: false
+                                        } as User)}
+                                        size="sm"
+                                    />
                                 </div>
-                            )}
-                            
-                            {/* Streamer Info */}
-                            <button onClick={(e) => { e.stopPropagation(); streamerDisplayUser && onViewProfile(streamerDisplayUser); }} className="flex items-center bg-black/40 rounded-full p-1 pr-3 space-x-2 text-left">
-                                <div className="relative">
-                                    <div className="live-ring-animated">
-                                        <AvatarWithFrame
-                                            user={streamerDisplayUser || ({
-                                                id: streamer.hostId,
-                                                name: streamer.name,
-                                                avatarUrl: streamer.avatar,
-                                                identification: streamer.hostId,
-                                                level: 1,
-                                                diamonds: 0,
-                                                fans: 0,
-                                                following: 0,
-                                                receptores: 0,
-                                                enviados: 0,
-                                                earnings: 0,
-                                                earnings_withdrawn: 0,
-                                                ownedFrames: [],
-                                                isOnline: true,
-                                                isVIP: false,
-                                                isAvatarProtected: false
-                                            } as User)}
-                                            size="sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-white font-bold text-sm">{streamerDisplayUser?.name || streamer.name}</p>
-                                    <div className="flex items-center space-x-1 text-gray-300 text-xs">
-                                        <ViewerIcon className="w-4 h-4" />
-                                        <span>{Math.max(1, liveSession?.viewers || 0).toLocaleString()}</span>
-                                    </div>
-                                </div>
-                            </button>
-                            {/* G and Heart icons */}
-                            <div className="flex items-center space-x-2 pl-1">
-                                <button onClick={(e) => { e.stopPropagation(); setIsRankingOpen(true); }} className="flex items-center bg-black/40 rounded-full px-2 py-1 space-x-1 text-xs cursor-pointer">
-                                    <GoldCoinWithGIcon className="w-4 h-4" />
-                                    <span className="text-white font-semibold">{(() => {
-                                        const coins = liveSession?.coins || 0;
-                                        return coins.toLocaleString();
-                                    })()}</span>
-                                </button>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); handleLike(); }} 
-                                    className={`flex items-center bg-black/40 rounded-full px-2 py-1 space-x-1 text-xs cursor-pointer transition-all duration-200 ${
-                                        isLiked ? 'bg-red-500/30' : 'hover:bg-black/60'
-                                    }`}
-                                >
-                                    <HeartIcon className={`w-4 h-4 transition-colors duration-200 ${
-                                        isLiked ? 'text-red-500 fill-current' : 'text-white'
-                                    }`} />
-                                    <span className="text-white font-semibold">
-                                        {(() => {
-                                            const likesCount = likes || 0;
-                                            if (likesCount >= 1000) {
-                                                return (likesCount / 1000).toFixed(1) + 'K';
-                                            }
-                                            return likesCount.toString();
-                                        })()}
-                                    </span>
-                                </button>
-                                {isBroadcaster && (
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleTogglePrivacy(); }}
-                                        className="bg-black/40 rounded-full px-3 py-1 text-xs text-white"
-                                    >
-                                        {streamer.isPrivate ? 'Privada' : 'Pública'}
-                                    </button>
-                                )}
                             </div>
-                        </div>
-                        {/* Add button */}
+                            <div className="flex flex-col min-w-0">
+                                <span className="font-bold text-sm truncate max-w-[120px] text-white select-none">{streamerDisplayUser?.name || streamer.name}</span>
+                                <div className="flex items-center gap-1 text-[10px] text-gray-300 font-medium">
+                                    <svg className="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M13 7H7v2h6V7z"></path>
+                                        <path clipRule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v10H5V5z" fillRule="evenodd"></path>
+                                    </svg>
+                                    <span>{Math.max(1, liveSession?.viewers || 0).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </button>
                         {!isFollowed && currentUser.id !== streamer.hostId && (
-                            <button onClick={(e) => { e.stopPropagation(); handleFollowStreamer(); }} className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center text-white mt-1 shrink-0">
-                                <PlusIcon className="w-4 h-4" />
-                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); handleFollowStreamer(); }} className="w-7 h-7 bg-gradient-to-br from-[#bd00ff] to-[#e7006e] rounded-full flex items-center justify-center text-white shrink-0 transition-all transform active:scale-90 cursor-pointer ml-1">
+                                <PlusIcon className="w-3.5 h-3.5" />
+                             </button>
                         )}
                     </div>
 
-                    {/* Right side */}
-                    <div className="flex flex-col items-end space-y-2">
-                        <div className="flex items-center space-x-2">
+                    {/* Right side (Controls & Viewers) */}
+                    <div className="flex items-center gap-3">
+                        {/* Top Contributors and Rank Avatars listed inline */}
+                        <div className="flex items-center gap-1 mr-1">
                             {topContributors.map((user, index) => (
                                 <RankedAvatar
                                     key={user.id}
@@ -1201,131 +1263,242 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                     onClick={onViewProfile}
                                 />
                             ))}
+                        </div>
 
-                            {/* Notifications / Viewers button */}
-                            {/* FIX: Corrected typo for state setter from 'setIsOnlineUsersOpen' to 'setOnlineUsersOpen'. */}
-                            <button onClick={(e) => { e.stopPropagation(); setOnlineUsersOpen(true); }} className="flex items-center bg-black/40 rounded-full px-2.5 py-1.5 space-x-1 text-sm cursor-pointer">
+                        {/* Notification bell & Close button */}
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setOnlineUsersOpen(true); }}
+                                className="flex items-center bg-black/40 hover:bg-black/60 rounded-full px-2.5 py-1.5 space-x-1.5 text-sm cursor-pointer transition-all border border-white/[0.02] active:scale-95 focus:outline-none"
+                            >
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
-                                <span className="text-white font-semibold">{Math.max(1, onlineUsers.length)}</span>
+                                <span className="text-white font-bold select-none">{Math.max(1, onlineUsers.length)}</span>
                             </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
+                                className="focus:outline-none cursor-pointer text-white hover:opacity-85 transition-opacity"
+                            >
+                                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-                            {/* Close button */}
-                            <button onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }} className="w-8 h-8 bg-black/40 rounded-full flex items-center justify-center shrink-0">
-                                <CloseIcon className="w-5 h-5 text-white" />
+                {/* Stats and ID */}
+                <div className="flex justify-between items-center mt-2 px-1">
+                    <div className="flex items-center gap-4 text-xs font-medium select-none">
+                        {/* G Coin Button */}
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsRankingOpen(true); }} 
+                            className="flex items-center gap-1 hover:opacity-80 transition-opacity focus:outline-none cursor-pointer border-none bg-transparent"
+                        >
+                            <span className="w-3 h-3 bg-yellow-500 rounded-full flex items-center justify-center text-[8px] text-black font-extrabold shadow-sm">G</span>
+                            <span className="text-white font-medium">{(() => {
+                                const coins = liveSession?.coins || 0;
+                                return coins.toLocaleString();
+                            })()}</span>
+                        </button>
+
+                        {/* Heart / Like Button */}
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); handleLike(); }} 
+                            className="flex items-center gap-1 hover:opacity-80 transition-opacity focus:outline-none cursor-pointer border-none bg-transparent"
+                        >
+                            <svg 
+                                className={`w-3 h-3 transition-colors ${isLiked ? 'text-rose-500 fill-current' : 'text-white'}`} 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                            >
+                                <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>
+                            </svg>
+                            <span className="text-white font-medium">
+                                {(() => {
+                                    const likesCount = likes || 0;
+                                    if (likesCount >= 1000) {
+                                        return (likesCount / 1000).toFixed(1) + 'K';
+                                    }
+                                    return likesCount.toString();
+                                })()}
+                            </span>
+                        </button>
+
+                        {/* Public / Private stream status */}
+                        {isBroadcaster ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleTogglePrivacy(); }}
+                                className="text-white/80 hover:text-white cursor-pointer select-none focus:outline-none hover:underline border-none bg-transparent"
+                            >
+                                {streamer.isPrivate ? 'Privada' : 'Pública'}
                             </button>
-                        </div>
-                        <div className="pr-1">
-                            <div className="bg-black/40 rounded-full px-3 py-1 text-xs text-gray-300">
-                                ID: {streamer.hostId}
-                            </div>
-                        </div>
+                        ) : (
+                            <span className="text-white/80">
+                                {streamer.isPrivate ? 'Privada' : 'Pública'}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="text-[10px] text-gray-400 font-mono select-none">
+                        @{streamer.name}
                     </div>
                 </div>
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`absolute bottom-0 left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                <div ref={chatContainerRef} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3">
-                    <div className="space-y-2 mt-auto">
-                        {messages.map((msg) => {
-                            if (msg.type === 'entry' && msg.fullUser) {
-                                return <EntryChatMessage
-                                    key={msg.id}
-                                    user={msg.fullUser}
-                                    currentUser={currentUser}
-                                    onClick={onViewProfile}
-                                    onFollow={onFollowUser}
-                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)}
-                                    isBroadcaster={isBroadcaster} />;
-                            }
-                            if (msg.type === 'chat' && msg.user && msg.avatar) {
-                                const chatUser = constructUserFromMessage(msg);
-                                const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
+            <div className={`absolute bottom-0 left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
+                {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
+                <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                                return <ChatMessage
-                                    key={msg.id}
-                                    userObject={chatUser}
-                                    message={msg.message}
-                                    onAvatarClick={() => handleViewChatUserProfile(msg)}
-                                    onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
-                                    isFollowed={followedUsers.has(chatUser.id)}
-                                    onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
-                                    isModerator={msg.isModerator}
-                                />;
-                            }
-                            if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                                return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
-                            }
-                            if (msg.type === 'friend_request' && msg.follower) {
-                                return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
-                            }
-                            return null;
-                        })}
-                    </div>
-                </div>
+                {!isBroadcaster && (
+                    <div ref={chatContainerRef} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 relative z-10">
+                        <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
+                            {messages.map((msg) => {
+                                if (msg.type === 'entry' && msg.fullUser) {
+                                    const entryProps: any = {
+                                        user: msg.fullUser,
+                                        currentUser: currentUser,
+                                        onClick: onViewProfile,
+                                        onFollow: onFollowUser,
+                                        isFollowed: followingUsers.some(u => u.id === msg.fullUser!.id),
+                                        isBroadcaster: isBroadcaster,
+                                        isModerator: msg.fullUser.id ? moderatorIds.includes(msg.fullUser.id) : false
+                                    };
+                                    return <EntryChatMessage key={msg.id} {...entryProps} />;
+                                }
+                                if (msg.type === 'chat' && msg.user && msg.avatar) {
+                                    const chatUser = constructUserFromMessage(msg);
+                                    const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
 
-                {chatInput.length > 0 && (
-                    <div className="absolute bottom-20 left-0 px-3 pointer-events-none">
-                        <div className="typing-bubble inline-block">{chatInput}</div>
+                                    return <ChatMessage
+                                        key={msg.id}
+                                        userObject={chatUser}
+                                        message={msg.message}
+                                        onAvatarClick={() => handleViewChatUserProfile(msg)}
+                                        onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
+                                        isFollowed={followedUsers.has(chatUser.id)}
+                                        onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                        isModerator={msg.isModerator || moderatorIds.includes(chatUser.id)}
+                                    />;
+                                }
+                                if (msg.type === 'follow' && msg.user && msg.followedUser) {
+                                    return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
+                                }
+                                if (msg.type === 'friend_request' && msg.follower) {
+                                    return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                                }
+                                return null;
+                            })}
+                        </div>
                     </div>
                 )}
 
                 <footer className="p-3 pointer-events-auto">
-                    <div className="flex items-center space-x-2">
-                        <div className="flex-grow bg-black/40 rounded-full flex items-center pr-1.5" onClick={e => e.stopPropagation()}>
-                            <input
+                    <div className="flex items-center gap-3" data-purpose="bottom-controls">
+                        <div className="flex-grow">
+                            <input 
                                 type="text"
                                 placeholder={t('streamRoom.sayHi')}
                                 value={chatInput}
                                 onChange={(e) => setChatInput(e.target.value)}
                                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                                className="flex-grow bg-transparent px-4 py-2.5 text-white placeholder-gray-400 focus:outline-none"
+                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                             />
-                            <button onClick={handleSendMessage} className="bg-gray-500/50 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-gray-400/50 transition-colors"><SendIcon className="w-5 h-5 text-white" /></button>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><GiftIcon className="w-6 h-6 text-yellow-400" /></button>
-                        {isBroadcaster ? (
-                            <button onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MoreIcon className="w-6 h-6 text-white" /></button>
-                        ) : (
-                            <button onClick={(e) => {
-                                e.stopPropagation();
-                                if (streamerUser) {
-                                    onStartChatWithStreamer(streamerUser);
-                                }
-                            }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MessageIcon className="w-6 h-6 text-white" /></button>
-                        )}
+                        <div className="flex items-center gap-3">
+                            {/* Share/Send Action */}
+                            <button 
+                                onClick={handleSendMessage} 
+                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                            >
+                                <SendIcon className="w-5 h-5 text-white" />
+                            </button>
+                            {/* Gift Action */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                                className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                            >
+                                <img 
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                    alt="Gift Icon" 
+                                    className="w-9 h-9 object-cover rounded-full shadow-lg" 
+                                />
+                            </button>
+                            {/* Private Chat */}
+                            {!isBroadcaster && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onOpenPrivateChat(); }} 
+                                    className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                                    title="Chat privado"
+                                >
+                                    <MessageIcon className="w-5 h-5 text-white" />
+                                </button>
+                            )}
+                            {/* More Options */}
+                            {isBroadcaster && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
+                                    className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                                    title="Ferramentas"
+                                >
+                                    <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <circle cx="5" cy="12" r="2"></circle>
+                                        <circle cx="12" cy="12" r="2"></circle>
+                                        <circle cx="19" cy="12" r="2"></circle>
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </footer>
             </div>
 
             {/* 5. Modals & Overlays */}
             {/* FIX: Corrected typo for state setter from 'setIsOnlineUsersOpen' to 'setOnlineUsersOpen'. */}
-            {isOnlineUsersOpen && <OnlineUsersModal onClose={() => setOnlineUsersOpen(false)} streamId={streamer.id} userId={currentUser.id} currentUser={currentUser} />}
-            <ToolsModal
-                isOpen={isToolsOpen}
-                onClose={() => setIsToolsOpen(false)}
-                onOpenCoHostModal={handleOpenCoHostModal}
-                isPKBattleActive={false}
-                onOpenBeautyPanel={handleOpenBeautyPanel}
-                onOpenPrivateChat={(e) => { e.stopPropagation(); onOpenPrivateChat(); }}
-                onOpenPrivateInviteModal={(e) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
-                onOpenClarityPanel={handleOpenClarityPanel}
-                isModerationActive={isModerationMode}
-                onToggleModeration={(e) => { e.stopPropagation(); setIsModerationMode(prev => !prev); }}
-                isPrivateStream={streamer.isPrivate}
-                isMicrophoneMuted={liveSession?.isMicrophoneMuted ?? false}
-                onToggleMicrophone={handleToggleMicrophone}
-                isSoundMuted={liveSession?.isStreamMuted ?? false}
-                onToggleSound={handleToggleSound}
-                isAutoFollowEnabled={liveSession?.isAutoFollowEnabled ?? false}
-                onToggleAutoFollow={handleToggleAutoFollow}
-                isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
-                onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
-            />
+            {isOnlineUsersOpen && (
+                <OnlineUsersModalAny 
+                    onClose={() => setOnlineUsersOpen(false)} 
+                    streamId={streamer.id} 
+                    userId={currentUser.id} 
+                    currentUser={currentUser} 
+                    onSelectUser={(selectedUser: any) => {
+                        setOnlineUsersOpen(false);
+                        setUserActionModalState({ isOpen: true, user: selectedUser });
+                    }}
+                    moderatorIds={moderatorIds}
+                />
+            )}
+            {isBroadcaster && (
+                <ToolsModalAny
+                    isOpen={isToolsOpen}
+                    onClose={() => setIsToolsOpen(false)}
+                    onOpenCoHostModal={handleOpenCoHostModal}
+                    isPKBattleActive={false}
+                    onOpenBeautyPanel={handleOpenBeautyPanel}
+                    onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }}
+                    onOpenPrivateInviteModal={(e: any) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
+                    onOpenClarityPanel={handleOpenClarityPanel}
+                    isModerationActive={isModerationMode}
+                    onToggleModeration={(e: any) => { e.stopPropagation(); setIsModerationMode((prev: boolean) => !prev); }}
+                    isPrivateStream={streamer.isPrivate}
+                    isMicrophoneMuted={liveSession?.isMicrophoneMuted ?? false}
+                    onToggleMicrophone={handleToggleMicrophone}
+                    isSoundMuted={isBroadcaster ? (liveSession?.isStreamMuted ?? false) : isLocalMuted}
+                    onToggleSound={handleToggleSound}
+                    isAutoFollowEnabled={liveSession?.isAutoFollowEnabled ?? false}
+                    onToggleAutoFollow={handleToggleAutoFollow}
+                    isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
+                    onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
+                    isHost={isBroadcaster}
+                    addToast={addToast}
+                />
+            )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={handleSelectResolution} currentResolution={currentResolution} />
-            <CoHostModal isOpen={isCoHostModalOpen} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
-            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData).flat().map(u => ({ ...u, value: u.contribution }))} currentUser={currentUser} />}
+            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
+            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
             <GiftModal
                 isOpen={isGiftModalOpen}
@@ -1371,6 +1544,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 onMention={handleMentionUser}
                 onMakeModerator={handleMakeModerator}
                 onKick={handleKickUser}
+                isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
             />
 
                                             </div>

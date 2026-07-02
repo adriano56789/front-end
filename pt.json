@@ -23,7 +23,7 @@
     "confirm": "Confirmar",
     "back": "Voltar",
     "online": "On-line",
-    "followed": "Seguido",
+    "followed": "Seguindo",
     "max": "MÁXIMO",
     "all": "Todos",
     "followers": "Seguidores",
@@ -47,7 +47,7 @@
   },
   "main": {
     "popular": "Popular",
-    "followed": "Seguido",
+    "followed": "Seguindo",
     "nearby": "Perto",
     "pk": "PK",
     "new": "Novo",
@@ -83,7 +83,7 @@
     "selectCategory": "Selecionar Categoria",
     "category": {
       "popular": "Popular",
-      "followed": "Seguido",
+      "followed": "Seguindo",
       "nearby": "Perto",
       "pk": "PK",
       "new": "Novo",
@@ -382,7 +382,7 @@
   },
   "userLists": {
     "following": {
-        "title": "Seguido",
+        "title": "Seguindo",
         "noUsers": "Você não está seguindo ninguém."
     },
     "fans": {

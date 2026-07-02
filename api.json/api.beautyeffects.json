@@ -1,0 +1,96 @@
+[{
+  "_id": {
+    "$oid": "69e655267349cfe727803a89"
+  },
+  "name": "Fechar",
+  "type": "filter",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=0",
+  "category": "Grátis",
+  "tab": "Recomendar",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a8b"
+  },
+  "name": "Musa",
+  "type": "filter",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=1",
+  "category": "Grátis",
+  "tab": "Recomendar",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a8d"
+  },
+  "name": "Bonito",
+  "type": "filter",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=2",
+  "category": "Grátis",
+  "tab": "Recomendar",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a8f"
+  },
+  "name": "Vitalidade",
+  "type": "filter",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=3",
+  "category": "Grátis",
+  "tab": "Recomendar",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a91"
+  },
+  "name": "Branquear",
+  "type": "effect",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=4",
+  "category": "Premium",
+  "tab": "Beleza",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a93"
+  },
+  "name": "Alisar a pele",
+  "type": "effect",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=5",
+  "category": "Premium",
+  "tab": "Beleza",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a95"
+  },
+  "name": "Ruborizar",
+  "type": "effect",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=6",
+  "category": "Premium",
+  "tab": "Beleza",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a97"
+  },
+  "name": "Contraste",
+  "type": "effect",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=7",
+  "category": "Premium",
+  "tab": "Beleza",
+  "__v": 0
+}]

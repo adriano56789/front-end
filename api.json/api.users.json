@@ -1,0 +1,200 @@
+[
+  {
+    "_id": "69ecb32e28179233608b5e04",
+    "id": "98501723",
+    "identification": "98501723",
+    "email": "adrianomdk5@gmail.com",
+    "password": "$2b$10$G8ezjNpciMI.V7fcjIGRA.hSoR8McT3ZduoPvRrbE5OVU2k08a13O",
+    "name": "adriano",
+    "avatar": "",
+    "avatarUrl": "https://picsum.photos/seed/cover-stream_98501723/400/600.jpg",
+    "coverUrl": "",
+    "country": "Brasil",
+    "age": 25,
+    "gender": "male",
+    "level": 5,
+    "xp": 0,
+    "location": "São Paulo, SP",
+    "distance": "",
+    "fans": 0,
+    "following": 0,
+    "followingList": [
+      "10002001",
+      "10002002",
+      "10002003",
+      "10002004"
+    ],
+    "followersList": [
+      "10002001",
+      "10002002",
+      "10002003",
+      "10002004"
+    ],
+    "blockedUsers": [],
+    "friendsList": [
+      "10002001",
+      "10002002",
+      "10002003",
+      "10002004"
+    ],
+    "accountStatus": "active",
+    "isLive": false,
+    "isOnline": true,
+    "diamonds": 302,
+    "earnings": 698,
+    "bio": "oi",
+    "birthday": "01/01/2008",
+    "residence": "k",
+    "emotional_status": "",
+    "tags": [
+      "n"
+    ],
+    "profession": "Desenvolvedor Teste",
+    "isVIP": false,
+    "chatPermission": "all",
+    "pipEnabled": true,
+    "locationPermission": "granted",
+    "showActivityStatus": true,
+    "showLocation": true,
+    "currentStreamId": null,
+    "loginCount": 151,
+    "messagesSent": 0,
+    "profileViews": 0,
+    "searchesPerformed": 0,
+    "totalLives": 0,
+    "lastLogin": "2026-06-10T11:37:48.641Z",
+    "lastSeen": "2026-05-01T11:50:43.537+00:00",
+    "latitude": -9.387435797373357,
+    "longitude": -40.42961919195591,
+    "city": "São Paulo",
+    "state": "SP"
+  },
+  {
+    "id": "10002001",
+    "identification": "10002001",
+    "name": "Melissa 🎵",
+    "email": "melissa@livego.store",
+    "avatarUrl": "https://picsum.photos/seed/user_melissa/400/600.jpg",
+    "age": 22,
+    "gender": "female",
+    "level": 12,
+    "diamonds": 500,
+    "earnings": 120,
+    "bio": "Oi, adoro conversar e fazer transmissões ao vivo de música! 🎶",
+    "country": "br",
+    "followingList": [
+      "98501723"
+    ],
+    "followersList": [
+      "98501723"
+    ],
+    "friendsList": [
+      "98501723"
+    ],
+    "isOnline": true,
+    "isLive": true,
+    "accountStatus": "active",
+    "isVIP": true,
+    "latitude": -22.9068,
+    "longitude": -43.1729,
+    "city": "Rio de Janeiro",
+    "state": "RJ",
+    "location": "Rio de Janeiro, RJ"
+  },
+  {
+    "id": "10002002",
+    "identification": "10002002",
+    "name": "Thiago 📸",
+    "email": "thiago@livego.store",
+    "avatarUrl": "https://picsum.photos/seed/user_thiago/400/600.jpg",
+    "age": 26,
+    "gender": "male",
+    "level": 8,
+    "diamonds": 200,
+    "earnings": 50,
+    "bio": "Fotógrafo amador e gamer nas horas vagas! 📸🎮",
+    "country": "br",
+    "followingList": [
+      "98501723"
+    ],
+    "followersList": [
+      "98501723"
+    ],
+    "friendsList": [
+      "98501723"
+    ],
+    "isOnline": true,
+    "isLive": true,
+    "accountStatus": "active",
+    "isVIP": false,
+    "latitude": -19.9167,
+    "longitude": -43.9345,
+    "city": "Belo Horizonte",
+    "state": "MG",
+    "location": "Belo Horizonte, MG"
+  },
+  {
+    "id": "10002003",
+    "identification": "10002003",
+    "name": "Juliana ✨",
+    "email": "juliana@livego.store",
+    "avatarUrl": "https://picsum.photos/seed/user_juliana/400/600.jpg",
+    "age": 24,
+    "gender": "female",
+    "level": 15,
+    "diamonds": 1200,
+    "earnings": 450,
+    "bio": "Streamer oficial da Plataforma ✨ Seja bem-vindo!",
+    "country": "br",
+    "followingList": [
+      "98501723"
+    ],
+    "followersList": [
+      "98501723"
+    ],
+    "friendsList": [
+      "98501723"
+    ],
+    "isOnline": true,
+    "isLive": true,
+    "accountStatus": "active",
+    "isVIP": true,
+    "latitude": -25.4284,
+    "longitude": -49.2733,
+    "city": "Curitiba",
+    "state": "PR",
+    "location": "Curitiba, PR"
+  },
+  {
+    "id": "10002004",
+    "identification": "10002004",
+    "name": "Felipe 👋",
+    "email": "felipe@livego.store",
+    "avatarUrl": "https://picsum.photos/seed/user_felipe/400/600.jpg",
+    "age": 23,
+    "gender": "male",
+    "level": 5,
+    "diamonds": 100,
+    "earnings": 10,
+    "bio": "Buscando novas amizades por aqui! Me manda um oi 👋",
+    "country": "br",
+    "followingList": [
+      "98501723"
+    ],
+    "followersList": [
+      "98501723"
+    ],
+    "friendsList": [
+      "98501723"
+    ],
+    "isOnline": false,
+    "isLive": true,
+    "accountStatus": "active",
+    "isVIP": false,
+    "latitude": -12.9777,
+    "longitude": -38.5016,
+    "city": "Salvador",
+    "state": "BA",
+    "location": "Salvador, BA"
+  }
+]

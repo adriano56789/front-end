@@ -39,8 +39,9 @@ export class WebRTCService {
   }>();
   private currentRoom: string | null = null;
   private currentDisplay: string | null = null;
+  public currentFacingMode: 'user' | 'environment' = 'user';
 
-  constructor() {}
+  constructor() { }
 
   onStateChange(cb: StateListener): () => void {
     this.listeners.push(cb);
@@ -118,7 +119,7 @@ export class WebRTCService {
         if (msg.code === 0) resolve(msg);
         else reject(new Error(msg.data || `Signaling error: ${JSON.stringify(msg)}`));
       }
-    } catch {}
+    } catch { }
   }
 
   private sendRequest(tid: string, body: object): Promise<any> {
@@ -167,10 +168,23 @@ export class WebRTCService {
     try {
       if (!this.localStream) {
         try {
-          this.localStream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 1280, height: 720, frameRate: 30 },
-            audio: true,
-          });
+          // Tentar obter stream ativo do mapa global de streams ativos para evitar re-capturar hardware e economizar recursos
+          let sharedStream: MediaStream | null = null;
+          if (typeof window !== 'undefined' && (window as any).__activeStreamsMap) {
+            const keys = Object.keys((window as any).__activeStreamsMap);
+            if (keys.length > 0) {
+              sharedStream = (window as any).__activeStreamsMap[keys[0]];
+            }
+          }
+
+          if (sharedStream && sharedStream.active && sharedStream.getVideoTracks().length > 0) {
+            console.log('[WebRTC-WS] Reutilizando stream ativa globalmente compartilhada');
+            this.localStream = sharedStream;
+          } else {
+            console.log('[WebRTC-WS] Capturando stream real via cameraService...');
+            const { cameraService } = await import('./cameraService');
+            this.localStream = await cameraService.captureStream(this.currentFacingMode);
+          }
         } catch (e) {
           console.error('[WebRTC-WS] Media capture failed', e);
           throw new Error('Media capture failed');
@@ -191,15 +205,31 @@ export class WebRTCService {
 
       this.cleanupPeerConnection();
 
-      this.pc = new RTCPeerConnection({
+      console.log('📡 [WebRTC-WS-Publish] Iniciando fluxo de publicação WebRTC via WS...');
+      console.log('📡 [WebRTC-WS-Publish] Criando instância de RTCPeerConnection...');
+      console.log('📡 [WebRTC-WS-Publish] Configuração dos servidores STUN/TURN utilizados: []');
+
+      const config = {
         iceServers: [],
         sdpSemantics: 'unified-plan',
         bundlePolicy: 'max-bundle',
         rtcpMuxPolicy: 'require',
-      } as RTCConfiguration);
+      } as RTCConfiguration;
+
+      this.pc = new RTCPeerConnection(config);
+
+      console.log(`📡 [WebRTC-WS-Publish] Estado inicial da sinalização (signalingState): ${this.pc.signalingState}`);
+      console.log(`📡 [WebRTC-WS-Publish] Estado inicial da conexão ICE (iceConnectionState): ${this.pc.iceConnectionState}`);
+      console.log(`📡 [WebRTC-WS-Publish] Estado inicial da conexão (connectionState): ${this.pc.connectionState}`);
+      console.log(`📡 [WebRTC-WS-Publish] Estado inicial da coleta de ICE (iceGatheringState): ${this.pc.iceGatheringState}`);
+
+      this.pc.addEventListener('signalingstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Publish] signalingState mudou: ${this.pc?.signalingState}`);
+      });
 
       this.pc.oniceconnectionstatechange = () => {
         const iceState = this.pc?.iceConnectionState;
+        console.log(`📡 [WebRTC-WS-Publish] iceConnectionState mudou: ${iceState}`);
         if (iceState === 'disconnected' || iceState === 'failed') {
           this.stopStatsMonitoring();
           if (this.retryCount < this.maxRetries) {
@@ -211,14 +241,54 @@ export class WebRTCService {
         }
       };
 
+      this.pc.addEventListener('connectionstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Publish] connectionState mudou: ${this.pc?.connectionState}`);
+        if (this.pc?.connectionState === 'connected') {
+          console.log('✅ [WebRTC-WS-Publish] Conexão estabelecida com sucesso! SRS conectado.');
+        }
+      });
+
+      this.pc.addEventListener('icegatheringstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Publish] iceGatheringState mudou: ${this.pc?.iceGatheringState}`);
+      });
+
+      this.pc.addEventListener('icecandidate', (event) => {
+        if (event.candidate) {
+          const candStr = event.candidate.candidate;
+          let type = 'unknown';
+          if (candStr.includes('typ host')) type = 'host';
+          else if (candStr.includes('typ srflx')) type = 'srflx';
+          else if (candStr.includes('typ relay')) type = 'relay';
+
+          console.log(`📡 [WebRTC-WS-Publish] ICE Candidate gerado: tipo=${type}, candidate=${candStr}`);
+
+          if (type === 'relay') {
+            console.log('⚠️ [WebRTC-WS-Publish] Candidato TURN (relay) detectado! Fallback para TURN disponível.');
+          }
+        } else {
+          console.log('📡 [WebRTC-WS-Publish] Coleta de ICE candidates finalizada (null candidate).');
+        }
+      });
+
+      if ('onicecandidateerror' in this.pc) {
+        (this.pc as any).onicecandidateerror = (event: any) => {
+          console.error('❌ [WebRTC-WS-Publish] Erro de ICE Candidate:', event.errorCode, event.errorText, 'URL:', event.url);
+        };
+      }
+
+      console.log('📡 [WebRTC-WS-Publish] Adicionando mídias capturadas ao RTCPeerConnection...');
       this.localStream.getTracks().forEach(track => {
+        console.log(`📡 [WebRTC-WS-Publish] Adicionando track: kind=${track.kind}, label=${track.label}, enabled=${track.enabled}`);
         if (this.pc && this.localStream) this.pc.addTrack(track, this.localStream);
       });
 
+      console.log('📡 [WebRTC-WS-Publish] Criando SDP offer...');
       const offer = await this.pc.createOffer();
+      console.log('📡 [WebRTC-WS-Publish] Configurando local description (offer SDP)...');
       await this.pc.setLocalDescription(offer);
 
       if (this.pc.iceGatheringState !== 'complete') {
+        console.log('📡 [WebRTC-WS-Publish] Aguardando a conclusão da coleta de ICE...');
         await new Promise<void>(resolve => {
           const check = () => {
             if (this.pc?.iceGatheringState === 'complete') {
@@ -234,7 +304,9 @@ export class WebRTCService {
       const finalOffer = this.pc.localDescription?.sdp;
       if (!finalOffer) throw new Error('Failed to generate SDP offer');
 
-      console.log('[WebRTC-WS] Sending publish with SDP via signaling');
+      console.log(`📡 [WebRTC-WS-Publish] Enviando requisição WS (Publish) para o SRS...`);
+      console.log(`📡 [WebRTC-WS-Publish] Room: ${streamKey}, Display: ${display}`);
+      console.log(`📡 [WebRTC-WS-Publish] Offer SDP enviada:\n`, finalOffer);
 
       const pubTid = this.nextTid();
       const pubRes = await this.sendRequest(pubTid, {
@@ -245,11 +317,15 @@ export class WebRTCService {
         if (!this.pc) throw new Error('Connection closed during negotiation');
         if (this.pc.signalingState === 'stable') return this.localStream;
 
+        console.log(`✅ [WebRTC-WS-Publish] Resposta WS recebida com sucesso! Status: OK (0)`);
+        console.log(`📡 [WebRTC-WS-Publish] Answer SDP recebida:\n`, pubRes.sdp);
+
         const formattedSdp = this.formatSDP(pubRes.sdp);
         await this.pc.setRemoteDescription(new RTCSessionDescription({
           type: 'answer',
           sdp: formattedSdp,
         }));
+        console.log(`📡 [WebRTC-WS-Publish] setRemoteDescription concluído. signalingState atual: ${this.pc.signalingState}`);
 
         this.pc.onicecandidate = (event) => {
           if (event.candidate && this.signalingWs?.readyState === WebSocket.OPEN) {
@@ -263,7 +339,7 @@ export class WebRTCService {
         this.setState('connected');
         this.startStatsMonitoring();
         this.setupICELogging();
-        console.log('[WebRTC-WS] Publish established via signaling');
+        console.log('✅ [WebRTC-WS-Publish] Confirmação de publicação iniciada. Stream ativo!');
       } else {
         throw new Error('SRS Publish failed');
       }
@@ -286,7 +362,9 @@ export class WebRTCService {
     this.currentStreamUrl = streamUrl;
     this.retryCount = this.maxRetries - retries;
     this.setState('connecting');
-    console.log(`[WebRTC-WS] Playing ${streamUrl} via signaling (retries: ${retries})`);
+
+    console.log('📡 [WebRTC-WS-Play] Iniciando fluxo de reprodução WebRTC via WS...');
+    console.log(`📡 [WebRTC-WS-Play] Reproduzindo: ${streamUrl} (tentativas restantes: ${retries})`);
 
     try {
       const streamKey = this.extractStreamKey(streamUrl);
@@ -303,25 +381,83 @@ export class WebRTCService {
 
       this.cleanupPeerConnection();
 
+      console.log('📡 [WebRTC-WS-Play] Criando instância de RTCPeerConnection para recepção...');
+      console.log('📡 [WebRTC-WS-Play] Configuração dos servidores STUN/TURN utilizados: []');
+
       this.pc = new RTCPeerConnection({
         iceServers: [],
         sdpSemantics: 'unified-plan',
         bundlePolicy: 'max-bundle',
       } as RTCConfiguration);
 
+      console.log(`📡 [WebRTC-WS-Play] Estado inicial da sinalização (signalingState): ${this.pc.signalingState}`);
+      console.log(`📡 [WebRTC-WS-Play] Estado inicial da conexão ICE (iceConnectionState): ${this.pc.iceConnectionState}`);
+      console.log(`📡 [WebRTC-WS-Play] Estado inicial da conexão (connectionState): ${this.pc.connectionState}`);
+      console.log(`📡 [WebRTC-WS-Play] Estado inicial da coleta de ICE (iceGatheringState): ${this.pc.iceGatheringState}`);
+
+      this.pc.addEventListener('signalingstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Play] signalingState mudou: ${this.pc?.signalingState}`);
+      });
+
+      this.pc.oniceconnectionstatechange = () => {
+        console.log(`📡 [WebRTC-WS-Play] iceConnectionState mudou: ${this.pc?.iceConnectionState}`);
+      };
+
+      this.pc.addEventListener('connectionstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Play] connectionState mudou: ${this.pc?.connectionState}`);
+        if (this.pc?.connectionState === 'connected') {
+          console.log('✅ [WebRTC-WS-Play] Conexão estabelecida com sucesso! Player conectado.');
+        }
+      });
+
+      this.pc.addEventListener('icegatheringstatechange', () => {
+        console.log(`📡 [WebRTC-WS-Play] iceGatheringState mudou: ${this.pc?.iceGatheringState}`);
+      });
+
+      this.pc.addEventListener('icecandidate', (event) => {
+        if (event.candidate) {
+          const candStr = event.candidate.candidate;
+          let type = 'unknown';
+          if (candStr.includes('typ host')) type = 'host';
+          else if (candStr.includes('typ srflx')) type = 'srflx';
+          else if (candStr.includes('typ relay')) type = 'relay';
+
+          console.log(`📡 [WebRTC-WS-Play] ICE Candidate gerado: tipo=${type}, candidate=${candStr}`);
+
+          if (type === 'relay') {
+            console.log('⚠️ [WebRTC-WS-Play] Candidato TURN (relay) detectado! Fallback para TURN disponível.');
+          }
+        } else {
+          console.log('📡 [WebRTC-WS-Play] Coleta de ICE candidates finalizada (null candidate).');
+        }
+      });
+
+      if ('onicecandidateerror' in this.pc) {
+        (this.pc as any).onicecandidateerror = (event: any) => {
+          console.error('❌ [WebRTC-WS-Play] Erro de ICE Candidate:', event.errorCode, event.errorText, 'URL:', event.url);
+        };
+      }
+
+      console.log('📡 [WebRTC-WS-Play] Configurando transceivers de recebimento...');
       this.pc.addTransceiver('audio', { direction: 'recvonly' });
       this.pc.addTransceiver('video', { direction: 'recvonly' });
 
       this.remoteStream = new MediaStream();
       this.pc.ontrack = (event) => {
-        console.log(`[WebRTC-WS] Remote track: ${event.track.kind}`);
-        if (this.remoteStream) this.remoteStream.addTrack(event.track);
+        console.log(`📡 [WebRTC-WS-Play] Evento ontrack disparado: kind=${event.track.kind}, id=${event.track.id}`);
+        if (this.remoteStream) {
+          this.remoteStream.addTrack(event.track);
+          console.log(`📡 [WebRTC-WS-Play] Track adicionada ao remoteStream: kind=${event.track.kind}`);
+        }
       };
 
+      console.log('📡 [WebRTC-WS-Play] Criando SDP offer...');
       const offer = await this.pc.createOffer();
+      console.log('📡 [WebRTC-WS-Play] Configurando local description (offer SDP)...');
       await this.pc.setLocalDescription(offer);
 
       if (this.pc.iceGatheringState !== 'complete') {
+        console.log('📡 [WebRTC-WS-Play] Aguardando a conclusão da coleta de ICE...');
         await new Promise<void>(resolve => {
           const check = () => {
             if (this.pc?.iceGatheringState === 'complete') resolve();
@@ -334,7 +470,9 @@ export class WebRTCService {
       const finalOffer = this.pc.localDescription?.sdp;
       if (!finalOffer) throw new Error('Failed to generate SDP offer');
 
-      console.log('[WebRTC-WS] Sending play with SDP via signaling');
+      console.log(`📡 [WebRTC-WS-Play] Enviando requisição WS (Play) para o SRS...`);
+      console.log(`📡 [WebRTC-WS-Play] Room: ${streamKey}, Display: ${display}`);
+      console.log(`📡 [WebRTC-WS-Play] Offer SDP enviada:\n`, finalOffer);
 
       const playTid = this.nextTid();
       const playRes = await this.sendRequest(playTid, {
@@ -345,11 +483,15 @@ export class WebRTCService {
         if (!this.pc) throw new Error('Connection closed during negotiation');
         if (this.pc.signalingState === 'stable') return this.remoteStream!;
 
+        console.log(`✅ [WebRTC-WS-Play] Resposta WS recebida com sucesso! Status: OK (0)`);
+        console.log(`📡 [WebRTC-WS-Play] Answer SDP recebida:\n`, playRes.sdp);
+
         const formattedSdp = this.formatSDP(playRes.sdp);
         await this.pc.setRemoteDescription(new RTCSessionDescription({
           type: 'answer',
           sdp: formattedSdp,
         }));
+        console.log(`📡 [WebRTC-WS-Play] setRemoteDescription concluído. signalingState atual: ${this.pc.signalingState}`);
 
         this.pc.onicecandidate = (event) => {
           if (event.candidate && this.signalingWs?.readyState === WebSocket.OPEN) {
@@ -363,7 +505,7 @@ export class WebRTCService {
         this.setState('connected');
         this.startStatsMonitoring();
         this.setupICELogging();
-        console.log('[WebRTC-WS] Playback established via signaling');
+        console.log('✅ [WebRTC-WS-Play] Player conectado e recebendo mídia!');
       } else {
         throw new Error('SRS Playback failed');
       }
@@ -505,7 +647,7 @@ export class WebRTCService {
           tid: this.nextTid(),
           msg: { action: 'leave', room: this.currentRoom, display: this.currentDisplay },
         }));
-      } catch {}
+      } catch { }
     }
 
     this.signalingWs?.close();
@@ -527,6 +669,22 @@ export class WebRTCService {
       this.remoteStream = null;
     }
     this.cleanupPeerConnection();
+  }
+
+  async replaceTrack(kind: 'audio' | 'video', track: MediaStreamTrack | null): Promise<void> {
+    if (!this.pc) return;
+    const sender = this.pc.getSenders().find(s => s.track?.kind === kind);
+    if (sender) {
+      await sender.replaceTrack(track);
+    }
+    if (this.localStream && track) {
+      const oldTracks = kind === 'video' ? this.localStream.getVideoTracks() : this.localStream.getAudioTracks();
+      oldTracks.forEach(t => {
+        t.stop();
+        this.localStream?.removeTrack(t);
+      });
+      this.localStream.addTrack(track);
+    }
   }
 }
 

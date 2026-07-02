@@ -26,13 +26,13 @@ export const getVideoHttpBaseUrl = (): string => {
 /** SRS HLS Playback URL (Native port 8080) */
 export const getHlsPlayUrl = (streamId: string): string => {
   const normalizedId = streamId.startsWith('stream_') ? streamId : `stream_${streamId}`;
-  return `${getVideoHttpBaseUrl()}/live/${normalizedId}.m3u8`;
+  return `/api/video/http/live/${normalizedId}.m3u8`;
 };
 
 /** SRS FLV Playback URL (Native port 8080) */
 export const getFlvPlayUrl = (streamId: string): string => {
   const normalizedId = streamId.startsWith('stream_') ? streamId : `stream_${streamId}`;
-  return `${getVideoHttpBaseUrl()}/live/${normalizedId}.flv`;
+  return `/api/video/http/live/${normalizedId}.flv`;
 };
 
 /** RTMP publish (SRS) */
@@ -67,20 +67,18 @@ export const isNativeRtmpBridge = (): boolean =>
   'Android' in window &&
   typeof (window as Window & { Android?: { startRTMP?: (k: string) => void } }).Android?.startRTMP === 'function';
 
-/** WHIP endpoint — via nginx proxy em producao, direto em dev */
+/** WHIP endpoint — via backend proxy */
 export const getWhipEndpointUrl = (streamKey: string): string => {
   const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
   const fromEnv = import.meta.env.VITE_SRS_WHIP_URL as string | undefined;
   if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  if (import.meta.env.PROD) return `/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  return `http://${SRS_HOST}:${SRS_API_PORT}/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+  return `/api/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
 };
 
-/** WHEP endpoint — via nginx proxy em producao, direto em dev */
+/** WHEP endpoint — via backend proxy */
 export const getWhepEndpointUrl = (streamKey: string): string => {
   const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
   const fromEnv = import.meta.env.VITE_SRS_WHEP_URL as string | undefined;
   if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  if (import.meta.env.PROD) return `/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  return `http://${SRS_HOST}:${SRS_API_PORT}/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+  return `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
 };

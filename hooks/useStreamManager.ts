@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Streamer, User, ToastType } from '../types';
 import { api } from '../services/api';
 import { streamPublishService } from '../services/streamPublishService';
+import { socketService } from '../services/socket';
 
 interface StreamManagerState {
   draftStream: Streamer | null;
@@ -180,80 +181,71 @@ export const useStreamManager = (
     }
 
     try {
-      // 1. Create stream via API (minimal data, como no simulado)
-      const streamData = await api.createStream(currentUser.id, {
-        name: streamTitle || '',
+      console.log('[STREAM_MANAGER] 🚀 Iniciando fluxo WebRTC WHIP diretamente para o SRS...');
+
+      const streamId = `stream_${currentUser.id}`;
+
+      // 1. Start WHIP Publish (WebRTC publication flow to SRS) first
+      if (!isAndroidApp()) {
+        console.log('[STREAM_MANAGER] 📡 1. Publicando transmissão via WebRTC WHIP diretamente no SRS:', streamId);
+        try {
+          await streamPublishService.startPublish(streamId, { videoRef });
+          console.log('[STREAM_MANAGER] ✅ 2. Publicação WebRTC WHIP estabelecida com sucesso no SRS!');
+        } catch (whipErr) {
+          console.error('[STREAM_MANAGER] ❌ Erro ao iniciar publicação WebRTC WHIP no SRS:', whipErr);
+          throw whipErr;
+        }
+      } else {
+        startNativePublish(streamId);
+      }
+
+      // 2. Register/Synchronize stream details on real backend API
+      console.log('[STREAM_MANAGER] 📡 3. Sincronizando e registrando detalhes da transmissão ativa no backend...');
+      const registeredStream = await api.createStream(currentUser.id, {
+        name: streamTitle || `Live de ${currentUser.name}`,
         message: streamDescription || '',
         category: selectedCategoryKey || 'popular',
-        isPrivate: isPrivate
+        isPrivate: isPrivate,
+        streamId: streamId
       });
 
-      const streamResponse = streamData.stream || streamData;
-
-      if (typeof streamResponse === 'string') {
-        throw new Error('Resposta inválida do backend: esperado objeto stream');
+      if (!registeredStream) {
+        throw new Error("Falha ao registrar a transmissão no backend.");
       }
 
-      const stream = streamResponse as Streamer;
-
-      if (!stream?.id || stream.id === 'undefined' || stream.id === null) {
-        throw new Error('ID da stream inválido retornado pelo backend.');
-      }
-
-      setDraftStream(stream);
-
-      // 2. Save stream details (como no simulado: api.saveStream depois de create)
-      try {
-        const { success } = await api.saveStream(stream.id, {
-          name: streamTitle,
-          message: streamDescription,
-          tags: [selectedCategoryKey],
-          isPrivate: isPrivate
-        });
-        if (!success) {
-          console.warn('[STREAM_MANAGER] saveStream success=false, continuando...');
-        }
-      } catch (saveErr) {
-        console.warn('[STREAM_MANAGER] saveStream não fatal:', saveErr);
-      }
-
-      // 2.5 Persistir streamKey no banco para o callback on_publish do SRS encontrar
-      try {
-        await api.patchStream(stream.id, { streamKey: stream.id });
-      } catch (patchErr) {
-        console.warn('[STREAM_MANAGER] patchStream não fatal:', patchErr);
-      }
-
-      // 3. Start WebRTC publish (usa streamPublishService que chama webrtcService)
-      const streamKey = stream.streamKey || stream.id;
-      await streamPublishService.startPublish(streamKey, {
-        videoRef,
-        previewStream: videoRef.current?.srcObject as MediaStream | null,
-      });
-
-      // 4. Construct streamer e notifica parent (só depois do publish OK)
+      // 3. Construct final streamer object
       const streamer: Streamer = {
-        id: stream.id,
+        ...registeredStream,
+        id: streamId,
         hostId: currentUser.id,
-        name: stream.name,
-        avatar: stream.avatar || currentUser.avatarUrl || '',
-        location: currentUser.country || 'BR',
+        name: streamTitle || registeredStream.name || `Live de ${currentUser.name}`,
+        avatar: currentUser.avatarUrl || registeredStream.avatar || '',
+        location: currentUser.country || registeredStream.location || 'BR',
         time: 'Ao Vivo',
-        message: stream.message || '',
-        tags: stream.tags || [selectedCategoryKey],
+        message: streamDescription || registeredStream.message || '',
+        tags: [selectedCategoryKey || 'popular'],
         isLive: true,
         streamStatus: 'active',
-        streamKey: streamKey,
-        startTime: new Date(stream.startTime) || new Date(),
-        viewers: stream.viewers || 0,
-        rtmpIngestUrl: stream.rtmpIngestUrl,
-        playbackUrl: stream.playbackUrl,
-        hlsUrl: stream.hlsUrl,
-        flvUrl: stream.flvUrl,
-        vhost: stream.vhost || '__defaultVhost__',
-        app: stream.app || 'live',
-        stream: stream.id
+        streamKey: streamId,
+        startTime: new Date(),
+        viewers: registeredStream.viewers || 0,
+        hlsUrl: `/api/video/http/live/${streamId}.m3u8`,
+        webrtcUrl: `/api/rtc/v1/whep/?app=live&stream=${streamId}`,
+        playbackUrl: `/api/video/http/live/${streamId}.m3u8`,
+        vhost: '__defaultVhost__',
+        app: 'live',
+        stream: streamId
       };
+
+      setDraftStream(streamer);
+
+      // 4. Emit live_started via socket
+      try {
+        socketService.getSocket()?.emit('live_started', streamer);
+        console.log('[STREAM_MANAGER] 📡 live_started emitido via socket');
+      } catch (socketErr) {
+        console.warn('[STREAM_MANAGER] Erro ao emitir live_started:', socketErr);
+      }
 
       localStorage.setItem('currentStreamId', streamer.id);
       onStartStream(streamer);

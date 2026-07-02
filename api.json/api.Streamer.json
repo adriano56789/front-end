@@ -1,0 +1,61 @@
+[
+  {
+    "_id": {
+      "_id": "69f0a60e00d7a8ff69600048"
+    },
+    "id": "stream_98501723",
+    "hostId": "98501723",
+    "name": "Live de adrinano",
+    "avatar": "https://livego.store/uploads/avatars/avatar_98501723_2.jpg",
+    "location": "Brasil",
+    "message": "Ao vivo com adrinano!",
+    "tags": [
+      "general"
+    ],
+    "isHot": false,
+    "icon": "",
+    "country": "br",
+    "viewers": 0,
+    "isPrivate": false,
+    "quality": "HD",
+    "demoVideoUrl": "",
+    "rtmpIngestUrl": "rtmp://72.60.249.175:1935/live/98501723",
+    "srtIngestUrl": "",
+    "streamKey": "98501723",
+    "playbackUrl": "https://livego.store/live/98501723.flv",
+    "streamServerUrl": "",
+    "hlsUrl": "https://livego.store/live/98501723.m3u8",
+    "webrtcUrl": "webrtc://livego.store/live/98501723",
+    "title": "Live de adrinano",
+    "description": "",
+    "roomId": "98501723",
+    "endedBy": "",
+    "isLive": false,
+    "startTime": {
+      "$date": "2026-04-29T01:06:22.997Z"
+    },
+    "streamStatus": "ended",
+    "category": "general",
+    "language": "pt",
+    "maxViewers": 1000,
+    "recordingEnabled": false,
+    "chatEnabled": true,
+    "giftsEnabled": true,
+    "privateGiftId": "",
+    "isAutoPrivateInviteEnabled": false,
+    "diamonds": 0,
+    "likes": 0,
+    "cover": "",
+    "liveId": "98501723",
+    "rtmpUrl": "",
+    "flvUrl": "https://livego.store/live/98501723.flv",
+    "heartbeatCount": 0,
+    "createdAt": {
+      "$date": "2026-04-28T12:20:30.337Z"
+    },
+    "updatedAt": {
+      "$date": "2026-04-29T01:06:22.998Z"
+    },
+    "__v": 0
+  }
+]

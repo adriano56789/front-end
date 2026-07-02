@@ -176,7 +176,14 @@ export const useBatchUserStatus = (userIds: string[]) => {
             
             const statusMap = new Map<string, UserStatus>();
             response.users.forEach(userStatus => {
-                statusMap.set(userStatus.user_id, userStatus);
+                const mappedStatus: any = {
+                    user_id: userStatus.user_id,
+                    is_online: (userStatus as any).isOnline ?? (userStatus as any).is_online,
+                    isOnline: (userStatus as any).isOnline ?? (userStatus as any).is_online,
+                    last_seen: userStatus.last_seen,
+                    updated_at: userStatus.updated_at
+                };
+                statusMap.set(userStatus.user_id, mappedStatus);
             });
             
             setStatuses(statusMap);

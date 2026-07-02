@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../../types';
-import { PlusIcon, RankIcon } from '../icons';
+import { PlusIcon, RankIcon, MaleIcon, FemaleIcon } from '../icons';
 
 interface EntryChatMessageProps {
     user: User;
@@ -9,45 +9,67 @@ interface EntryChatMessageProps {
     onFollow: (user: User) => void;
     isFollowed: boolean;
     isBroadcaster?: boolean;
+    isModerator?: boolean;
 }
 
-const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, onClick, onFollow, isFollowed, isBroadcaster }) => {
-    // Simplificado - sem frames para navegação isolada
-    const frameGlowClass = '';
+const AgeBadge: React.FC<{ gender?: 'male' | 'female' | 'not_specified'; age?: number }> = ({ gender = 'female', age }) => {
+    const isMale = gender === 'male';
+    const displayAge = age && age > 0 ? age : 18;
+    return (
+        <span className={`text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center space-x-0.5 select-none shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] h-[15px] shrink-0 font-sans ${isMale ? 'bg-[#3b82f6]' : 'bg-[#ec4899]'}`}>
+            {isMale ? <MaleIcon className="h-2.5 w-2.5 text-white" /> : <FemaleIcon className="h-2.5 w-2.5 text-white" />}
+            <span>{displayAge}</span>
+        </span>
+    );
+};
 
+const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, onClick, onFollow, isFollowed, isBroadcaster, isModerator }) => {
     const showFollowButton = !isBroadcaster && !isFollowed;
 
     return (
         <div 
-            className="bg-black/30 rounded-full p-1 pr-2 flex items-center self-start text-xs"
+            onClick={() => onClick(user)}
+            className="flex items-center gap-2 text-xs bg-transparent rounded-[18px] px-3 py-1 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap"
+            data-purpose="system-notification"
         >
-            <button 
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onClick(user);
-                }}
-                className="flex items-center pl-1 pr-2 hover:opacity-80 transition-opacity"
+            <span 
+                className="text-[#fbbf24] font-extrabold tracking-wide font-sans text-[13px]"
+                style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
-                <div className="relative w-6 h-6 mr-2">
-                    <img src={user.avatarUrl} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                </div>
-                <span className="text-yellow-300 font-semibold">{user.name}</span>
-                <span className="bg-purple-600 text-white text-xs font-semibold px-2 py-1 rounded-full flex items-center space-x-1 ml-2">
-                    <RankIcon className="h-3 w-3" />
-                    <span>{user.level}</span>
+                {user.name}
+            </span>
+            
+            {/* Glossy Silver metal level badge matching the screenshot */}
+            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[16px]">
+                Lvl. {user.level || 1}
+            </span>
+
+            {/* Age/Gender Icon badge */}
+            <AgeBadge gender={user.gender} age={user.age} />
+
+            {isModerator && (
+                <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0 scale-[0.95]">
+                    Adm
                 </span>
-                <span className="text-gray-200 ml-1.5">entrou na sala.</span>
-            </button>
+            )}
+
+            <span 
+                className="text-zinc-300 font-sans font-semibold text-[13px] ml-0.5 tracking-wide"
+                style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
+            >
+                entrou na sala.
+            </span>
+            
             {showFollowButton && (
                  <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onFollow(user);
                     }}
-                    className="ml-1 w-6 h-6 bg-purple-600/50 text-white rounded-full flex items-center justify-center hover:bg-purple-500/70 transition-colors flex-shrink-0"
+                    className="ml-1 w-4.5 h-4.5 bg-[#a855f7] hover:bg-[#b055f7] text-white rounded-full flex items-center justify-center transition-all flex-shrink-0 cursor-pointer shadow-sm active:scale-95"
                     aria-label={`Seguir ${user.name}`}
                 >
-                    <PlusIcon className="w-4 h-4" />
+                    <PlusIcon className="w-2.5 h-2.5" />
                 </button>
             )}
         </div>

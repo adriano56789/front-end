@@ -16,7 +16,28 @@ interface PaymentSuccessScreenProps {
 
 const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({ onClose, data, addToast }) => {
   const transactionId = data.transactionId || `#${Math.floor(Math.random() * 100000000)}`;
-  const date = data.timestamp || new Date();
+  let rawDate = data.timestamp || new Date();
+  let date = rawDate;
+  if (!(rawDate instanceof Date)) {
+    try {
+      if (rawDate && typeof rawDate === 'object') {
+        if ('$date' in rawDate) {
+          date = new Date((rawDate as any).$date);
+        } else if ('date' in rawDate) {
+          date = new Date((rawDate as any).date);
+        } else {
+          date = new Date();
+        }
+      } else {
+        date = new Date(rawDate);
+      }
+    } catch {
+      date = new Date();
+    }
+  }
+  if (isNaN(date.getTime())) {
+    date = new Date();
+  }
   const formattedDate = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '');
   const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 

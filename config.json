@@ -1,0 +1,14 @@
+{
+  "rtc": {
+    "enabled": true,
+    "port": 8000
+  },
+  "whip": {
+    "enabled": true,
+    "path": "/rtc/v1/whip"
+  },
+  "whep": {
+    "enabled": true,
+    "path": "/rtc/v1/whep"
+  }
+}

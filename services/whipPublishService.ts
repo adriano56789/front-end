@@ -77,6 +77,12 @@ export class WhipPublishService {
     }
     this.setState('idle');
   }
+
+  async replaceTrack(kind: 'audio' | 'video', track: MediaStreamTrack | null): Promise<void> {
+    if (this.engine) {
+      await this.engine.replaceTrack(kind, track);
+    }
+  }
 }
 
 export const whipPublishService = new WhipPublishService();

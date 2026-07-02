@@ -11,12 +11,53 @@ const AgeBadge: React.FC<{ user: User }> = ({ user }) => (
     </span>
 );
 
-const LevelBadge: React.FC<{ level: number }> = ({ level }) => (
-    <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center space-x-1">
-        <RankIcon className="h-3 w-3" />
-        <span>{level}</span>
-    </span>
-);
+const LevelBadge: React.FC<{ level: number }> = ({ level }) => {
+    let bgGrad = 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 50%, #d1d5db 100%)';
+    let textCol = '#374151'; // dark silver-grey text for silver levels
+    let borderColor = '#9ca3af'; // silver border
+    let glow = '0 0 6px rgba(156, 163, 175, 0.3)';
+    let starColor = 'text-slate-500 fill-current';
+
+    if (level >= 41) {
+        // Red/rose profile level style matching UserLevelsScreen for top levels
+        bgGrad = 'linear-gradient(135deg, #ffe4e6 0%, #f43f5e 50%, #9f1239 100%)';
+        textCol = '#ffffff';
+        borderColor = '#fca5a5';
+        glow = '0 0 10px rgba(244, 63, 94, 0.6)';
+        starColor = 'text-rose-200 fill-current';
+    } else if (level >= 21) {
+        // Gold style
+        bgGrad = 'linear-gradient(135deg, #fffbeb 0%, #f59e0b 50%, #78350f 100%)';
+        textCol = '#ffffff';
+        borderColor = '#fde047';
+        glow = '0 0 10px rgba(245, 158, 11, 0.6)';
+        starColor = 'text-amber-200 fill-current';
+    } else if (level >= 11) {
+        // Bronze style
+        bgGrad = 'linear-gradient(135deg, #ffedd5 0%, #d97706 50%, #7c2d12 100%)';
+        textCol = '#ffffff';
+        borderColor = '#fed7aa';
+        glow = '0 0 8px rgba(217, 119, 6, 0.5)';
+        starColor = 'text-orange-200 fill-current';
+    }
+
+    return (
+        <span
+            style={{
+                background: bgGrad,
+                borderColor: borderColor,
+                color: textCol,
+                boxShadow: `${glow}, inset 0 1px 1.5px rgba(255, 255, 255, 0.4)`
+            }}
+            className="relative inline-flex items-center justify-center px-1.5 py-0.5 rounded-full border text-[9px] font-extrabold font-sans tracking-tight h-[16px] select-none space-x-0.5 overflow-hidden"
+        >
+            {/* Glass reflection shine overlay */}
+            <div className="absolute inset-x-0 top-0 h-[40%] bg-white/20 rounded-t-full pointer-events-none" />
+            <RankIcon className={`w-2 h-2 relative z-10 ${starColor}`} />
+            <span className="relative z-10 leading-none">Lvl. {level}</span>
+        </span>
+    );
+};
 
 const UserItem: React.FC<{ user: User; onClick: () => void; onFollow: (user: User) => void; }> = ({ user, onClick, onFollow }) => {
     const { t } = useTranslation();
@@ -77,7 +118,7 @@ const FriendRequestsScreen: React.FC<FriendRequestsScreenProps> = ({ onBack, onV
                 <div className="w-6"/> {/* Spacer */}
             </header>
             <main className="flex-grow overflow-y-auto no-scrollbar">
-                {users.length > 0 ? (
+                {users && users.length > 0 ? (
                     users.map(user => <UserItem key={user.id} user={user} onClick={() => onViewProfile(user)} onFollow={onFollowUser} />)
                 ) : (
                     <div className="flex items-center justify-center h-full text-gray-500">

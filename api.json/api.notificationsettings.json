@@ -1,0 +1,21 @@
+[{
+  "_id": {
+    "$oid": "69e709b956e57cc657b57501"
+  },
+  "userId": "98501723",
+  "notificationsEnabled": true,
+  "newMessages": true,
+  "liveStart": true,
+  "newPost": true,
+  "pushEnabled": true,
+  "interactiveRequests": true,
+  "interactiveNotifications": true,
+  "version": 1,
+  "createdAt": {
+    "$date": "2026-04-21T05:23:05.698Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-21T05:23:05.698Z"
+  },
+  "__v": 0
+}]

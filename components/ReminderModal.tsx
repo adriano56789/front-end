@@ -110,30 +110,40 @@ const ReminderModal: React.FC<ReminderModalProps> = ({ isOpen, onClose, onSelect
 
       {/* Drawer Panel */}
       <div
-        className={`absolute top-0 right-0 h-full w-[85vw] max-w-[380px] bg-[#121212] shadow-2xl z-50 transform transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`absolute top-0 right-0 h-full w-[85vw] max-w-[380px] bg-black shadow-2xl z-50 transform transition-transform duration-300 cubic-bezier(0.16, 1, 0.3, 1) ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex flex-col h-full text-white font-sans border-l border-white/5">
+        <div className="flex flex-col h-full text-white font-sans">
             {/* Header */}
-            <header className="flex items-center justify-between px-5 pt-10 pb-4 bg-[#121212] flex-shrink-0 border-b border-white/5">
-                <h2 className="text-xl font-bold tracking-tight text-white">{t('reminder.title')}</h2>
-                <div className="flex items-center gap-3">
+            <header className="flex items-center justify-between px-5 pt-12 pb-4 bg-black flex-shrink-0">
+                <h2 className="text-[28px] font-bold tracking-tight text-white">{t('reminder.title') || 'Lembrete'}</h2>
+                <div className="flex items-center">
                     <button 
                         onClick={(e) => { e.stopPropagation(); onOpenLiveHistory(); }} 
-                        className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-white/10"
+                        className="text-white hover:text-gray-300 transition-colors p-1"
                         title="Histórico de Lives"
                     >
-                        <ClockIcon className="w-6 h-6" />
+                        {/* Custom alarm clock SVG */}
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-[28px] h-[28px] text-white">
+                          <circle cx="12" cy="13" r="8" />
+                          <path d="M12 9v4l2 2" />
+                          <path d="M5 3 2 6" />
+                          <path d="M19 3l3 3" />
+                          <path d="M6.38 18.7l-.4 1.4" />
+                          <path d="M17.62 18.7l.4 1.4" />
+                        </svg>
                     </button>
                 </div>
             </header>
 
             {/* Content */}
-            <div className="flex-grow overflow-y-auto no-scrollbar pb-6 relative">
+            <div className="flex-grow overflow-y-auto no-scrollbar pb-6 relative bg-black">
                 {/* Section Header */}
-                <div className="px-5 py-3 sticky top-0 bg-[#121212]/95 backdrop-blur z-20 flex justify-between items-center shadow-sm">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Recomendado</h3>
-                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-gray-300">{streamers.length} Online</span>
+                <div className="px-5 py-3 sticky top-0 bg-black z-20 flex justify-between items-center">
+                    <h3 className="text-xs font-bold text-zinc-600 uppercase tracking-wider">RECOMENDADO</h3>
+                    <span className="text-[11px] bg-zinc-900 px-2.5 py-1 rounded-full text-zinc-400 font-medium tracking-wide">
+                        {streamers.length} Online
+                    </span>
                 </div>
 
                 <div className="space-y-0 px-2">
@@ -148,12 +158,38 @@ const ReminderModal: React.FC<ReminderModalProps> = ({ isOpen, onClose, onSelect
                     ))}
                     
                     {streamers.length === 0 && (
-                        <div className="flex flex-col items-center justify-center h-64 text-center text-gray-500 px-6">
-                            <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mb-4">
-                                <LiveIndicatorIcon className="w-8 h-8 text-gray-600" />
+                        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center px-6">
+                            {/* Multi-layered voice soundwave visualizer circle */}
+                            <div className="w-[85px] h-[85px] rounded-full flex items-center justify-center bg-[#131215]/90 border border-[#212025] shadow-[0_8px_32px_rgba(0,0,0,0.8),_inset_0_1px_2px_rgba(255,255,255,0.05)] relative mb-6">
+                                <div className="absolute inset-1.5 rounded-full border border-[#2d2c32]/50"></div>
+                                <div className="absolute inset-3.5 rounded-full bg-gradient-to-b from-[#1c1b1f] to-[#0c0b0d]"></div>
+                                {/* Center Equalizer Bars with soft cream-blue gradient */}
+                                <div className="flex items-end justify-center space-x-[4px] z-10 h-7">
+                                    <div 
+                                        className="w-[3px] h-3 bg-gradient-to-t from-[#ffdfd1] via-[#d6c7ff] to-[#fff3ed] rounded-full opacity-90"
+                                        style={{ animation: 'pulse 1.2s infinite ease-in-out' }}
+                                    ></div>
+                                    <div 
+                                        className="w-[3px] h-6 bg-gradient-to-t from-[#ffdfd1] via-[#d6c7ff] to-[#fff3ed] rounded-full opacity-95"
+                                        style={{ animation: 'pulse 0.9s infinite ease-in-out 150ms' }}
+                                    ></div>
+                                    <div 
+                                        className="w-[3px] h-4.5 bg-gradient-to-t from-[#ffdfd1] via-[#d6c7ff] to-[#fff3ed] rounded-full opacity-95"
+                                        style={{ animation: 'pulse 1.1s infinite ease-in-out 300ms' }}
+                                    ></div>
+                                    <div 
+                                        className="w-[3px] h-3 bg-gradient-to-t from-[#ffdfd1] via-[#d6c7ff] to-[#fff3ed] rounded-full opacity-90"
+                                        style={{ animation: 'pulse 1s infinite ease-in-out 450ms' }}
+                                    ></div>
+                                </div>
                             </div>
-                            <p className="text-base font-medium text-gray-300">Nenhuma transmissão encontrada</p>
-                            <p className="text-sm mt-1 text-gray-500">As lives que você segue aparecerão aqui.</p>
+                            
+                            <h3 className="text-[19px] font-bold text-white tracking-wide">
+                                Nenhuma transmissão encontrada
+                            </h3>
+                            <p className="text-[14px] mt-2.5 text-zinc-500 leading-relaxed max-w-[210px]">
+                                As lives que você segue aparecerão aqui.
+                            </p>
                         </div>
                     )}
                 </div>

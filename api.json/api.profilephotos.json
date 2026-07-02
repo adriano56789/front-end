@@ -1,0 +1,22 @@
+[
+  {
+    "userId": "98501723",
+    "photoType": "avatar",
+    "isMain": true,
+    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg"
+  },
+  {
+    "userId": "98501723",
+    "photoType": "gallery",
+    "isMain": false,
+    "order": 1,
+    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555964767-361196488.jpg"
+  },
+  {
+    "userId": "98501723",
+    "photoType": "gallery",
+    "isMain": false,
+    "order": 2,
+    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555632401-962822378.jpg"
+  }
+]

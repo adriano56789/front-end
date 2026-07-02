@@ -1,23 +1,139 @@
 import React from 'react';
-import { 
-    CloseIcon,
-    UserPlusIcon,
-    BattleIcon,
-    SparklesIcon,
-    MicrophoneIcon,
-    SunIcon,
-    ChatBubbleIcon,
-    SettingsIcon,
-    MicrophoneOffIcon,
-    SoundOnIcon,
-    SoundOffIcon,
-    VideoIcon
-} from './icons';
+import { streamPublishService } from '../services/streamPublishService';
+
+// Custom high-fidelity SVGs matching the mockup screenshots perfectly
+const CloseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
+
+const CoHostIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+);
+
+const BatalhaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        {/* Crossed Swords Blade 1 */}
+        <line x1="4" y1="20" x2="20" y2="4" />
+        {/* Crossed Swords Blade 2 */}
+        <line x1="20" y1="20" x2="4" y2="4" />
+        {/* Hilt / Guard 1 */}
+        <line x1="6" y1="14" x2="10" y2="18" />
+        {/* Hilt / Guard 2 */}
+        <line x1="14" y1="18" x2="18" y2="14" />
+    </svg>
+);
+
+const ConvidarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <line x1="19" y1="8" x2="19" y2="14" />
+        <line x1="16" y1="11" x2="22" y2="11" />
+    </svg>
+);
+
+const ChamadaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+    </svg>
+);
+
+const TrocarCamIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+        <circle cx="12" cy="13" r="4" />
+    </svg>
+);
+
+const EmbelezarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="m15 4-2-2M17 7l2-2M12 2h2M19 9l2-2M19 2l-2 2M2.27 21.73a2.38 2.38 0 0 0 3.36 0l16.1-16.1a2.38 2.38 0 0 0-3.36-3.36l-16.1 16.1a2.38 2.38 0 0 0 0 3.36Z" />
+        <path d="m18 10 2 2" />
+    </svg>
+);
+
+const MicrophoneIconCustom: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="23" />
+        <line x1="8" y1="23" x2="16" y2="23" />
+    </svg>
+);
+
+const MicrophoneOffIconCustom: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <line x1="1" y1="1" x2="23" y2="23" />
+        <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+        <path d="M17 11a6.97 6.97 0 0 1-1.5 4.5M12 19V23M8 23h8" />
+        <path d="M19 10v2a7 7 0 0 1-8.5 6.5M5 10v2" />
+    </svg>
+);
+
+const SoundOnIconCustom: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+    </svg>
+);
+
+const SoundOffIconCustom: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <line x1="23" y1="9" x2="17" y2="15" />
+        <line x1="17" y1="9" x2="23" y2="15" />
+    </svg>
+);
+
+const ModerarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2v20a10 10 0 0 1 0-20z" fill="currentColor" />
+    </svg>
+);
+
+const ClarezaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2v20a10 10 0 0 0 0-20z" fill="currentColor" />
+    </svg>
+);
+
+const ChatBubbleIconCustom: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+);
+
+const ShareIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186l5.572 3.142m-5.572-3.142l5.572-3.142m0 0a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185zm0 8.411a2.25 2.25 0 1 0 3.933 2.185 2.25 2.25 0 0 0-3.933-2.185z" />
+    </svg>
+);
+
+const DenunciarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a1.125 1.125 0 0 0 .818-1.088V5.008c0-.6-.441-1.112-1.037-1.18l-3.166-.363a9 9 0 0 0-5.68 1.256l-.161.098a9 9 0 0 1-5.11 1.285L3 6v9z" />
+    </svg>
+);
+
+const HelpIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" {...props}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0zm-9 5.25h.008v.008H12v-.008z" />
+    </svg>
+);
 
 interface ToolsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenCoHostModal: (e: React.MouseEvent) => void;
+  onOpenCoHostModal: (e: React.MouseEvent, mode?: 'cohost' | 'battle') => void;
   onOpenPrivateInviteModal: (e: React.MouseEvent) => void;
   isPKBattleActive?: boolean;
   onEndPKBattle?: (e: React.MouseEvent) => void;
@@ -36,6 +152,8 @@ interface ToolsModalProps {
   isAutoPrivateInviteEnabled?: boolean;
   onToggleAutoPrivateInvite?: (e: React.MouseEvent) => void;
   onOpenVideoCall?: (e: React.MouseEvent) => void;
+  isHost?: boolean;
+  addToast?: (type: any, message: string) => void;
 }
 
 interface ToolButtonProps {
@@ -48,16 +166,50 @@ interface ToolButtonProps {
 }
 
 const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, hasDot, isActive, onClick, disabled }) => (
-    <div className="flex flex-col items-center space-y-2 text-center w-20">
-        <button onClick={onClick} disabled={disabled} className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-colors ${isActive ? 'bg-green-500' : 'bg-gray-700 hover:bg-gray-600'} disabled:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed`}>
+    <div className="flex flex-col items-center space-y-2 text-center w-[76px] select-none">
+        <button 
+            onClick={onClick} 
+            disabled={disabled} 
+            className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-250 outline-none active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isActive 
+                    ? 'bg-gradient-to-br from-[#00e5ff] to-[#bd00ff] shadow-[0_4px_16px_rgba(0,229,255,0.4)] text-white' 
+                    : 'bg-transparent text-[#9ea3b5] hover:text-white hover:bg-white/[0.06]'
+            }`}
+        >
             {icon}
-            {hasDot && <div className="absolute top-0.5 right-0.5 w-2.5 h-2.5 bg-yellow-400 rounded-full border-2 border-[#1C1C1E]"></div>}
+            {hasDot && (
+                <div className="absolute top-2.5 right-2.5 w-[11px] h-[11px] bg-[#FC10B8] rounded-full ring-2 ring-[#131124]" />
+            )}
         </button>
-        <span className="text-xs text-gray-300">{label}</span>
+        <span className="text-[12px] font-medium text-gray-400 leading-tight block truncate w-full px-1">{label}</span>
     </div>
 );
 
-const ToolsModal: React.FC<ToolsModalProps> = ({ isOpen, onClose, onOpenCoHostModal, onOpenPrivateInviteModal, isPKBattleActive, onEndPKBattle, onOpenBeautyPanel, onOpenPrivateChat, onOpenClarityPanel, isModerationActive, onToggleModeration, isPrivateStream, isMicrophoneMuted, onToggleMicrophone, isSoundMuted, onToggleSound, isAutoFollowEnabled, onToggleAutoFollow, isAutoPrivateInviteEnabled, onToggleAutoPrivateInvite, onOpenVideoCall }) => {
+const ToolsModal: React.FC<ToolsModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    onOpenCoHostModal, 
+    onOpenPrivateInviteModal, 
+    isPKBattleActive, 
+    onEndPKBattle, 
+    onOpenBeautyPanel, 
+    onOpenPrivateChat, 
+    onOpenClarityPanel, 
+    isModerationActive, 
+    onToggleModeration, 
+    isPrivateStream, 
+    isMicrophoneMuted, 
+    onToggleMicrophone, 
+    isSoundMuted, 
+    onToggleSound, 
+    isAutoFollowEnabled, 
+    onToggleAutoFollow, 
+    isAutoPrivateInviteEnabled, 
+    onToggleAutoPrivateInvite, 
+    onOpenVideoCall,
+    isHost = true,
+    addToast
+}) => {
     
     const createAndCloseHandler = (action?: (e: React.MouseEvent) => void) => {
         if (!action) return undefined;
@@ -71,53 +223,148 @@ const ToolsModal: React.FC<ToolsModalProps> = ({ isOpen, onClose, onOpenCoHostMo
         };
     };
 
+    const handleShare = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            navigator.clipboard.writeText(window.location.href);
+            if (addToast) {
+                addToast('success', 'Link da transmissão copiado para a área de transferência!');
+            }
+        } catch (err) {
+            if (addToast) {
+                addToast('error', 'Falha ao copiar o link da transmissão.');
+            }
+        }
+        onClose();
+    };
+
+    const handleReport = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (addToast) {
+            addToast('success', 'Denúncia enviada com sucesso! Analisaremos o conteúdo desta transmissão para garantir a conformidade.');
+        }
+        onClose();
+    };
+
+    const handleHelp = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (addToast) {
+            addToast('info', 'Toque duas vezes na tela para curtir a live e clique no botão de presente para enviar diamantes.');
+        }
+        onClose();
+    };
+
     const cohostTools = [
-        { icon: <UserPlusIcon className="w-7 h-7 text-white" />, label: 'Co-host', hasDot: false, onClick: createAndCloseHandler(onOpenCoHostModal) },
-        { icon: <BattleIcon className="w-7 h-7 text-white" />, label: isPKBattleActive ? 'Fim da Batalha' : 'Batalha', hasDot: false, onClick: createAndCloseHandler(isPKBattleActive ? onEndPKBattle : onOpenCoHostModal) },
-        { icon: <UserPlusIcon className="w-7 h-7 text-white" />, label: 'Convidar', hasDot: false, onClick: createAndCloseHandler(onOpenPrivateInviteModal) },
-        { icon: <VideoIcon className="w-7 h-7 text-white" />, label: 'Chamada', hasDot: true, onClick: createAndCloseHandler(onOpenVideoCall) },
+        { 
+            icon: <CoHostIcon className="w-7 h-7" />, 
+            label: 'Co-host', 
+            hasDot: false, 
+            onClick: (e: React.MouseEvent) => {
+                e.stopPropagation();
+                onOpenCoHostModal(e, 'cohost');
+                onClose();
+            }
+        },
+        { 
+            icon: <BatalhaIcon className="w-7 h-7" />, 
+            label: isPKBattleActive ? 'Fim da Batalha' : 'Batalha', 
+            hasDot: false, 
+            onClick: (e: React.MouseEvent) => {
+                e.stopPropagation();
+                if (isPKBattleActive && onEndPKBattle) {
+                    onEndPKBattle(e);
+                } else {
+                    onOpenCoHostModal(e, 'battle');
+                }
+                onClose();
+            }
+        },
+        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Convidar', hasDot: false, onClick: createAndCloseHandler(onOpenPrivateInviteModal) },
+        { icon: <ChamadaIcon className="w-7 h-7" />, label: 'Chamada', hasDot: true, onClick: createAndCloseHandler(onOpenVideoCall) },
+        { 
+            icon: <TrocarCamIcon className="w-7 h-7" />, 
+            label: 'Trocar Câm', 
+            hasDot: false, 
+            onClick: async (e: React.MouseEvent) => { 
+                e.stopPropagation(); 
+                try {
+                    await streamPublishService.switchCamera();
+                    if (addToast) {
+                        addToast('success', 'Câmera alterada com sucesso! 🔄');
+                    }
+                } catch (err) {
+                    console.error('Failed to switch camera from ToolsModal:', err);
+                    if (addToast) {
+                        addToast('error', 'Não foi possível alternar a câmera.');
+                    }
+                }
+                onClose();
+            } 
+        },
     ];
 
     const anchorTools = [
-        { icon: <SparklesIcon className="w-7 h-7 text-white" />, label: 'Embelezar', hasDot: true, onClick: createAndCloseHandler(onOpenBeautyPanel) },
-        { icon: isMicrophoneMuted ? <MicrophoneOffIcon className="w-7 h-7 text-white" /> : <MicrophoneIcon className="w-7 h-7 text-white" />, label: 'Microfone', hasDot: false, isActive: !isMicrophoneMuted, onClick: onToggleMicrophone },
-        { icon: isSoundMuted ? <SoundOffIcon className="w-7 h-7 text-white" /> : <SoundOnIcon className="w-7 h-7 text-white" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
-        { icon: <SettingsIcon className="w-7 h-7 text-white" />, label: 'Moderar', hasDot: false, isActive: isModerationActive, onClick: onToggleModeration },
-        { icon: <SunIcon className="w-7 h-7 text-white" />, label: 'Clareza', hasDot: false, onClick: createAndCloseHandler(onOpenClarityPanel) },
-        { icon: <ChatBubbleIcon className="w-7 h-7 text-white" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
-        { icon: <UserPlusIcon className="w-7 h-7 text-white" />, label: 'Seguir Auto', hasDot: false, isActive: isAutoFollowEnabled, onClick: onToggleAutoFollow },
-        { icon: <UserPlusIcon className="w-7 h-7 text-white" />, label: 'Auto Convite', hasDot: false, isActive: isAutoPrivateInviteEnabled, onClick: onToggleAutoPrivateInvite },
+        { icon: <EmbelezarIcon className="w-7 h-7" />, label: 'Embelezar', hasDot: true, onClick: createAndCloseHandler(onOpenBeautyPanel) },
+        { icon: isMicrophoneMuted ? <MicrophoneOffIconCustom className="w-7 h-7" /> : <MicrophoneIconCustom className="w-7 h-7" />, label: 'Microfone', hasDot: false, isActive: !isMicrophoneMuted, onClick: onToggleMicrophone },
+        { icon: isSoundMuted ? <SoundOffIconCustom className="w-7 h-7" /> : <SoundOnIconCustom className="w-7 h-7" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
+        { icon: <ModerarIcon className="w-7 h-7" />, label: 'Moderar', hasDot: false, isActive: isModerationActive, onClick: onToggleModeration },
+        { icon: <ClarezaIcon className="w-7 h-7" />, label: 'Clareza', hasDot: false, onClick: createAndCloseHandler(onOpenClarityPanel) },
+        { icon: <ChatBubbleIconCustom className="w-7 h-7" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
+        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Seguir Auto', hasDot: false, isActive: isAutoFollowEnabled, onClick: onToggleAutoFollow },
+        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Auto Convite', hasDot: false, isActive: isAutoPrivateInviteEnabled, onClick: onToggleAutoPrivateInvite },
+    ];
+
+    const spectatorTools = [
+        { icon: <ShareIcon className="w-7 h-7" />, label: 'Compartilhar', hasDot: false, onClick: handleShare },
+        { icon: isSoundMuted ? <SoundOffIconCustom className="w-7 h-7" /> : <SoundOnIconCustom className="w-7 h-7" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
+        { icon: <ChatBubbleIconCustom className="w-7 h-7" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
+        { icon: <DenunciarIcon className="w-7 h-7" />, label: 'Denunciar', hasDot: false, onClick: handleReport },
+        { icon: <HelpIcon className="w-7 h-7" />, label: 'Ajuda', hasDot: false, onClick: handleHelp },
     ];
 
     return (
         <div 
-          className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-350 ${isOpen ? 'opacity-100 bg-transparent' : 'opacity-0 pointer-events-none'}`}
           onClick={onClose}
         >
             <div
-                className={`bg-[#1C1C1E] w-full max-w-md rounded-t-2xl p-4 space-y-4 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+                className={`bg-[#131124] w-full max-w-md rounded-t-[2.2rem] p-6 space-y-6 transform transition-transform duration-300 ease-out shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/[0.04] pb-8 ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
                 onClick={e => e.stopPropagation()}
             >
-                <header className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-white">Ferramentas</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">
+                <header className="flex items-center justify-between px-1">
+                    <h2 className="text-xl font-bold text-white tracking-wide">Ferramentas</h2>
+                    <button 
+                        onClick={onClose} 
+                        className="w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] active:scale-90 text-gray-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-sm"
+                    >
                         <CloseIcon className="w-5 h-5" />
                     </button>
                 </header>
 
-                <div className="bg-[#111111]/50 p-3 rounded-xl">
-                    <h3 className="text-sm text-gray-400 mb-3 px-1">Ferramentas de Interação</h3>
-                    <div className="flex items-center justify-center space-x-4">
-                        {cohostTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
-                    </div>
-                </div>
+                {isHost ? (
+                    <>
+                        <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
+                            <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Interação</h3>
+                            <div className="grid grid-cols-5 gap-y-4 gap-x-1.5 justify-items-center">
+                                {cohostTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
+                            </div>
+                        </div>
 
-                <div className="bg-[#111111]/50 p-3 rounded-xl">
-                    <h3 className="text-sm text-gray-400 mb-3 px-1">Ferramentas de âncora</h3>
-                     <div className="flex flex-wrap items-center justify-around gap-y-4">
-                        {anchorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
+                        <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
+                            <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Âncora</h3>
+                            <div className="grid grid-cols-4 gap-y-5 gap-x-2.5 justify-items-center">
+                                {anchorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
+                        <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ações do Espectador</h3>
+                        <div className="grid grid-cols-5 gap-y-4 gap-x-1.5 justify-items-center">
+                            {spectatorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

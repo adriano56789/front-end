@@ -1,0 +1,47 @@
+[{
+  "_id": {
+    "$oid": "69e6470c32567102c406b8e0"
+  },
+  "title": "1. Preparando sua Transmissão",
+  "content": [
+    "Capa e Título: Escolha uma imagem de capa clara e um título que chame a atenção. Isso é a primeira coisa que os espectadores verão!",
+    "Categoria: Selecione a categoria correta (Música, Dança, Jogos, etc.) para que seu público-alvo encontre sua live mais facilmente.",
+    "Qualidade: Verifique sua conexão com a internet. Uma boa iluminação e um áudio claro são essenciais para manter os espectadores engajados."
+  ],
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e6470c32567102c406b8e2"
+  },
+  "title": "2. Durante a Transmissão",
+  "content": [
+    "Interaja com o Chat: Converse com seus espectadores! Responda perguntas, agradeça pelos presentes e faça com que eles se sintam parte da transmissão.",
+    "Ferramentas de Co-host e PK: Convide amigos para participar da sua live ou inicie uma Batalha PK para tornar as coisas mais emocionantes. Use as ferramentas no menu de opções.",
+    "Efeitos de Beleza: Utilize os filtros e efeitos de beleza para melhorar a qualidade da sua imagem e se divertir."
+  ],
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e6470c32567102c406b8e4"
+  },
+  "title": "3. Tipo de Transmissão",
+  "content": [
+    "WebRTC (Padrão): A forma mais simples de começar a transmitir, direto do seu navegador, sem necessidade de softwares adicionais.",
+    "RTMP/SRT: Para streamers avançados que usam softwares como OBS Studio. Copie a URL do servidor e a chave de transmissão para o seu programa para ter mais controle sobre a qualidade e layout da sua live."
+  ],
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e6470c32567102c406b8e6"
+  },
+  "title": "4. Dicas Importantes",
+  "content": [
+    "Seja Consistente: Tente transmitir em horários regulares para que seus fãs saibam quando podem te encontrar.",
+    "Divulgue: Avise seus seguidores em outras redes sociais que você vai entrar ao vivo.",
+    "Regras da Comunidade: Lembre-se de seguir as diretrizes da plataforma para manter um ambiente seguro e divertido para todos."
+  ],
+  "__v": 0
+}]

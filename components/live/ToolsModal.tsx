@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import LiveCallInvitation from '../../src/components/LiveCallInvitation';
+import LiveCallInvitation from './LiveCallInvitation';
 
 interface ToolsModalProps {
     isOpen: boolean;
@@ -21,7 +21,7 @@ const ToolsModal: React.FC<ToolsModalProps> = ({ isOpen, onClose, onOpenCoHostMo
 
     const handleInviteGuest = () => {
         if (!guestUserId.trim()) {
-            alert('Digite o ID do usuário para convidar');
+            alert('Digite o nome do usuário para convidar');
             return;
         }
         setShowCallModal(false);
@@ -63,12 +63,12 @@ const ToolsModal: React.FC<ToolsModalProps> = ({ isOpen, onClose, onOpenCoHostMo
                         <h3 className="text-white text-lg mb-4">Convidar Usuário para a Live</h3>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-gray-300 text-sm block mb-1">ID do Usuário</label>
+                                <label className="text-gray-300 text-sm block mb-1">Usuário</label>
                                 <input
                                     type="text"
                                     value={guestUserId}
                                     onChange={(e) => setGuestUserId(e.target.value)}
-                                    placeholder="Digite o ID real do usuário"
+                                    placeholder="Digite o nome de usuário"
                                     className="w-full p-2 rounded bg-gray-800 text-white border border-gray-600 focus:border-blue-500 focus:outline-none"
                                 />
                             </div>

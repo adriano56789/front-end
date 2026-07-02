@@ -5,6 +5,80 @@ import { BeautySettings, User, ToastType } from '../../types';
 import { videoProcessor, BeautyEffectSettings } from '../../services/VideoProcessor';
 import { beautyWebRTCIntegration } from '../../services/BeautyWebRTCIntegration';
 
+// Custom SVGs for Beauty Effects (Pixel Perfect match with screenshot)
+const WhitenIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 10C21.5 10 16 16.5 16 26.5C16 38.5 22.5 45.5 32 45.5C41.5 45.5 48 38.5 48 26.5C48 16.5 42.5 10 32 10Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M24 27C25.5 28.5 27.5 28.5 29 27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M35 27C36.5 28.5 38.5 28.5 40 27" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M28 36C29.5 37.5 32.5 37.5 34 36" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M43 38L44.5 41L47.5 42.5L44.5 44L43 47L41.5 44L38.5 42.5L41.5 41L43 38Z" fill="currentColor" stroke="currentColor" strokeWidth="1" />
+  </svg>
+);
+
+const SmoothIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 36C18 36 22 40 28 40C34 40 38 36 44 36C50 36 52 38 52 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M12 44C18 44 22 48 28 48C34 48 38 44 44 44C50 44 52 46 52 46" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M32 14C32 14 24 23 24 27C24 31.4 27.6 35 32 35C36.4 35 40 31.4 40 27C40 23 32 14 32 14Z" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M35 25C35 23.5 34.5 22 34 21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const BlushIcon = ({ className = "w-7 h-7" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="blushGlow" cx="40%" cy="40%" r="60%">
+        <stop offset="0%" stopColor="#ffb1b1" />
+        <stop offset="50%" stopColor="#e11d48" />
+        <stop offset="100%" stopColor="#4c0519" />
+      </radialGradient>
+    </defs>
+    <circle cx="32" cy="32" r="20" fill="url(#blushGlow)" stroke="#f43f5e" strokeWidth="1.5" />
+    <path d="M42 22C46 27 46 37 42 42C38 38 38 26 42 22Z" fill="white" fillOpacity="0.25" />
+  </svg>
+);
+
+const ContrastIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="20" stroke="currentColor" strokeWidth="2.5" />
+    <path d="M32 12C21 12 21 52 32 52V12Z" fill="currentColor" />
+  </svg>
+);
+
+const LockIconCustom = ({ className = "w-5 h-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const filterImages: Record<string, string> = {
+  'Musa': 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&h=150&q=80',
+  'Bonito': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&h=150&q=80',
+  'Vitalidade': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&h=150&q=80'
+};
+
+const renderEffectIcon = (effectName: string, isSelected: boolean) => {
+    const iconClass = `w-7 h-7 transition-all duration-300 ${isSelected ? 'text-[#a855f7] drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]' : 'text-gray-400'}`;
+    switch (effectName) {
+        case 'Branquear':
+            return <WhitenIcon className={iconClass} />;
+        case 'Alisar a pele':
+            return <SmoothIcon className={iconClass} />;
+        case 'Ruborizar':
+            return <BlushIconPropsWrapper isSelected={isSelected} />;
+        case 'Contraste':
+            return <ContrastIcon className={iconClass} />;
+        default:
+            return <div className="text-xl">✨</div>;
+    }
+};
+
+const BlushIconPropsWrapper: React.FC<{ isSelected: boolean }> = ({ isSelected }) => {
+    return <BlushIcon className={isSelected ? 'w-7 h-7 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]' : 'w-7 h-7 opacity-75'} />;
+};
+
 interface BeautyEffectsPanelProps {
     onClose: () => void;
     currentUser: User;
@@ -24,7 +98,7 @@ interface BeautyEffectsData {
 }
 
 const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, currentUser, addToast, videoRef }) => {
-    const [activeTab, setActiveTab] = useState('Beleza');
+    const [activeTab, setActiveTab] = useState<'Beleza' | 'Recomendar'>('Beleza');
     const [selectedFilter, setSelectedFilter] = useState('Musa');
     const [selectedEffect, setSelectedEffect] = useState('Branquear');
     const [settings, setSettings] = useState<BeautySettings>({});
@@ -33,12 +107,29 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
     const saveTimeout = useRef<number | null>(null);
     const currentFilters = useRef<string>('');
 
+    // Fallback automatic calculation to locate the local video preview if videoRef is not provided
+    const fallbackVideoRef = useRef<HTMLVideoElement | null>(null);
+    useEffect(() => {
+        if (!videoRef?.current) {
+            const videoEl = document.querySelector('video');
+            if (videoEl) {
+                fallbackVideoRef.current = videoEl;
+                console.log('✅ [BEAUTY_PANEL] Fallback video element resolved via DOM query');
+            }
+        }
+    }, [videoRef]);
+
+    const activeVideoRef = videoRef || fallbackVideoRef;
+
     // Fetch static effects definitions
     useEffect(() => {
         api.getBeautyEffects().then((response: any) => {
             // Lidar com a nova estrutura da API: { data: { filters, effects } }
-            const data = response?.data || response || { filters: [], effects: [] };
-            setEffectsData(data);
+            const data = response?.data || response;
+            setEffectsData({
+                filters: data?.filters || [],
+                effects: data?.effects || []
+            });
         }).catch(err => {
             console.error('❌ [BEAUTY_PANEL] Erro ao buscar efeitos:', err);
         });
@@ -68,8 +159,20 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                     videoProcessor.updateBeautySettings(beautySettings);
                     
                     // Iniciar processamento se ainda não estiver ativo
-                    if (videoRef?.current && !beautyWebRTCIntegration.isBeautyActive()) {
+                    if (activeVideoRef?.current && !beautyWebRTCIntegration.isBeautyActive()) {
                         initializeBeautyProcessing();
+                    }
+
+                    // Aplicar os filtros CSS iniciais para visualização em tempo real do host
+                    if (data?.selectedFilter && data.selectedFilter !== 'Fechar') {
+                        applyFilterToVideo(data.selectedFilter);
+                    } else {
+                        // Se não tem filtro selecionado, aplicar efeitos individuais
+                        Object.entries(data || {}).forEach(([effectName, val]) => {
+                            if (typeof val === 'number') {
+                                applyEffectToVideo(effectName, val);
+                            }
+                        });
                     }
                 })
                 .catch(err => {
@@ -78,19 +181,14 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                 })
                 .finally(() => setIsLoading(false));
         }
-    }, [currentUser, addToast, videoRef]);
+    }, [currentUser, addToast, activeVideoRef]);
 
     // Inicializar processamento de beleza quando o painel abrir
     useEffect(() => {
-        if (videoRef?.current && currentUser?.id) {
+        if (activeVideoRef?.current && currentUser?.id) {
             initializeBeautyProcessing();
         }
-        
-        return () => {
-            // Limpar quando o painel fechar
-            // Não parar o processamento aqui, pois pode ser usado em outras partes
-        };
-    }, [videoRef, currentUser]);
+    }, [activeVideoRef, currentUser]);
 
     // Converter configurações do formato da API para o formato do VideoProcessor
     const convertSettingsToBeautySettings = (apiSettings: BeautySettings): BeautyEffectSettings => {
@@ -105,7 +203,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
     // Inicializar processamento de beleza
     const initializeBeautyProcessing = async () => {
         try {
-            const video = videoRef?.current;
+            const video = activeVideoRef?.current;
             if (!video) return;
 
             // Inicializar processador de vídeo
@@ -127,23 +225,22 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         }
     };
 
-    // Função para aplicar efeitos CSS diretamente no vídeo
+    // Função para aplicar efeitos CSS diretamente no vídeo com filtragem suave profissional
     const applyEffectToVideo = (effectName: string, intensity: number) => {
-        const video = videoRef?.current;
+        const video = activeVideoRef?.current;
         if (!video) return;
 
         let filterString = currentFilters.current;
 
-        // Mapeamento dos efeitos para filtros CSS
+        // Mapeamento profissional e calibrado dos efeitos para filtros CSS de alta performance
         const effectMap: Record<string, (int: number) => string> = {
-            'Branquear': (int) => `brightness(${1 + (int / 100)})`,
-            'Alisar a pele': (int) => `blur(${int / 50}px)`,
-            'Ruborizar': (int) => `saturate(${1 + (int / 100)})`,
-            'Contraste': (int) => `contrast(${1 + (int / 200)})`
+            'Branquear': (int) => `brightness(${1 + (int / 180)})`,
+            'Alisar a pele': (int) => `contrast(${1 - (int / 1200)}) brightness(${1 + (int / 1500)}) blur(${Math.min(int / 140, 0.75)}px)`,
+            'Ruborizar': (int) => `saturate(${1 + (int / 120)})`,
+            'Contraste': (int) => `contrast(${1 + (int / 250)})`
         };
 
         if (effectMap[effectName]) {
-            // Adicionar/editar efeito individual
             const newFilter = effectMap[effectName](intensity);
             
             // Remover filtro existente do mesmo tipo
@@ -160,16 +257,16 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         currentFilters.current = filterString;
     };
 
-    // Função para aplicar filtro pré-definido
+    // Função para aplicar filtro pré-definido com visual refinado
     const applyFilterToVideo = (filterName: string) => {
-        const video = videoRef?.current;
+        const video = activeVideoRef?.current;
         if (!video) return;
 
         const filterMap: Record<string, string> = {
             'Fechar': 'none',
-            'Musa': 'brightness(1.1) saturate(1.2) contrast(1.05)',
-            'Bonito': 'brightness(1.15) saturate(1.1) contrast(1.1)',
-            'Vitalidade': 'brightness(1.2) saturate(1.3) contrast(1.15)'
+            'Musa': 'brightness(1.1) saturate(1.15) contrast(1.05)',
+            'Bonito': 'brightness(1.12) saturate(1.1) contrast(1.08)',
+            'Vitalidade': 'brightness(1.15) saturate(1.22) contrast(1.1)'
         };
 
         const filterString = filterMap[filterName] || 'none';
@@ -185,7 +282,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         saveTimeout.current = window.setTimeout(() => {
             if (currentUser?.id) {
                 // Incluir estado completo do painel
-                const completeSettings = {
+                const completeSettings: BeautySettings = {
                     ...newSettings,
                     activeTab,
                     selectedFilter,
@@ -193,7 +290,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                 };
                 
                 api.updateBeautySettings(currentUser.id, completeSettings)
-                    .then(response => {
+                    .then(() => {
                         // Success - no sensitive data logged
                     })
                     .catch(err => {
@@ -222,14 +319,12 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSettings(newSettings);
         saveSettings(newSettings);
         
-        // Aplicar efeito em tempo real no processador de vídeo
+        // Aplicar efeito em tempo real no processador de vídeo WebGL (transmissão)
         const beautySettings = convertSettingsToBeautySettings(newSettings);
         videoProcessor.updateBeautySettings(beautySettings);
         
-        // Fallback para CSS se o processador não estiver ativo
-        if (!beautyWebRTCIntegration.isBeautyActive()) {
-            applyEffectToVideo(selectedEffect, value);
-        }
+        // Sempre aplicar efeitos CSS ao vídeo local para feedback imediato e impecável na tela do broadcaster
+        applyEffectToVideo(selectedEffect, value);
     };
 
     // Handler para seleção de filtros (Recomendar)
@@ -259,13 +354,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         // Salvar na API
         saveSettings(apiSettings);
         
-        // Aplicar filtro pré-definido via processador ou CSS
-        if (beautyWebRTCIntegration.isBeautyActive()) {
-            videoProcessor.updateBeautySettings(selectedSettings);
-        } else {
-            // Fallback para CSS
-            applyFilterToVideo(filterName);
-        }
+        // Sincronizar tanto WebGL quanto render local
+        videoProcessor.updateBeautySettings(selectedSettings);
+        applyFilterToVideo(filterName);
     };
 
     // Handler para seleção de efeitos (Beleza)
@@ -273,7 +364,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSelectedEffect(effectName);
         
         // Salvar estado completo
-        const completeSettings = {
+        const completeSettings: BeautySettings = {
             ...settings,
             activeTab,
             selectedFilter,
@@ -293,7 +384,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSelectedFilter('Musa');
         setSelectedEffect('Branquear');
         
-        // Resetar processador de vídeo
+        // Resetar processador de vídeo WebGL
         videoProcessor.updateBeautySettings({
             whitening: 0,
             smoothing: 0,
@@ -301,8 +392,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             contrast: 0
         });
         
-        // Resetar vídeo (fallback CSS)
-        const video = videoRef?.current;
+        // Resetar vídeo (filtro CSS local)
+        const video = activeVideoRef?.current;
         if (video) {
             video.style.filter = 'none';
             currentFilters.current = '';
@@ -312,79 +403,141 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
     const currentEffectValue = settings[selectedEffect] ?? 0;
 
     return (
-         <div className="absolute inset-x-0 bottom-0 bg-[#222225] rounded-t-2xl z-50 p-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                    <button onClick={() => {
-                        setActiveTab('Recomendar');
-                        // Salvar estado completo
-                        const completeSettings = {
-                            ...settings,
-                            activeTab: 'Recomendar',
-                            selectedFilter,
-                            selectedEffect
-                        };
-                        saveSettings(completeSettings);
-                    }} className={`transition-colors ${activeTab === 'Recomendar' ? 'text-white' : 'text-gray-500 hover:text-white'}`}>Recomendar</button>
-                    <button onClick={() => {
-                        setActiveTab('Beleza');
-                        // Salvar estado completo
-                        const completeSettings = {
-                            ...settings,
-                            activeTab: 'Beleza',
-                            selectedFilter,
-                            selectedEffect
-                        };
-                        saveSettings(completeSettings);
-                    }} className={`transition-colors ${activeTab === 'Beleza' ? 'text-white' : 'text-gray-500 hover:text-white'}`}>Beleza</button>
+         <div className="absolute inset-x-0 bottom-0 bg-[#0c0c0f] border-t border-white/5 rounded-t-[28px] z-50 p-5 pb-7 shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
+            {/* Header Tabs Row */}
+            <div className="flex items-center justify-between mb-5 px-1">
+                <div className="flex items-center space-x-6">
+                    <button 
+                        onClick={() => {
+                            setActiveTab('Recomendar');
+                            const completeSettings: BeautySettings = {
+                                ...settings,
+                                activeTab: 'Recomendar',
+                                selectedFilter,
+                                selectedEffect
+                            };
+                            saveSettings(completeSettings);
+                        }} 
+                        className={`transition-colors font-sans text-[15px] ${activeTab === 'Recomendar' ? 'text-white font-extrabold tracking-wide' : 'text-[#717175] font-semibold hover:text-white'}`}
+                    >
+                        Recomendar
+                    </button>
+                    <button 
+                        onClick={() => {
+                            setActiveTab('Beleza');
+                            const completeSettings: BeautySettings = {
+                                ...settings,
+                                activeTab: 'Beleza',
+                                selectedFilter,
+                                selectedEffect
+                            };
+                            saveSettings(completeSettings);
+                        }} 
+                        className={`transition-colors font-sans text-[15px] ${activeTab === 'Beleza' ? 'text-white font-extrabold tracking-wide' : 'text-[#717175] font-semibold hover:text-white'}`}
+                    >
+                        Beleza
+                    </button>
+                    <button 
+                        onClick={resetEffects} 
+                        className="transition-colors font-sans text-[15px] text-[#717175] font-semibold hover:text-white"
+                    >
+                        Redefinir
+                    </button>
                 </div>
-                <div className="flex items-center space-x-4">
-                    <button onClick={resetEffects} className="text-sm text-gray-400 hover:text-white">Redefinir</button>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">
-                        <CloseIcon className="w-5 h-5" />
+                <div>
+                    <button 
+                        onClick={onClose} 
+                        className="w-7 h-7 bg-[#28282c] rounded-full flex items-center justify-center text-white hover:bg-[#34343a] transition-all"
+                    >
+                        <CloseIcon className="w-4 h-4" />
                     </button>
                 </div>
             </div>
+
+            {/* Filter Presets Row (Only visible when Recomendar is active) */}
             {activeTab === 'Recomendar' && (
-                <div className="flex justify-around items-center text-center">
-                    {effectsData.filters.map(f => (
-                        <button key={f.name} onClick={() => handleFilterSelect(f.name)} className="flex flex-col items-center space-y-2 focus:outline-none">
-                            {f.img ? 
-                                <img src={f.img} alt={f.name} className={`w-12 h-12 rounded-lg object-cover border-2 transition-all ${selectedFilter === f.name ? 'border-purple-500' : 'border-transparent'}`} /> : 
-                                f.icon && f.icon.startsWith('http') ? 
-                                    <div className={`w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center text-xl border-2 transition-all ${selectedFilter === f.name ? 'border-purple-500' : 'border-transparent'}`}>
-                                        <img src={f.icon} alt={f.name} className="w-6 h-6" translate="no" />
-                                    </div> :
-                                    <div className={`w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center text-xl border-2 transition-all ${selectedFilter === f.name ? 'border-purple-500' : 'border-transparent'}`}>{f.icon}</div>
-                            }
-                            <span className={`text-xs transition-colors ${selectedFilter === f.name ? 'text-purple-400' : 'text-gray-300'}`} translate="no">{f.name}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
-            {activeTab === 'Beleza' && (
-                <div>
-                     <div className="flex items-center space-x-3 mb-4">
-                        <span className="text-white w-6 text-center">{currentEffectValue}</span>
-                        <input type="range" min="0" max="100" value={currentEffectValue} onChange={handleSliderChange} disabled={isLoading} className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500 disabled:opacity-50" />
-                    </div>
-                     <div className="flex justify-around items-center text-center">
-                        {effectsData.effects.map((e) => (
-                             <button key={e.name} onClick={() => handleEffectSelect(e.name)} className="flex flex-col items-center space-y-2 focus:outline-none">
-                                {e.icon && e.icon.startsWith('http') ? 
-                                    <div className={`w-12 h-12 rounded-lg bg-gray-700 flex items-center justify-center text-xl border-2 transition-all ${selectedEffect === e.name ? 'border-purple-500' : 'border-transparent'}`}>
-                                        <img src={e.icon} alt={e.name} className="w-6 h-6" translate="no" />
-                                    </div> :
-                                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl transition-colors ${selectedEffect === e.name ? 'bg-purple-600' : 'bg-gray-700'}`}>
-                                        {e.icon}
+                <div className="flex justify-around items-center text-center mb-6 pt-1">
+                    {effectsData.filters.map(f => {
+                        const isSelected = selectedFilter === f.name;
+                        const isFechar = f.name === 'Fechar';
+                        return (
+                            <button 
+                                key={f.name} 
+                                onClick={() => handleFilterSelect(f.name)} 
+                                className="flex flex-col items-center space-y-2.5 focus:outline-none group"
+                            >
+                                {isFechar ? (
+                                    <div className={`w-14 h-14 rounded-full flex items-center justify-center bg-[#242428] border border-white/5 transition-all duration-300 ${isSelected ? 'ring-[3px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'hover:border-white/10'}`}>
+                                        <LockIconCustom className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
                                     </div>
-                                }
-                                <span className={`text-xs transition-colors ${selectedEffect === e.name ? 'text-purple-400' : 'text-gray-300'}`} translate="no">{e.name}</span>
+                                ) : (
+                                    <img 
+                                        src={filterImages[f.name] || f.img || `https://picsum.photos/seed/${f.name}/150/150`} 
+                                        alt={f.name} 
+                                        className={`w-14 h-14 rounded-full object-cover transition-all duration-300 ${isSelected ? 'ring-[3px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'opacity-85 group-hover:opacity-100'}`} 
+                                    />
+                                )}
+                                <span className={`text-[11px] transition-colors ${isSelected ? 'text-white font-extrabold' : 'text-[#a1a1aa] group-hover:text-white'}`} translate="no">
+                                    {f.name}
+                                </span>
                             </button>
-                        ))}
-                    </div>
+                        );
+                    })}
                 </div>
             )}
+
+            {/* Slider Section (Always present at bottom adjustments) */}
+            <div className="flex items-center space-x-4 mb-4 px-1.5 mt-2">
+                <span className="text-[#a855f7] font-sans font-black text-base w-7 text-center shrink-0">
+                    {currentEffectValue}
+                </span>
+                <div className="relative flex-1 flex items-center h-5">
+                    {/* Background track */}
+                    <div className="absolute left-0 right-0 h-[3px] bg-[#242428] rounded-full" />
+                    {/* Progress track */}
+                    <div 
+                        className="absolute left-0 h-[3px] bg-[#a855f7] rounded-full" 
+                        style={{ width: `${currentEffectValue}%` }}
+                    />
+                    {/* Invisible Input slider overlay with custom styled thumb */}
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max="100" 
+                        value={currentEffectValue} 
+                        onChange={handleSliderChange} 
+                        disabled={isLoading} 
+                        className="w-full h-full appearance-none bg-transparent cursor-pointer relative z-10 focus:outline-none 
+                                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
+                                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-[4px] 
+                                   [&::-webkit-slider-thumb]:border-[#a855f7] [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(168,85,247,0.8)]
+                                   [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
+                                   [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-[4px] [&::-moz-range-thumb]:border-[#a855f7] 
+                                   [&::-moz-range-thumb]:shadow-[0_0_8px_rgba(168,85,247,0.8)]" 
+                    />
+                </div>
+            </div>
+
+            {/* Custom Beauty Adjustments ("Beleza" effects list) - Always at the bottom per screenshot */}
+            <div className="flex justify-around items-center text-center mt-4">
+                {effectsData.effects.map((e) => {
+                    const isSelected = selectedEffect === e.name;
+                    return (
+                         <button 
+                            key={e.name} 
+                            onClick={() => handleEffectSelect(e.name)} 
+                            className="flex flex-col items-center space-y-2.5 focus:outline-none group"
+                         >
+                            <div className={`w-[72px] h-[72px] rounded-[18px] flex items-center justify-center transition-all duration-300 relative ${isSelected ? 'bg-[#201d2a]/60 border-[2.5px] border-[#a552f4] shadow-[0_0_15px_rgba(168,85,247,0.25)] scale-105' : 'bg-[#1b1b1f] border border-white/5 hover:border-white/10 group-hover:scale-102'}`}>
+                                {renderEffectIcon(e.name, isSelected)}
+                            </div>
+                            <span className={`text-[11px] font-sans font-medium transition-colors ${isSelected ? 'text-white font-bold' : 'text-[#a1a1aa] group-hover:text-white'}`} translate="no">
+                                {e.name}
+                            </span>
+                        </button>
+                    );
+                })}
+            </div>
         </div>
     );
 };

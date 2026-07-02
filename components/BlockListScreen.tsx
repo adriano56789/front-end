@@ -18,7 +18,7 @@ const UserItem: React.FC<{ user: User; onUnblock: () => void; onViewProfile: () 
                 <img src={user.avatarUrl} alt={user.name} className="w-14 h-14 rounded-full object-cover" />
                 <div>
                     <h3 className="font-semibold text-white">{user.name}</h3>
-                    <p className="text-sm text-gray-400">ID: {user.identification}</p>
+                    <p className="text-sm text-gray-400">ID: {user.name}</p>
                 </div>
             </div>
             <button

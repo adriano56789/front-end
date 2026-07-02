@@ -1,0 +1,19 @@
+[{
+  "_id": {
+    "$oid": "69ee69f930d2d0bdfb5f5cab"
+  },
+  "userId": "98501723",
+  "__v": 0,
+  "age": 18,
+  "birthDate": {
+    "$date": "2008-01-01T02:00:00.000Z"
+  },
+  "createdAt": {
+    "$date": "2026-04-26T19:39:37.024Z"
+  },
+  "isActive": true,
+  "updatedAt": {
+    "$date": "2026-04-28T13:18:25.527Z"
+  },
+  "zodiacSign": "Capricórnio"
+}]

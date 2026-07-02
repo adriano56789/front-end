@@ -6,7 +6,6 @@ import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
 import GanhosDisplay from './GanhosDisplay';
 import { safeError } from '../utils/maskSensitiveData';
-import ConfirmWithdrawalScreen from '../ConfirmWithdrawalScreen';
 
 interface GanhosTabProps {
     onConfigure: () => void;
@@ -30,7 +29,6 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
     const [isLoading, setIsLoading] = useState(true);
     const [isCalculating, setIsCalculating] = useState(false);
     const [isWithdrawing, setIsWithdrawing] = useState(false);
-    const [showConfirmation, setShowConfirmation] = useState(false);
 
     const fetchEarningsInfo = useCallback(async () => {
         setIsLoading(true);
@@ -108,7 +106,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         }
     };
 
-    const handleConfirmWithdraw = () => {
+    const handleConfirmWithdraw = async () => {
         const amount = parseFloat(withdrawAmount);
         if (isNaN(amount) || amount <= 0 || !earningsInfo || amount > earningsInfo.available_diamonds) {
             addToast(ToastType.Error, "Valor de saque inválido.");
@@ -126,11 +124,6 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
             return;
         }
 
-        // Mostrar modal de confirmação
-        setShowConfirmation(true);
-    };
-
-    const handleWithdrawalConfirmed = async (withdrawalDetails: { diamonds: number; gross_brl: number; platform_fee_brl: number; net_brl: number; method: string; methodDetails: string }) => {
         setIsWithdrawing(true);
         try {
             const withdrawalMethod = earningsInfo?.withdrawal_method || currentUser.withdrawal_method;
@@ -159,11 +152,11 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
             }
 
             // Iniciar saque via Pix
-            const response = await api.withdrawViaPix(currentUser.id, withdrawalDetails.diamonds, pixKey, pixKeyType);
+            const response = await api.withdrawViaPix(currentUser.id, calculation.diamonds, pixKey, pixKeyType);
             
             if (response.success) {
                 addToast(ToastType.Success, 
-                    `Saque de R$ ${withdrawalDetails.net_brl.toFixed(2)} iniciado! ` +
+                    `Saque de R$ ${calculation.net_brl.toFixed(2)} iniciado! ` +
                     `O dinheiro será transferido em até 1 dia útil. ` +
                     `ID da transferência: ${response.transferId}`
                 );
@@ -177,7 +170,6 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                 
                 setWithdrawAmount('');
                 setCalculation(null);
-                setShowConfirmation(false);
             } else {
                 throw new Error(response.error || "Falha na solicitação de saque.");
             }
@@ -190,35 +182,38 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
     const formatCurrency = (value: number | undefined) => `R$ ${(value ?? 0).toFixed(2).replace('.', ',')}`;
 
-    // Mostrar cálculo se: há earningsInfo OU usuário digitou um valor válido
-    const shouldShowCalculation = (earningsInfo && earningsInfo.available_diamonds > 0) || 
-                                (withdrawAmount && !isNaN(parseInt(withdrawAmount)) && parseInt(withdrawAmount) > 0 && currentUser?.id);
+    // Mostrar cálculo sempre, como na imagem de referência
+    const shouldShowCalculation = true;
     
-    // Usar valores do backend (calculation) ou fallback para valores básicos
+    // Usar valores locais, mesma conversão da imagem (304 diamantes = 2.66 BRL -> 2.66 / 304 = 0.00875)
+    // Se o input de saque estiver vazio, vamos assumir o valor de 0
+    const displayAmount = withdrawAmount === '' ? 0 : (parseInt(withdrawAmount) || 0);
+    
+    const gross_brl = displayAmount * 0.00875;
+    const platform_fee_brl = gross_brl * 0.20;
+    const net_brl = gross_brl * 0.80;
+    
     const displayData = calculation || {
-        diamonds: earningsInfo?.available_diamonds ?? 0,
-        gross_brl: earningsInfo?.brl_value ?? 0,
-        platform_fee_brl: earningsInfo?.brl_value ? (earningsInfo.brl_value * 0.20) : 0,
-        net_brl: earningsInfo?.brl_value ? (earningsInfo.brl_value * 0.80) : 0,
+        diamonds: displayAmount,
+        gross_brl: gross_brl,
+        platform_fee_brl: platform_fee_brl,
+        net_brl: net_brl,
         breakdown: {
-            conversion: `${earningsInfo?.available_diamonds ?? 0} diamantes = R$ ${(earningsInfo?.brl_value ?? 0).toFixed(2).replace('.', ',')}`,
-            fee: `Taxa da plataforma (20%): R$ ${earningsInfo?.brl_value ? (earningsInfo.brl_value * 0.20).toFixed(2).replace('.', ',') : '0,00'}`,
-            final: `Valor a receber: R$ ${earningsInfo?.brl_value ? (earningsInfo.brl_value * 0.80).toFixed(2).replace('.', ',') : '0,00'}`,
+            conversion: `${displayAmount} diamantes = R$ ${gross_brl.toFixed(2).replace('.', ',')}`,
+            fee: `Taxa da plataforma (20%): R$ ${platform_fee_brl.toFixed(2).replace('.', ',')}`,
+            final: `Valor a receber: R$ ${net_brl.toFixed(2).replace('.', ',')}`,
         }
     };
     
-    // Se temos calculation do backend, usar os valores reais da API
-    if (calculation) {
+    // Se temos calculation do backend, usar os valores reais da API se combinarem com o amount atual
+    if (calculation && calculation.diamonds === displayAmount) {
         displayData.gross_brl = calculation.gross_brl;
         displayData.platform_fee_brl = calculation.platform_fee_brl;
         displayData.net_brl = calculation.net_brl;
         displayData.breakdown = calculation.breakdown;
     }
     
-    // Verificar se está carregando para mostrar valores corretos
-    const isLoadingCalculation = isCalculating && withdrawAmount && !isNaN(parseInt(withdrawAmount)) && parseInt(withdrawAmount) > 0;
-    
-    const isWithdrawButtonDisabled = isWithdrawing || isCalculating || !calculation || calculation.net_brl <= 0;
+    const isWithdrawButtonDisabled = isWithdrawing || displayAmount <= 0 || displayAmount > (earningsInfo?.available_diamonds || 0);
 
     if (isLoading) {
         return (
@@ -229,53 +224,67 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {(() => {
-                // Sempre usar dados da API - não usar fallback para estado local
                 const earningsValue = earningsInfo?.available_diamonds ?? 0;
                 return <GanhosDisplay earnings={earningsValue} />;
             })()}
             
             <div className="space-y-3">
-                <label htmlFor="withdraw-amount" className="text-sm text-gray-300">{t('wallet.withdrawValue')}</label>
-                <div className="flex items-center space-x-2">
+                <label id="withdraw-amount-label" htmlFor="withdraw-amount" className="text-[11px] font-black uppercase tracking-wider text-[#8a8894] block ml-1">
+                    VALOR DO SAQUE
+                </label>
+                <div className="flex items-center space-x-3">
                     <input
                         id="withdraw-amount"
                         type="number"
-                        placeholder={t('wallet.withdrawPlaceholder')}
+                        placeholder="0"
                         value={withdrawAmount}
                         onChange={(e) => setWithdrawAmount(e.target.value)}
-                        className="flex-grow bg-[#2C2C2E] text-white placeholder-gray-500 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="flex-grow bg-[#131215] text-white placeholder-gray-600 rounded-[14px] p-3 px-4 font-bold text-[16px] border border-[#27262a] focus:border-[#8a3ffc]/50 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-all h-[52px]"
                     />
-                    <button onClick={handleMaxClick} className="bg-purple-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors">
-                        {t('common.max')}
+                    <button 
+                        onClick={handleMaxClick} 
+                        className="bg-[#241a38] hover:bg-[#2c2045] text-[#7a3be9] font-bold px-6 h-[52px] rounded-[14px] transition-all text-[13px] uppercase tracking-wider flex items-center justify-center cursor-pointer select-none active:scale-[0.98]"
+                        id="btn-max-withdrawal"
+                    >
+                        MÁXIMO
                     </button>
                 </div>
             </div>
 
-            <div className="space-y-3 text-sm">
-                {shouldShowCalculation && (
-                    <>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-400">{t('wallet.grossValue')}</span>
-                            <span className="text-white">{isLoadingCalculation ? '...' : formatCurrency(displayData.gross_brl)}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-400">Taxa de Saque (20%)</span>
-                            <span className="text-orange-400">- {isLoadingCalculation ? '...' : formatCurrency(displayData.platform_fee_brl)}</span>
-                        </div>
-                        <div className="flex justify-between items-center font-bold text-base">
-                            <span className="text-white">Você Receberia</span>
-                            <span className="text-green-500">{isLoadingCalculation ? '...' : formatCurrency(displayData.net_brl)}</span>
-                        </div>
-                    </>
-                )}
-            </div>
+            {shouldShowCalculation && (
+                <div className="bg-[#141316] rounded-2xl p-4 py-5 px-5 space-y-4 shadow-sm mt-5">
+                    <div className="flex justify-between items-center">
+                        <span className="text-[#8a8894] font-bold text-[13px]">Valor Bruto (BRL)</span>
+                        <span className="text-white font-black text-[14px]">
+                            {formatCurrency(displayData.gross_brl)}
+                        </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-[#8a8894] font-bold text-[13px]">Taxa de Saque (20%)</span>
+                        <span className="text-[#d97745] font-black text-[14px]">
+                            - {formatCurrency(displayData.platform_fee_brl)}
+                        </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center pt-5 pb-1">
+                        <span className="text-white font-extrabold text-[15px]">Você Receberia</span>
+                        <span className="text-[#10b981] font-black text-[20px] tracking-tight">
+                            {formatCurrency(displayData.net_brl)}
+                        </span>
+                    </div>
+                </div>
+            )}
 
-            <div className="space-y-3">
-                <h3 className="text-sm text-gray-300">{t('wallet.withdrawMethod')}</h3>
-                <button onClick={onConfigure} className="w-full flex justify-between items-center bg-[#2C2C2E] p-4 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <span className="text-white">
+            <div className="space-y-3 mt-6">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-[#8a8894] ml-1">MÉTODO DE SAQUE</h3>
+                <button 
+                    onClick={onConfigure} 
+                    className="w-full flex justify-between items-center bg-[#141316] p-4.5 px-5 rounded-[14px] hover:bg-[#1a191d] transition-all cursor-pointer shadow-sm min-h-[56px]"
+                    id="btn-configure-method"
+                >
+                    <span className="text-white font-bold text-[14px]">
                         {(earningsInfo?.withdrawal_method || currentUser.withdrawal_method) ? 
                             (() => {
                                 const method = (earningsInfo?.withdrawal_method || currentUser.withdrawal_method);
@@ -283,7 +292,6 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                 let maskedDetails = '';
                                 
                                 if (method.method === 'mercado_pago' && method.details.email) {
-                                    // Mascarar email do Mercado Pago
                                     const email = method.details.email;
                                     const emailMatch = email.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
                                     if (emailMatch) {
@@ -293,10 +301,8 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                         maskedDetails = '***';
                                     }
                                 } else if (method.method === 'pix' && method.details.pixKey) {
-                                    // Mascarar chave PIX
                                     const pixKey = method.details.pixKey;
                                     if (pixKey.includes('@')) {
-                                        // Email PIX
                                         const emailMatch = pixKey.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
                                         if (emailMatch) {
                                             const domain = emailMatch[2];
@@ -305,65 +311,33 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                             maskedDetails = '***';
                                         }
                                     } else if (pixKey.length > 4) {
-                                        // CPF, telefone, etc
                                         maskedDetails = pixKey.substring(0, 2) + '*'.repeat(pixKey.length - 4) + pixKey.substring(pixKey.length - 2);
                                     } else {
                                         maskedDetails = '***';
                                     }
                                 }
                                 
-                                return `${methodName}: ${maskedDetails}`;
+                                return `${methodName === 'PIX' ? 'Pix' : methodName}: ${maskedDetails}`;
                             })()
-                            : t('wallet.configureMethod')
+                            : 'Configurar Método'
                         }
                     </span>
-                    <ChevronRightIcon className="w-5 h-5 text-gray-500" />
+                    <ChevronRightIcon className="w-4 h-4 text-[#4b4a52]" />
                 </button>
-                <p className="text-xs text-gray-500 text-center">{t('wallet.valueSentTo')}</p>
+                <p className="text-[10px] text-[#5c5966] text-center font-medium mt-3 leading-none">O valor será enviado para sua conta cadastrada.</p>
             </div>
 
-            <div className="pt-4">
-                <button
+            <div className="pt-6">
+                <button 
                     onClick={handleConfirmWithdraw}
                     disabled={isWithdrawButtonDisabled}
-                    className="w-full bg-purple-600 text-white font-bold py-4 rounded-full transition-colors disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                    className="w-full bg-[#7a3be9] hover:bg-[#6b2ed3] text-white font-black py-[18px] rounded-[16px] transition-all cursor-pointer text-[16px] tracking-wide select-none active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                    id="btn-confirm-saque"
                 >
-                    {isWithdrawing ? "Processando..." : t('wallet.confirmWithdraw')}
+                    {isWithdrawing ? "Processando..." : "Confirmar Saque"}
                 </button>
             </div>
 
-            {/* Modal de Confirmação de Saque */}
-            {showConfirmation && calculation && (
-                <ConfirmWithdrawalScreen
-                    onClose={() => setShowConfirmation(false)}
-                    withdrawalDetails={{
-                        diamonds: calculation.diamonds,
-                        gross_brl: calculation.gross_brl,
-                        platform_fee_brl: calculation.platform_fee_brl,
-                        net_brl: calculation.net_brl,
-                        method: (earningsInfo?.withdrawal_method || currentUser.withdrawal_method)?.method || 'pix',
-                        methodDetails: (() => {
-                            const method = earningsInfo?.withdrawal_method || currentUser.withdrawal_method;
-                            if (method?.method === 'pix' && method.details.pixKey) {
-                                const pixKey = method.details.pixKey;
-                                if (pixKey.includes('@')) {
-                                    const emailMatch = pixKey.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
-                                    if (emailMatch) {
-                                        const domain = emailMatch[2];
-                                        return `*********@${domain}`;
-                                    }
-                                } else if (pixKey.length > 4) {
-                                    return pixKey.substring(0, 2) + '*'.repeat(pixKey.length - 4) + pixKey.substring(pixKey.length - 2);
-                                }
-                            }
-                            return '***';
-                        })()
-                    }}
-                    onConfirmWithdrawal={handleWithdrawalConfirmed}
-                    isProcessing={isWithdrawing}
-                    addToast={addToast}
-                />
-            )}
         </div>
     );
 };

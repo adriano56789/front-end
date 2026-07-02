@@ -14,11 +14,8 @@ class SocketService {
 
     async connect() {
         if (this.socket?.connected) {
-            console.log(`🔄 [SOCKET] Already connected to ${WS_URL}`);
             return;
         }
-        
-        console.log(`🚀 [SOCKET] Connecting to ${WS_URL}...`);
         
         // Inicializar Protobuf antes de conectar
         await ProtobufService.init();
@@ -29,7 +26,7 @@ class SocketService {
         
         const token = getAuthToken();
         this.socket = io(wsUrlWithCache, {
-            transports: ['websocket', 'polling'], // WebSocket com polling como fallback
+            transports: ['polling', 'websocket'], // Polling first as fallback to prevent WebSocket closed without opened error
             reconnectionAttempts: 10,
             reconnectionDelay: 2000,
             reconnectionDelayMax: 10000,
@@ -51,15 +48,13 @@ class SocketService {
             // CORS e headers adicionais
             withCredentials: true,
             extraHeaders: {
-                'Origin': window.location.origin,
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache'
             }
         } as any);
 
         this.socket.on('connect', () => {
-            console.log(`✅ [SOCKET] Connected to ${WS_URL}`);
-            console.log(`📊 [SOCKET] Transport: ${this.socket?.io.engine.transport.name}`);
+            console.log('✅ Servidor de sinalização conectado.');
             
             // Enviar evento binfo como Buzzcast
             this.sendBinfo();
@@ -69,46 +64,49 @@ class SocketService {
         });
 
         this.socket.on('connect_error', (err) => {
-            console.error(`❌ [SOCKET] Connection error:`, err);
-            console.error(`❌ [SOCKET] URL being attempted: ${WS_URL}`);
-            
             // Tentar URL alternativa se a principal falhar
             if (WS_URL.includes('https://livego.store')) {
-                console.log(`🔄 [SOCKET] Tentando URL alternativa...`);
                 this.tryAlternativeConnection();
             }
         });
 
         this.socket.on('disconnect', (reason) => {
-            console.log(`🔌 [SOCKET] Disconnected: ${reason}`);
             this.stopHeartbeat();
         });
         
-        // Eventos como LiveGo
+        // Eventos como LiveGo - Silenciados
         this.socket.on('binfo_response', (data) => {
-            console.log(`📊 [LIVEGO-BINFO] Response:`, data);
         });
         
         this.socket.on('stream_joined', (data) => {
-            console.log(`🎥 [STREAM] Joined:`, data);
         });
         
         this.socket.on('stream_left', (data) => {
-            console.log(`🎥 [STREAM] Left:`, data);
         });
         
         this.socket.on('pong', (data) => {
-            console.log(`🏓 [HEARTBEAT] Pong received:`, data);
         });
         
         // Processar eventos Protobuf (serialização binária real)
         this.socket.on('binary_data', (data) => {
-            console.log(`📦 [PROTOBUF] Binary data received`);
-
+            let uint8Array: Uint8Array | null = null;
             if (data instanceof ArrayBuffer) {
-                const uint8Array = new Uint8Array(data);
-                console.log(`📦 [PROTOBUF] HEX:`, ProtobufService.bufferToHex(uint8Array));
+                uint8Array = new Uint8Array(data);
+            } else if (data instanceof Uint8Array) {
+                uint8Array = data;
+            } else if (data && typeof data === 'object') {
+                if (data.type === 'Buffer' && Array.isArray(data.data)) {
+                    uint8Array = new Uint8Array(data.data);
+                } else if ('buffer' in data && data.buffer instanceof ArrayBuffer) {
+                    uint8Array = new Uint8Array(data.buffer, data.byteOffset || 0, data.byteLength || data.buffer.byteLength);
+                } else if (Array.isArray(data)) {
+                    uint8Array = new Uint8Array(data);
+                }
+            } else if (typeof data === 'string') {
+                uint8Array = new TextEncoder().encode(data);
+            }
 
+            if (uint8Array) {
                 const decodedEvent = ProtobufService.decodeEvent(uint8Array);
                 if (decodedEvent) {
                     this.dispatchProtobufEvent(decodedEvent);
@@ -118,6 +116,11 @@ class SocketService {
         
         // Eventos processados apenas via transporte binário (binary_data)
         // Removidos eventos JSON redundantes para garantir transporte binário exclusivo
+
+        // Listener para mensagens de chat privado em tempo real
+        this.socket.on('newChatMessage', (payload) => {
+            window.dispatchEvent(new CustomEvent('newChatMessage', { detail: payload }));
+        });
 
         // Re-attach general dynamic listeners
         this.listeners.forEach((callbacks, event) => {
@@ -152,8 +155,6 @@ class SocketService {
 
                 // Enviar como binário real
                 this.socket?.emit('binary_data', arrayBuffer);
-
-                console.log('📦 [PROTOBUF] Heartbeat sent as binary:', arrayBuffer.byteLength, 'bytes');
             }
         }, 30000); // Heartbeat a cada 30 segundos
     }
@@ -167,15 +168,14 @@ class SocketService {
 
     private tryAlternativeConnection() {
         const alternativeUrls = [
-            'https://72.60.249.175:3001',
-            'http://72.60.249.175:3001',
+            `${env.apiBaseUrl.replace(':3000', ':3001')}`,
+            `https://${env.srs.host}:3001`,
+            `http://${env.srs.host}:3001`,
             'https://www.livego.store:3001',
             'http://www.livego.store:3001'
         ];
         
         for (const url of alternativeUrls) {
-            console.log(`🔄 [SOCKET] Tentando URL alternativa: ${url}`);
-            
             const alternativeSocket = io(url, {
                 transports: ['websocket', 'polling'],
                 reconnectionAttempts: 3,
@@ -186,14 +186,12 @@ class SocketService {
             });
             
             alternativeSocket.on('connect', () => {
-                console.log(`✅ [SOCKET] Conectado via URL alternativa: ${url}`);
                 // Usar esta conexão como principal
                 this.socket = alternativeSocket;
                 this.setupSocketEvents();
             });
             
             alternativeSocket.on('connect_error', (err) => {
-                console.error(`❌ [SOCKET] Falha na URL alternativa ${url}:`, err);
             });
         }
     }
@@ -202,18 +200,14 @@ class SocketService {
         if (!this.socket) return;
         
         this.socket.on('connect', () => {
-            console.log(`✅ [SOCKET] Connected to ${WS_URL}`);
-            console.log(`📊 [SOCKET] Transport: ${this.socket?.io.engine.transport.name}`);
             this.sendBinfo();
             this.startHeartbeat();
         });
         
         this.socket.on('connect_error', (err) => {
-            console.error(`❌ [SOCKET] Connection error:`, err);
         });
         
         this.socket.on('disconnect', (reason) => {
-            console.log(`🔌 [SOCKET] Disconnected: ${reason}`);
             this.stopHeartbeat();
         });
     }
@@ -230,16 +224,20 @@ class SocketService {
     joinRoom(roomId: string) {
         if (!this.socket?.connected) this.connect();
         
-        // Enviar join_stream como binário via Protobuf
-        // Usar ID dinâmico do usuário logado (buscar do banco via API)
-        const currentUserId = getCurrentUserId(); // APENAS do banco/API
-        this.sendProtobufJoinStream(roomId, currentUserId); // ID real do usuário
+        const currentUserId = getCurrentUserId();
         
-        console.log(`🎥 [LIVE] Joined stream ${roomId} (binary)`);
+        // Enviar join_room_direct para sincronizar o Socket.IO room na sessão do Express
+        this.socket?.emit('join_room_direct', { roomId, userId: currentUserId });
+        
+        // Enviar join_stream como binário via Protobuf para compatibilidade reversa
+        this.sendProtobufJoinStream(roomId, currentUserId);
     }
 
     leaveRoom(roomId: string) {
         if (!this.socket?.connected) return;
+        
+        // Chamar leave_room_direct para sair imediatamente do Socket.IO room
+        this.socket?.emit('leave_room_direct', { roomId });
         
         // Enviar leave_room como binário via Protobuf
         const protobufData = {
@@ -261,9 +259,7 @@ class SocketService {
         const arrayBuffer = uint8Array.buffer;
 
         // Enviar como binário real
-        this.socket?.emit('binary_data', arrayBuffer);
-        
-        console.log('📦 [PROTOBUF] Leave room sent as binary:', arrayBuffer.byteLength, 'bytes');
+        this.socket?.emit('binary_data', arrayBuffer, roomId);
     }
 
     updateUserStatus(userId: string, isOnline: boolean) {
@@ -312,7 +308,6 @@ class SocketService {
             app: 'LiveGo'
         };
         
-        console.log(`📊 [LIVEGO-BINFO] Sending binfo:`, binfoData);
         this.socket.emit('binfo', binfoData);
     }
     
@@ -335,6 +330,12 @@ class SocketService {
             this.handleProtobufStreamStatus(event.stream_status);
         } else if (event.stream_info) {
             this.handleProtobufStreamInfo(event.stream_info);
+        } else if (event.pk_invite) {
+            window.dispatchEvent(new CustomEvent('livego:pk_invite', { detail: event.pk_invite }));
+        } else if (event.pk_invite_response) {
+            window.dispatchEvent(new CustomEvent('livego:pk_invite_response', { detail: event.pk_invite_response }));
+        } else if (event.pk_heart) {
+            window.dispatchEvent(new CustomEvent('livego:pk_heart', { detail: event.pk_heart }));
         } else if (event.heartbeat) {
             // heartbeat — não logar como erro
         } else {
@@ -343,20 +344,103 @@ class SocketService {
     }
     
     private handleProtobufChat(chatEvent: any) {
-        // Disparar evento global para UI components
+        // Obter mensagem textual real e metadados adicionais de forma robusta
+        const rawMsg = chatEvent.chat?.message;
+        const messageText = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg.message || '') : (rawMsg || '');
+        const messageLevel = chatEvent.chat?.user_level || (typeof rawMsg === 'object' && rawMsg !== null ? rawMsg.level : 1);
+        const userGender = typeof rawMsg === 'object' && rawMsg !== null ? rawMsg.gender : 'not_specified';
+        const userAge = typeof rawMsg === 'object' && rawMsg !== null ? rawMsg.age : 18;
+        const activeFrameId = typeof rawMsg === 'object' && rawMsg !== null ? rawMsg.activeFrameId : undefined;
+        const frameExpiration = typeof rawMsg === 'object' && rawMsg !== null ? rawMsg.frameExpiration : undefined;
+
+        // Disparar evento global para UI components (como LiveEventsDisplay) com texto puro no campo message
         window.dispatchEvent(new CustomEvent('livego:chat_message', {
             detail: {
                 userId: chatEvent.chat?.user_id,
                 userName: chatEvent.chat?.user_name,
                 userAvatar: chatEvent.chat?.user_avatar,
-                message: chatEvent.chat?.message,
-                timestamp: chatEvent.chat?.timestamp,
+                userLevel: messageLevel,
+                message: messageText,
+                timestamp: chatEvent.chat?.timestamp || Date.now(),
                 streamId: chatEvent.base?.stream_id
             }
         }));
+
+        // Construir um objeto de mensagem compatível com ChatMessageType
+        const messagePayloadData = {
+            id: chatEvent.chat?.id || chatEvent.chat?.timestamp || Date.now() + Math.random(),
+            type: 'chat',
+            user: chatEvent.chat?.user_name,
+            level: messageLevel,
+            message: messageText,
+            avatar: chatEvent.chat?.user_avatar,
+            gender: userGender,
+            age: userAge,
+            activeFrameId: activeFrameId,
+            frameExpiration: frameExpiration,
+            fullUser: chatEvent.chat?.fullUser || (typeof rawMsg === 'object' ? rawMsg.fullUser : {
+                id: chatEvent.chat?.user_id?.toString(),
+                name: chatEvent.chat?.user_name,
+                avatarUrl: chatEvent.chat?.user_avatar,
+                level: messageLevel,
+                gender: userGender,
+                age: userAge,
+            })
+        };
+
+        // Evitar adicionar duas vezes caso seja a mensagem enviada pelo próprio usuário local (que já adicionou de forma otimista)
+        const currentUserId = getCurrentUserId();
+        if (chatEvent.chat?.user_id !== currentUserId) {
+            const receiveMessageCallbacks = this.listeners.get('receive_message') || [];
+            receiveMessageCallbacks.forEach(cb => {
+                try {
+                    cb(messagePayloadData);
+                } catch (e) {
+                    console.error('❌ Error triggering receive_message listener:', e);
+                }
+            });
+        }
     }
     
     private handleProtobufGift(giftEvent: any) {
+        const payload = {
+            from: {
+                id: giftEvent.from_user?.user_id,
+                identification: giftEvent.from_user?.user_id || '',
+                name: giftEvent.from_user?.user_name || 'Usuário',
+                avatarUrl: giftEvent.from_user?.user_avatar || 'https://via.placeholder.com/40',
+                diamonds: 0,
+                earnings: 0,
+                level: giftEvent.from_user?.user_level || 1,
+                xp: 0,
+                followingList: [],
+                followersList: [],
+                friendsList: []
+            },
+            fromUser: {
+                id: giftEvent.from_user?.user_id,
+                name: giftEvent.from_user?.user_name || 'Usuário',
+                avatarUrl: giftEvent.from_user?.user_avatar || 'https://via.placeholder.com/40',
+                level: giftEvent.from_user?.user_level || 1
+            },
+            to: {
+                id: giftEvent.to_user?.user_id || 'host',
+                name: giftEvent.to_user?.user_name || 'Host'
+            },
+            toUser: {
+                id: giftEvent.to_user?.user_id || 'host',
+                name: giftEvent.to_user?.user_name || 'Host'
+            },
+            gift: {
+                name: giftEvent.gift?.gift_name,
+                price: giftEvent.gift?.gift_price || 0,
+                icon: giftEvent.gift?.gift_icon || '🎁',
+                category: giftEvent.gift?.category || 'Popular'
+            },
+            quantity: giftEvent.gift?.quantity || 1,
+            roomId: giftEvent.base?.stream_id || ''
+        };
+
         // Disparar evento global para UI components
         window.dispatchEvent(new CustomEvent('livego:gift_received', {
             detail: {
@@ -376,10 +460,32 @@ class SocketService {
                 streamId: giftEvent.base?.stream_id
             }
         }));
+
+        // SINCRONIZAÇÃO EM TEMPO REAL: Notificar componentes que usam socket.on('gift_received' o 'live_gift_received')
+        const currentUserId = getCurrentUserId();
+        if (giftEvent.from_user?.user_id !== currentUserId) {
+            const giftCallbacks = this.listeners.get('gift_received') || [];
+            giftCallbacks.forEach(cb => {
+                try { cb(payload); } catch (e) { console.error('❌ Error in gift_received listener:', e); }
+            });
+
+            const liveGiftCallbacks = this.listeners.get('live_gift_received') || [];
+            liveGiftCallbacks.forEach(cb => {
+                try { cb(payload); } catch (e) { console.error('❌ Error in live_gift_received listener:', e); }
+            });
+        }
     }
     
     private handleProtobufUserJoined(userJoinedEvent: any) {
-        
+        const payload = {
+            userId: userJoinedEvent.user?.user_id,
+            userName: userJoinedEvent.user?.user_name || 'LiveGo User',
+            userAvatar: userJoinedEvent.user?.user_avatar || 'https://via.placeholder.com/40',
+            userLevel: userJoinedEvent.user?.user_level || 1,
+            streamId: userJoinedEvent.base?.stream_id,
+            timestamp: (userJoinedEvent.timestamp || Date.now()).toString()
+        };
+
         // Disparar evento global para UI components
         window.dispatchEvent(new CustomEvent('livego:user_joined', {
             detail: {
@@ -391,10 +497,21 @@ class SocketService {
                 streamId: userJoinedEvent.base?.stream_id
             }
         }));
+
+        // SINCRONIZAÇÃO EM TEMPO REAL: Notificar componentes usando socket.on('user_joined_stream')
+        const joinCallbacks = this.listeners.get('user_joined_stream') || [];
+        joinCallbacks.forEach(cb => {
+            try { cb(payload); } catch (e) { console.error('❌ Error in user_joined_stream listener:', e); }
+        });
     }
     
     private handleProtobufUserLeft(userLeftEvent: any) {
-        
+        const payload = {
+            userId: userLeftEvent.user?.user_id,
+            streamId: userLeftEvent.base?.stream_id,
+            timestamp: (userLeftEvent.timestamp || Date.now()).toString()
+        };
+
         // Disparar evento global para UI components
         window.dispatchEvent(new CustomEvent('livego:user_left', {
             detail: {
@@ -406,10 +523,15 @@ class SocketService {
                 streamId: userLeftEvent.base?.stream_id
             }
         }));
+
+        // SINCRONIZAÇÃO EM TEMPO REAL: Notificar componentes usando socket.on('user_left_stream')
+        const leaveCallbacks = this.listeners.get('user_left_stream') || [];
+        leaveCallbacks.forEach(cb => {
+            try { cb(payload); } catch (e) { console.error('❌ Error in user_left_stream listener:', e); }
+        });
     }
     
     private handleProtobufStreamStatus(streamStatusEvent: any) {
-        
         // Disparar evento global para UI components
         window.dispatchEvent(new CustomEvent('livego:stream_status', {
             detail: {
@@ -421,6 +543,20 @@ class SocketService {
                 timestamp: streamStatusEvent.timestamp
             }
         }));
+
+        // SINCRONIZAÇÃO EM TEMPO REAL: Notificar componentes usando socket.on('viewers_count_updated')
+        const viewersCallbacks = this.listeners.get('viewers_count_updated') || [];
+        viewersCallbacks.forEach(cb => {
+            try {
+                cb({
+                    streamId: streamStatusEvent.base?.stream_id,
+                    viewersCount: streamStatusEvent.status?.viewers || 0,
+                    count: streamStatusEvent.status?.viewers || 0
+                });
+            } catch (e) {
+                console.error('❌ Error in viewers_count_updated listener:', e);
+            }
+        });
     }
     
     private handleProtobufStreamInfo(streamInfoEvent: any) {
@@ -444,7 +580,12 @@ class SocketService {
     }
     
     private handleProtobufLeaveRoom(leaveRoomEvent: any) {
-        
+        const payload = {
+            userId: leaveRoomEvent.user_id,
+            streamId: leaveRoomEvent.room_id,
+            timestamp: (leaveRoomEvent.timestamp || Date.now()).toString()
+        };
+
         // Disparar evento global para UI components
         window.dispatchEvent(new CustomEvent('livego:user_left_room', {
             detail: {
@@ -452,6 +593,12 @@ class SocketService {
                 timestamp: leaveRoomEvent.timestamp
             }
         }));
+
+        // SINCRONIZAÇÃO EM TEMPO REAL: Notificar componentes usando socket.on('user_left_stream')
+        const leaveCallbacks = this.listeners.get('user_left_stream') || [];
+        leaveCallbacks.forEach(cb => {
+            try { cb(payload); } catch (e) { console.error('❌ Error in user_left_stream listener:', e); }
+        });
     }
     
     // --- Métodos Protobuf com Serialização Binária Real ---
@@ -462,9 +609,9 @@ class SocketService {
         const buffer = ProtobufService.encodeChatEvent(streamId, userId, userName, userAvatar, message);
         
         if (buffer) {
-            // Enviar via WebSocket como binário real
-            this.socket?.emit('binary_data', buffer.buffer);
-            console.log(`📦 [PROTOBUF] Chat message sent:`, buffer.length, 'bytes');
+            // Enviar via WebSocket como binário real fatiado de forma precisa
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            this.socket?.emit('binary_data', arrayBuffer, streamId);
         }
     }
     
@@ -485,9 +632,9 @@ class SocketService {
         );
         
         if (buffer) {
-            // Enviar via WebSocket como binário real
-            this.socket?.emit('binary_data', buffer.buffer);
-            console.log(`📦 [PROTOBUF] Gift sent:`, buffer.length, 'bytes');
+            // Enviar via WebSocket como binário real fatiado de forma precisa
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            this.socket?.emit('binary_data', arrayBuffer, streamId);
         }
     }
     
@@ -498,9 +645,9 @@ class SocketService {
         const buffer = ProtobufService.encodeUserJoinedEvent(streamId, userId, userName, userAvatar, userLevel);
         
         if (buffer) {
-            // Enviar via WebSocket como binário real
-            this.socket?.emit('binary_data', buffer.buffer);
-            console.log(`📦 [PROTOBUF] User joined sent:`, buffer.length, 'bytes');
+            // Enviar via WebSocket como binário real fatiado de forma precisa
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            this.socket?.emit('binary_data', arrayBuffer);
         }
     }
     
@@ -511,9 +658,9 @@ class SocketService {
         const buffer = ProtobufService.encodeStreamStatusEvent(streamId, status, viewers, hostId, hostName);
         
         if (buffer) {
-            // Enviar via WebSocket como binário real
-            this.socket?.emit('binary_data', buffer.buffer);
-            console.log(`📦 [PROTOBUF] Stream status sent:`, buffer.length, 'bytes');
+            // Enviar via WebSocket como binário real fatiado de forma precisa
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            this.socket?.emit('binary_data', arrayBuffer);
         }
     }
     
@@ -524,9 +671,9 @@ class SocketService {
         const buffer = ProtobufService.encodeJoinStreamEvent(streamId, userId);
         
         if (buffer) {
-            // Enviar via WebSocket como binário real
-            this.socket?.emit('binary_data', buffer.buffer);
-            console.log(`📦 [PROTOBUF] Join stream sent:`, buffer.length, 'bytes');
+            // Enviar via WebSocket como binário real fatiado de forma precisa
+            const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+            this.socket?.emit('binary_data', arrayBuffer);
         }
     }
     
@@ -555,12 +702,10 @@ class SocketService {
         const jsonString = JSON.stringify(protobufData);
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(jsonString);
-        const arrayBuffer = uint8Array.buffer;
+        const arrayBuffer = uint8Array.buffer.slice(uint8Array.byteOffset, uint8Array.byteOffset + uint8Array.byteLength);
 
         // Enviar como binário real
         this.socket?.emit('binary_data', arrayBuffer);
-        
-        console.log('📦 [PROTOBUF] User offline sent as binary:', arrayBuffer.byteLength, 'bytes');
     }
     
     sendUserOnline(userId: string, userName: string = 'LiveGo User', userAvatar: string = 'https://via.placeholder.com/40') {
@@ -588,12 +733,10 @@ class SocketService {
         const jsonString = JSON.stringify(protobufData);
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(jsonString);
-        const arrayBuffer = uint8Array.buffer;
+        const arrayBuffer = uint8Array.buffer.slice(uint8Array.byteOffset, uint8Array.byteOffset + uint8Array.byteLength);
 
         // Enviar como binário real
         this.socket?.emit('binary_data', arrayBuffer);
-        
-        console.log('📦 [PROTOBUF] User online sent as binary:', arrayBuffer.byteLength, 'bytes');
     }
     sendChatMessage(streamId: string, userId: string, userName: string, userAvatar: string, message: string) {
         if (!this.socket?.connected) return;
@@ -602,14 +745,36 @@ class SocketService {
         this.sendProtobufChatMessage(streamId, userId, userName, userAvatar, message);
     }
     
-    sendGift(streamId: string, fromUserId: string, fromUserName: string, fromUserAvatar: string, toUserId: string, toUserName: string, giftId: string, giftName: string, giftIcon: string, giftPrice: number, quantity: number = 1) {
+    sendGift(
+        streamId: string,
+        fromUserId: string,
+        fromUserName: string,
+        fromUserAvatar: string,
+        toUserId: string,
+        toUserName: string,
+        toUserAvatar: string,
+        giftId: string,
+        giftName: string,
+        giftIcon: string,
+        giftPrice: number,
+        quantity: number = 1
+    ) {
         if (!this.socket?.connected) return;
         
         // Enviar diretamente como binário via Protobuf
         this.sendProtobufGift(
-            streamId, fromUserId, fromUserName, fromUserAvatar,
-            toUserId, toUserName, fromUserAvatar,
-            giftId, giftName, giftIcon, giftPrice, quantity
+            streamId,
+            fromUserId,
+            fromUserName,
+            fromUserAvatar,
+            toUserId,
+            toUserName,
+            toUserAvatar,
+            giftId,
+            giftName,
+            giftIcon,
+            giftPrice,
+            quantity
         );
     }
     
@@ -706,7 +871,20 @@ class SocketService {
     
     // --- Métodos existentes (mantidos para compatibilidade) ---
     sendMessage(roomId: string, message: any) {
-        // Enviar como binário via Protobuf
+        // Enviar como binário via Protobuf de forma dinâmica com dados reais da conta do usuário
+        let userId = getCurrentUserId();
+        let userName = 'LiveGo User';
+        let userAvatar = 'https://via.placeholder.com/40';
+        let userLevel = 1;
+        let actualMessage = message;
+
+        if (message && typeof message === 'object') {
+            userName = message.user || message.userName || userName;
+            userAvatar = message.avatar || message.avatarUrl || userAvatar;
+            userLevel = message.level || message.userLevel || userLevel;
+            actualMessage = message.message || '';
+        }
+
         const protobufData = {
             chat: {
                 base: {
@@ -715,11 +893,13 @@ class SocketService {
                     stream_id: roomId
                 },
                 chat: {
-                    user_id: getCurrentUserId(), // APENAS do banco/API
-                    user_name: 'LiveGo User', // Buscar do banco via API se necessário
-                    user_avatar: 'https://via.placeholder.com/40', // Buscar do banco via API se necessário
-                    message: message,
-                    timestamp: Date.now()
+                    user_id: userId,
+                    user_name: userName,
+                    user_avatar: userAvatar,
+                    user_level: userLevel,
+                    message: actualMessage,
+                    timestamp: Date.now(),
+                    fullUser: message && typeof message === 'object' ? message.fullUser : undefined
                 }
             }
         };
@@ -732,8 +912,6 @@ class SocketService {
 
         // Enviar como binário real
         this.socket?.emit('binary_data', arrayBuffer);
-        
-        console.log('📦 [BINARY] Chat message sent as binary:', arrayBuffer.byteLength, 'bytes');
     }
 
     // Eventos de presença online
@@ -741,8 +919,16 @@ class SocketService {
         this.on('user_joined_stream', callback);
     }
 
+    onUserJoinedDirect(callback: (data: { userId: string; userName: string; userAvatar: string; userLevel: number; timestamp: string }) => void) {
+        this.on('user_joined', callback);
+    }
+
     onUserLeft(callback: (data: { userId: string; userName: string; streamId: string; timestamp: string }) => void) {
         this.on('user_left_stream', callback);
+    }
+
+    onUserLeftDirect(callback: (data: { userId: string; userName: string; timestamp: string }) => void) {
+        this.on('user_left', callback);
     }
 
     // Eventos para status online/offline
@@ -791,6 +977,15 @@ class SocketService {
     // Evento para quando um card é removido
     onCardRemoved(callback: (data: { streamId: string; hostId: string; timestamp: string }) => void) {
         this.on('card_removed', callback);
+    }
+
+    // Eventos específicos para início/término de transmissão em tempo real
+    onStreamStarted(callback: (stream: any) => void) {
+        this.on('stream_started', callback);
+    }
+
+    onStreamStopped(callback: (data: { streamId: string; hostId?: string; timestamp?: string }) => void) {
+        this.on('stream_stopped', callback);
     }
 
     // --- Métodos auxiliares ---

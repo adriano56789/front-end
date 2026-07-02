@@ -12,20 +12,48 @@ interface FansScreenProps {
   currentUser?: { id: string };
 }
 
-const UserItem: React.FC<{ user: User; onClick: () => void; onFollow: (user: User) => void; }> = ({ user, onClick, onFollow }) => {
+const UserItem: React.FC<{ 
+  user: User; 
+  onRowClick: () => void; 
+  onFollowClick: () => void; 
+}> = ({ user, onRowClick, onFollowClick }) => {
     const { t } = useTranslation();
+    const handleTag = user.name.toLowerCase().replace(/\s+/g, '');
+    
     return (
-        <div className="flex items-center justify-between p-4 hover:bg-gray-800/50 cursor-pointer" onClick={onClick}>
+        <div 
+            className="flex items-center justify-between py-3.5 px-4 hover:bg-white/[0.02] active:bg-white/[0.04] cursor-pointer transition-colors" 
+            onClick={onRowClick}
+        >
             <div className="flex items-center space-x-4">
-                <img src={user.avatarUrl} alt={user.name} className="w-14 h-14 rounded-full object-cover" />
+                <div className="relative flex-shrink-0">
+                    <div className="rounded-full p-[2px] bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c] shadow-md shadow-black/20">
+                        <div className="rounded-full p-[1.5px] bg-[#000000]">
+                            <img src={user.avatarUrl} alt={user.name} className="w-[48px] h-[48px] rounded-full object-cover" />
+                        </div>
+                    </div>
+                    {user.isLive && (
+                        <span className="absolute -bottom-1 -right-1 bg-red-600 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border border-black animate-pulse">
+                            Ao Vivo
+                        </span>
+                    )}
+                </div>
                 <div>
-                    <h3 className="font-semibold text-white">{user.name}</h3>
-                    <p className="text-sm text-gray-400">{t('profile.id')}: {user.identification}</p>
+                    <h3 className="font-normal text-[#dfc38f] flex items-center gap-1.5 text-[16px] tracking-wide">
+                        {user.name.toLowerCase()}
+                        {user.isVIP && (
+                            <span className="bg-gradient-to-r from-amber-400 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full scale-90">
+                                VIP
+                            </span>
+                        )}
+                    </h3>
+                    <p className="text-[13px] text-zinc-500 font-light mt-0.5">@{handleTag}</p>
                 </div>
             </div>
-            <button
-                onClick={(e) => { e.stopPropagation(); onFollow(user); }}
-                className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-colors ${user.isFollowed ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+            <button 
+                onClick={(e) => { e.stopPropagation(); onFollowClick(); }}
+                className="text-[13px] font-medium text-white px-6 py-2.5 rounded-full bg-[#1c1d21] hover:bg-[#25272d] active:scale-95 transition-all duration-150"
+            >
                 {user.isFollowed ? t('common.following') : t('common.follow')}
             </button>
         </div>
@@ -37,6 +65,8 @@ const FansScreen: React.FC<FansScreenProps> = ({ onBack, onViewProfile, users, o
     const { t } = useTranslation();
     const [localUsers, setLocalUsers] = useState<User[]>(users);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
     const hasLoadedRef = useRef(false);
 
     // Carregar dados da API quando o componente é montado (apenas uma vez)
@@ -48,6 +78,7 @@ const FansScreen: React.FC<FansScreenProps> = ({ onBack, onViewProfile, users, o
     }, [currentUser?.id]);
 
     const loadFansData = async () => {
+        if (!currentUser?.id) return;
         try {
             setIsLoading(true);
             const fansData = await api.getFansUsers(currentUser.id);
@@ -58,29 +89,142 @@ const FansScreen: React.FC<FansScreenProps> = ({ onBack, onViewProfile, users, o
             setIsLoading(false);
         }
     };
+
+    const handleFollowClick = async (user: User) => {
+        if (user.isFollowed) {
+            setSelectedUser(user);
+            setIsSheetOpen(true);
+        } else {
+            try {
+                await onFollowUser(user);
+                setLocalUsers(prev => prev.map(u => u.id === user.id ? { ...u, isFollowed: true } : u));
+            } catch (error) {
+                console.error('Erro ao seguir de volta:', error);
+            }
+        }
+    };
+
+    const handleSheetFollowToggle = async (user: User) => {
+        try {
+            await onFollowUser(user);
+            setLocalUsers(prev => prev.map(u => u.id === user.id ? { ...u, isFollowed: !u.isFollowed } : u));
+        } catch (error) {
+            console.error('Erro ao alternar seguimento do fã:', error);
+        } finally {
+            setIsSheetOpen(false);
+            setSelectedUser(null);
+        }
+    };
+
+    const handleItemClick = (user: User) => {
+        setSelectedUser(user);
+        setIsSheetOpen(true);
+    };
+
     return (
-        <div className="absolute inset-0 bg-[#111] z-50 flex flex-col text-white">
-            <header className="flex items-center p-4 border-b border-gray-800 flex-shrink-0">
-                <button onClick={onBack} className="absolute">
-                    <BackIcon className="w-6 h-6" />
+        <div className="absolute inset-0 bg-[#000000] z-50 flex flex-col text-white">
+            <header className="relative flex items-center justify-center p-4 h-16 flex-shrink-0">
+                <button onClick={onBack} className="absolute left-4">
+                    <BackIcon className="w-6 h-6 text-white hover:opacity-80 active:scale-95 transition-all" />
                 </button>
-                <div className="flex-grow text-center">
-                    <h1 className="text-lg font-semibold">{t('userLists.fans.title')}</h1>
-                </div>
+                <h1 className="text-lg font-medium text-white tracking-wide">
+                    {t('userLists.fans.title')}
+                </h1>
             </header>
+            
             <main className="flex-grow overflow-y-auto no-scrollbar">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-32">
-                        <p className="text-gray-400">Carregando...</p>
+                        <p className="text-zinc-500 text-sm">Carregando...</p>
                     </div>
                 ) : localUsers.length > 0 ? (
-                    localUsers.map(user => <UserItem key={user.id} user={user} onClick={() => onViewProfile(user)} onFollow={onFollowUser} />)
+                    <div className="flex flex-col py-2">
+                        {localUsers.map(user => (
+                            <UserItem 
+                                key={user.id} 
+                                user={user} 
+                                onRowClick={() => handleItemClick(user)} 
+                                onFollowClick={() => handleFollowClick(user)} 
+                            />
+                        ))}
+                    </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500">
+                    <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
                         <p>{t('userLists.fans.noUsers')}</p>
                     </div>
                 )}
             </main>
+
+            {/* Bottom Option Sheet / Modal de Confirmação */}
+            {isSheetOpen && selectedUser && (
+                <div 
+                    className="absolute inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end justify-center transition-opacity duration-300"
+                    onClick={() => {
+                        setIsSheetOpen(false);
+                        setSelectedUser(null);
+                    }}
+                >
+                    <div 
+                        className="w-full max-w-sm bg-[#121214] rounded-t-3xl p-6 pb-10 space-y-5 shadow-2xl border-t border-white/[0.04]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Drag Handle */}
+                        <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-2"></div>
+                        
+                        {/* User Summary Info */}
+                        <div className="flex flex-col items-center text-center space-y-3 pb-3">
+                            <div className="rounded-full p-[2px] bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c]">
+                                <div className="rounded-full p-[1.5px] bg-[#121214]">
+                                    <img 
+                                        src={selectedUser.avatarUrl} 
+                                        alt={selectedUser.name} 
+                                        className="w-[64px] h-[64px] rounded-full object-cover" 
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="font-medium text-[#dfc38f] text-base">{selectedUser.name.toLowerCase()}</h3>
+                                <p className="text-xs text-zinc-500">@{selectedUser.name.toLowerCase().replace(/\s+/g, '')}</p>
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="space-y-2">
+                            <button
+                                onClick={() => handleSheetFollowToggle(selectedUser)}
+                                className={`w-full py-3.5 active:scale-[0.98] text-white font-semibold text-sm rounded-full transition-all ${
+                                    selectedUser.isFollowed 
+                                        ? 'bg-red-600 hover:bg-red-700' 
+                                        : 'bg-[#dcb974] text-black hover:bg-[#ebd09a]'
+                                }`}
+                            >
+                                {selectedUser.isFollowed ? 'Deixar de Seguir' : 'Seguir de Volta'}
+                            </button>
+                            
+                            <button
+                                onClick={() => {
+                                    setIsSheetOpen(false);
+                                    onViewProfile(selectedUser);
+                                    setSelectedUser(null);
+                                }}
+                                className="w-full py-3.5 bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] text-white font-medium text-sm rounded-full transition-all"
+                            >
+                                Ver Perfil Completo
+                            </button>
+                            
+                            <button
+                                onClick={() => {
+                                    setIsSheetOpen(false);
+                                    setSelectedUser(null);
+                                }}
+                                className="w-full py-3.5 bg-zinc-800 hover:bg-[#252723] active:scale-[0.98] text-zinc-300 font-medium text-sm rounded-full transition-all"
+                            >
+                                {t('common.cancel')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

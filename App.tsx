@@ -50,12 +50,14 @@ const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children }) => {
         const reason = event.reason || 'Unknown promise rejection';
         const errorMessage = typeof reason === 'string' ? reason : String(reason);
         
-        // Ignorar erros específicos de extensões e presentes
+        // Ignorar erros específicos de extensões, presentes e do WebSocket do Vite HMR
         if (errorMessage.includes('useCache') || 
             errorMessage.includes('Receiving end does not exist') ||
             errorMessage.includes('content.js') ||
             errorMessage.includes('presente') ||
             errorMessage.includes('gift') ||
+            errorMessage.includes('WebSocket') ||
+            errorMessage.includes('websocket') ||
             errorMessage.includes('Promise')) {
           console.warn('Ignorando erro não crítico:', errorMessage);
           event.preventDefault();
@@ -121,6 +123,7 @@ import RegionModal from './components/RegionModal';
 import GoLiveScreen, { InviteData } from './components/GoLiveScreen';
 
 import StreamRoom from './components/StreamRoom';
+import { enrichGiftsWithComponents } from './components/live/GiftSvgHelper';
 
 import PKBattleScreen from './components/PKBattleScreen';
 
@@ -144,6 +147,8 @@ import { useZoomSettings } from './hooks/useZoomSettings';
 
 import { useUserStatus } from './hooks/useUserStatus';
 
+import { getApproximateLocationByIP, getPreciseLocation, calculateDistanceInKm, formatDistance } from './utils/location';
+
 import FollowingScreen from './components/FollowingScreen';
 
 import FansScreen from './components/FansScreen';
@@ -153,6 +158,8 @@ import VisitorsScreen from './components/VisitorsScreen';
 import TopFansScreen from './components/TopFansScreen';
 
 import MyLevelScreen from './components/MyLevelScreen';
+
+import UserLevelsScreen from './components/UserLevelsScreen';
 
 import BlockListScreen from './components/BlockListScreen';
 
@@ -469,6 +476,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [pkOpponent, setPkOpponent] = useState<User | null>(null);
 
+  const [activePKInvite, setActivePKInvite] = useState<any>(null);
+
   const [chattingWith, setChattingWith] = useState<User | null>(null);
 
   const [viewingProfile, setViewingProfile] = useState<User | null>(null);
@@ -582,6 +591,28 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       delete (window as any).setGlobalStreamers;
     };
   }, []);
+
+  // Adiciona a conversa vazia na lista de conversas imediatamente ao iniciar um chat
+  useEffect(() => {
+    if (!chattingWith || !currentUser || chattingWith.id === currentUser.id) return;
+    
+    setConversations(prev => {
+      const exists = prev.some(c => c.friend && c.friend.id === chattingWith.id);
+      if (exists) return prev;
+      
+      const newEmptyConvo: Conversation = {
+        id: `chat_private_${currentUser.id < chattingWith.id ? currentUser.id + '_' + chattingWith.id : chattingWith.id + '_' + currentUser.id}`,
+        friend: chattingWith,
+        lastMessage: '',
+        timestamp: new Date().toISOString(),
+        unreadCount: 0
+      };
+      return [newEmptyConvo, ...prev];
+    });
+    
+    // Dispara chamada assíncrona ao backend para registrar de forma persistente a conversa
+    (api.getChatMessages(chattingWith.id) as any).catch?.(() => {});
+  }, [chattingWith?.id, currentUser?.id]);
 
   // Sempre buscar dados da API - não usar localStorage
 
@@ -736,7 +767,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         setStreamers(Array.isArray(streams) ? streams : []);
         setCountries(countries);
-        setAllGifts(gifts);
+        setAllGifts(enrichGiftsWithComponents(gifts));
 
         console.log('✅ [App] Dados iniciais carregados');
       } catch (error) {
@@ -784,7 +815,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         const gifts = await api.getGifts();
 
-        setAllGifts(gifts);
+        setAllGifts(enrichGiftsWithComponents(gifts));
 
       } catch (error) {
 
@@ -905,6 +936,64 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, [chattingWith?.id]);
 
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const handlePKInvite = (e: Event) => {
+      const invite = (e as CustomEvent).detail;
+      // Only care about invites destined to the current logged-in user
+      if (invite && (invite.inviteeId === currentUser.id || invite.invitee_id === currentUser.id)) {
+        console.log("⚔️ [PK-INVITE] Received pending invite:", invite);
+        setActivePKInvite(invite);
+      }
+    };
+
+    const handlePKInviteResponse = async (e: Event) => {
+      const resp = (e as CustomEvent).detail;
+      console.log("⚔️ [PK-RESPONSE] Invite response received:", resp);
+      
+      const currentStreamId = activeStream?.id;
+      if (currentStreamId && resp.status === 'accepted') {
+        const opponentUser = streamers.find((s: any) => s.id === resp.invitee_id || s.id === resp.inviteeId) || 
+                             listScreenUsers.find((u: any) => u.id === resp.invitee_id || u.id === resp.inviteeId);
+                             
+        if (opponentUser) {
+          addToast(ToastType.Success, `Desafio aceito por ${opponentUser.name}! Iniciando PK...`);
+          try {
+            await api.startPKBattle(currentUser.id, currentStreamId, opponentUser.id);
+            setPkOpponent(opponentUser);
+            setIsPKBattleActive(true);
+          } catch (err) {
+            console.error("Error starting battle:", err);
+          }
+        }
+      } else if (resp.status === 'declined') {
+        addToast(ToastType.Error, "O oponente recusou o desafio de batalha PK.");
+      }
+    };
+
+    window.addEventListener('livego:pk_invite', handlePKInvite);
+    window.addEventListener('livego:pk_invite_response', handlePKInviteResponse);
+
+    // Initial check for pending invites
+    const checkPendingInvites = async () => {
+      try {
+        const res = await api.getPendingPKInvites(currentUser.id);
+        if (res && res.success && res.invites && res.invites.length > 0) {
+          setActivePKInvite(res.invites[0]);
+        }
+      } catch (err) {
+        console.error("Error loading pending invites:", err);
+      }
+    };
+    checkPendingInvites();
+
+    return () => {
+      window.removeEventListener('livego:pk_invite', handlePKInvite);
+      window.removeEventListener('livego:pk_invite_response', handlePKInviteResponse);
+    };
+  }, [currentUser, activeStream, streamers]);
+
   const [rankingData, setRankingData] = useState<Record<string, RankedUser[]>>(INITIAL_DATA.rankingData);
 
   const [listScreenUsers, setListScreenUsers] = useState<User[]>([]);
@@ -949,7 +1038,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const updateUserEverywhere = useCallback((updatedUser: User) => {
 
-    const updater = (users: User[]) => users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    const updater = (users: User[] | undefined) => {
+      if (!users || !Array.isArray(users)) return [];
+      return users.map(u => u.id === updatedUser.id ? updatedUser : u);
+    };
 
 
 
@@ -960,6 +1052,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       // Sincronizar com window para API ter acesso
 
       (window as any).currentUser = updatedUser;
+
+      // SALVAR AUTOMATICAMENTE NO BANCO DE DADOS DA VPS/API IMEDIATAMENTE (SEM SIMULAÇÃO)
+      // Sincroniza qualquer alteração de estado ou configurações do usuário diretamente no banco
+      api.updateProfile(updatedUser.id, updatedUser).then(res => {
+        if (res && res.success) {
+          console.log("💾 [AUTOSAVE] Sucesso: Dados do usuário salvos no banco", updatedUser.id);
+        }
+      }).catch(err => {
+        console.error("❌ [AUTOSAVE ERROR] Falha ao persistir alterações no banco:", err);
+      });
 
     }
 
@@ -1026,7 +1128,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     setStreamRoomData(null);
 
-  }, [activeStream]);
+    navigate('/');
+
+  }, [activeStream, navigate]);
 
 
 
@@ -1205,11 +1309,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     if (currentUser) {
 
-      // Socket será conectado pelo StreamRoom, não conectar aqui
-      // socketService.connect();
+      // Socket conectado globalmente para receber atualizações de presença e novos eventos de transmissão em tempo real
+      socketService.connect();
 
       if (currentUser?.id) {
-        // socketService.joinRoom(currentUser.id);
+        socketService.joinRoom(currentUser.id);
       }
 
 
@@ -1428,6 +1532,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           addToast(ToastType.Info, 'Esta transmissão foi encerrada');
 
+          navigate('/');
+
         }
 
       });
@@ -1458,6 +1564,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           addToast(ToastType.Info, data.message);
 
+          navigate('/');
+
         }
 
       });
@@ -1472,9 +1580,33 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         setStreamers(prev => {
 
-          if (prev.some(s => s.id === data.id)) return prev;
+          const list = Array.isArray(prev) ? prev : [];
+          if (list.some(s => s.id === data.id)) {
+            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } : s);
+          }
 
-          return [data, ...prev] as any;
+          return [data, ...list] as any;
+
+        });
+
+      });
+
+
+
+      // Escutar novas lives via evento stream_started em tempo real
+
+      socketService.onStreamStarted((data: any) => {
+
+        console.log('[stream_started] Nova live recebida:', data.id, data.name);
+
+        setStreamers(prev => {
+
+          const list = Array.isArray(prev) ? prev : [];
+          if (list.some(s => s.id === data.id)) {
+            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } : s);
+          }
+
+          return [data, ...list];
 
         });
 
@@ -1512,6 +1644,46 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           addToast(ToastType.Info, 'Esta transmissão foi encerrada');
 
+          navigate('/');
+
+        }
+
+      });
+
+
+
+      // Escutar quando cards são removidos via evento stream_stopped em tempo real
+
+      socketService.onStreamStopped((data: { streamId: string; hostId?: string; timestamp?: string }) => {
+
+
+
+        // Remover o card da lista de streamers
+
+        setStreamers(prev => (Array.isArray(prev) ? prev.filter(streamer => streamer.id !== data.streamId) : []));
+
+
+
+        // Se o usuário está assistindo esta live, redirecionar para tela principal
+
+        if (activeStream && activeStream.id === data.streamId) {
+
+          setActiveStream(null);
+
+          setLiveSession(null);
+
+          setStreamRoomData(null);
+
+          setIsPKBattleActive(false);
+
+          setPkOpponent(null);
+
+
+
+          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
+
+          navigate('/');
+
         }
 
       });
@@ -1535,6 +1707,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       socketService.off('live_coins_updated');
 
       socketService.off('new_live');
+
+      socketService.off('stream_started');
+
+      socketService.off('stream_stopped');
 
       socketService.off('stream_ended');
 
@@ -2272,6 +2448,56 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
+  const syncUserLocation = async () => {
+    if (!currentUser) return;
+    try {
+      console.log('🌍 [LOCATION] Sincronizando localização do usuário...');
+      const ipLoc = await getApproximateLocationByIP();
+      let finalLat = ipLoc.latitude;
+      let finalLng = ipLoc.longitude;
+      let finalCity = ipLoc.city;
+      let finalState = ipLoc.state;
+      let finalCountry = ipLoc.country;
+      let finalLocationName = ipLoc.locationName;
+
+      if (locationPermissionStatus === 'granted' || currentUser.locationPermission === 'granted') {
+        try {
+          const coords = await getPreciseLocation();
+          finalLat = coords.latitude;
+          finalLng = coords.longitude;
+          console.log('🌍 [LOCATION] Localização precisa obtida via navegador:', finalLat, finalLng);
+        } catch (err) {
+          console.warn('🌍 [LOCATION] Falha ao obter localização precisa, usando IP fallback:', err);
+        }
+      }
+
+      console.log('🌍 [LOCATION] Salvando localização na API:', finalLat, finalLng, finalCity, finalState);
+      const res = await api.updateLocation(finalLat, finalLng, finalCity, finalState, finalCountry, finalLocationName);
+      
+      if (res && res.success && res.user) {
+        setCurrentUser(res.user);
+        (window as any).currentUser = res.user;
+        console.log('🌍 [LOCATION] Localização sincronizada com sucesso:', res.user.location);
+      }
+    } catch (e) {
+      console.error('🌍 [LOCATION] Erro geral ao sincronizar localização:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      syncUserLocation();
+    }
+  }, [currentUser?.id, locationPermissionStatus, isAuthenticated]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.locationPermission) {
+      if (currentUser.locationPermission !== locationPermissionStatus) {
+        setLocationPermissionStatus(currentUser.locationPermission as any);
+      }
+    }
+  }, [currentUser?.locationPermission]);
+
   const handleAllowLocation = async () => {
 
     setLocationPermissionStatus('granted');
@@ -2312,19 +2538,13 @@ const logLiveEvent = (type: string, data: any) => {
 
 
   const checkCameraPermission = async () => {
-
     setPermissionStep('camera');
-
-    await checkMicrophonePermission();
-
   };
 
 
 
   const handleOpenGoLive = async () => {
-    // Primeiro mudamos a URL para refletir a intenção
-    navigate('/golive');
-    // Depois iniciamos o fluxo de permissões se necessário
+    // Iniciamos o fluxo de permissões primeiro na tela atual (ex: MainScreen)
     await checkCameraPermission();
   };
 
@@ -2636,6 +2856,7 @@ const logLiveEvent = (type: string, data: any) => {
       setPkOpponent(null);
       setLiveSession(null);
       setStreamRoomData(null);
+      navigate('/');
 
       try {
 
@@ -2776,6 +2997,12 @@ const logLiveEvent = (type: string, data: any) => {
     const fullUserFromState = allUsers.find(u => u.id === user.id);
 
     const userToView = user.id === currentUser?.id ? currentUser : (fullUserFromState || user);
+
+    if (currentUser && userToView.id !== currentUser.id) {
+      api.recordVisit(userToView.id, currentUser.id).catch(err => {
+        console.error('[API] Erro ao registrar visita no perfil:', err);
+      });
+    }
 
     setViewingProfile(userToView);
 
@@ -3267,6 +3494,111 @@ const logLiveEvent = (type: string, data: any) => {
   return (
     <div className="app-container bg-black text-white font-sans">
 
+      {/* PK Invite Pop-up Modal */}
+      {activePKInvite && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-md z-[99999999] flex items-center justify-center p-4">
+          <div className="bg-[#1C1C1E] border border-white/[0.08] w-full max-w-[340px] rounded-3xl p-6 relative flex flex-col items-center justify-center shadow-2xl animate-in fade-in zoom-in-95 duration-200 select-none">
+            {/* Pulsing halo */}
+            <div className="absolute top-10 w-[120px] h-[120px] rounded-full bg-[#FF2D55] opacity-20 filter blur-2xl animate-pulse"></div>
+
+            {/* Glowing Shield circular container */}
+            <div className="relative w-[84px] h-[84px] rounded-full bg-gradient-to-tr from-[#FF2D55] to-purple-600 p-[2px] flex items-center justify-center shadow-[0_0_25px_rgba(255,45,85,0.4)] mb-5">
+              <div className="w-full h-full rounded-full bg-black p-[2px] flex items-center justify-center">
+                {activePKInvite.inviterAvatar ? (
+                  <img src={activePKInvite.inviterAvatar} alt={activePKInvite.inviterName} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <div className="w-full h-full rounded-full bg-zinc-800 flex items-center justify-center text-white text-3xl font-extrabold uppercase">
+                    ⚔️
+                  </div>
+                )}
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-[#FF2D55] text-white p-1 rounded-full text-xs font-bold leading-none animate-bounce">
+                ⚔️
+              </div>
+            </div>
+
+            <h3 className="text-[19px] font-bold text-center text-white tracking-tight leading-snug">
+              Desafio de PK!
+            </h3>
+            
+            <p className="text-[14px] text-gray-400 text-center mt-2.5 mb-6 max-w-[280px] leading-relaxed">
+              O streamer <span className="text-white font-semibold">@{activePKInvite.inviterName || activePKInvite.inviter_name}</span> desafiou você para uma batalha PK de <span className="text-white font-semibold flex-row inline-flex items-center">5 minutos</span>! Deseja aceitar o desafio?
+            </p>
+
+            <div className="flex flex-col space-y-2.5 w-full">
+              <button
+                onClick={async () => {
+                  try {
+                    addToast(ToastType.Info, "Aceitando convite da batalha PK...");
+                    await api.respondToPKInvite(activePKInvite.id || activePKInvite.invite_id, 'accepted');
+                    
+                    const opponentUser = streamers.find((s: any) => s.id === activePKInvite.inviterId || s.id === activePKInvite.inviter_id) || 
+                                         listScreenUsers.find((u: any) => u.id === activePKInvite.inviterId || u.id === activePKInvite.inviter_id);
+                                         
+                    if (opponentUser) {
+                      setPkOpponent(opponentUser);
+                      setIsPKBattleActive(true);
+                      if (!activeStream) {
+                        handleSelectStream(opponentUser as Streamer);
+                      }
+                    } else {
+                      // Fallback: create mock opponent profile
+                      const mockOpponent: User = {
+                        id: activePKInvite.inviterId || activePKInvite.inviter_id || '98501724',
+                        identification: '100099',
+                        name: activePKInvite.inviterName || activePKInvite.inviter_name || 'Oponente',
+                        avatarUrl: activePKInvite.inviterAvatar || 'https://picsum.photos/seed/pkopp/400/600.jpg',
+                        age: 24,
+                        gender: 'female',
+                        level: 10,
+                        diamonds: 300,
+                        earnings: 150,
+                        fans: 120,
+                        following: 95,
+                        receptores: 80,
+                        enviados: 40,
+                        earnings_withdrawn: 0,
+                        isVIP: true,
+                        location: 'São Paulo, SP',
+                        ownedFrames: []
+                      };
+                      setPkOpponent(mockOpponent);
+                      setIsPKBattleActive(true);
+                      if (!activeStream) {
+                        handleSelectStream(mockOpponent as any);
+                      }
+                    }
+                    setActivePKInvite(null);
+                  } catch (err) {
+                    addToast(ToastType.Error, "Falha ao aceitar desafio.");
+                    console.error(err);
+                  }
+                }}
+                className="w-full py-3 bg-[#FF2D55] text-white text-[15px] font-bold rounded-xl active:scale-[0.98] transition-all hover:bg-[#E02447] shadow-lg shadow-[#FF2D55]/20 hover:cursor-pointer"
+              >
+                Aceitar Desafio
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    addToast(ToastType.Info, "Recusando convite...");
+                    await api.respondToPKInvite(activePKInvite.id || activePKInvite.invite_id, 'declined');
+                    setActivePKInvite(null);
+                  } catch (err) {
+                    console.error(err);
+                    setActivePKInvite(null);
+                  }
+                }}
+                className="w-full py-3 bg-zinc-800 hover:bg-zinc-700/80 text-gray-300 text-[15px] font-bold rounded-xl active:scale-[0.98] transition-all hover:cursor-pointer"
+              >
+                Recusar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ChatScreen com prioridade absoluta - sobre todas as outras telas */}
 
       {chattingWith && currentUser && (
@@ -3296,6 +3628,8 @@ const logLiveEvent = (type: string, data: any) => {
                 setPhotoViewerData({ photos, initialIndex: index });
 
             }}
+
+            onOpenProfile={setViewingProfile}
 
           />
 
@@ -3503,12 +3837,13 @@ const logLiveEvent = (type: string, data: any) => {
                 <ProfileScreen
                   currentUser={currentUser}
                   onOpenMyLevel={() => navigate('/profile/my-level')}
+                  onOpenUserLevels={() => navigate('/profile/user-levels')}
                   onOpenBlockList={() => navigate('/profile/block-list')}
                   onOpenAvatarProtection={() => navigate('/profile/avatar-protection')}
                   onOpenFAQ={() => navigate('/profile/faq')}
                   onOpenSettings={() => navigate('/profile/settings')}
                   onOpenVIPCenter={handleOpenVIPCenter}
-                  onNavigateToMessages={() => currentUser && setChattingWith(currentUser)}
+                  onNavigateToMessages={() => navigate('/messages')}
                   onOpenFans={() => handleOpenListScreen('fans')}
                   onOpenFollowing={() => handleOpenListScreen('following')}
                   onOpenVisitors={() => setIsVisitorsScreenOpen(true)}
@@ -3550,6 +3885,11 @@ const logLiveEvent = (type: string, data: any) => {
                 />
               ) : location.pathname === '/profile/my-level' ? (
                 <MyLevelScreen
+                  onClose={() => navigate('/profile')}
+                  currentUser={currentUser}
+                />
+              ) : location.pathname === '/profile/user-levels' ? (
+                <UserLevelsScreen
                   onClose={() => navigate('/profile')}
                   currentUser={currentUser}
                 />
@@ -3600,7 +3940,9 @@ const logLiveEvent = (type: string, data: any) => {
                 />
               ) : null}
 
-              <FooterNav currentUser={currentUser} onOpenGoLive={handleOpenGoLive} activeTab={getCurrentScreenFromPath(location.pathname)} onNavigate={handleNavigation} onOpenChat={() => handleNavigation('messages')} unreadCount={totalUnreadMessages} />
+              {['/', '/live', '/video', '/messages', '/profile'].includes(location.pathname) && (
+                <FooterNav currentUser={currentUser} onOpenGoLive={handleOpenGoLive} activeTab={getCurrentScreenFromPath(location.pathname)} onNavigate={handleNavigation} onOpenChat={() => handleNavigation('messages')} unreadCount={totalUnreadMessages} />
+              )}
 
             </div>
 
@@ -3624,7 +3966,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {isEndStreamConfirmOpen && <EndStreamConfirmationModal onCancel={() => setIsEndStreamConfirmOpen(false)} onConfirm={handleConfirmEndStream} isPK={isPKBattleActive} />}
 
-      {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); }} />}
+      {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} currentUser={currentUser} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); navigate('/'); }} />}
 
       {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={setChattingWith} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} />}
 
@@ -3805,12 +4147,13 @@ const ProfileRoutes: React.FC = () => {
         <ProfileScreen
           currentUser={currentUser}
           onOpenMyLevel={() => navigate('my-level')}
+          onOpenUserLevels={() => navigate('user-levels')}
           onOpenBlockList={() => navigate('block-list')}
           onOpenAvatarProtection={() => navigate('avatar-protection')}
           onOpenFAQ={() => navigate('faq')}
           onOpenSettings={() => navigate('settings')}
           onOpenVIPCenter={handleOpenVIPCenter}
-          onNavigateToMessages={() => currentUser && (window as any).setChattingWith?.(currentUser)}
+          onNavigateToMessages={() => navigate('/messages')}
           onOpenFans={() => handleOpenListScreen('fans')}
           onOpenFollowing={() => handleOpenListScreen('following')}
           onOpenVisitors={() => setIsVisitorsScreenOpen(true)}
@@ -3852,6 +4195,12 @@ const ProfileRoutes: React.FC = () => {
       } />
       <Route path="my-level" element={
         <MyLevelScreen
+          onClose={() => navigate('..')}
+          currentUser={currentUser}
+        />
+      } />
+      <Route path="user-levels" element={
+        <UserLevelsScreen
           onClose={() => navigate('..')}
           currentUser={currentUser}
         />

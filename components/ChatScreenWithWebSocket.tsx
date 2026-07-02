@@ -12,14 +12,18 @@ interface ChatScreenWithWebSocketProps {
   onBlockUser: (user: any) => void;
   onReportUser: (user: any) => void;
   onOpenPhotoViewer: (photos: any[], index: number) => void;
+  onOpenProfile?: (user: any) => void;
 }
 
 const ChatScreenWithWebSocket: React.FC<ChatScreenWithWebSocketProps> = (props) => {
   const [messages, setMessages] = useState<any[]>([]);
   
   useEffect(() => {
-    // Conectar ao WebSocket quando o chat abrir
-    const chatId = `chat_${props.currentUser.id}_${props.user.id}`;
+    // Conectar ao WebSocket quando o chat abrir com o ID ordenado determinístico
+    const cId = props.currentUser?.id;
+    const fId = props.user?.id;
+    if (!cId || !fId) return;
+    const chatId = `chat_private_${cId < fId ? cId + '_' + fId : fId + '_' + cId}`;
     socketService.joinRoom(chatId);
     
     // Atualizar status online

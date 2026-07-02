@@ -1,0 +1,43 @@
+# ==========================================
+# LiveKit SFU Server Configuration
+# ==========================================
+
+# Port the LiveKit API and WebSocket server will listen on
+port: 7880
+bind_addresses:
+  - ""
+
+# RTC Configuration
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+
+# Logging level
+logging:
+  level: info
+
+# API Keys and Secret pairs for generating real JWT Tokens.
+# Will be populated with the actual LIVEKIT_API_KEY and LIVEKIT_API_SECRET
+keys:
+  # The values will be loaded at runtime from environment variables,
+  # but we define standard fallback keys here.
+  devkey: secret
+
+# TURN / STUN Integration. Conecta o LiveKit ao coturn
+# de forma a contornar NATs simétricas, firewalls e redes bloqueadas
+turn:
+  enabled: true
+  domain: sfu.livego.store
+  external_servers:
+    - host: 2.25.192.154
+      port: 3478
+      transport: udp
+      username: livego
+      credential: livegosecretpassword
+    - host: 2.25.192.154
+      port: 3478
+      transport: tcp
+      username: livego
+      credential: livegosecretpassword

@@ -2,6 +2,7 @@ import React from 'react';
 import { CopyIcon } from '../icons';
 import { Streamer } from '../../types';
 import { getWhipEndpointUrl } from '../../services/mediaConfig';
+import { env } from '../../src/config/environment';
 
 type StreamUrlConfigField = 'editRtmpUrl' | 'editStreamKey' | 'editSrtUrl' | 'editPlaybackUrl' | 'editWhipUrl';
 
@@ -68,7 +69,7 @@ export const StreamUrlConfig: React.FC<StreamUrlConfigProps> = ({
           <input 
             type="text" 
             readOnly={!isEditingUrls} 
-            value={isEditingUrls ? editRtmpUrl : (draftStream?.rtmpIngestUrl || (draftStream?.id ? `rtmp://72.60.249.175:1935/live/${draftStream.id}` : 'Aguardando stream...'))} 
+            value={isEditingUrls ? editRtmpUrl : (draftStream?.rtmpIngestUrl || (draftStream?.id ? `rtmp://${env.srs.host}:1935/live/${draftStream.id}` : 'Aguardando stream...'))} 
             onChange={e => onUrlChange('editRtmpUrl', e.target.value)}
             className={`flex-1 p-2 rounded-md text-white font-mono transition-colors ${
               isEditingUrls ? 'bg-[#1a1a2e] border border-blue-500/50 focus:outline-none' : 'bg-[#111] border border-white/10 select-all'

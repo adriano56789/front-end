@@ -1,0 +1,528 @@
+[{
+  "_id": {
+    "$oid": "69ee66bc2413687d83c1e320"
+  },
+  "id": "73684953",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-26T19:25:48.965Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-26T19:25:48.965Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69ee67f02413687d83c1f43a"
+  },
+  "id": "76665350",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bb"
+  },
+  "giftName": "Rosa",
+  "giftIcon": "🌷",
+  "giftPrice": 5,
+  "quantity": 1,
+  "totalValue": 5,
+  "createdAt": {
+    "$date": "2026-04-26T19:30:56.387Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-26T19:30:56.387Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69eeaefb21289fb3eb4a8b44"
+  },
+  "id": "98609924",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c3"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 25,
+  "quantity": 1,
+  "totalValue": 25,
+  "createdAt": {
+    "$date": "2026-04-27T00:34:03.411Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-27T00:34:03.411Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69ef490606bca76e7b44e5c0"
+  },
+  "id": "36751509",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bf"
+  },
+  "giftName": "Batom",
+  "giftIcon": "💄",
+  "giftPrice": 10,
+  "quantity": 1,
+  "totalValue": 10,
+  "createdAt": {
+    "$date": "2026-04-27T11:31:18.235Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-27T11:31:18.235Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c7a5f7ae2f8867b52330"
+  },
+  "id": "60090466",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c2"
+  },
+  "giftName": "Lanche",
+  "giftIcon": "🍔",
+  "giftPrice": 20,
+  "quantity": 1,
+  "totalValue": 20,
+  "createdAt": {
+    "$date": "2026-04-28T14:43:49.040Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:43:49.040Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c9f4f7ae2f8867b52b16"
+  },
+  "id": "80378228",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T14:53:40.799Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:53:40.799Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c9fff7ae2f8867b52c08"
+  },
+  "id": "25968876",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T14:53:51.790Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:53:51.790Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d4b3f7ae2f8867b53857"
+  },
+  "id": "90589183",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c2"
+  },
+  "giftName": "Lanche",
+  "giftIcon": "🍔",
+  "giftPrice": 20,
+  "quantity": 1,
+  "totalValue": 20,
+  "createdAt": {
+    "$date": "2026-04-28T15:39:31.210Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:39:31.210Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d4d4f7ae2f8867b53939"
+  },
+  "id": "41254270",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c7"
+  },
+  "giftName": "Alvo",
+  "giftIcon": "🎯",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-04-28T15:40:04.782Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:40:04.782Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d8e8f7ae2f8867b546a8"
+  },
+  "id": "16014526",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9be"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 9,
+  "quantity": 1,
+  "totalValue": 9,
+  "createdAt": {
+    "$date": "2026-04-28T15:57:28.398Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:57:28.398Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0df91f7ae2f8867b552d3"
+  },
+  "id": "23126674",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9be"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 9,
+  "quantity": 1,
+  "totalValue": 9,
+  "createdAt": {
+    "$date": "2026-04-28T16:25:53.110Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T16:25:53.110Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0e380f7ae2f8867b55a5f"
+  },
+  "id": "88785158",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c3"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 25,
+  "quantity": 1,
+  "totalValue": 25,
+  "createdAt": {
+    "$date": "2026-04-28T16:42:40.032Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T16:42:40.032Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0e87af7ae2f8867b567fa"
+  },
+  "id": "16350001",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T17:03:54.764Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T17:03:54.764Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0eac1f7ae2f8867b56918"
+  },
+  "id": "76987553",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T17:13:37.458Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T17:13:37.458Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f1027acece94074f646ed7"
+  },
+  "id": "90221799",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T18:54:50.081Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T18:54:50.081Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f10292cece94074f646ffd"
+  },
+  "id": "83762287",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T18:55:14.228Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T18:55:14.228Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f10e4cac5862f52f247f13"
+  },
+  "id": "11479899",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:45:16.426Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:45:16.426Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f110bc50a4e2e50ef69567"
+  },
+  "id": "65852386",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:55:40.331Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:55:40.331Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f110d250a4e2e50ef6969d"
+  },
+  "id": "42223726",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:56:02.626Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:56:02.626Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f1133150a4e2e50ef6a118"
+  },
+  "id": "54960899",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T20:06:09.263Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T20:06:09.263Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f13ef29cc6df3e86f30ef6"
+  },
+  "id": "96544655",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T23:12:50.429Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T23:12:50.429Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f26bd261c786547a91b053"
+  },
+  "id": "78975195",
+  "fromUserId": "98501723",
+  "toUserId": "98501723",
+  "streamId": "stream_98501723",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bf"
+  },
+  "giftName": "Batom",
+  "giftIcon": "💄",
+  "giftPrice": 10,
+  "quantity": 1,
+  "totalValue": 10,
+  "createdAt": {
+    "$date": "2026-04-29T20:36:34.046Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-29T20:36:34.046Z"
+  },
+  "__v": 0
+}]

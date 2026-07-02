@@ -1,0 +1,36 @@
+[{
+  "_id": {
+    "$oid": "69ecb564ecad72d13bd8f48f"
+  },
+  "userId": "98501723",
+  "currentLevel": 1,
+  "currentExp": 168,
+  "expForNextLevel": 200,
+  "totalExp": 148,
+  "levelHistory": [
+    {
+      "level": 1,
+      "reachedAt": {
+        "$date": "2026-04-25T12:36:52.936Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "69ecb564ecad72d13bd8f490"
+      }
+    }
+  ],
+  "lastExpGain": {
+    "amount": 5,
+    "reason": "Joined stream",
+    "timestamp": {
+      "$date": "2026-04-28T20:04:40.518Z"
+    }
+  },
+  "createdAt": {
+    "$date": "2026-04-25T12:36:52.950Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T20:04:40.521Z"
+  },
+  "__v": 0
+}]

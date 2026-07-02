@@ -90,14 +90,16 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
     return (
       <button
         onClick={() => setSelectedMethod(method)}
-        className={`relative flex flex-col items-center justify-center space-y-2 p-4 rounded-lg transition-all
-          ${isSelected ? 'bg-[#1C1C1E] border-2 border-green-500' : 'bg-[#2C2C2E] border-2 border-transparent'}`}
+        className={`relative flex flex-col items-center justify-center space-y-3 p-5 rounded-[12px] transition-all flex-1
+          ${isSelected ? 'bg-[#1b1c21] border border-[#1cb15f]' : 'bg-[#18191e] border border-transparent'}`}
       >
         {icon}
-        <span className="text-white font-semibold">{label}</span>
+        <span className="text-white text-[13px] font-bold">{label}</span>
         {isSelected && (
-          <div className="absolute top-1 right-1">
-            <CheckCircleIcon className="w-5 h-5 text-green-500" />
+          <div className="absolute top-2 right-2 bg-[#1cb15f] rounded-full w-[14px] h-[14px] flex items-center justify-center">
+             <svg className="w-[10px] h-[10px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+             </svg>
           </div>
         )}
       </button>
@@ -105,60 +107,62 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
   };
 
   return (
-    <div className="absolute inset-0 bg-[#111111] z-50 flex flex-col text-white">
-      <header className="flex items-center p-4 border-b border-gray-800 flex-shrink-0">
-        <button onClick={onClose} className="absolute">
-          <BackIcon className="w-6 h-6" />
+    <div className="absolute inset-0 bg-[#0f1015] z-50 flex flex-col text-white">
+      <header className="flex items-center p-4 py-5 flex-shrink-0">
+        <button onClick={onClose} className="p-1 -ml-1 flex items-center justify-center text-gray-300 hover:text-white transition-colors">
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
         </button>
-        <div className="flex-grow text-center">
-          <h1 className="text-lg font-semibold">{t('wallet.configureWithdraw.title')}</h1>
-        </div>
+        <h1 className="text-[17px] font-bold text-white ml-2">Configurar Método de Saque</h1>
       </header>
 
-      <main className="flex-grow p-4 space-y-6">
-        <p className="text-gray-300">{t('wallet.configureWithdraw.description')}</p>
+      <main className="flex-grow px-5 py-2 space-y-6">
+        <p className="text-[#8e9196] text-[13px] font-medium leading-relaxed pr-8">
+          Selecione como você gostaria de receber seu dinheiro.
+        </p>
 
-        <div className="grid grid-cols-2 gap-4">
-          <PaymentMethodButton method="pix" label="PIX" icon={<PixIcon className="w-16 h-16" />} />
-          <PaymentMethodButton method="mercado_pago" label="Mercado Pago" icon={<MercadoPagoIcon className="w-16 h-16" />} />
+        <div className="flex gap-4">
+          <PaymentMethodButton method="pix" label="PIX" icon={<PixIcon className="w-[45px] h-[45px]" />} />
+          <PaymentMethodButton method="mercado_pago" label="Mercado Pago" icon={<MercadoPagoIcon className="w-[45px] h-[45px]" />} />
         </div>
 
         {selectedMethod === 'pix' && (
-          <div className="space-y-3">
-            <label htmlFor="pix-key" className="text-sm text-gray-300">{t('wallet.configureWithdraw.pixKey')}</label>
+          <div className="space-y-2 mt-8">
+            <label htmlFor="pix-key" className="text-[12px] font-bold text-[#8e9196] block ml-1">Chave PIX</label>
             <input
               id="pix-key"
               type="text"
               value={pixKey}
               onChange={(e) => setPixKey(e.target.value)}
-              placeholder={t('wallet.configureWithdraw.pixPlaceholder')}
-              className="w-full bg-[#2C2C2E] text-white placeholder-gray-500 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="CPF, e-mail ou telefone"
+              className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
             />
           </div>
         )}
 
         {selectedMethod === 'mercado_pago' && (
-            <div className="space-y-3">
-                <label htmlFor="mercado-pago-email" className="text-sm text-gray-300">{t('wallet.configureWithdraw.mercadoPagoEmail')}</label>
+            <div className="space-y-2 mt-8">
+                <label htmlFor="mercado-pago-email" className="text-[12px] font-bold text-[#8e9196] block ml-1">E-mail do Mercado Pago</label>
                 <input
                     id="mercado-pago-email"
                     type="email"
                     value={mercadoPagoEmail}
                     onChange={(e) => setMercadoPagoEmail(e.target.value)}
-                    placeholder={t('wallet.configureWithdraw.mercadoPagoPlaceholder')}
-                    className="w-full bg-[#2C2C2E] text-white placeholder-gray-500 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Seu e-mail da conta"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
                 />
             </div>
         )}
       </main>
 
-      <footer className="p-4 flex-grow-0 flex-shrink-0">
+      <footer className="p-5 flex-grow-0 flex-shrink-0 mb-4">
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="w-full bg-green-600 text-white font-bold py-4 rounded-full hover:bg-green-700 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+          className="w-full bg-[#1cb15f] text-white text-[15px] font-bold py-[14px] rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSaving ? "Salvando..." : t('common.save')}
+          {isSaving ? "Salvando..." : "Salvar"}
         </button>
       </footer>
     </div>

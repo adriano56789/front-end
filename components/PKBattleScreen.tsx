@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLiveKit } from '../hooks/useLiveKit';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
 import EntryChatMessage from './live/EntryChatMessage';
 import ToolsModal from './ToolsModal';
+const ToolsModalAny: any = ToolsModal;
 import ResolutionPanel from './live/ResolutionPanel';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, ViewerIcon, StarIcon, HeartIcon, GoldCoinWithGIcon, BellIcon } from './icons';
@@ -14,6 +16,8 @@ import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
+import { livekitApi } from '../services/livekit/livekitApi';
+import { socketService } from '../services/socket';
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
@@ -81,7 +85,7 @@ interface Heart {
 const FollowChatMessage: React.FC<{ follower: string; followed: string }> = ({ follower, followed }) => {
     const { t } = useTranslation();
     return (
-        <div className="bg-purple-500/30 rounded-full p-1.5 px-3 flex items-center self-start text-xs">
+        <div className="bg-purple-500/30 rounded-[18px] p-1.5 px-3 flex items-center self-start text-xs">
             <span className="text-purple-300 font-bold">{follower}</span>
             <span className="text-gray-200 ml-1.5">{t('streamRoom.followed')}</span>
             <span className="text-purple-300 font-bold ml-1.5">{followed}! 🎉</span>
@@ -113,6 +117,7 @@ export default function PKBattleScreen({
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
     const [isCoHostModalOpen, setIsCoHostModalOpen] = useState(false);
+    const [coHostModalMode, setCoHostModalMode] = useState<'cohost' | 'battle'>('cohost');
     const [isOnlineUsersOpen, setIsOnlineUsersOpen] = useState(false);
     const [isRankingOpen, setIsRankingOpen] = useState(false);
     const [isResolutionPanelOpen, setResolutionPanelOpen] = useState(false);
@@ -129,8 +134,110 @@ export default function PKBattleScreen({
     const nextGiftId = useRef(0);
 
     const [isSendingGift, setIsSendingGift] = useState(false);
+    const [isLocalMuted, setIsLocalMuted] = useState(false);
+
+    // Real-time LiveKit SFU hook for PK Battle
+    const {
+        connect: connectLiveKit,
+        disconnect: disconnectLiveKit,
+        connectionState: lkState,
+        localParticipant: lkLocal,
+        remoteParticipants: lkRemotes
+    } = useLiveKit();
+
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const remoteVideoRef = useRef<HTMLVideoElement>(null);
+
+    // Fetch Token and Connect to LiveKit SFU Room
+    useEffect(() => {
+        let active = true;
+        const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
         
-    const isBroadcaster = streamer.hostId === currentUser.id;
+        const initLiveKit = async () => {
+            try {
+                console.log(`[PK-LiveKit] Requesting credentials for live room: ${streamer.id}`);
+                const res = await livekitApi.getLiveKitToken(streamer.id, currentUser.id, isBroadcasterUser);
+                if (res.success && active) {
+                    await connectLiveKit(res.serverUrl, res.token);
+                }
+            } catch (err) {
+                console.error('[PK-LiveKit] Connection failed:', err);
+            }
+        };
+
+        initLiveKit();
+
+        return () => {
+            active = false;
+            disconnectLiveKit();
+        };
+    }, [streamer.id, currentUser.id, opponent]);
+
+    // Handle Local Camera Stream binding (Left Column)
+    useEffect(() => {
+        const video = localVideoRef.current;
+        if (!video) return;
+
+        let localTrack: MediaStreamTrack | null = null;
+        const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+        
+        if (lkLocal) {
+            // Retrieve local video track from LiveKit state
+            const videoPub = Array.from(lkLocal.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
+            if (videoPub && videoPub.track) {
+                localTrack = videoPub.track;
+                video.srcObject = new MediaStream([localTrack]);
+                video.style.transform = 'scaleX(-1)'; // mirror
+            }
+        }
+
+        // Fallback to standard preview stream if LiveKit is not active yet
+        if (!localTrack && isBroadcasterUser) {
+            navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 } }, audio: false })
+                .then(stream => {
+                    if (video) {
+                        video.srcObject = stream;
+                        video.style.transform = 'scaleX(-1)';
+                    }
+                })
+                .catch(err => {
+                    console.warn('[PKBattle] Fallback preview stream failed:', err);
+                });
+        }
+
+        return () => {
+            if (video) video.srcObject = null;
+        };
+    }, [lkLocal, streamer?.hostId, currentUser?.id]);
+
+    // Handle Remote Opponent Video Track binding (Right Column)
+    useEffect(() => {
+        const video = remoteVideoRef.current;
+        if (!video) return;
+
+        // Find opponent from remotes
+        const oppParticipant = lkRemotes.find(p => p.identity === opponent.id);
+        if (oppParticipant) {
+            const videoPub = Array.from(oppParticipant.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
+            if (videoPub && videoPub.track) {
+                video.srcObject = new MediaStream([videoPub.track]);
+                video.style.transform = 'scaleX(1)';
+                return;
+            }
+        }
+
+        // Clean if not found
+        video.srcObject = null;
+    }, [lkRemotes, opponent.id]);
+        
+    const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+
+    const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
+        e.stopPropagation();
+        setIsToolsOpen(false);
+        setCoHostModalMode(mode || 'cohost');
+        setIsCoHostModalOpen(true);
+    };
 
     const handleOpenUserActions = (chatUser: ChatMessageType) => {
         if (!isBroadcaster || !chatUser.user) return;
@@ -209,7 +316,7 @@ export default function PKBattleScreen({
         setMessages(prev => [...prev, giftMessage]);
     };
 
-    const handleSendGift = async (gift: Gift, quantity: number) => {
+    const handleSendGift = async (gift: Gift, quantity: number, isSimulation?: boolean) => {
         if (isSendingGift) return;
         setIsSendingGift(true);
         try {
@@ -233,6 +340,27 @@ export default function PKBattleScreen({
             const newBanner = { ...giftPayload, id: nextGiftId.current++ };
             setBannerGifts(prev => [...prev, newBanner].slice(-5));
 
+            // Sincronizar via socket unificado
+            (socketService as any).sendGift(
+                streamer.id,
+                currentUser.id as any,
+                currentUser.name,
+                currentUser.avatarUrl || 'https://via.placeholder.com/40',
+                (streamer.hostId || streamer.id) as any,
+                streamer.name || 'Streamer',
+                streamer.avatar || 'https://via.placeholder.com/40',
+                gift.name,
+                gift.name,
+                gift.icon || '🎁',
+                gift.price || 0,
+                quantity
+            );
+
+            if (isSimulation) {
+                // Simplesmente termina aqui na simulação
+                return;
+            }
+
             const { success, error, updatedSender, updatedReceiver } = await api.sendGift(currentUser.id, streamer.id, streamer.id, gift.name, quantity);
             
             if (success && updatedSender && updatedReceiver) {
@@ -250,15 +378,6 @@ export default function PKBattleScreen({
                 }
                 
                 refreshStreamRoomData(streamer.hostId);
-                const giftPayloadSocket: GiftPayload = {
-                    fromUser: currentUser,
-                    toUser: { id: streamer.hostId, name: streamer.name },
-                    gift,
-                    quantity,
-                    roomId: streamer.id
-                };
-                // Simplificado - sem WebSocket para navegação isolada
-                // webSocketManager.sendStreamGift(streamer.id, gift, quantity);
                 
             } else if (error === 'Not enough diamonds') {
                 handleRecharge();
@@ -389,20 +508,15 @@ export default function PKBattleScreen({
         };
 
 
-        // Simplificado - sem WebSocket para navegação isolada
-        // webSocketManager.on('onlineUsersUpdate', handleOnlineUsersUpdate);
-        // webSocketManager.on('newStreamMessage', handleNewMessage);
-        // webSocketManager.on('pkHeartUpdate', handleHeartUpdate);
-        // webSocketManager.on('newStreamGift', handleNewGift);
-        // webSocketManager.on('followUpdate', handleFollowUpdate);
+        // Real-time socket subscriptions for the PK Battle Screen
+        socketService.on('receive_message', handleNewMessage);
+        socketService.on('gift_received', handleNewGift);
+        socketService.on('live_gift_received', handleNewGift);
     
         return () => {
-            // Simplificado - sem WebSocket para navegação isolada
-            // webSocketManager.off('onlineUsersUpdate', handleOnlineUsersUpdate);
-            // webSocketManager.off('newStreamMessage', handleNewMessage);
-            // webSocketManager.off('pkHeartUpdate', handleHeartUpdate);
-            // webSocketManager.off('newStreamGift', handleNewGift);
-            // webSocketManager.off('followUpdate', handleFollowUpdate);
+            socketService.off('receive_message', handleNewMessage);
+            socketService.off('gift_received', handleNewGift);
+            socketService.off('live_gift_received', handleNewGift);
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
 
@@ -443,7 +557,14 @@ export default function PKBattleScreen({
 
     const handleToggleSound = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!isBroadcaster) return;
+        if (!isBroadcaster) {
+            setIsLocalMuted(prev => {
+                const updatedMuted = !prev;
+                addToast(ToastType.Info, updatedMuted ? 'Áudio da live silenciado localmente.' : 'Áudio da live ativado localmente.');
+                return updatedMuted;
+            });
+            return;
+        }
         addToast(ToastType.Info, !(liveSession?.isStreamMuted) ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
         await api.toggleStreamSound(streamer.id);
     };
@@ -482,17 +603,49 @@ export default function PKBattleScreen({
     };
 
     if (!opponent) return <div className="absolute inset-0 bg-black flex items-center justify-center"><LoadingSpinner /></div>;
-    
+
     return (
-        <div className="absolute inset-0 bg-black flex flex-col font-sans text-white z-10">
-            <div className="flex-1 relative" onClick={handleHeartClick}>
-                <div className="absolute inset-0 grid grid-cols-2">
-                    <div className="h-full w-full bg-gray-900 border-r-2 border-yellow-400"><img src={streamerUser.coverUrl} alt={streamerUser.name} className="w-full h-full object-cover" /></div>
-                    <div className="h-full w-full bg-gray-800"><img src={opponent.coverUrl} alt={opponent.name} className="w-full h-full object-cover" /></div>
+        <div className="absolute inset-0 bg-[#000000] flex flex-col font-sans text-white z-10 select-none">
+            {/* Top Split Stream View Container */}
+            <div className="relative w-full h-[52vh] min-h-[380px] flex-shrink-0 bg-zinc-950 overflow-hidden" onClick={handleHeartClick}>
+                {/* Background Stream Columns */}
+                <div className="absolute inset-0 grid grid-cols-2 bg-black">
+                    {/* Host Camera Stream (Left Column) */}
+                    <div className="relative w-full h-full bg-zinc-900 overflow-hidden">
+                        <video
+                            ref={localVideoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="absolute inset-0 w-full h-full object-cover z-0"
+                        />
+                        <img 
+                            src={streamerUser.coverUrl} 
+                            alt={streamerUser.name} 
+                            className="absolute inset-0 w-full h-full object-cover grayscale-[0.02] mix-blend-lighten pointer-events-none opacity-20 z-10" 
+                        />
+                    </div>
+                    {/* Opponent Camera Stream (Right Column) */}
+                    <div className="relative w-full h-full bg-zinc-950 overflow-hidden">
+                        <video
+                            ref={remoteVideoRef}
+                            autoPlay
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-cover z-0"
+                        />
+                        <img 
+                            src={opponent.coverUrl} 
+                            alt={opponent.name} 
+                            className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-20 z-10" 
+                        />
+                    </div>
                 </div>
-                
+
+                {/* Golden Thin Vertical Separator Line */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-gradient-to-b from-[#fcd34d] via-[#f59e0b] to-[#fcd34d] -translate-x-1/2 z-10 pointer-events-none" />
+
                 {/* Banner Notifications Overlay */}
-                <div className="absolute top-24 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
+                <div className="absolute top-28 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
                     <GiftQueueManager
                         gifts={bannerGifts}
                         onAnimationEnd={handleBannerAnimationEnd}
@@ -501,133 +654,207 @@ export default function PKBattleScreen({
                     />
                 </div>
 
-                 <FullScreenGiftAnimation 
+                <FullScreenGiftAnimation 
                     payload={currentEffect}
                     onEnd={() => setCurrentEffect(null)}
                 />
 
-                <header className={`p-3 bg-transparent absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-start space-x-2">
-                                <div className="flex flex-col space-y-2">
-                                    <button onClick={(e) => { e.stopPropagation(); onViewProfile(streamerDisplayUser); }} className="flex items-center bg-black/40 rounded-full p-1 pr-3 space-x-2 text-left">
-                                        <div className="relative w-10 h-10 flex items-center justify-center">
-                                            <div className="live-ring-animated">
-                                            <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-8 h-8 rounded-full object-cover" />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-white font-bold text-sm">{streamerDisplayUser.name}</p>
-                                            <div className="flex items-center space-x-1 text-gray-300 text-xs">
-                                                <ViewerIcon className="w-4 h-4" />
-                                                <span>{liveSession?.viewers.toLocaleString() || '0'}</span>
-                                            </div>
-                                        </div>
-                                    </button>
-                                    <div className="flex items-center space-x-2 pl-1">
-                                        <button onClick={(e) => { e.stopPropagation(); setIsRankingOpen(true); }} className="flex items-center bg-black/40 rounded-full px-2 py-1 space-x-1 text-xs cursor-pointer">
-                                            <GoldCoinWithGIcon className="w-4 h-4" />
-                                            <span className="text-white font-semibold">{myScore.toLocaleString()}</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                {!isStreamerFollowed && !isBroadcaster && (
-                                    <button onClick={(e) => { e.stopPropagation(); handleFollowStreamer(streamerUser); }} className="w-8 h-8 bg-pink-500 rounded-full flex items-center justify-center text-white mt-1 shrink-0">
-                                        <PlusIcon className="w-4 h-4" />
-                                    </button>
-                                )}
+                {/* Split Float Header over Columns */}
+                <header className={`absolute top-0 left-0 right-0 p-3 z-20 flex justify-between items-start bg-gradient-to-b from-black/80 via-black/30 to-transparent transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {/* Left Half Header: Host Item */}
+                    <div className="flex items-start space-x-2">
+                        <div className="relative">
+                            {/* Avatar Frame with pink gradient ring */}
+                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF2D55] via-purple-600 to-indigo-500 flex items-center justify-center">
+                                <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full rounded-full object-cover border border-black/50" />
                             </div>
+                            {/* Overlapping Pink "+" Button Badge */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); handleFollowStreamer(streamerUser); }}
+                                className="absolute -right-1 -bottom-1 w-[18px] h-[18px] bg-gradient-to-r from-pink-500 to-rose-500 rounded-full flex items-center justify-center text-white text-[12px] font-bold shadow-md hover:scale-110 active:scale-95 transition-all border-none cursor-pointer"
+                            >
+                                +
+                            </button>
+                        </div>
+                        <div className="flex flex-col text-left">
+                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md">
+                                Live de {streamerDisplayUser.name}
+                            </h4>
+                            <p className="text-gray-350 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
+                                @{streamerDisplayUser.name}
+                            </p>
+                            <div className="flex items-center space-x-1 mt-0.5 text-yellow-400 text-[10px] bg-black/35 px-1.5 py-0.5 rounded-full w-max">
+                                <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full flex items-center justify-center text-[7px] text-black font-extrabold pb-[0.5px]">G</span>
+                                <span className="font-semibold">{myScore.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div className="flex flex-col items-end space-y-2">
-                                <div className="flex items-center space-x-2">
-                                    {onlineUsers.slice(0, 3).map((user) => (
-                                        <button key={user.id} onClick={(e) => { e.stopPropagation(); onViewProfile(user); }}>
-                                            <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover" />
-                                        </button>
-                                    ))}
-                                    <button onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }} className="flex items-center bg-black/40 rounded-full px-2.5 py-1.5 space-x-1 text-sm cursor-pointer">
-                                        <BellIcon className="w-5 h-5 text-yellow-400" />
-                                        <span className="text-white font-semibold">{onlineUsers.length}</span>
-                                    </button>
-                                    <button onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }} className="w-8 h-8 bg-black/40 rounded-full flex items-center justify-center shrink-0">
-                                        <CloseIcon className="w-5 h-5 text-white" />
-                                    </button>
-                                </div>
-                                <div className="pr-1">
-                                    <div className="bg-black/40 rounded-full px-3 py-1 text-xs text-gray-300">
-                                        ID: {streamer.hostId}
-                                    </div>
-                                </div>
+                    {/* Right Half Header: Opponent Item */}
+                    <div className="flex items-start space-x-2 text-right">
+                        <div className="flex flex-col items-end">
+                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md flex items-center gap-1">
+                                {opponent.name} <span className="text-purple-400 text-[10px]">🎵</span>
+                            </h4>
+                            <p className="text-gray-300 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
+                                @{opponent.name}
+                            </p>
+                        </div>
+                        <div className="relative">
+                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-teal-400 flex items-center justify-center">
+                                <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full rounded-full object-cover border border-black/50" />
                             </div>
                         </div>
-                    </header>
-                    
-                    <div className={`w-full px-4 absolute top-24 left-0 right-0 z-10 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                      <div className="relative w-full h-3 bg-pk-opponent rounded-full overflow-hidden">
-                        <div className="absolute top-0 left-0 h-full bg-pk-streamer transition-all duration-500" style={{ width: `${myProgress}%` }}></div>
-                        <div className="absolute top-1/2 -translate-y-1/2 left-1/2 -translate-x-1/2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center border-2 border-white shadow-lg text-black font-bold text-xs">VS</div>
-                      </div>
-                      <div className="flex justify-between mt-1.5">
-                        <div className="flex items-center space-x-1.5">
-                            <StarIcon className="w-5 h-5 text-pink-400" />
-                            <span className="font-bold text-white score-pop">{myScore.toLocaleString()}</span>
-                            <span className="font-bold text-white score-pop text-sm ml-2">({myHearts})</span>
+
+                        {/* Split Header Action Icons */}
+                        <div className="flex items-center space-x-1.5 ml-1.5">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
+                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
+                            >
+                                <BellIcon className="w-4 h-4 text-yellow-400" />
+                                <span className="text-[10px] font-bold text-white ml-0.5">0</span>
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
+                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
+                            >
+                                <CloseIcon className="w-4 h-4 text-white" />
+                            </button>
                         </div>
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-sm rounded-full px-4 py-1.5 text-white font-bold text-lg shadow-lg">
+                    </div>
+                </header>
+                
+                {/* VS Progress Bar and Score Details aligned under Header */}
+                <div className={`w-full px-4 absolute top-[68px] left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {/* Pink and Blue split Progress Bar with yellow center VS badge */}
+                    <div className="relative w-full h-[10px] bg-zinc-850 rounded-full overflow-visible flex items-center">
+                        <div 
+                            className="h-full bg-gradient-to-r from-pink-500 to-[#FF2D55] rounded-l-full transition-all duration-500" 
+                            style={{ width: `${myProgress}%` }}
+                        />
+                        <div 
+                            className="h-full bg-gradient-to-r from-[#007AFF] to-[#0A84FF] rounded-r-full transition-all duration-500 flex-grow" 
+                        />
+                        <div 
+                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[9px] text-black px-1.5 py-0.5 border border-white shadow-md z-30 select-none pb-[1px]" 
+                            style={{ left: `${myProgress}%` }}
+                        >
+                            VS
+                        </div>
+                    </div>
+
+                    {/* Left/Right Score labels and transclucent Timer capsule */}
+                    <div className="flex justify-between items-center mt-2.5">
+                        <div className="flex items-center space-x-1 text-left">
+                            <StarIcon className="w-3.5 h-3.5 text-pink-500 fill-current" />
+                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">
+                                {myScore.toLocaleString()}
+                            </span>
+                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">
+                                ({myHearts})
+                            </span>
+                        </div>
+
+                        {/* Floating Timer Badge */}
+                        <div className="bg-black/65 border border-white/[0.08] backdrop-blur-md rounded-full px-4 py-1 text-white font-mono text-[13px] font-bold shadow-lg flex items-center justify-center">
                             {formatTime(timeLeft)}
                         </div>
-                        <div className="flex items-center space-x-1.5">
-                            <span className="font-bold text-white score-pop text-sm mr-2">({opponentHearts})</span>
-                            <StarIcon className="w-5 h-5 text-blue-400" />
-                            <span className="font-bold text-white score-pop">{opponentScore.toLocaleString()}</span>
-                        </div>
-                      </div>
-                    </div>
-            </div>
 
-            <div className={`flex-shrink-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} data-chat-container>
-                <div ref={chatContainerRef} className="h-48 overflow-y-auto no-scrollbar p-3 flex flex-col justify-end">
-                    <div className="space-y-2">
-                    {messages.map((msg) => {
-                            if (msg.type === 'entry' && msg.fullUser) {
-                                return <EntryChatMessage 
-                                    key={msg.id} 
-                                    user={msg.fullUser} 
-                                    currentUser={currentUser}
-                                    onClick={onViewProfile}
-                                    onFollow={onFollowUser}
-                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
-                            }
-                            if (msg.type === 'chat' && msg.user && msg.avatar) {
-                                const chatUser = constructUserFromMessage(msg);
-                                const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
-                                return <ChatMessage 
-                                    key={msg.id} 
-                                    userObject={chatUser}
-                                    message={msg.message}
-                                    onAvatarClick={() => handleViewChatUserProfile(msg)} 
-                                    onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
-                                    isFollowed={followingUsers.some(f => f.id === chatUser.id)}
-                                    onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
-                                    isModerator={msg.isModerator}
-                                />;
-                            }
-                            if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                                return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
-                            }
-                            if (msg.type === 'friend_request' && msg.follower) {
-                                return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
-                            }
-                            return null;
-                        })}
+                        <div className="flex items-center space-x-1 text-right">
+                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">
+                                ({opponentHearts})
+                            </span>
+                            <StarIcon className="w-3.5 h-3.5 text-blue-500 fill-current" />
+                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">
+                                {opponentScore.toLocaleString()}
+                            </span>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <footer className="p-3 border-t border-gray-800/50">
-                    <div className="flex items-center space-x-2">
-                        <div className="flex-grow bg-black/40 rounded-full flex items-center pr-1.5"><input type="text" placeholder={t('streamRoom.sayHi')} value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)} className="flex-grow bg-transparent px-4 py-2.5 text-white placeholder-gray-400 focus:outline-none" /><button onClick={handleSendMessage} className="bg-gray-500/50 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-gray-400/50 transition-colors"><SendIcon className="w-5 h-5 text-white" /></button></div>
-                        <button onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><GiftIcon className="w-6 h-6 text-yellow-400" /></button>
-                        {isBroadcaster && (<button onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MoreIcon className="w-6 h-6 text-white" /></button>)}
+            {/* Bottom Section: Flat Solid Black Area for Public Chat scrolling content and controls */}
+            <div className={`flex-1 flex flex-col bg-black justify-between min-h-0 relative ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} data-chat-container>
+                <div ref={chatContainerRef} className="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col space-y-2.5 justify-end">
+                    {messages.map((msg) => {
+                        if (msg.type === 'entry' && msg.fullUser) {
+                            return <EntryChatMessage 
+                                key={msg.id} 
+                                user={msg.fullUser} 
+                                currentUser={currentUser}
+                                onClick={onViewProfile}
+                                onFollow={onFollowUser}
+                                isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
+                        }
+                        if (msg.type === 'chat' && msg.user && msg.avatar) {
+                            const chatUser = constructUserFromMessage(msg);
+                            const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
+                            return <ChatMessage 
+                                key={msg.id} 
+                                userObject={chatUser}
+                                message={msg.message}
+                                onAvatarClick={() => handleViewChatUserProfile(msg)} 
+                                onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
+                                isFollowed={followingUsers.some(f => f.id === chatUser.id)}
+                                onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                isModerator={msg.isModerator}
+                            />;
+                        }
+                        if (msg.type === 'follow' && msg.user && msg.followedUser) {
+                            return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
+                        }
+                        if (msg.type === 'friend_request' && msg.follower) {
+                            return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                        }
+                        return null;
+                    })}
+                </div>
+
+                <footer className="p-3 bg-transparent pointer-events-auto">
+                    <div className="flex items-center gap-3" data-purpose="bottom-controls">
+                        <div className="flex-grow">
+                            <input 
+                                type="text"
+                                placeholder={t('streamRoom.sayHi')}
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                            />
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {/* Share/Send Action */}
+                            <button 
+                                onClick={handleSendMessage} 
+                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                            >
+                                <SendIcon className="w-5 h-5 text-white" />
+                            </button>
+                            {/* Gift Action */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                                className="hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                            >
+                                <img 
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                    alt="Gift Icon" 
+                                    className="w-9 h-9 object-cover rounded-full shadow-lg" 
+                                />
+                            </button>
+                            {/* More Options / Tools Modal wrapper for broadcasters/spectators */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
+                                className="text-white hover:opacity-85 transition-opacity cursor-pointer shrink-0 border-none bg-transparent focus:outline-none"
+                            >
+                                <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="5" cy="12" r="2"></circle>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <circle cx="19" cy="12" r="2"></circle>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </footer>
             </div>
@@ -638,34 +865,58 @@ export default function PKBattleScreen({
               </div>
             ))}
             
-            {isOnlineUsersOpen && <OnlineUsersModal onClose={() => setIsOnlineUsersOpen(false)} streamId={streamer.id} userId={currentUser.id} currentUser={currentUser} />}
+            {isOnlineUsersOpen && (
+                <OnlineUsersModal 
+                    onClose={() => setIsOnlineUsersOpen(false)} 
+                    streamId={streamer.id} 
+                    userId={currentUser.id} 
+                    currentUser={currentUser} 
+                    onSelectUser={(selectedUser: any) => {
+                        setIsOnlineUsersOpen(false);
+                        setUserActionModalState({ isOpen: true, user: selectedUser });
+                    }}
+                />
+            )}
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={onlineUsers} />}
             
-            <ToolsModal 
+            <ToolsModalAny 
                 isOpen={isToolsOpen} 
                 onClose={() => setIsToolsOpen(false)} 
-                onOpenCoHostModal={(e) => { e.stopPropagation(); setIsToolsOpen(false); setIsCoHostModalOpen(true); }}
+                onOpenCoHostModal={handleOpenCoHostModal}
                 isPKBattleActive={true} 
-                onEndPKBattle={(e) => { e.stopPropagation(); onEndPKBattle(); }}
-                onOpenBeautyPanel={(e) => { e.stopPropagation(); setIsToolsOpen(false); setBeautyPanelOpen(true); }} 
-                onOpenPrivateChat={(e) => { e.stopPropagation(); onOpenPrivateChat(); }} 
-                onOpenPrivateInviteModal={(e) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
-                onOpenClarityPanel={(e) => { e.stopPropagation(); setIsToolsOpen(false); setResolutionPanelOpen(true); }}
+                onEndPKBattle={(e: any) => { e.stopPropagation(); onEndPKBattle(); }}
+                onOpenBeautyPanel={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setBeautyPanelOpen(true); }} 
+                onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }} 
+                onOpenPrivateInviteModal={(e: any) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
+                onOpenClarityPanel={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setResolutionPanelOpen(true); }}
                 isModerationActive={isModerationMode}
-                onToggleModeration={(e) => { e.stopPropagation(); setIsModerationMode(prev => !prev); }}
+                onToggleModeration={(e: any) => { e.stopPropagation(); setIsModerationMode((prev: boolean) => !prev); }}
                 isPrivateStream={streamer.isPrivate}
                 isMicrophoneMuted={liveSession?.isMicrophoneMuted ?? false}
                 onToggleMicrophone={handleToggleMicrophone}
-                isSoundMuted={liveSession?.isStreamMuted ?? false}
+                isSoundMuted={isBroadcaster ? (liveSession?.isStreamMuted ?? false) : isLocalMuted}
                 onToggleSound={handleToggleSound}
                 isAutoFollowEnabled={liveSession?.isAutoFollowEnabled ?? false}
                 onToggleAutoFollow={handleToggleAutoFollow}
                 isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
                 onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
+                isHost={isBroadcaster}
+                addToast={addToast}
             />
             <GiftModal isOpen={isGiftModalOpen} onClose={() => setGiftModalOpen(false)} userDiamonds={currentUser.diamonds ?? 0} onSendGift={handleSendGift} onRecharge={() => setGiftModalOpen(false)} gifts={gifts} receivedGifts={receivedGifts} isBroadcaster={isBroadcaster} onOpenVIPCenter={onOpenVIPCenter} isVIP={currentUser.isVIP || false} currentUser={currentUser} />
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
-            {isCoHostModalOpen && <CoHostModal isOpen={isCoHostModalOpen} onClose={() => setIsCoHostModalOpen(false)} onInvite={()=>{}} onOpenTimerSettings={onOpenPKTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />}
+            {isCoHostModalOpen && (
+                <CoHostModal 
+                    isOpen={isCoHostModalOpen} 
+                    mode={coHostModalMode} 
+                    onClose={() => setIsCoHostModalOpen(false)} 
+                    onInvite={()=>{}} 
+                    onOpenTimerSettings={onOpenPKTimerSettings} 
+                    currentUser={currentUser} 
+                    addToast={addToast} 
+                    streamId={streamer.id} 
+                />
+            )}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={()=>{}} currentResolution={"480p"} />
 
             <UserActionModal 
@@ -673,7 +924,7 @@ export default function PKBattleScreen({
                 onClose={handleCloseUserActions} 
                 user={userActionModalState.user}
                 currentUser={currentUser}
-                streamer={streamer}
+                streamer={streamerUser as any}
                 onViewProfile={(user) => { handleCloseUserActions(); onViewProfile(user); }}
                 onMention={handleMentionUser}
                 onMakeModerator={handleMakeModerator}

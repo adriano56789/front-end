@@ -93,7 +93,7 @@ export const useUserData = (userId?: string) => {
                 console.log('[useUserData] Buscando dados do usuário do banco:', maskSensitiveData(userId));
                 
                 // Buscar dados completos da API (fonte oficial)
-                const response = await api.getCompleteUserData(userId);
+                const response = await api.getUser(userId);
                 
                 if (response) {
                     console.log('[useUserData] Dados recebidos (mascarados):', maskSensitiveData(response));
@@ -120,7 +120,7 @@ export const useUserData = (userId?: string) => {
         refetch: () => {
             if (userId) {
                 setLoading(true);
-                return api.getCompleteUserData(userId);
+                return api.getUser(userId);
             }
         }
     };

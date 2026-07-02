@@ -143,19 +143,39 @@ const inFlightRequests = new Map<string, Promise<any>>();
  * Core API Caller
  * Performs real HTTP requests to the backend.
  */
+interface CallApiOptions {
+    customHeaders?: Record<string, string>;
+    responseType?: 'json' | 'text' | 'blob' | 'arraybuffer';
+    returnFullResponse?: boolean;
+    signal?: AbortSignal;
+}
+
 const callApi = async <T = any>(method: Method, url: string, data?: any, customHeaders?: Record<string, string>): Promise<T> => {
+    return callApiWithOptions<T>(method, url, data, { customHeaders });
+};
+
+const callApiWithOptions = async <T = any>(
+    method: Method,
+    url: string,
+    data?: any,
+    options?: CallApiOptions
+): Promise<T> => {
     try {
-        const fullUrl = `${API_BASE_URL}${url}`;
-        
+        // Se a URL já for absoluta (ex: SRS externo), usa diretamente; senão, prefixa com API_BASE_URL
+        const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
+        const fullUrl = isAbsolute ? url : `${API_BASE_URL}${url}`;
+
         // Usar token do banco de dados
         const token = await getDbAuthToken();
 
         const config: any = {
             method,
             url: fullUrl,
+            responseType: options?.responseType || 'json',
+            signal: options?.signal,
             headers: {
                 'Content-Type': 'application/json',
-                ...(customHeaders || {}),
+                ...(options?.customHeaders || {}),
                 ...(token && { Authorization: `Bearer ${token}` })
             }
         };
@@ -166,19 +186,30 @@ const callApi = async <T = any>(method: Method, url: string, data?: any, customH
 
         const response = await axios(config);
 
-        // Check for HTML response
-        const contentType = response.headers['content-type'];
-        if (contentType && typeof contentType === 'string' && contentType.includes('text/html')) {
-            throw new Error('API returned HTML instead of JSON');
-        }
+        // Check for HTML response (only for JSON responses)
+        if ((options?.responseType || 'json') === 'json') {
+            const contentType = response.headers['content-type'];
+            if (contentType && typeof contentType === 'string' && contentType.includes('text/html')) {
+                throw new Error('API returned HTML instead of JSON');
+            }
 
-        if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
-            throw new Error('API returned HTML-like string instead of JSON');
+            if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
+                throw new Error('API returned HTML-like string instead of JSON');
+            }
         }
 
         // Tratar status 304 Not Modified - dados não modificados
         if (response.status === 304) {
             return response.data as T;
+        }
+
+        if (options?.returnFullResponse) {
+            return {
+                ok: response.status >= 200 && response.status < 300,
+                status: response.status,
+                data: response.data,
+                headers: response.headers,
+            } as T;
         }
 
         return response.data as T;
@@ -749,6 +780,7 @@ export const api = {
         return Array.isArray(response) ? response : (response?.data || []);
     },
 
+    getCategories: () => callApi<{ key: string; label: string }[]>('GET', '/api/categories'),
     getGiftsByCategory: (category: string) => callApi<Gift[]>('GET', `/api/gifts/category/${category}`),
 
     getReceivedGifts: (userId: string) => callApi<Gift[]>('GET', `/api/gifts/received/${userId}`),
@@ -791,7 +823,7 @@ export const api = {
 
     // --- Location ---
 
-    updateLocation: (latitude: number, longitude: number) => callApi<{ success: boolean, user: User }>('POST', '/api/location/update', { latitude, longitude }),
+    updateLocation: (latitude: number, longitude: number, city?: string, state?: string, country?: string, locationName?: string) => callApi<{ success: boolean, user: User }>('POST', '/api/location/update', { latitude, longitude, city, state, country, locationName }),
 
     getNearbyUsers: (latitude: number, longitude: number) => callApi<User[]>('GET', `/api/location/nearby?latitude=${latitude}&longitude=${longitude}`),
 
@@ -960,7 +992,10 @@ export const api = {
                 pushUrl: string;
             };
             msg: string;
-        }>('POST', '/api/stark/live/start', { userId, title, category })
+        }>('POST', '/api/stark/live/start', { userId, title, category }),
+
+        // Notificar publicação de live bem sucedida via STARK
+        publish: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/publish-success`)
     },
 
 
@@ -968,8 +1003,7 @@ export const api = {
 
     // Iniciar live - Backend controla status e gera streamKey
     startLive: async (title: string, description?: string, category?: string) => {
-        const response = await callApi<any>('POST', '/api/live/start', { title, description, category });
-        return response;
+        return callApi<any>('POST', '/api/live/start', { title, description, category });
     },
 
     // REMOVIDO: oryxStartLive - Oryx não é mais utilizado
@@ -1021,7 +1055,8 @@ export const api = {
             name: options.name || options.title || `Live de ${userId}`,
             message: options.message || options.description || '',
             category: options.category || 'popular',
-            hostId: userId
+            hostId: userId,
+            streamId: options.streamId || options.streamKey
         };
         const response = await callApi<{ success: boolean, stream: Streamer }>('POST', `/api/streams`, payload);
         return response?.stream;
@@ -1071,7 +1106,10 @@ export const api = {
     removeLiveCard: (streamId: string, userId: string) => callApi<{ success: boolean }>('DELETE', `/api/cards/${streamId}?userId=${userId}`),
 
     sendGift: async (fromUserId: string, toUserId: string, streamId: string, giftName: string, amount: number) => {
-        const response = await callApi<any>('POST', `/api/streams/${streamId}/gift`, { fromUserId, toUserId, giftName, amount });
+        if (!fromUserId || !toUserId || !streamId || !giftName || !amount) {
+            return { success: false, error: 'Parâmetros inválidos para envio de presente.' };
+        }
+        const response = await callApi<{ success: boolean; error?: string; updatedSender?: any; updatedReceiver?: any }>('POST', `/api/streams/${streamId}/gift`, { fromUserId, toUserId, giftName, amount });
         return response;
     },
 
@@ -1098,6 +1136,12 @@ export const api = {
 
     sendPKHeart: (roomId: string, team: 'A' | 'B') => callApi<{ success: boolean }>('POST', '/api/pk/heart', { roomId, team }),
 
+    getPendingPKInvites: (userId: string) => callApi<{ success: boolean, invites: any[] }>('GET', `/api/pk/invites/pending/${userId}`),
+
+    respondToPKInvite: (inviteId: string, status: 'accepted' | 'declined') => callApi<{ success: boolean, invite: any }>('POST', `/api/pk/invites/${inviteId}/respond`, { status }),
+
+    getProtobufDefinition: () => callApiWithOptions<string>('GET', '/protobuf/livego.proto', undefined, { responseType: 'text' }),
+
     getGiftSendersForStream: (streamId: string) => callApi<any>('GET', `/api/interactions/presents/live/${streamId}`),
 
     sendPrivateInviteToGifter: (streamId: string, gifterId: string) => callApi<void>('POST', `/api/interactions/streams/${streamId}/private-invite`, { userId: gifterId }),
@@ -1114,7 +1158,7 @@ export const api = {
 
     // --- Stream Controls ---
 
-    toggleStreamSound: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/toggle-sound`),
+    toggleStreamSound: (streamId: string) => callApi<{ success?: boolean }>('POST', `/api/streams/${streamId}/toggle-sound`),
 
 
 
@@ -1233,7 +1277,7 @@ export const api = {
         }
     },
 
-    toggleMicrophone: (streamId: string) => callApi<void>('POST', `/api/streams/${streamId}/toggle-mic`),
+    toggleMicrophone: (streamId: string) => callApi<{ success?: boolean }>('POST', `/api/streams/${streamId}/toggle-mic`),
 
     toggleAutoFollow: (streamId: string, isEnabled: boolean) => callApi<void>('POST', `/api/streams/${streamId}/toggle-auto-follow`, { isEnabled }),
 
@@ -1862,45 +1906,216 @@ export const api = {
     // --- WebRTC Signaling ---
 
     publishWebRTC: async (streamUrl: string, sdp: string): Promise<{ code: number; sdp: string; sessionId: string }> => {
-        const response = await fetch(`${API_BASE_URL}/api/rtc/v1/publish`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-            },
-            body: JSON.stringify({ streamUrl, sdp })
-        });
-        const result = await response.json();
+        const result = await callApi<any>('POST', '/api/rtc/v1/publish', { streamUrl, sdp });
         if (!result.success) throw new Error(`Publish failed: ${result.error}`);
         return result.data;
     },
 
     playWebRTC: async (streamUrl: string, sdp: string): Promise<{ code: number; sdp: string; sessionId: string }> => {
-        const response = await fetch(`${API_BASE_URL}/api/rtc/v1/play`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-            },
-            body: JSON.stringify({ streamUrl, sdp })
-        });
-        const result = await response.json();
+        const result = await callApi<any>('POST', '/api/rtc/v1/play', { streamUrl, sdp });
         if (!result.success) throw new Error(`Play failed: ${result.error}`);
         return result.data;
     },
 
     stopWebRTC: async (sessionId: string): Promise<void> => {
-        await fetch(`${API_BASE_URL}/api/rtc/v1/stop/${sessionId}`, {
-            method: 'DELETE',
-            headers: {
-                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
-            }
+        await callApi('DELETE', `/api/rtc/v1/stop/${sessionId}`);
+    },
+
+    // --- WHIP/WHEP (comunicação direta com SRS via axios centralizado) ---
+
+    whipPublish: async (endpoint: string, sdp: string): Promise<{ ok: boolean; status: number; sdp: string; location: string | null }> => {
+        const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
+            customHeaders: { 'Content-Type': 'application/sdp' },
+            responseType: 'text',
+            returnFullResponse: true,
         });
+        return {
+            ok: result.ok,
+            status: result.status,
+            sdp: result.data,
+            location: result.headers?.location || null,
+        };
+    },
+
+    whipStop: async (resourceUrl: string): Promise<void> => {
+        await callApiWithOptions('DELETE', resourceUrl, undefined, {
+            responseType: 'text',
+        });
+    },
+
+    whepPlay: async (endpoint: string, sdp: string, signal?: AbortSignal): Promise<{ ok: boolean; status: number; sdp: string; location: string | null; eTag: string | null }> => {
+        const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
+            customHeaders: { 'Content-Type': 'application/sdp' },
+            responseType: 'text',
+            returnFullResponse: true,
+            signal,
+        });
+        return {
+            ok: result.ok,
+            status: result.status,
+            sdp: result.data,
+            location: result.headers?.location || null,
+            eTag: result.headers?.etag || null,
+        };
+    },
+
+    whepSendIceCandidate: async (iceUrl: string, eTag: string, frag: string): Promise<{ ok: boolean; status: number }> => {
+        const result = await callApiWithOptions<{ ok: boolean; status: number; headers: any }>('PATCH', iceUrl, frag, {
+            customHeaders: {
+                'Content-Type': 'application/trickle-ice-sdpfrag',
+                ETag: eTag,
+            },
+            responseType: 'text',
+            returnFullResponse: true,
+        });
+        return { ok: result.ok, status: result.status };
     },
 
     sfuCallJoin: (roomId: string) => callApi<{ success: boolean; signalingUrl: string }>('POST', '/api/call-invitation/sfu/join', { roomId }),
 
+    // --- LiveKit APIs ---
+
+    getLiveKitToken: (roomOrIdentity: string, identityOrRoom: string, metadataOrIsPublisher?: string | boolean) => {
+      let identity: string;
+      let room: string;
+      let isPub = false;
+
+      if (typeof metadataOrIsPublisher === 'boolean') {
+        isPub = metadataOrIsPublisher;
+        room = roomOrIdentity;
+        identity = identityOrRoom;
+      } else {
+        identity = roomOrIdentity;
+        room = identityOrRoom;
+        if (typeof metadataOrIsPublisher === 'string') {
+          isPub = (metadataOrIsPublisher === 'publisher');
+        } else {
+          isPub = !!(identity && identity.startsWith('streamer_'));
+        }
+      }
+
+      return callApi<{ success: boolean; token: string; serverUrl: string; livekitUrl: string }>(
+        'GET', `/api/lives/${encodeURIComponent(room)}/livekit-token?identity=${encodeURIComponent(identity)}&publisher=${isPub ? 'true' : 'false'}`
+      ).then(res => ({
+        ...res,
+        identity,
+        room,
+        livekitUrl: res.serverUrl || 'wss://sfu.livego.store',
+        serverUrl: res.serverUrl || 'wss://sfu.livego.store'
+      }));
+    },
+
+    createLiveKitRoom: (name: string, emptyTimeout?: number, maxParticipants?: number) =>
+      callApi<{ success: boolean; room: { name: string; emptyTimeout: number; maxParticipants: number; createdAt: string } }>(
+        'POST', '/api/livekit/rooms', { name, emptyTimeout, maxParticipants }
+      ),
+
+    listLiveKitRooms: () =>
+      callApi<{ success: boolean; rooms: Array<{ name: string; emptyTimeout: number; maxParticipants: number; createdAt: string; participantCount: number }>; source: string }>(
+        'GET', '/api/livekit/rooms'
+      ),
+
+    deleteLiveKitRoom: (roomName: string) =>
+      callApi<{ success: boolean; source: string }>('DELETE', `/api/livekit/rooms/${encodeURIComponent(roomName)}`),
+
+    getLiveKitParticipants: (roomName: string) =>
+      callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
+        'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
+      ),
+
+    joinLiveKitRoom: (roomName: string, identity: string, name?: string, role?: string) =>
+      callApi<{ success: boolean; room: { name: string; participantCount: number }; participant: { identity: string; name: string; role: string }; token: string; livekitUrl: string }>(
+        'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/join`, { identity, name, role }
+      ),
+
+    kickLiveKitParticipant: (roomName: string, identity: string) =>
+      callApi<{ success: boolean; source: string }>(
+        'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/kick`
+      ),
+
+    // --- LiveKit namespace (aliases for compat with room.ts) ---
+
+    livekit: {
+      getToken: (identity: string, room: string, metadata?: string) =>
+        api.getLiveKitToken(identity, room, metadata),
+
+      createRoom: (name: string, emptyTimeout?: number, maxParticipants?: number) =>
+        callApi<{ success: boolean; room: { name: string; emptyTimeout: number; maxParticipants: number; createdAt: string } }>(
+          'POST', '/api/livekit/rooms', { name, emptyTimeout, maxParticipants }
+        ),
+
+      listRooms: () =>
+        callApi<{ success: boolean; rooms: Array<{ name: string; emptyTimeout: number; maxParticipants: number; createdAt: string; participantCount: number }>; source: string }>(
+          'GET', '/api/livekit/rooms'
+        ),
+
+      deleteRoom: (roomName: string) =>
+        callApi<{ success: boolean; source: string }>('DELETE', `/api/livekit/rooms/${encodeURIComponent(roomName)}`),
+
+      getParticipants: (roomName: string) =>
+        callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
+          'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
+        ),
+
+      listParticipants: (roomName: string) =>
+        callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
+          'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
+        ),
+
+      joinRoom: (roomName: string, identity: string, name?: string, role?: string) =>
+        callApi<{ success: boolean; room: { name: string; participantCount: number }; participant: { identity: string; name: string; role: string }; token: string; livekitUrl: string }>(
+          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/join`, { identity, name, role }
+        ),
+
+      kickParticipant: (roomName: string, identity: string) =>
+        callApi<{ success: boolean; source: string }>(
+          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/kick`
+        ),
+
+      publishTrack: (roomName: string, identity: string, trackSid: string, source: string, muted: boolean) =>
+        callApi<{ success: boolean; track: { sid: string; source: string; muted: boolean } }>(
+          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/tracks`, { trackSid, source, muted }
+        ),
+    },
+
+    rtc: {
+      whip: (streamKey: string, sdp: string) => {
+        const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
+        const url = `/api/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+        return api.whipPublish(url, sdp);
+      },
+      whep: (streamKey: string, sdp: string) => {
+        const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
+        const url = `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
+        return api.whepPlay(url, sdp);
+      },
+      deleteWhip: (resourceUrl: string) => {
+        return api.whipStop(resourceUrl);
+      },
+      patchTrickleIce: (iceUrl: string, eTag: string, frag: string) => {
+        return api.whepSendIceCandidate(iceUrl, eTag, frag);
+      }
+    },
+
+    getIceServers: () =>
+      callApi<{ iceServers: any[] }>('GET', '/api/rtc/ice-servers'),
+
+    getIPLocation: () =>
+      callApi<any>('GET', '/api/location/ip-lookup'),
+
+    addDiamonds: (userId: string, amount: number) =>
+      callApi<{ success: boolean; diamonds: number }>('POST', '/api/users/add-diamonds', { userId, amount }),
+
+    fetchAssetBlob: (url: string) =>
+      callApiWithOptions<Blob>('GET', url, undefined, { responseType: 'blob' }),
+    
+    validateStreamAccess: (streamId: string, action: 'publish' | 'play') =>
+      callApi<{ allowed: boolean; reason?: string }>(
+        'POST', '/api/streams/validate-access', { streamId, action }
+      ),
+    
 };
+
 
 
 

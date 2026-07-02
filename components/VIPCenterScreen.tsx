@@ -34,6 +34,21 @@ const SubscriptionPlan: React.FC<{ title: string; price: string; onSubscribe: ()
 };
 
 
+const formatVipDate = (dateVal: any) => {
+    if (!dateVal) return '';
+    let val = dateVal;
+    if (dateVal && typeof dateVal === 'object') {
+        if ('$date' in dateVal) {
+            val = dateVal.$date;
+        } else if ('date' in dateVal) {
+            val = dateVal.date;
+        }
+    }
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return typeof dateVal === 'object' ? '' : String(dateVal);
+    return d.toLocaleDateString('pt-BR');
+};
+
 const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ isOpen, onClose, user, onSubscribe }) => {
     const { t } = useTranslation();
 
@@ -58,10 +73,10 @@ const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ isOpen, onClose, user
                            <p className="font-bold text-lg">{user.name}</p>
                            {user.isVIP && <VIPBadgeIcon className="w-6 h-6" />}
                         </div>
-                        <p className="text-sm text-gray-400">{t('vip.status')}: <span className={user.isVIP ? "text-yellow-400" : "text-gray-500"}>{user.isVIP ? t('vip.memberUntil', {date: user.vipExpirationDate}) : t('vip.notMember')}</span></p>
+                        <p className="text-sm text-gray-400">{t('vip.status')}: <span className={user.isVIP ? "text-yellow-400" : "text-gray-500"}>{user.isVIP ? t('vip.memberUntil', {date: formatVipDate(user.vipExpirationDate)}) : t('vip.notMember')}</span></p>
                         {user.isVIP && user.vipSubscriptionDate && (
                             <p className="text-xs text-gray-500 mt-1">
-                                {t('vip.subscribedOn', {date: user.vipSubscriptionDate})}
+                                {t('vip.subscribedOn', {date: formatVipDate(user.vipSubscriptionDate)})}
                             </p>
                         )}
                     </div>

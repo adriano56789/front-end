@@ -1,5 +1,6 @@
-import { useRef } from "react";
-import { useSrsPlayer } from "../hooks/useSrsPlayer";
+import { useRef, useEffect } from "react";
+import { SrsPlayerEngine } from "../services/SrsPlayerEngine";
+import { streamPublishService } from "../services/streamPublishService";
 
 interface LivePlayerProps {
   url?: string;
@@ -8,34 +9,102 @@ interface LivePlayerProps {
   isBroadcaster?: boolean;
   onPlaying?: () => void;
   onError?: () => void;
+  muted?: boolean;
+  room?: any; // kept for compatibility, though we don't need it for streaming now
 }
 
 export default function LivePlayer({
-  url,
-  streamId: propStreamId,
+  streamId,
   isBroadcaster = false,
   onPlaying,
   onError,
+  muted = false,
 }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const streamId = propStreamId
-    || (url ? url.split("/").pop()?.replace(".m3u8", "").replace(".flv", "") : "")
-    || "";
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
 
-  useSrsPlayer(videoRef, { streamId, onPlaying, onError });
+    if (isBroadcaster) {
+      console.log("[LivePlayer] Modo Broadcaster ativo. Registrando vídeo local...");
+      
+      // 1. Register with streamPublishService so we get the mirrored style classes and state updates
+      streamPublishService.registerVideoRef(videoRef);
 
-  if (!streamId) {
+      // 2. Fetch and assign the current stream
+      const localStream = streamPublishService.getCurrentStream();
+      if (localStream) {
+        video.srcObject = localStream;
+        video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local:', e));
+        onPlaying?.();
+      }
+
+      // Check periodically in case stream wasn't ready on first mount
+      const checkInterval = setInterval(() => {
+        if (video.srcObject) return;
+        const currentLocal = streamPublishService.getCurrentStream();
+        if (currentLocal) {
+          video.srcObject = currentLocal;
+          video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local (retrying):', e));
+          onPlaying?.();
+        }
+      }, 1000);
+
+      return () => {
+        clearInterval(checkInterval);
+        streamPublishService.registerVideoRef(null);
+        if (video) {
+          video.srcObject = null;
+        }
+      };
+    } else {
+      if (!streamId) return;
+
+      console.log(`📡 [LivePlayer] [SRS] Iniciando player para stream ID: ${streamId}`);
+      console.log('📡 [SRS] Conectando ao SRS...');
+
+      const engine = new SrsPlayerEngine({
+        hlsFallback: true,
+        autoMuteRetry: true,
+        reconnectRetries: 3
+      });
+
+      const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
+        console.log(`[LivePlayer] [SRS] Estado mudou: ${prev} -> ${next}`);
+        if (next === 'playing') {
+          console.log('✅ [SRS] SRS conectado');
+          console.log('✅ [SRS] stream ativo');
+          console.log('🎬 [SRS] playback iniciado');
+          onPlaying?.();
+        } else if (next === 'error') {
+          onError?.();
+        }
+      });
+
+      engine.start(streamId, video).catch(err => {
+        console.error('[LivePlayer] Error running SrsPlayerEngine:', err);
+        onError?.();
+      });
+
+      return () => {
+        unsubState();
+        engine.destroy();
+      };
+    }
+  }, [streamId, isBroadcaster, muted]);
+
+  if (!isBroadcaster && !streamId) {
     return null;
   }
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
+    <div className="relative w-full h-full bg-black overflow-hidden perspective-viewport">
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        muted={isBroadcaster}
+        muted={isBroadcaster || muted}
         controls={false}
         className="w-full h-full object-cover"
       />

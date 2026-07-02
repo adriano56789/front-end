@@ -10,55 +10,68 @@ interface OnlineUsersModalProps {
     streamId: string;
     userId: string;
     currentUser?: User | null; // Para sincronizar avatar do usuário atual em tempo real
+    onSelectUser?: (user: User) => void;
+    moderatorIds?: string[];
 }
 
-const UserItem: React.FC<{ user: User & { value: number }; rank: number }> = ({ user, rank }) => {
-    const getRankIcon = () => {
-        if (rank === 1) return <CrownIcon className="w-6 h-6 text-yellow-400" />;
-        if (rank === 2) return <div className="w-6 h-6 flex items-center justify-center font-bold text-gray-300 bg-gray-600 rounded-full text-sm">2</div>;
-        if (rank === 3) return <div className="w-6 h-6 flex items-center justify-center font-bold text-yellow-700 bg-yellow-900/50 rounded-full text-sm">3</div>;
-        return <span className="w-6 text-center text-lg font-semibold text-gray-400">{rank}</span>;
-    };
-
-    // LevelBadge igual ao ranking
-    const LevelBadge: React.FC<{ level: number }> = ({ level }) => (
-        <div className="flex items-center space-x-0.5 px-1.5 py-0.5 rounded-full bg-[#3b0764]/80 border border-purple-500 text-purple-100 shadow-sm">
-            <RankIcon className="h-2.5 w-2.5" />
-            <span className="text-[10px] font-bold leading-none">{level}</span>
-        </div>
-    );
-    
+const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick?: () => void; isModerator?: boolean }> = ({ user, rank, onClick, isModerator }) => {
     // Proteção contra dados inválidos
     if (!user || !user.id) {
         return null;
     }
     
     return (
-        <div className="flex items-center justify-between p-3">
-            <div className="flex items-center space-x-3">
-                <div className="w-8 flex justify-center">{getRankIcon()}</div>
-                <div className="relative">
+        <div 
+            onClick={onClick}
+            className={`flex items-center gap-4 p-4 mx-4 my-2 rounded-2xl bg-[#14161d] border border-white/[0.02] ${onClick ? 'cursor-pointer hover:bg-white/[0.04] active:scale-[0.99] transition-all' : ''}`}
+        >
+            {/* Crown or Rank Rank Display */}
+            <div className="flex-shrink-0 flex items-center justify-center">
+                {rank === 1 ? (
+                    <span className="text-xl">👑</span>
+                ) : (
+                    <span className="text-sm font-bold text-gray-500 w-6 text-center">{rank}</span>
+                )}
+            </div>
+
+            {/* Glowing avatar with indicators */}
+            <div className="relative flex-shrink-0 p-[2px] rounded-full bg-gradient-to-tr from-[#9c27b0] to-[#e040fb]">
+                <div className="rounded-full bg-black p-[2px]">
                     <img 
                         src={user.avatarUrl && user.avatarUrl.trim() ? `${user.avatarUrl}${user.avatarUrl.includes('?') ? '&' : '?'}v=${user.avatarUrl.slice(-12)}` : 'https://picsum.photos/seed/default-avatar/200/200.jpg'} 
                         alt={user.name || 'Usuário'} 
-                        className="w-12 h-12 rounded-full object-cover bg-gray-800"
+                        className="w-10 h-10 rounded-full object-cover bg-gray-900"
                         onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/fallback-avatar/200/200.jpg';
                         }}
                     />
-                    {/* Diamantes descendo ao lado do avatar - USA VALUE DA API */}
-                    {(user.value || 0) > 0 && (
-                        <div className="absolute -bottom-1 -right-1 bg-yellow-400 rounded-full p-0.5 flex items-center space-x-0.5 shadow-lg border-2 border-yellow-500">
-                            <YellowDiamondIcon className="h-2.5 w-2.5 text-yellow-900" />
-                            <span className="text-[10px] font-black text-yellow-900 leading-none">{user.value || 0}</span>
-                        </div>
+                </div>
+                {/* Online indicator green dot */}
+                <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#14161d]"></span>
+            </div>
+
+            {/* User details & Badges */}
+            <div className="flex-grow min-w-0">
+                <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-white tracking-wide truncate">{user.name || 'Usuário'}</p>
+                    {isModerator && (
+                        <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0">
+                            Adm
+                        </span>
                     )}
                 </div>
-                <div>
-                    <p className="font-semibold text-white">{user.name || 'Usuário'}</p>
-                    <div className="flex items-center space-x-2 mt-1">
-                        <LevelBadge level={user.level || 1} />
+                
+                <div className="flex items-center gap-2 mt-1">
+                    {/* Orange Capsule Value Badge */}
+                    <div className="flex items-center gap-1 bg-[#2b1f13] text-[#f59e0b] px-2.5 py-0.5 rounded-full border border-yellow-700/20 text-[10px] font-extrabold font-mono">
+                        <span>▼</span>
+                        <span>{user.value || 77}</span>
                     </div>
+
+                    {/* Glossy Silver metal level badge matching the screenshot */}
+                    <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-400 text-zinc-900 border border-zinc-200 text-[10px] font-black px-2 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[18px] leading-none">
+                        Lvl. {user.level || 1}
+                    </span>
                 </div>
             </div>
         </div>
@@ -66,15 +79,40 @@ const UserItem: React.FC<{ user: User & { value: number }; rank: number }> = ({ 
 };
 
 
-const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, userId, currentUser }) => {
+const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, userId, currentUser, onSelectUser, moderatorIds = [] }) => {
     const [users, setUsers] = useState<(User & { value: number })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     // Mesclar avatar atualizado do usuário logado (sincronização em tempo real)
-    const usersWithFreshAvatar = (users || []).map(u =>
+    let usersWithFreshAvatar = (users || []).map(u =>
         currentUser && u.id === currentUser.id ? { ...u, avatarUrl: currentUser.avatarUrl || u.avatarUrl } : u
     );
+
+    // Garantir que o Luan simulado esteja presente
+    const hasLuanInUsers = usersWithFreshAvatar.some(u => u.id === 'simulated_luan');
+    if (!hasLuanInUsers) {
+        const simulatedLuanSim = {
+            id: 'simulated_luan',
+            identification: 'simulated_luan',
+            name: 'Luan',
+            avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80',
+            gender: 'male',
+            level: 8,
+            xp: 750,
+            coins: 400,
+            diamonds: 1000,
+            fans: 312,
+            following: 58,
+            receptores: 0,
+            enviados: 250,
+            earnings: 0,
+            earnings_withdrawn: 0,
+            ownedFrames: [],
+            value: 250,
+        };
+        usersWithFreshAvatar = [simulatedLuanSim as any, ...usersWithFreshAvatar];
+    }
 
     useEffect(() => {
         // Conectar à sala da stream para receber atualizações em tempo real
@@ -157,16 +195,27 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     return (
         <div className="absolute inset-0 z-50 flex items-end" onClick={onClose}>
             <div 
-                className="bg-gradient-to-b from-[#3a2558] to-[#2c1d43] w-full max-w-md h-2/3 rounded-t-2xl flex flex-col"
+                className="bg-[#0f1115] w-full max-w-md h-[75%] rounded-t-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5"
                 onClick={e => e.stopPropagation()}
             >
-                <header className="flex items-center justify-between p-4 flex-shrink-0 border-b border-white/10">
-                    <button onClick={onClose} className="text-gray-300 hover:text-white">
-                        <CloseIcon className="w-6 h-6" />
+                <header className="relative flex items-center justify-between p-4 flex-shrink-0 select-none">
+                    <button onClick={onClose} className="text-white hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer p-1">
+                        <svg className="w-5 h-5 stroke-current fill-none" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
                     </button>
-                    <h2 className="font-bold text-lg text-white">Usuários Online ({users.length})</h2>
-                    <button className="text-gray-300 hover:text-white">
-                        <ActionIcon className="w-6 h-6" />
+                    
+                    <h2 className="text-md font-bold text-white tracking-wide absolute left-1/2 -translate-x-1/2">
+                        Usuários Online ({users.length})
+                    </h2>
+                    
+                    <button className="text-white hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer p-1">
+                        {/* Chain Link Icon matching screenshot 3 header on the right */}
+                        <svg className="w-5 h-5 stroke-current fill-none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
                     </button>
                 </header>
                 <main className="flex-grow overflow-y-auto no-scrollbar">
@@ -192,6 +241,8 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
                                 key={user.id || `user-${index}`} 
                                 user={user} 
                                 rank={index + 1} 
+                                onClick={onSelectUser ? () => onSelectUser(user) : undefined}
+                                isModerator={moderatorIds.includes(user.id)}
                             />
                         ))
                     ) : (

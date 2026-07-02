@@ -39,6 +39,11 @@ export interface Streamer {
   hlsUrl?: string; // URL HLS para reprodução no ExoPlayer (Android) e LivePlayer (Web)
   liveId?: string;
   pushUrl?: string;
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  state?: string;
+  distance?: string;
 }
 
 export interface LiveSetup {
@@ -86,6 +91,7 @@ export interface LiveSetup {
 export interface Country {
   name:string;
   code: string;
+  flag?: string;
 }
 
 export enum ToastType {
@@ -166,7 +172,7 @@ export interface Obra {
 }
 
 export interface User {
-  isBroadcaster: import("react/jsx-runtime").JSX.Element;
+  isBroadcaster?: boolean;
   id: string;
   identification: string;
   name: string;
@@ -181,6 +187,10 @@ export interface User {
   rank?: number;
   location?: string;
   distance?: string;
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  state?: string;
   fans: number;
   following: number;
   receptores: number;
@@ -231,6 +241,7 @@ export interface User {
     type: 'Point';
     coordinates: number[];
   };
+  permanentStreamId?: string;
 }
 
 export interface LevelInfo {

@@ -1,4 +1,5 @@
 import { getWhipEndpointUrl } from './mediaConfig';
+import { api } from './api';
 
 export type PublishState = 'idle' | 'connecting' | 'publishing' | 'reconnecting' | 'failed';
 
@@ -34,8 +35,14 @@ const DEFAULT_CONFIG: Required<Pick<PublishEngineConfig, 'videoCodec' | 'maxVide
   reconnectRetries: 3,
 };
 
-const PC_CONFIG: RTCConfiguration = {
-  iceServers: [],
+const PC_CONFIG: any = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+  ],
   sdpSemantics: 'unified-plan',
   bundlePolicy: 'max-bundle',
 };
@@ -112,6 +119,7 @@ export class PublishEngine {
       await this._startPublishFlow(mediaStream);
       this._setState('publishing');
       this._emit('connected');
+      console.log('✅ Stream publicada.');
     } catch (err) {
       this._cleanupPC();
       this._setState('failed');
@@ -121,33 +129,155 @@ export class PublishEngine {
   }
 
   private async _startPublishFlow(mediaStream: MediaStream): Promise<void> {
-    const pc = new RTCPeerConnection(PC_CONFIG);
+    console.log('📡 [WebRTC-WHIP] Iniciando fluxo de publicação WebRTC...');
+    console.log('📡 [WebRTC-WHIP] Buscando servidores STUN/TURN atualizados do backend...');
+    
+    const defaultIceServers = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+    ];
+
+    let dynamicIceServers = defaultIceServers;
+
+    try {
+      const response = await api.getIceServers();
+      const respAny = response as any;
+      if (response && Array.isArray(response.iceServers)) {
+        dynamicIceServers = response.iceServers;
+      } else if (response && Array.isArray(response)) {
+        dynamicIceServers = response;
+      } else if (respAny && respAny.result && Array.isArray(respAny.result.iceServers)) {
+        dynamicIceServers = respAny.result.iceServers;
+      } else {
+        console.warn('⚠️ [WebRTC-WHIP] Resposta de servidores ICE inválida ou ausente:', response);
+      }
+    } catch (e) {
+      console.warn('⚠️ [WebRTC-WHIP] Falha ao carregar servidores ICE dinâmicos, usando backup:', e);
+    }
+
+    // Double check that we have a valid array of ice servers
+    if (!Array.isArray(dynamicIceServers)) {
+      console.warn('⚠️ [WebRTC-WHIP] dynamicIceServers não é um array. Revertendo para backup...');
+      dynamicIceServers = defaultIceServers;
+    }
+
+    const config: any = {
+      iceServers: dynamicIceServers,
+      sdpSemantics: 'unified-plan',
+      bundlePolicy: 'max-bundle',
+    };
+
+    console.log('📡 [WebRTC-WHIP] Criando instância de RTCPeerConnection...');
+    console.log('📡 [WebRTC-WHIP] Configuração dos servidores STUN/TURN utilizados:', JSON.stringify(config.iceServers));
+
+    const pc = new RTCPeerConnection(config);
     this._pc = pc;
 
-    pc.addEventListener('iceconnectionstatechange', this._onIceStateChange);
-    pc.addEventListener('connectionstatechange', this._onConnectionStateChange);
+    console.log(`📡 [WebRTC-WHIP] Estado inicial da sinalização (signalingState): ${pc.signalingState}`);
+    console.log(`📡 [WebRTC-WHIP] Estado inicial da conexão ICE (iceConnectionState): ${pc.iceConnectionState}`);
+    console.log(`📡 [WebRTC-WHIP] Estado inicial da conexão (connectionState): ${pc.connectionState}`);
+    console.log(`📡 [WebRTC-WHIP] Estado inicial da coleta de ICE (iceGatheringState): ${pc.iceGatheringState}`);
+
+    // Monitor Peer Connection events
+    pc.addEventListener('signalingstatechange', () => {
+      console.log(`📡 [WebRTC-WHIP] signalingState mudou: ${pc.signalingState}`);
+    });
+
+    pc.addEventListener('iceconnectionstatechange', () => {
+      console.log(`📡 [WebRTC-WHIP] iceConnectionState mudou: ${pc.iceConnectionState}`);
+      this._onIceStateChange();
+    });
+
+    pc.addEventListener('connectionstatechange', () => {
+      console.log(`📡 [WebRTC-WHIP] connectionState mudou: ${pc.connectionState}`);
+      if (pc.connectionState === 'connected') {
+        console.log('✅ [WebRTC-WHIP] Conexão estabelecida com sucesso! SRS conectado.');
+      }
+      this._onConnectionStateChange();
+    });
+
+    pc.addEventListener('icegatheringstatechange', () => {
+      console.log(`📡 [WebRTC-WHIP] iceGatheringState mudou: ${pc.iceGatheringState}`);
+    });
+
+    pc.addEventListener('icecandidate', (event) => {
+      if (event.candidate) {
+        const candStr = event.candidate.candidate;
+        let type = 'unknown';
+        if (candStr.includes('typ host')) type = 'host';
+        else if (candStr.includes('typ srflx')) type = 'srflx';
+        else if (candStr.includes('typ relay')) type = 'relay';
+
+        console.log(`📡 [WebRTC-WHIP] ICE Candidate gerado: tipo=${type}, candidate=${candStr}`);
+
+        if (type === 'relay') {
+          console.log('⚠️ [WebRTC-WHIP] Candidato TURN (relay) detectado! Fallback para TURN disponível.');
+        }
+      } else {
+        console.log('📡 [WebRTC-WHIP] Coleta de ICE candidates finalizada (null candidate).');
+      }
+    });
+
+    if ('onicecandidateerror' in pc) {
+      (pc as any).onicecandidateerror = (event: any) => {
+        console.error('❌ [WebRTC-WHIP] Erro de ICE Candidate:', event.errorCode, event.errorText, 'URL:', event.url);
+      };
+    }
+
+    console.log('📡 [WebRTC-WHIP] Adicionando mídias capturadas ao RTCPeerConnection...');
+    mediaStream.getTracks().forEach(track => {
+      console.log(`📡 [WebRTC-WHIP] Adicionando track: kind=${track.kind}, label=${track.label}, enabled=${track.enabled}`);
+    });
 
     this._addTransceivers(pc, mediaStream);
 
+    console.log('📡 [WebRTC-WHIP] Criando SDP offer...');
     const offer = await pc.createOffer();
+    console.log('📡 [WebRTC-WHIP] Configurando local description (offer SDP)...');
     await pc.setLocalDescription(offer);
 
-    const endpoint = getWhipEndpointUrl(this._streamKey);
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sdp' },
-      body: offer.sdp,
-    });
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '');
-      throw new Error(`WHIP POST ${response.status}: ${errText}`);
+    // Wait for ICE gathering to complete or at least gather some candidates before sending offer!
+    if (pc.iceGatheringState !== 'complete') {
+      console.log('📡 [WebRTC-WHIP] Aguardando a conclusão da coleta de ICE...');
+      await new Promise<void>(resolve => {
+        const check = () => {
+          if (pc.iceGatheringState === 'complete') {
+            pc.removeEventListener('icegatheringstatechange', check);
+            resolve();
+          }
+        };
+        pc.addEventListener('icegatheringstatechange', check);
+        setTimeout(() => {
+          pc.removeEventListener('icegatheringstatechange', check);
+          resolve();
+        }, 2000); // 2 seconds timeout fallback
+      });
     }
 
-    const answerSdp = await response.text();
-    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    const finalOffer = pc.localDescription?.sdp;
+    if (!finalOffer) throw new Error('SDP offer could not be generated');
 
-    this._resourceUrl = response.headers.get('location') || '';
+    console.log(`📡 [WebRTC-WHIP] Enviando requisição HTTP POST (WHIP Publish) para o SRS...`);
+    console.log(`📡 [WebRTC-WHIP] Endpoint de publicação: /api/rtc/v1/whip/?app=live&stream=${this._streamKey}`);
+    console.log(`📡 [WebRTC-WHIP] Offer SDP enviada:\n`, finalOffer);
+
+    let result;
+    try {
+      result = await api.rtc.whip(this._streamKey, finalOffer);
+      console.log(`✅ [WebRTC-WHIP] Resposta HTTP recebida com sucesso! Status: 201 Created`);
+      console.log(`📡 [WebRTC-WHIP] Answer SDP recebida:\n`, result.sdp);
+    } catch (err: any) {
+      console.error(`❌ [WebRTC-WHIP] Falha na requisição HTTP de sinalização para /rtc/v1/publish:`, err);
+      throw err;
+    }
+
+    await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
+    console.log(`📡 [WebRTC-WHIP] setRemoteDescription concluído. signalingState atual: ${pc.signalingState}`);
+
+    this._resourceUrl = result.location || '';
 
     this._monitorVisibility();
     this._startMetricsMonitor();
@@ -212,6 +342,7 @@ export class PublishEngine {
   private _waitForIceConnected(pc: RTCPeerConnection): Promise<void> {
     return new Promise((resolve, reject) => {
       if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log('✅ [WebRTC-WHIP] Confirmação de publicação iniciada. Stream ativo!');
         resolve();
         return;
       }
@@ -223,10 +354,12 @@ export class PublishEngine {
         if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
           settled = true;
           clearTimeout(timeout);
+          console.log('✅ [WebRTC-WHIP] Confirmação de publicação iniciada. Stream ativo!');
           resolve();
         } else if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
           settled = true;
           clearTimeout(timeout);
+          console.error(`❌ [WebRTC-WHIP] Conexão ICE falhou: estado=${pc.iceConnectionState}`);
           reject(new Error(`ICE ${pc.iceConnectionState}`));
         }
       };
@@ -234,6 +367,7 @@ export class PublishEngine {
       const timeout = setTimeout(() => {
         if (settled) return;
         settled = true;
+        console.error(`❌ [WebRTC-WHIP] Tempo limite de conexão ICE excedido.`);
         reject(new Error('ICE connection timeout'));
       }, ICE_CONNECT_TIMEOUT);
 
@@ -361,6 +495,7 @@ export class PublishEngine {
         let bytesSent = 0;
         let currentLayer = 'default';
 
+        let usingTurn = false;
         stats.forEach(report => {
           if (report.type === 'outbound-rtp') {
             if (report.kind === 'video') {
@@ -374,7 +509,19 @@ export class PublishEngine {
           if (report.type === 'remote-inbound-rtp') {
             packetsLost = report.packetsLost || 0;
           }
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            const localCand = stats.get(report.localCandidateId);
+            if (localCand && localCand.candidateType === 'relay') {
+              usingTurn = true;
+            }
+          }
         });
+
+        if (usingTurn) {
+          console.log('⚠️ [WebRTC-WHIP] Canal ativo utilizando fallback TURN (relay) para contornar restrições de rede.');
+        } else {
+          console.log('📡 [WebRTC-WHIP] Canal ativo utilizando conexão direta (STUN / host).');
+        }
 
         this._metrics.framesDropped = videoFramesDropped;
         this._metrics.framesEncoded = videoFramesEncoded;
@@ -412,7 +559,7 @@ export class PublishEngine {
   async stop(): Promise<void> {
     if (this._resourceUrl) {
       try {
-        await fetch(this._resourceUrl, { method: 'DELETE' });
+        await api.rtc.deleteWhip(this._resourceUrl);
       } catch (err) {
         console.warn('[PublishEngine] DELETE failed:', err);
       }

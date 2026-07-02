@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import OnlineUsersModal from '../../components/live/OnlineUsersModal';
+const OnlineUsersModalAny: any = OnlineUsersModal;
 import ChatMessage from '../../components/live/ChatMessage';
 import CoHostModal from '../../components/CoHostModal';
 import EntryChatMessage from '../../components/live/EntryChatMessage';
 import ChatScreen from '../../components/ChatScreen';
 import ToolsModal from '../../components/ToolsModal';
+const ToolsModalAny: any = ToolsModal;
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon } from '../../components/icons';
 import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus } from '../types';
 import ContributionRankingModal from '../../components/ContributionRankingModal';
@@ -118,6 +120,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
     const [isCoHostModalOpen, setIsCoHostModalOpen] = useState(false);
+    const [coHostModalMode, setCoHostModalMode] = useState<'cohost' | 'battle'>('cohost');
     const [isOnlineUsersOpen, setOnlineUsersOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
@@ -152,6 +155,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
     const [giftQueue, setGiftQueue] = useState<GiftPayload[]>([]); // Nova fila para GiftQueueManager
+    const [isLocalMuted, setIsLocalMuted] = useState(false);
 
     // Estado para monitoramento de publish SRS
     const [publishStatus, setPublishStatus] = useState<SrsPublishStatus>({
@@ -159,7 +163,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         lastUpdate: new Date()
     });
 
-    const isBroadcaster = streamer.hostId === currentUser.id;
+    const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
 
     const isFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
 
@@ -504,7 +508,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     id: data.toUser.id, 
                     name: data.toUser.name 
                 },
-                gift: {
+                gift: gifts?.find((g: any) => g.name === data.gift?.name || g.id === data.gift?.id) || {
                     name: data.gift.name,
                     price: data.gift.price,
                     icon: data.gift.icon,
@@ -515,16 +519,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 id: Date.now() + Math.random() // ID único para este gift
             };
 
-            // Adicionar à fila de animação (nova fila para GiftQueueManager)
-            setGiftQueue(prev => [...prev, payload]);
+            // Pular se o remetente for o próprio usuário (já adicionou otimisticamente) ou se os IDs baterem
+            const isSenderSelf = (data.from?.id === currentUser?.id) || 
+                                 (data.fromUser?.id === currentUser?.id) || 
+                                 (payload.fromUser?.id === currentUser?.id);
+            if (!isSenderSelf) {
+                // Adicionar à fila de animação (nova fila para GiftQueueManager)
+                setGiftQueue(prev => [...prev, payload]);
+                
+                // Adicionar mensagem de presente ao chat
+                postGiftChatMessage(payload);
+                
+                // Adicionar à fila de animação em tela cheia (mantida para fullscreen)
+                setFullscreenGiftQueue(prev => [...prev, payload]);
+            }
             
-            // Adicionar mensagem de presente ao chat
-            postGiftChatMessage(payload);
-            
-            // Adicionar à fila de animação em tela cheia (mantida para fullscreen)
-            setFullscreenGiftQueue(prev => [...prev, payload]);
-            
-            console.log(`🎁 [LIVE GIFT] Recebido em tempo real: ${data.fromUser?.name} -> ${data.toUser?.name} (${data.quantity}x ${data.gift?.name})`);
+            console.log(`🎁 [LIVE GIFT] Recebido em tempo real: ${data.from?.name} -> ${data.toUser?.name} (${data.quantity}x ${data.gift?.name})`);
         };
         
         // Escutar o novo evento de presente em tempo real
@@ -547,11 +557,12 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             user: currentUser.name,
             level: currentUser.level,
             message: chatInput.trim(),
-            avatar: currentUser.avatarUrl,
+            avatar: currentUser.avatarUrl || currentUser.avatar,
             gender: currentUser.gender,
             age: currentUser.age,
             activeFrameId: currentUser.activeFrameId,
             frameExpiration: currentUser.frameExpiration,
+            fullUser: currentUser,
         };
         setMessages(prev => [...prev, messagePayload]);
         socketService.sendMessage(streamer.id, messagePayload);
@@ -682,9 +693,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         onStartPKBattle(opponent);
     };
 
-    const handleOpenCoHostModal = (e: React.MouseEvent) => {
+    const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
         e.stopPropagation();
         setIsToolsOpen(false);
+        setCoHostModalMode(mode || 'cohost');
         setIsCoHostModalOpen(true);
     };
 
@@ -758,10 +770,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         onViewProfile(userProfile);
     };
 
-    const handleSendGift = async (gift: Gift, quantity: number) => {
+    const handleSendGift = async (gift: Gift, quantity: number, isSimulation?: boolean) => {
         try {
             const totalCost = gift.price || 0;
-            if (currentUser.diamonds < totalCost) {
+            if (!isSimulation && currentUser.diamonds < totalCost) {
                 handleRecharge();
                 return;
             }
@@ -793,19 +805,25 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // Enviar presento imediatamente (optimistic UI)
             postGiftChatMessage(giftPayload);
             setFullscreenGiftQueue(prev => [...prev, giftPayload]);
-            socketService.sendGift(
+            (socketService as any).sendGift(
                 streamer.id,
-                currentUser.id,
+                currentUser.id as any,
                 currentUser.name,
-                currentUser.avatarUrl,
-                streamer.id,
-                streamer.name,
+                currentUser.avatarUrl || 'https://via.placeholder.com/40',
+                (streamer.hostId || streamer.id) as any,
+                streamer.name || 'Streamer',
+                streamer.avatar || 'https://via.placeholder.com/40',
                 gift.name,
                 gift.name,
                 gift.icon || '🎁',
                 gift.price || 0,
                 quantity
             );
+
+            if (isSimulation) {
+                addToast(ToastType.Success, `[SIMULAÇÃO] Presente ${gift.name} enviado para demonstração!`);
+                return;
+            }
 
             // Now, call the API in the background
             try {
@@ -935,7 +953,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const handleToggleSound = async (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!isBroadcaster) return;
+        if (!isBroadcaster) {
+            setIsLocalMuted(prev => {
+                const updatedMuted = !prev;
+                addToast(ToastType.Info, updatedMuted ? 'Áudio da live silenciado localmente.' : 'Áudio da live ativado localmente.');
+                return updatedMuted;
+            });
+            return;
+        }
         addToast(ToastType.Info, !(liveSession?.isStreamMuted) ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
         await api.toggleStreamSound(streamer.id);
     };
@@ -1009,7 +1034,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 )}
 
                 {/* Video Layer - Player HLS profissional */}
-                <LivePlayer url={getStreamUrl()} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} />
+                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} />
 
                 {/* Dark Gradient Overlay */}
                 <div className={`absolute inset-0 bg-gradient-to-b from-transparent to-black/70 pointer-events-none transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0'}`} style={{ zIndex: 15 }}></div>
@@ -1089,7 +1114,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             
                             {/* Streamer Info */}
                             <button onClick={(e) => { e.stopPropagation(); streamerDisplayUser && onViewProfile(streamerDisplayUser); }} className="flex items-center bg-black/40 rounded-full p-1 pr-3 space-x-2 text-left">
-                                <div className="relative">
+                                <div className="relative flex-shrink-0">
                                     <div className="live-ring-animated">
                                         <AvatarWithFrame
                                             user={streamerDisplayUser || ({
@@ -1203,47 +1228,43 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
             {/* 4. Chat & Footer UI */}
             <div className={`absolute bottom-0 left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                <div ref={chatContainerRef} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3">
-                    <div className="space-y-2 mt-auto">
-                        {messages.map((msg) => {
-                            if (msg.type === 'entry' && msg.fullUser) {
-                                return <EntryChatMessage
-                                    key={msg.id}
-                                    user={msg.fullUser}
-                                    currentUser={currentUser}
-                                    onClick={onViewProfile}
-                                    onFollow={onFollowUser}
-                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
-                            }
-                            if (msg.type === 'chat' && msg.user && msg.avatar) {
-                                const chatUser = constructUserFromMessage(msg);
-                                const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
+                {!isBroadcaster && (
+                    <div ref={chatContainerRef} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3">
+                        <div className="space-y-2 mt-auto">
+                            {messages.map((msg) => {
+                                if (msg.type === 'entry' && msg.fullUser) {
+                                    return <EntryChatMessage
+                                        key={msg.id}
+                                        user={msg.fullUser}
+                                        currentUser={currentUser}
+                                        onClick={onViewProfile}
+                                        onFollow={onFollowUser}
+                                        isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
+                                }
+                                if (msg.type === 'chat' && msg.user && msg.avatar) {
+                                    const chatUser = constructUserFromMessage(msg);
+                                    const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
 
-                                return <ChatMessage
-                                    key={msg.id}
-                                    userObject={chatUser}
-                                    message={msg.message}
-                                    onAvatarClick={() => handleViewChatUserProfile(msg)}
-                                    onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
-                                    isFollowed={followedUsers.has(chatUser.id)}
-                                    onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
-                                    isModerator={msg.isModerator}
-                                />;
-                            }
-                            if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                                return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
-                            }
-                            if (msg.type === 'friend_request' && msg.follower) {
-                                return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
-                            }
-                            return null;
-                        })}
-                    </div>
-                </div>
-
-                {chatInput.length > 0 && (
-                    <div className="absolute bottom-20 left-0 px-3 pointer-events-none">
-                        <div className="typing-bubble inline-block">{chatInput}</div>
+                                    return <ChatMessage
+                                        key={msg.id}
+                                        userObject={chatUser}
+                                        message={msg.message}
+                                        onAvatarClick={() => handleViewChatUserProfile(msg)}
+                                        onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
+                                        isFollowed={followedUsers.has(chatUser.id)}
+                                        onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                        isModerator={msg.isModerator}
+                                    />;
+                                }
+                                if (msg.type === 'follow' && msg.user && msg.followedUser) {
+                                    return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
+                                }
+                                if (msg.type === 'friend_request' && msg.follower) {
+                                    return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                                }
+                                return null;
+                            })}
+                        </div>
                     </div>
                 )}
 
@@ -1261,15 +1282,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             <button onClick={handleSendMessage} className="bg-gray-500/50 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-gray-400/50 transition-colors"><SendIcon className="w-5 h-5 text-white" /></button>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><GiftIcon className="w-6 h-6 text-yellow-400" /></button>
-                        {isBroadcaster ? (
+                        {!isBroadcaster && (
+                            <button onClick={(e) => { e.stopPropagation(); onOpenPrivateChat(); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MessageIcon className="w-6 h-6 text-white" /></button>
+                        )}
+                        {isBroadcaster && (
                             <button onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MoreIcon className="w-6 h-6 text-white" /></button>
-                        ) : (
-                            <button onClick={(e) => {
-                                e.stopPropagation();
-                                if (streamerUser) {
-                                    onStartChatWithStreamer(streamerUser);
-                                }
-                            }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><MessageIcon className="w-6 h-6 text-white" /></button>
                         )}
                     </div>
                 </footer>
@@ -1277,32 +1294,47 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
             {/* 5. Modals & Overlays */}
             {/* FIX: Corrected typo for state setter from 'setIsOnlineUsersOpen' to 'setOnlineUsersOpen'. */}
-            {isOnlineUsersOpen && <OnlineUsersModal onClose={() => setOnlineUsersOpen(false)} streamId={streamer.id} userId={currentUser.id} currentUser={currentUser} />}
-            <ToolsModal
-                isOpen={isToolsOpen}
-                onClose={() => setIsToolsOpen(false)}
-                onOpenCoHostModal={handleOpenCoHostModal}
-                isPKBattleActive={false}
-                onOpenBeautyPanel={handleOpenBeautyPanel}
-                onOpenPrivateChat={(e) => { e.stopPropagation(); onOpenPrivateChat(); }}
-                onOpenPrivateInviteModal={(e) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
-                onOpenClarityPanel={handleOpenClarityPanel}
-                isModerationActive={isModerationMode}
-                onToggleModeration={(e) => { e.stopPropagation(); setIsModerationMode(prev => !prev); }}
-                isPrivateStream={streamer.isPrivate}
-                isMicrophoneMuted={liveSession?.isMicrophoneMuted ?? false}
-                onToggleMicrophone={handleToggleMicrophone}
-                isSoundMuted={liveSession?.isStreamMuted ?? false}
-                onToggleSound={handleToggleSound}
-                isAutoFollowEnabled={liveSession?.isAutoFollowEnabled ?? false}
-                onToggleAutoFollow={handleToggleAutoFollow}
-                isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
-                onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
-            />
+            {isOnlineUsersOpen && (
+                <OnlineUsersModalAny 
+                    onClose={() => setOnlineUsersOpen(false)} 
+                    streamId={streamer.id} 
+                    userId={currentUser.id} 
+                    currentUser={currentUser} 
+                    onSelectUser={(selectedUser: any) => {
+                        setOnlineUsersOpen(false);
+                        setUserActionModalState({ isOpen: true, user: selectedUser });
+                    }}
+                />
+            )}
+            {isBroadcaster && (
+                <ToolsModalAny
+                    isOpen={isToolsOpen}
+                    onClose={() => setIsToolsOpen(false)}
+                    onOpenCoHostModal={handleOpenCoHostModal}
+                    isPKBattleActive={false}
+                    onOpenBeautyPanel={handleOpenBeautyPanel}
+                    onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }}
+                    onOpenPrivateInviteModal={(e: any) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
+                    onOpenClarityPanel={handleOpenClarityPanel}
+                    isModerationActive={isModerationMode}
+                    onToggleModeration={(e: any) => { e.stopPropagation(); setIsModerationMode((prev: boolean) => !prev); }}
+                    isPrivateStream={streamer.isPrivate}
+                    isMicrophoneMuted={liveSession?.isMicrophoneMuted ?? false}
+                    onToggleMicrophone={handleToggleMicrophone}
+                    isSoundMuted={isBroadcaster ? (liveSession?.isStreamMuted ?? false) : isLocalMuted}
+                    onToggleSound={handleToggleSound}
+                    isAutoFollowEnabled={liveSession?.isAutoFollowEnabled ?? false}
+                    onToggleAutoFollow={handleToggleAutoFollow}
+                    isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
+                    onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
+                    isHost={isBroadcaster}
+                    addToast={addToast}
+                />
+            )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={handleSelectResolution} currentResolution={currentResolution} />
-            <CoHostModal isOpen={isCoHostModalOpen} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
-            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData).flat().map(u => ({ ...u, value: u.contribution }))} currentUser={currentUser} />}
+            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
+            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
             <GiftModal
                 isOpen={isGiftModalOpen}

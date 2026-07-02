@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-import { CloseIcon, ExpandIcon } from './icons';
+import { CloseIcon, ExpandIcon, SwitchCameraIcon } from './icons';
 
 import { Streamer, ToastType, User, BeautySettings } from '../types';
 
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
+import FfmpegSettingsPanel from './live/FfmpegSettingsPanel';
 
 import LiveStreamManualModal from './live/LiveStreamManualModal';
+import RegionModal from './RegionModal';
 
 import { useTranslation } from '../i18n';
 
@@ -22,6 +24,7 @@ import { CategoryModal } from './live/CategoryModal';
 import { StreamToolsPanel } from './live/StreamToolsPanel';
 
 import { StreamService } from '../services/streamService';
+import { streamPublishService } from '../services/streamPublishService';
 import { api } from '../services/api';
 
 // Interface para propriedades globais da window
@@ -74,10 +77,38 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
     // Estado local para UI
     const [streamType, setStreamType] = useState('WebRTC');
+    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+
+    const handleSwitchCamera = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await streamPublishService.switchCamera();
+            setFacingMode(streamPublishService.getFacingMode());
+            addToast(ToastType.Success, "Câmera alterada!");
+        } catch (err) {
+            console.error('Failed to switch camera preview:', err);
+            addToast(ToastType.Error, "Não foi possível alternar a câmera.");
+        }
+    };
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
+    const [countries, setCountries] = useState<any[]>([]);
     const [isBeautyPanelOpen, setIsBeautyPanelOpen] = useState(false);
+    const [isFfmpegPanelOpen, setIsFfmpegPanelOpen] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
     const [categories] = useState<Category[]>(CATEGORIES);
+
+    const handleOpenFfmpegPanel = async () => {
+        let stream = streamManager.draftStream;
+        if (!stream) {
+            stream = await streamManager.createDraftStream();
+            if (!stream) {
+                addToast(ToastType.Error, "Falha ao inicializar rascunho da live para FFmpeg.");
+                return;
+            }
+        }
+        setIsFfmpegPanelOpen(true);
+    };
 
     const isInviteMode = Boolean(inviteData);
 
@@ -90,7 +121,15 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 selectedRegion: currentUser.country || 'global'
             });
         }
-    }, [isOpen, isInviteMode, inviteData, currentUser.name, currentUser.country, streamManager]);
+        
+        if (isOpen && countries.length === 0) {
+            api.getRegions().then(data => {
+                if (data && Array.isArray(data)) {
+                    setCountries(data);
+                }
+            }).catch(err => console.error("Error fetching regions:", err));
+        }
+    }, [isOpen, isInviteMode, inviteData, currentUser.name, currentUser.country, streamManager, countries.length]);
 
     const handleSelectCategory = async (categoryKey: string) => {
         streamManager.updateState({ selectedCategoryKey: categoryKey });
@@ -169,7 +208,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
     return (
         <div
-            className={`absolute inset-0 ${hasNativeRtmpPreview ? 'bg-transparent' : 'bg-black'} z-50 transition-opacity duration-300 flex flex-col justify-between ${
+            className={`absolute inset-0 ${hasNativeRtmpPreview ? 'bg-transparent' : 'bg-black'} z-50 transition-opacity duration-300 flex flex-col justify-between perspective-viewport ${
                 isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
         >
@@ -182,7 +221,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 className={`absolute inset-0 w-full h-full object-cover -z-10 ${hasNativeRtmpPreview ? 'hidden' : ''}`}
                 style={{
                     // Upscale visual CSS - 144p real exibido como Full HD
-                    transform: 'scaleX(-1)', // Mirror effect
+                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)', // Mirror effect
                     filter: 'contrast(1.1) brightness(1.05) saturate(1.1)', // Melhoria visual
                     imageRendering: 'crisp-edges', // Mantém nitidez no upscale
                     // O vídeo continua 144p real, mas é escalado visualmente pelo container
@@ -192,6 +231,15 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             <div className="absolute inset-0" onClick={cameraPreview.showUi}></div>
 
             <header className="absolute top-0 right-0 p-4 flex items-center space-x-2 z-20">
+                <button 
+                    onClick={handleSwitchCamera} 
+                    className={`w-8 h-8 bg-black/40 rounded-full flex items-center justify-center text-white transition-opacity duration-300 ${
+                        cameraPreview.isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                    title="Alternar Câmera"
+                >
+                    <SwitchCameraIcon className="w-5 h-5" />
+                </button>
                 <button 
                     onClick={cameraPreview.hideUi} 
                     className={`w-8 h-8 bg-black/40 rounded-full flex items-center justify-center text-white transition-opacity duration-300 ${
@@ -231,43 +279,19 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         selectedRegion={streamManager.selectedRegion}
                         onCategoryClick={() => setIsCategoryModalOpen(true)}
                         onRegionChange={handleRegionChange}
+                        onRegionSelectClick={() => setIsRegionModalOpen(true)}
                         isInviteMode={isInviteMode}
                     />
 
-                    <div className="bg-gray-800/80 p-4 rounded-2xl space-y-4 text-white max-h-[40vh] overflow-y-auto no-scrollbar">
-                        {/* Stream Type Selector */}
-                        <StreamTypeSelector
-                            streamType={streamType}
-                            onStreamTypeChange={setStreamType}
-                            isInviteMode={isInviteMode}
-                        />
-
-                        {/* Stream URL Configuration */}
-                        <StreamUrlConfig
-                            streamType={streamType}
-                            draftStream={streamManager.draftStream}
-                            isEditingUrls={streamUrls.isEditingUrls}
-                            editRtmpUrl={streamUrls.editRtmpUrl}
-                            editStreamKey={streamUrls.editStreamKey}
-                            editSrtUrl={streamUrls.editSrtUrl}
-                            editPlaybackUrl={streamUrls.editPlaybackUrl}
-                            editWhipUrl={streamUrls.editWhipUrl}
-                            onToggleEditMode={streamUrls.toggleEditMode}
-                            onSaveUrls={handleSaveUrls}
-                            onUrlChange={streamUrls.updateUrl}
-                            onCopyToClipboard={streamUrls.copyToClipboard}
-                            isInviteMode={isInviteMode}
-                        />
-
-                        {/* Stream Tools Panel */}
-                        <StreamToolsPanel
-                            onOpenManual={() => setIsManualOpen(true)}
-                            onOpenBeautyPanel={() => setIsBeautyPanelOpen(true)}
-                            isPrivate={streamManager.isPrivate}
-                            onTogglePrivate={handleTogglePrivate}
-                            isInviteMode={isInviteMode}
-                        />
-                    </div>
+                    {/* Stream Tools Panel */}
+                    <StreamToolsPanel
+                        onOpenManual={() => setIsManualOpen(true)}
+                        onOpenBeautyPanel={() => setIsBeautyPanelOpen(true)}
+                        onOpenFfmpegPanel={handleOpenFfmpegPanel}
+                        isPrivate={streamManager.isPrivate}
+                        onTogglePrivate={handleTogglePrivate}
+                        isInviteMode={isInviteMode}
+                    />
                 </div>
             </div>
 
@@ -293,7 +317,38 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                     onClose={() => setIsCategoryModalOpen(false)} 
                 />
             )}
+            <RegionModal 
+                isOpen={isRegionModalOpen} 
+                onClose={() => setIsRegionModalOpen(false)} 
+                countries={countries.length > 0 ? countries : [
+                    { code: 'global', name: 'Global' },
+                    { code: 'br', name: 'Brasil' },
+                    { code: 'us', name: 'Estados Unidos' },
+                    { code: 'pt', name: 'Portugal' },
+                    { code: 'es', name: 'Espanha' },
+                    { code: 'ar', name: 'Argentina' },
+                    { code: 'co', name: 'Colômbia' },
+                    { code: 'mx', name: 'México' },
+                    { code: 'it', name: 'Itália' },
+                    { code: 'fr', name: 'França' },
+                    { code: 'de', name: 'Alemanha' },
+                    { code: 'gb', name: 'Reino Unido' },
+                    { code: 'ca', name: 'Canadá' }
+                ]} 
+                onSelectRegion={(countryCode) => {
+                    handleRegionChange(countryCode);
+                    setIsRegionModalOpen(false);
+                }} 
+                selectedCountryCode={streamManager.selectedRegion} 
+            />
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
+            {isFfmpegPanelOpen && streamManager.draftStream && (
+                <FfmpegSettingsPanel 
+                    streamId={streamManager.draftStream.id} 
+                    onClose={() => setIsFfmpegPanelOpen(false)} 
+                    addToast={addToast} 
+                />
+            )}
             {isManualOpen && <LiveStreamManualModal onClose={() => setIsManualOpen(false)} />}
         </div>
     );

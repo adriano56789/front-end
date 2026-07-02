@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SrsPlayerEngine, PlayerState } from '../services/SrsPlayerEngine';
 
 interface UseSrsPlayerOptions {
@@ -15,6 +15,17 @@ export function useSrsPlayer(
   const [state, setState] = useState<PlayerState>('idle');
   const engineRef = useRef<SrsPlayerEngine | null>(null);
 
+  const onPlayingRef = useRef(onPlaying);
+  const onErrorRef = useRef(onError);
+
+  useEffect(() => {
+    onPlayingRef.current = onPlaying;
+  }, [onPlaying]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!streamId || !video) return;
@@ -25,10 +36,10 @@ export function useSrsPlayer(
     const offState = engine.on('stateChanged', (_prev: string, next: string) => {
       setState(next as PlayerState);
     });
-    const offPlaying = engine.on('playing', () => onPlaying?.());
-    const offError = engine.on('error', () => onError?.());
+    const offPlaying = engine.on('playing', () => onPlayingRef.current?.());
+    const offError = engine.on('error', () => onErrorRef.current?.());
 
-    engine.start(streamId, video).catch(() => onError?.());
+    engine.start(streamId, video).catch(() => onErrorRef.current?.());
 
     return () => {
       offState();
@@ -37,7 +48,7 @@ export function useSrsPlayer(
       engine.destroy();
       engineRef.current = null;
     };
-  }, [streamId, videoRef.current]);
+  }, [streamId, videoRef]);
 
   return { state, engine: engineRef.current };
 }

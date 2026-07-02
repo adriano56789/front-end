@@ -35,7 +35,7 @@ export default defineConfig({
         secure: false,
       },
       '/rtc': {
-        target: 'http://72.60.249.175:1985',
+        target: 'http://livego.store:1985',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rtc/, '/rtc')

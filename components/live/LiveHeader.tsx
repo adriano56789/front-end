@@ -17,8 +17,15 @@ interface LiveHeaderProps {
 const LiveHeader: React.FC<LiveHeaderProps> = ({ user, onlineCount, onClose, onProfileClick, onOnlineUsersClick }) => (
     <header className="p-3 bg-transparent flex justify-between items-center absolute top-0 left-0 right-0 z-20">
         <div className="flex items-center space-x-2">
-            <button onClick={onProfileClick} className="flex items-center bg-black/40 rounded-full p-1 pr-3">
-                <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full object-cover mr-2" />
+            <button onClick={onProfileClick} className="flex items-center bg-black/40 rounded-full p-1 pr-3 overflow-hidden">
+                <div className="w-8 h-8 rounded-full overflow-hidden mr-2 bg-gray-700 relative">
+                    <img 
+                        src={user.avatar || `https://picsum.photos/seed/${user.name}/200/200.jpg`} 
+                        alt={user.name} 
+                        className="absolute inset-0 w-full h-full object-cover block rounded-full" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                </div>
                 <div>
                     <p className="text-white font-bold text-sm">{user.name}</p>
                     {user.secondaryText && <p className="text-gray-300 text-xs">{user.secondaryText}</p>}

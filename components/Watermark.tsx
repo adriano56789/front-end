@@ -12,7 +12,7 @@ const Watermark: React.FC<WatermarkProps> = ({ user }) => {
         <div className="absolute dynamic-watermark z-30" >
             <div className="text-white/40 text-xs font-mono select-none p-2">
                 <p>Viewer: {user.name}</p>
-                <p>ID: {user.identification}</p>
+                <p>@{user.name}</p>
                 <p>{timestamp}</p>
             </div>
         </div>

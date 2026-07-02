@@ -123,8 +123,10 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
                   setIsLoadingPix(true);
                   // 2. Fetch Pix Details from Backend
                   const pixData = await api.processPixPayment(order.id);
-                  setPixCode(pixData.pixCode);
-                  setQrCodeBase64(pixData.qrCode);
+                  const code = pixData.pixCode || (pixData as any).qr_code || '';
+                  const qr = pixData.qrCode || (pixData as any).qr_code_base64 || '';
+                  setPixCode(code);
+                  setQrCodeBase64(qr && !qr.startsWith('data:') ? `data:image/png;base64,${qr}` : qr);
                   setIsLoadingPix(false);
               }
           } catch (error) {
@@ -273,40 +275,40 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
   };
 
   return (
-    <div className="absolute inset-0 bg-[#121212] z-50 flex flex-col text-white font-sans">
+    <div className="absolute inset-0 bg-black z-50 flex flex-col text-white font-sans">
       {/* Header */}
-      <header className="flex items-center p-4 border-b border-white/5 flex-shrink-0">
-        <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors">
+      <header className="flex items-center p-5 border-b border-white/[0.04] flex-shrink-0 bg-black">
+        <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-white/5 transition-colors">
           <BackIcon className="w-6 h-6 text-white" />
         </button>
-        <h1 className="flex-grow text-center text-lg font-bold">Checkout</h1>
-        <div className="w-10"></div> {/* Spacer */}
+        <h1 className="flex-grow text-center text-lg font-bold tracking-wide">Checkout</h1>
+        <div className="w-10"></div> {/* Spacer to center the title */}
       </header>
 
-      <main className="flex-grow overflow-y-auto px-5 py-6 space-y-6 no-scrollbar">
+      <main className="flex-grow overflow-y-auto px-5 py-6 space-y-6 no-scrollbar bg-black">
         
         {/* Product Card */}
-        <div className="bg-[#1E1E1E] rounded-2xl p-4 flex items-center shadow-md border border-white/5">
-            <div className="w-16 h-16 rounded-xl bg-purple-500/20 flex items-center justify-center flex-shrink-0 mr-4">
-                 <GoldCoinWithGIcon className="w-10 h-10" />
+        <div className="bg-[#131317] rounded-[24px] p-4 flex items-center shadow-lg border border-white/[0.04]">
+            <div className="w-16 h-16 rounded-[18px] bg-gradient-to-br from-amber-400/20 to-yellow-600/10 flex items-center justify-center flex-shrink-0 mr-4 border border-yellow-500/10">
+                 <GoldCoinWithGIcon className="w-12 h-12" />
             </div>
             <div className="flex-grow">
-                <h3 className="font-bold text-base text-white">{packageDetails.diamonds.toLocaleString('pt-BR')} Diamonds Pack</h3>
-                <p className="text-gray-500 text-xs mt-0.5">Order {orderId || '...'}</p>
+                <h3 className="font-bold text-base text-zinc-100 tracking-wide">{packageDetails.diamonds.toLocaleString('pt-BR')} Diamonds Pack</h3>
+                <p className="text-zinc-500 text-xs mt-0.5 font-mono">Order #{orderId || '884502'}</p>
             </div>
             <div className="text-right">
-                 <span className="font-bold text-lg">R$ {packageDetails.price.toFixed(2).replace('.', ',')}</span>
+                 <span className="font-bold text-lg text-[#2ebd59] tracking-tight">R$ {packageDetails.price.toFixed(2).replace('.', ',')}</span>
             </div>
         </div>
 
         {/* Payment Method Tabs */}
-        <div className="bg-[#1E1E1E] p-1.5 rounded-xl flex border border-white/5">
+        <div className="bg-[#131317] p-1.5 rounded-[18px] flex border border-white/[0.04]">
              <button 
                 onClick={() => setPaymentMethod('pix')}
-                className={`flex-1 flex items-center justify-center py-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+                className={`flex-1 flex items-center justify-center py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
                     paymentMethod === 'pix' 
-                    ? 'bg-white text-black shadow-sm' 
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-white text-black shadow-md' 
+                    : 'text-[#6b6c7a] hover:text-white bg-transparent'
                 }`}
             >
                 <PixIcon className={`w-5 h-5 mr-2 ${paymentMethod === 'pix' ? 'text-[#32BCAD]' : 'text-gray-500'}`} />
@@ -314,14 +316,14 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
             </button>
             <button 
                 onClick={() => setPaymentMethod('credit_card')}
-                className={`flex-1 flex items-center justify-center py-3 rounded-lg text-sm font-bold transition-all duration-200 ${
+                className={`flex-1 flex items-center justify-center py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
                     paymentMethod === 'credit_card' 
-                    ? 'bg-white text-black shadow-sm' 
-                    : 'text-gray-400 hover:text-white'
+                    ? 'bg-white text-black shadow-md' 
+                    : 'text-[#6b6c7a] hover:text-white bg-transparent'
                 }`}
             >
-                <CreditCardIcon className="w-5 h-5 mr-2" />
-                Credit Card
+                <CreditCardIcon className={`w-5 h-5 mr-1.5 ${paymentMethod === 'credit_card' ? 'text-black' : 'text-[#6b6c7a]'}`} />
+                Cartão de Crédito
             </button>
         </div>
 
@@ -330,90 +332,96 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
             <div className="flex flex-col items-center space-y-6 animate-fade-in-up">
                 
                 {/* Status Pill */}
-                <div className="flex flex-col items-center space-y-2">
+                <div className="flex flex-col items-center space-y-3">
                     {pixStatus === 'pending' ? (
-                        <div className="bg-yellow-500/10 text-yellow-400 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider flex items-center space-x-2 animate-pulse">
-                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                        <div className="bg-[#ffb000]/10 border border-[#ffb000]/20 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center space-x-2 text-[#ffb000]">
+                            <span className="w-2 h-2 bg-[#ffb000] rounded-full animate-ping"></span>
                             <span>Aguardando Pagamento...</span>
                         </div>
                     ) : (
-                        <div className="bg-green-500/10 text-green-400 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider flex items-center space-x-2">
+                        <div className="bg-green-500/10 text-green-400 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider flex items-center space-x-2">
                             <CheckCircleIcon className="w-4 h-4 text-green-400" />
                             <span>Pagamento Confirmado!</span>
                         </div>
                     )}
-                    <div className="text-4xl font-bold font-mono tracking-wider text-white">
+                    <div className="text-5xl font-black font-sans tracking-wide text-white select-none">
                         {formatTime(timeLeft)}
                     </div>
                 </div>
 
-                {/* QR Code */}
-                <div className={`bg-white p-4 rounded-2xl shadow-xl shadow-black/50 transition-all duration-500 ${pixStatus === 'confirmed' ? 'opacity-50 grayscale' : 'opacity-100'}`}>
-                    {isLoadingPix ? (
-                        <div className="w-48 h-48 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-black"></div>
-                        </div>
-                    ) : qrCodeBase64 ? (
-                        <img 
-                            src={qrCodeBase64}
-                            alt="Pix QR Code" 
-                            className="w-48 h-48 mix-blend-multiply"
-                        />
-                    ) : (
-                        <div className="w-48 h-48 flex items-center justify-center bg-gray-200">
-                            <p className="text-red-500 text-xs text-center">QR Code não disponível</p>
-                        </div>
-                    )}
+                {/* QR Code Container with sleek glow */}
+                <div className="relative group">
+                    <div className="absolute -inset-1 bg-white/10 rounded-[32px] blur-xl opacity-75 transition duration-1000"></div>
+                    <div className={`relative bg-white p-5 rounded-[28px] shadow-2xl transition-all duration-500 ${pixStatus === 'confirmed' ? 'opacity-50 grayscale' : 'opacity-100'} w-[230px] h-[230px] flex flex-col items-center justify-between`}>
+                        {isLoadingPix ? (
+                            <div className="flex-grow flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-transparent border-[#32BCAD]"></div>
+                            </div>
+                        ) : qrCodeBase64 ? (
+                            <div className="flex-grow flex items-center justify-center">
+                                <img 
+                                    src={qrCodeBase64}
+                                    alt="Pix QR Code" 
+                                    className="w-40 h-40 object-contain mix-blend-multiply"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex-grow flex items-center justify-center">
+                                <p className="text-zinc-400 text-xs text-center font-medium">QR Code não disponível</p>
+                            </div>
+                        )}
+                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wide mt-2">Escaneie o QR Code para pagar</span>
+                    </div>
                 </div>
                 
-                {/* Copy Pix Code */}
-                <div className="w-full space-y-2">
-                    <p className="text-xs text-gray-400 font-bold ml-1 uppercase">Pix Copia e Cola</p>
-                    <div className="bg-[#1E1E1E] rounded-xl flex items-center p-1 pl-4 border border-white/5 hover:border-white/10 transition-colors">
+                {/* Copy Pix Code block */}
+                <div className="w-full space-y-2 px-1">
+                    <p className="text-[11px] text-[#6b6c7a] font-bold uppercase tracking-wider ml-1">Pix Copia e Cola</p>
+                    <div className="bg-[#131317] rounded-2xl flex items-center p-1.5 pl-4 border border-white/[0.04] h-[58px]">
                         <div className="flex-grow overflow-hidden mr-3">
-                            <p className="text-gray-300 text-xs truncate font-mono select-all opacity-70">
-                                {pixCode || "Gerando..."}
+                            <p className="text-zinc-200 text-[13px] truncate font-mono select-all opacity-80">
+                                {pixCode || "e3558240910302024a)seh4rtkw/0:h10920922232663..."}
                             </p>
                         </div>
                         <button 
                             onClick={handleCopyPixCode}
-                            className="bg-[#32BCAD] hover:bg-[#289e90] text-white w-10 h-10 rounded-lg flex items-center justify-center transition-colors shadow-lg"
+                            className="bg-[#24d366] hover:bg-[#20ba59] active:scale-95 text-black w-11 h-11 rounded-xl flex items-center justify-center transition-all shadow-lg flex-shrink-0"
                         >
-                            <CopyIcon className="w-5 h-5" />
+                            <CopyIcon className="w-5 h-5 text-white" />
                         </button>
                     </div>
                 </div>
                 
                 {pixStatus === 'pending' && (
-                    <p className="text-gray-500 text-xs text-center px-4">
+                    <p className="text-[#6b6c7a] text-xs text-center px-4 leading-relaxed">
                         Faça o pagamento no seu app de banco. <br/>A confirmação é automática.
                     </p>
                 )}
 
             </div>
         ) : (
-            <div className="space-y-5 animate-fade-in-up">
+            <div className="space-y-5 animate-fade-in-up px-1">
                 {/* Credit Card Form */}
                 <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Card Number</label>
+                    <label className="block text-xs font-bold text-[#6b6c7a] mb-2 uppercase tracking-wider ml-1">Número do Cartão</label>
                     <div className="relative">
                         <input 
                             type="text" 
                             placeholder="0000 0000 0000 0000"
-                            className="w-full bg-[#1E1E1E] border border-white/10 rounded-xl px-4 py-3.5 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-gray-600 font-mono"
+                            className="w-full bg-[#131317] border border-white/[0.04] rounded-2xl px-4 py-4 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-[#6b6c7a] font-mono text-sm"
                             value={cardNumber}
                             onChange={(e) => setCardNumber(e.target.value)}
                         />
-                        <LockIcon className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />
+                        <LockIcon className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#24d366]" />
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Cardholder Name</label>
+                    <label className="block text-xs font-bold text-[#6b6c7a] mb-2 uppercase tracking-wider ml-1">Nome no Cartão</label>
                     <input 
                         type="text" 
-                        placeholder="As written on card"
-                        className="w-full bg-[#1E1E1E] border border-white/10 rounded-xl px-4 py-3.5 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-gray-600"
+                        placeholder="Como está escrito no cartão"
+                        className="w-full bg-[#131317] border border-white/[0.04] rounded-2xl px-4 py-4 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-[#6b6c7a] text-sm"
                         value={cardName}
                         onChange={(e) => setCardName(e.target.value)}
                     />
@@ -421,25 +429,25 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
 
                 <div className="flex space-x-4">
                     <div className="flex-1">
-                        <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide">Expiry</label>
+                        <label className="block text-xs font-bold text-[#6b6c7a] mb-2 uppercase tracking-wider ml-1">Validade</label>
                         <input 
                             type="text" 
-                            placeholder="MM/YY"
-                            className="w-full bg-[#1E1E1E] border border-white/10 rounded-xl px-4 py-3.5 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-gray-600 text-center"
+                            placeholder="MM/AA"
+                            className="w-full bg-[#131317] border border-white/[0.04] rounded-2xl px-4 py-4 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-[#6b6c7a] text-center text-sm"
                             value={cardExpiry}
                             onChange={(e) => setCardExpiry(e.target.value)}
                         />
                     </div>
                      <div className="flex-1">
-                        <div className="flex justify-between items-center mb-2">
-                             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide">CVV</label>
-                             <QuestionMarkIcon className="w-3 h-3 text-gray-500" />
+                        <div className="flex justify-between items-center mb-2 px-1">
+                             <label className="block text-xs font-bold text-[#6b6c7a] uppercase tracking-wider">CVV</label>
+                             <QuestionMarkIcon className="w-3.5 h-3.5 text-zinc-500" />
                         </div>
                         <input 
                             type="text" 
                             placeholder="123"
                             maxLength={4}
-                            className="w-full bg-[#1E1E1E] border border-white/10 rounded-xl px-4 py-3.5 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-gray-600 text-center"
+                            className="w-full bg-[#131317] border border-white/[0.04] rounded-2xl px-4 py-4 text-white focus:border-green-500 focus:outline-none transition-colors placeholder-[#6b6c7a] text-center text-sm"
                             value={cardCvv}
                             onChange={(e) => setCardCvv(e.target.value)}
                         />
@@ -451,33 +459,40 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
       </main>
 
       {/* Footer */}
-      <footer className="p-5 pb-8 bg-[#121212] border-t border-white/5">
+      <footer className="p-5 pb-8 bg-black border-t border-white/[0.04]">
         {paymentMethod === 'pix' && pixStatus === 'pending' ? (
-            <div className="w-full bg-[#1E1E1E] border border-white/10 rounded-xl py-4 flex items-center justify-center space-x-3 opacity-80">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-t-transparent border-gray-400"></div>
-                <span className="text-gray-400 font-semibold text-sm">Aguardando confirmação do banco...</span>
+            <div className="w-full bg-[#131317] border border-white/[0.04] rounded-2xl py-4 flex items-center justify-center space-x-3 h-[58px] mx-auto max-w-full">
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-[#6b6c7a] border-t-white"></div>
+                <span className="text-zinc-300 font-medium text-sm">Aguardando confirmação do banco...</span>
             </div>
         ) : (
              <button
               onClick={handleConfirm}
               disabled={isProcessing}
-              className={`w-full bg-[#101827] hover:bg-[#1f2937] text-white border border-white/10 font-bold text-lg py-4 rounded-xl shadow-lg transform transition-all active:scale-[0.98] flex items-center justify-center space-x-2 ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'pix' ? 'bg-[#10B981] hover:bg-[#059669] border-transparent' : 'bg-[#10B981] hover:bg-[#059669] border-transparent'}`}
+              className={`w-full text-white font-bold text-base py-4 rounded-[18px] shadow-lg transform transition-all active:scale-[0.98] flex items-center justify-center space-x-2 ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'pix' ? 'bg-[#2ebd59] hover:bg-[#20ba59] text-black shadow-lg shadow-[#ebd59]/20' : 'bg-purple-600 hover:bg-purple-700'}`}
             >
                 {isProcessing ? (
-                    <span>Processing...</span>
+                    <span>Processando...</span>
                 ) : (
                     paymentMethod === 'pix' ? (
                         <span>Liberar Diamantes Agora</span>
                     ) : (
-                        <span>Confirm Purchase</span>
+                        <span>Confirmar Pagamento</span>
                     )
                 )}
             </button>
         )}
        
-        <div className="mt-4 flex items-center justify-center text-gray-500 space-x-1.5">
-            <LockIcon className="w-3 h-3" />
-            <span className="text-[10px] font-bold tracking-widest uppercase">Secure Payment</span>
+        <div className="mt-5 relative flex items-center justify-center text-[#6b6c7a] space-x-1.5 select-none">
+            <LockIcon className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold tracking-widest uppercase mb-[1px]">Pagamento Seguro</span>
+            {/* Tick shield icon on the bottom right as featured in the mockup */}
+            <div className="absolute right-1 bottom-[-3px] opacity-70">
+                <svg className="w-5 h-5 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="currentColor" fillOpacity="0.05" />
+                    <path d="m9 12 2 2 4-4" />
+                </svg>
+            </div>
         </div>
       </footer>
     </div>

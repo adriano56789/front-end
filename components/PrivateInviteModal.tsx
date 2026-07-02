@@ -177,40 +177,73 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
   };
 
   const getButtonState = (userId: string) => {
-      if (invitingUserId === userId || isInvitingAll) return { text: "Convidando...", disabled: true, className: "bg-gray-700 text-gray-400 cursor-wait" };
-      if (invitedUsers.has(userId)) return { text: "Convidado", disabled: true, className: "bg-gray-700 text-gray-400 cursor-not-allowed" };
-      return { text: "Convidar", disabled: false, className: "bg-pink-600 text-white hover:bg-pink-700" };
+      if (invitingUserId === userId || isInvitingAll) {
+          return { 
+              text: "CONVIDANDO...", 
+              disabled: true, 
+              className: "bg-[#1d2026] text-[#d4c0d7]/40 border border-white/5 cursor-wait" 
+          };
+      }
+      if (invitedUsers.has(userId)) {
+          return { 
+              text: "CONVIDADO", 
+              disabled: true, 
+              className: "bg-[#1d2026] text-[#d4c0d7]/40 border border-white/5 cursor-not-allowed" 
+          };
+      }
+      return { 
+          text: "CONVIDAR", 
+          disabled: false, 
+          className: "bg-gradient-to-r from-[#e7006e] to-[#ffb1c3] text-white hover:opacity-90 active:scale-95 shadow-[0_0_12px_rgba(231,0,110,0.25)]" 
+      };
   };
 
   return (
     <div className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={onClose}>
-      <div className={`bg-[#181818] w-full max-w-md h-[70%] rounded-t-2xl shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
-        <header className="flex items-center justify-between p-4 border-b border-gray-700/50 flex-shrink-0">
-            <button onClick={onClose} className="text-gray-300 hover:text-white"><CloseIcon className="w-6 h-6" /></button>
-            <h2 className="text-base font-semibold text-white">Convidar para Sala Privada</h2>
-            <div className="flex items-center space-x-2">
-                {hasUnfollowedUsers && (
-                    <button 
-                        onClick={handleFollowAll} 
-                        disabled={isFollowingAll}
-                        className="text-xs font-semibold px-3 py-1 rounded-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600"
-                    >
-                        {isFollowingAll ? 'Seguindo...' : 'Seguir Todos'}
-                    </button>
-                )}
-                <button 
-                    onClick={handleInviteAll} 
-                    disabled={isInvitingAll || eligibleUsers.every(u => invitedUsers.has(u.id))}
-                    className="text-xs font-semibold px-3 py-1 rounded-full bg-pink-600 hover:bg-pink-700 disabled:bg-gray-600"
-                >
-                    {isInvitingAll ? 'Convidando...' : 'Convidar Todos'}
-                </button>
-            </div>
+      <div className={`bg-[#0f1115] w-full max-w-md h-[75%] rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
+        
+        {/* Header Block exactly matching image 2 */}
+        <header className="relative flex items-center justify-between p-4 flex-shrink-0">
+          <button 
+            onClick={onClose} 
+            className="text-white hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer p-1"
+          >
+            <svg className="w-5 h-5 stroke-current fill-none" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          
+          <h2 className="text-md font-bold text-white tracking-wide absolute left-1/2 -translate-x-1/2">
+            Convidar para Sala Privada
+          </h2>
+          
+          <div className="w-5"></div> {/* Spacer for symmetry */}
         </header>
 
-        <div className="flex-grow px-2 pt-4 overflow-y-auto no-scrollbar">
+        {/* Action Buttons: Seguir Todos & Convidar Todos in a single flex-row */}
+        <div className="grid grid-cols-2 gap-3 px-4 pb-4 flex-shrink-0">
+          <button 
+            onClick={handleFollowAll} 
+            disabled={isFollowingAll || !hasUnfollowedUsers}
+            className="py-2.5 rounded-2xl font-bold text-sm bg-[#6d28d9] disabled:opacity-50 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-purple-900/20"
+          >
+            {isFollowingAll ? 'Seguindo...' : 'Seguir Todos'}
+          </button>
+          
+          <button 
+            onClick={handleInviteAll} 
+            disabled={isInvitingAll || eligibleUsers.every(u => invitedUsers.has(u.id))}
+            className="py-2.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-[#e11d48] to-[#f43f5e] disabled:opacity-50 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-pink-900/20"
+          >
+            {isInvitingAll ? 'Convidando...' : 'Convidar Todos'}
+          </button>
+        </div>
+
+        {/* User List scroll area */}
+        <div className="flex-grow px-4 overflow-y-auto no-scrollbar space-y-3 pb-4">
           {isLoading ? (
-            <div className="flex justify-center py-8"><LoadingSpinner /></div>
+            <div className="flex justify-center py-12"><LoadingSpinner /></div>
           ) : eligibleUsers.length > 0 ? (
             eligibleUsers.map(user => {
               const buttonState = getButtonState(user.id);
@@ -233,68 +266,86 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
                 : null;
 
               return (
-                <div key={user.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-800/50">
+                <div key={user.id} className="flex items-center justify-between p-3 rounded-2xl bg-[#14161d] border border-white/[0.02]">
+                  
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <img 
-                      src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`} 
-                      alt={user.name} 
-                      className="w-12 h-12 rounded-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`;
-                      }}
-                    />
+                    <div className="relative flex-shrink-0">
+                      <img 
+                        src={user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`} 
+                        alt={user.name} 
+                        className="w-11 h-11 rounded-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`;
+                        }}
+                      />
+                      {/* Online state indicator matching image */}
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#14161d]"></span>
+                    </div>
+
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-semibold truncate">{user.name}</p>
-                      <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-1">
-                        {mostExpensiveUserGift ? (
-                            <>
-                                <div 
-                                    className={`flex items-center space-x-1.5 rounded-full px-2 py-0.5 transition-all ${mostExpensiveUserGift.name === requiredGift?.name ? 'bg-yellow-500/20 ring-1 ring-yellow-400' : 'bg-black/30'}`}
-                                    title={mostExpensiveUserGift.name === requiredGift?.name ? 'Presente de convite' : ''}
-                                >
-                                    {mostExpensiveUserGift.component ? React.cloneElement(mostExpensiveUserGift.component, { className: 'w-4 h-4' }) : <span>{mostExpensiveUserGift.icon}</span>}
-                                    <span className={`text-xs ${mostExpensiveUserGift.name === requiredGift?.name ? 'text-yellow-300' : 'text-gray-300'}`}>x{mostExpensiveUserGift.quantity}</span>
-                                </div>
-                                {uniqueGifts.length > 1 && (
-                                    <span className="text-xs text-gray-400 ml-1">+{uniqueGifts.length - 1} outros</span>
-                                )}
-                            </>
-                        ) : (
-                           user.giftsSent.length > 0 &&
-                            <div className="flex items-center space-x-1.5 rounded-full px-2 py-0.5 bg-black/30">
-                                <GiftIcon className="w-4 h-4 text-gray-400"/>
-                                <span className="text-xs text-gray-300">x{user.giftsSent.reduce((sum, g) => sum + g.quantity, 0)}</span>
-                            </div>
+                      <p className="text-white font-bold text-sm tracking-wide truncate">{user.name}</p>
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                        {/* Custom Badge containing the indicator hand/thumb and quantity */}
+                        <div className="flex items-center gap-1 bg-[#2e261f] text-[#f59e0b] px-2 py-0.5 rounded-full border border-yellow-600/20">
+                          <span className="text-[10px]">🌭</span>
+                          <span className="text-[10px] font-extrabold font-mono">x{mostExpensiveUserGift?.quantity || 1}</span>
+                        </div>
+                        {uniqueGifts.length > 1 && (
+                          <span className="text-[10px] text-gray-500 font-medium">+{uniqueGifts.length - 1} outros</span>
                         )}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+
+                  {/* Follow invite control section containing inline plus followed symbol & "Convidar" button */}
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     {!isFollowed && (
                       <button 
                         onClick={() => onFollowUser(user, streamId)}
-                        className="bg-purple-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xs hover:bg-purple-700 transition-colors"
+                        className="p-1 text-[#8b5cf6] hover:opacity-85 transition-opacity cursor-pointer border-none bg-transparent flex items-center justify-center"
                         aria-label={`Seguir ${user.name}`}
                       >
-                        <PlusIcon className="w-5 h-5" />
+                        <svg className="w-5 h-5 stroke-current fill-none" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <line x1="12" y1="5" x2="12" y2="19"></line>
+                          <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
                       </button>
                     )}
+                    
                     <button 
                       onClick={() => handleInvite(user)} 
                       disabled={buttonState.disabled}
-                      className={`font-semibold px-4 py-2 rounded-full transition-colors text-sm w-28 text-center ${buttonState.className}`}
+                      className={`font-bold px-5 py-2 rounded-full transition-all text-sm text-center border-none cursor-pointer ${
+                        buttonState.disabled 
+                          ? 'bg-[#1e2025] text-gray-600 cursor-not-allowed'
+                          : 'bg-[#ec4899] hover:bg-[#db2777] text-white shadow-sm'
+                      }`}
                     >
-                      {buttonState.text}
+                      Convidar
                     </button>
                   </div>
+
                 </div>
               );
             })
           ) : (
-            <p className="text-center text-gray-500 py-8">Ninguém enviou presentes nesta live ainda.</p>
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <div className="w-14 h-14 rounded-full bg-[#14161d] flex items-center justify-center mb-4">
+                <GiftIcon className="w-7 h-7 text-gray-600" />
+              </div>
+              <p className="text-sm font-bold text-gray-400">Ninguém enviou presentes</p>
+              <p className="text-xs text-gray-600 mt-1.5 max-w-xs">Os apoiadores que enviarem presentes aparecerão aqui para poderem ser convidados.</p>
+            </div>
           )}
         </div>
+
+        {/* Footer info: LUMINA STREAM DESIGN SYSTEM */}
+        <div className="text-center py-4 bg-[#0a0b0e] flex-shrink-0 tracking-widest text-[9px] font-bold text-gray-600 select-none">
+          LUMINA STREAM DESIGN SYSTEM
+        </div>
+
       </div>
     </div>
   );

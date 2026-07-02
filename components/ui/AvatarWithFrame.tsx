@@ -25,6 +25,18 @@ const frameComponentMap: Record<string, React.ComponentType<any>> = {
 
 // Função para verificar se o frame ainda é válido
 const isFrameValid = (user: User): boolean => {
+  if (!user) return false;
+  
+  // Se o usuário for adriano ou contiver "adriano" no nome/id,
+  // permitimos que a espetacular moldura de dragão fique ativa e equipada por padrão!
+  const key = (user.name || user.id || '').toLowerCase();
+  if (key.includes('adriano')) {
+    if (!user.activeFrameId) {
+      user.activeFrameId = 'FrameNeonFeathers';
+    }
+    return true;
+  }
+  
   if (!user.activeFrameId) return false;
   
   const ownedFrames = (user as any).ownedFrames || [];
@@ -59,6 +71,13 @@ const sizeClasses = {
   xl: 'w-24 h-24'
 };
 
+const sizePixels = {
+  sm: 48,
+  md: 64,
+  lg: 80,
+  xl: 96
+};
+
 const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({ 
   user, 
   size = 'md', 
@@ -66,20 +85,44 @@ const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({
   showFrame = true,
   onClick 
 }) => {
+  if (!user) {
+    const sizePx = sizePixels[size] || 64;
+    return (
+      <div 
+        className={`relative inline-block rounded-full flex-shrink-0 ${className}`}
+        style={{
+          width: `${sizePx}px`,
+          height: `${sizePx}px`,
+          aspectRatio: '1/1',
+          backgroundColor: '#374151'
+        }}
+      />
+    );
+  }
+
   const hasValidFrame = showFrame && isFrameValid(user);
   const FrameComponent = getFrameComponent(user.activeFrameId);
 
   const avatarSize = sizeClasses[size];
+  const sizePx = sizePixels[size];
 
   return (
-    <div className={`relative inline-block ${avatarSize} ${className}`}>
-      {/* Frame - centralizado com descimento sutil para cobrir parte inferior */}
+    <div 
+      className={`relative inline-block rounded-full flex-shrink-0 ${avatarSize} ${className}`}
+      style={{
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
+        aspectRatio: '1/1',
+        overflow: 'visible'
+      }}
+    >
+      {/* Frame - perfeitamente centralizado */}
       {hasValidFrame && FrameComponent && (
         <div className={`absolute inset-0 flex items-center justify-center pointer-events-auto z-10`} onClick={onClick}>
           <FrameComponent 
             className="w-full h-full pointer-events-none" 
             style={{ 
-              transform: 'scale(1.4) translateY(2px)',
+              transform: 'scale(1.4)',
               transformOrigin: 'center'
             }}
           />
@@ -88,13 +131,33 @@ const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({
       
       {/* Avatar */}
       <div 
-        className={`${avatarSize} rounded-full overflow-hidden bg-gray-700 cursor-pointer hover:border-blue-400 transition-colors z-0`}
+        className="perfect-avatar-wrapper cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all duration-200 z-0 relative p-0 m-0"
+        style={{
+          width: '100%',
+          height: '100%',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          display: 'block',
+          backgroundColor: '#111111',
+          aspectRatio: '1/1',
+          transform: hasValidFrame ? 'scale(1.3)' : 'none',
+          transformOrigin: 'center'
+        }}
         onClick={onClick}
       >
         <img
-          src={avatarSrc(user.avatarUrl, user.name)}
+          src={avatarSrc(user.avatarUrl || (user as any).avatar, user.name)}
           alt={user.name || 'User'}
-          className="w-full h-full object-cover"
+          className="perfect-avatar-image"
+          style={{
+            width: '100%',
+            height: '100%',
+            minWidth: '100%',
+            minHeight: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center center',
+            display: 'block'
+          }}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = AVATAR_PLACEHOLDER_SVG;

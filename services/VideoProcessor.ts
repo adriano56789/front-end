@@ -204,30 +204,33 @@ export class VideoProcessor {
         float g = color.g;
         float b = color.b;
         
-        // 1. Branqueamento (whitening)
+        // 1. Branqueamento (whitening) - Brightness lift for high-end studio skin tones
         float whitening = u_beautySettings.x / 100.0;
-        float luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-        vec3 whitened = mix(vec3(r, g, b), vec3(luminance), whitening * 0.3);
+        vec3 whitened = vec3(r, g, b);
+        if (whitening > 0.0) {
+          whitened = vec3(r, g, b) + (1.0 - vec3(r, g, b)) * whitening * 0.45;
+        }
         
-        // 2. Suavização de pele (smoothing) - blur simplificado
+        // 2. Suavização de pele (smoothing) - bilateral-like soft aesthetic skin glow
         float smoothing = u_beautySettings.y / 100.0;
         if (smoothing > 0.0) {
           vec2 texelSize = 1.0 / u_resolution;
           vec3 blurred = vec3(0.0);
           
-          // Kernel 3x3 simplificado
+          // Kernel 3x3 simplificado com maior espalhamento para suavização visível
           for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
-              vec2 offset = vec2(float(x), float(y)) * texelSize * smoothing * 2.0;
+              vec2 offset = vec2(float(x), float(y)) * texelSize * (1.0 + smoothing * 6.0);
               vec3 sample = texture2D(u_texture, uv + offset).rgb;
               blurred += sample;
             }
           }
           blurred /= 9.0;
           
-          // Detectar pele (simplificado - tons de pele)
-          float isSkin = (r > 0.3 && g > 0.2 && b > 0.1 && r > g && r > b) ? 1.0 : 0.0;
-          whitened = mix(whitened, blurred, isSkin * smoothing * 0.5);
+          // Highly tolerant and inclusive skin tone classification (works on all face types and lighting profiles)
+          float isSkin = (r > 0.12 && g > 0.06 && b > 0.03 && r > g && r > b) ? 1.0 : 0.0;
+          float blendFactor = mix(smoothing * 0.25, smoothing * 0.95, isSkin);
+          whitened = mix(whitened, blurred, blendFactor);
         }
         
         // 3. Saturação (ruborizar)
@@ -367,46 +370,60 @@ export class VideoProcessor {
    * Processamento com WebGL
    */
   private startWebGLProcessing(): void {
-    if (!this.gl || !this.canvas || !this.videoElement || !this.program) return;
+    if (!this.gl || !this.canvas || !this.videoElement || !this.program || !this.videoTexture || !this.positionBuffer || !this.textureBuffer) return;
+    
+    const gl = this.gl;
+    const canvas = this.canvas;
+    const videoElement = this.videoElement;
+    const program = this.program;
+    const videoTexture = this.videoTexture;
+    const positionBuffer = this.positionBuffer;
+    const textureBuffer = this.textureBuffer;
+    const uniformLocs = this.uniformLocations;
+    const uRes = uniformLocs.resolution;
+    const uTime = uniformLocs.time;
+    const uBeauty = uniformLocs.beautySettings;
     
     const render = () => {
       if (!this.isProcessing) return;
       
       // Limpar canvas
-      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       
       // Usar programa
-      this.gl.useProgram(this.program);
+      gl.useProgram(program);
       
       // Atualizar textura do vídeo
-      this.gl.bindTexture(this.gl.TEXTURE_2D, this.videoTexture);
-      this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.videoElement);
+      gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
       
       // Configurar uniforms
-      this.gl.uniform2f(this.uniformLocations.resolution, this.canvas.width, this.canvas.height);
-      this.gl.uniform1f(this.uniformLocations.time, performance.now() / 1000);
-      this.gl.uniform4f(
-        this.uniformLocations.beautySettings,
-        this.beautySettings.whitening,
-        this.beautySettings.smoothing,
-        this.beautySettings.saturation,
-        this.beautySettings.contrast
-      );
+      if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+      if (uTime) gl.uniform1f(uTime, performance.now() / 1000);
+      if (uBeauty) {
+        gl.uniform4f(
+          uBeauty,
+          this.beautySettings.whitening,
+          this.beautySettings.smoothing,
+          this.beautySettings.saturation,
+          this.beautySettings.contrast
+        );
+      }
       
       // Configurar atributos
-      const positionLocation = this.gl.getAttribLocation(this.program, 'a_position');
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
-      this.gl.enableVertexAttribArray(positionLocation);
-      this.gl.vertexAttribPointer(positionLocation, 2, this.gl.FLOAT, false, 0, 0);
+      const positionLocation = gl.getAttribLocation(program, 'a_position');
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
       
-      const texCoordLocation = this.gl.getAttribLocation(this.program, 'a_texCoord');
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureBuffer);
-      this.gl.enableVertexAttribArray(texCoordLocation);
-      this.gl.vertexAttribPointer(texCoordLocation, 2, this.gl.FLOAT, false, 0, 0);
+      const texCoordLocation = gl.getAttribLocation(program, 'a_texCoord');
+      gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+      gl.enableVertexAttribArray(texCoordLocation);
+      gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
       
       // Desenhar
-      this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       
       // Continuar loop
       this.animationId = requestAnimationFrame(render);
@@ -421,20 +438,22 @@ export class VideoProcessor {
   private startCanvas2DProcessing(): void {
     if (!this.canvas || !this.videoElement) return;
     
-    const ctx = this.canvas.getContext('2d');
+    const canvas = this.canvas;
+    const videoElement = this.videoElement;
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
     const render = () => {
       if (!this.isProcessing) return;
       
       // Desenhar vídeo no canvas
-      ctx.drawImage(this.videoElement, 0, 0, this.canvas!.width, this.canvas!.height);
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
       
       // Aplicar filtros CSS básicos como fallback
       ctx.filter = this.getCSSFilterString();
       
       // Redesenhar com filtro
-      ctx.drawImage(this.canvas, 0, 0);
+      ctx.drawImage(canvas, 0, 0);
       
       this.animationId = requestAnimationFrame(render);
     };

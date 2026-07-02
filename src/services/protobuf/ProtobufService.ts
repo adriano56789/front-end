@@ -1,4 +1,130 @@
 import * as protobuf from 'protobufjs';
+import { api } from '../../../services/api';
+
+const FALLBACK_PROTO_TEXT = `
+syntax = "proto3";
+
+package livego;
+
+// Mensagem base para todos os eventos
+message BaseEvent {
+  string type = 1;
+  int64 timestamp = 2;
+  string stream_id = 3;
+}
+
+// Mensagem de chat
+message ChatMessage {
+  string user_id = 1;
+  string user_name = 2;
+  string user_avatar = 3;
+  string message = 4;
+  int64 timestamp = 5;
+}
+
+// Evento de chat
+message ChatEvent {
+  BaseEvent base = 1;
+  ChatMessage chat = 2;
+}
+
+// Presente
+message Gift {
+  string gift_id = 1;
+  string gift_name = 2;
+  string gift_icon = 3;
+  int32 gift_price = 4;
+  int32 quantity = 5;
+  int32 total_value = 6;
+}
+
+// Usuário
+message User {
+  string user_id = 1;
+  string user_name = 2;
+  string user_avatar = 3;
+  int32 user_level = 4;
+}
+
+// Evento de presente
+message GiftEvent {
+  BaseEvent base = 1;
+  User from_user = 2;
+  User to_user = 3;
+  Gift gift = 4;
+  int64 timestamp = 5;
+}
+
+// Evento de entrada de usuário
+message UserJoinedEvent {
+  BaseEvent base = 1;
+  User user = 2;
+  int64 timestamp = 3;
+}
+
+// Evento de join na stream
+message JoinStreamEvent {
+  BaseEvent base = 1;
+  string user_id = 2;
+  int64 timestamp = 3;
+}
+
+// Evento de saída de usuário
+message UserLeftEvent {
+  BaseEvent base = 1;
+  User user = 2;
+  int64 timestamp = 3;
+}
+
+// Status da stream
+message StreamStatus {
+  string status = 1;
+  int32 viewers = 2;
+  string host_id = 3;
+  string host_name = 4;
+}
+
+// Evento de status da stream
+message StreamStatusEvent {
+  BaseEvent base = 1;
+  StreamStatus status = 2;
+  int64 timestamp = 3;
+}
+
+// Informações da stream
+message StreamInfo {
+  string stream_id = 1;
+  string stream_title = 2;
+  string stream_description = 3;
+  string host_id = 4;
+  string host_name = 5;
+  string host_avatar = 6;
+  int32 viewers = 7;
+  int32 coins = 8;
+  string status = 9;
+  int64 start_time = 10;
+}
+
+// Evento de informações da stream
+message StreamInfoEvent {
+  BaseEvent base = 1;
+  StreamInfo info = 2;
+  int64 timestamp = 3;
+}
+
+// Evento wrapper principal - pode conter qualquer tipo de evento
+message LiveEvent {
+  oneof event {
+    ChatEvent chat = 1;
+    GiftEvent gift = 2;
+    UserJoinedEvent user_joined = 3;
+    UserLeftEvent user_left = 4;
+    StreamStatusEvent stream_status = 5;
+    StreamInfoEvent stream_info = 6;
+    JoinStreamEvent join_stream = 7;
+  }
+}
+`;
 
 // Carregar o arquivo .proto
 let root: protobuf.Root;
@@ -10,11 +136,12 @@ let StreamStatusEvent: protobuf.Type;
 let StreamInfoEvent: protobuf.Type;
 let JoinStreamEvent: protobuf.Type;
 
-// Inicializar o Protobuf
-async function initProtobuf() {
+// Carrega o schema sincronamente
+function loadSchemaText(protoText: string): boolean {
   try {
-    // Usar caminho absoluto a partir da raiz do projeto
-    root = await protobuf.load('/protobuf/livego.proto');
+    const parseResult = protobuf.parse(protoText);
+    root = parseResult.root;
+
     LiveEvent = root.lookupType('livego.LiveEvent');
     ChatEvent = root.lookupType('livego.ChatEvent');
     GiftEvent = root.lookupType('livego.GiftEvent');
@@ -22,10 +149,41 @@ async function initProtobuf() {
     StreamStatusEvent = root.lookupType('livego.StreamStatusEvent');
     StreamInfoEvent = root.lookupType('livego.StreamInfoEvent');
     JoinStreamEvent = root.lookupType('livego.JoinStreamEvent');
+    return true;
+  } catch (err) {
+    console.error('❌ [PROTOBUF] Error parsing schema:', err);
+    return false;
+  }
+}
+
+// Inicializar síncrono com o fallback imediatamente
+loadSchemaText(FALLBACK_PROTO_TEXT);
+
+// Inicializar o Protobuf (e atualizar opcionalmente do backend)
+async function initProtobuf() {
+  try {
+    // Garantir que já temos os tipos carregados com o fallback estático
+    if (!ChatEvent) {
+      loadSchemaText(FALLBACK_PROTO_TEXT);
+    }
     
-    console.log('✅ [PROTOBUF] Protocol buffers loaded successfully');
+    // Tentar atualizar dinamicamente a partir do backend
+    try {
+      const protoText = await api.getProtobufDefinition();
+      if (protoText && protoText.trim().startsWith('syntax')) {
+        const success = loadSchemaText(protoText);
+        if (success) {
+          console.log('✅ [PROTOBUF] Protocol buffers dynamically updated from backend successfully');
+          return;
+        }
+      }
+    } catch (apiError) {
+      console.warn('⚠️ [PROTOBUF] Could not fetch dynamic proto definition, using embedded fallback:', apiError.message);
+    }
+    
+    console.log('✅ [PROTOBUF] Protocol buffers initialized successfully (using embedded fallback)');
   } catch (error) {
-    console.error('❌ [PROTOBUF] Error loading protocol buffers:', error);
+    console.error('❌ [PROTOBUF] Error during protocol buffers initialization:', error);
   }
 }
 
@@ -210,7 +368,21 @@ export class ProtobufService {
   
   // Decodificar evento binário para objeto
   static decodeEvent(buffer: Uint8Array): any | null {
-    // Tentar decodificar como Protobuf primeiro
+    if (!buffer || buffer.length === 0) return null;
+
+    // Se o buffer começar com '{' (123) ou '[' (91), é garantido ser uma string JSON
+    if (buffer[0] === 123 || buffer[0] === 91) {
+      try {
+        const jsonString = new TextDecoder().decode(buffer);
+        const event = JSON.parse(jsonString);
+        return event;
+      } catch (jsonError) {
+        console.error('❌ [JSON] Erro ao decodificar string JSON:', jsonError);
+        return null;
+      }
+    }
+
+    // Caso contrário, tratar como Protobuf real
     if (LiveEvent) {
       try {
         const decoded = LiveEvent.decode(buffer);
@@ -220,21 +392,14 @@ export class ProtobufService {
           defaults: true,
           oneofs: true
         });
-        console.log(`📦 [PROTOBUF] Decoded protobuf event`);
+        console.log(`📦 [PROTOBUF] Decoded protobuf event successfully`);
         return obj;
       } catch (protobufError) {
+        console.error('❌ [PROTOBUF] Erro ao decodificar evento Protobuf:', protobufError);
       }
     }
 
-    // Fallback: tentar decodificar como JSON string
-    try {
-      const jsonString = new TextDecoder().decode(buffer);
-      const event = JSON.parse(jsonString);
-      return event;
-    } catch (jsonError) {
-      console.error('❌ [PROTOBUF] Error decoding event:', jsonError);
-      return null;
-    }
+    return null;
   }
   
   // Converter buffer para HEX (para debug)

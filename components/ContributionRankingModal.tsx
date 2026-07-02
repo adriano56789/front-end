@@ -302,11 +302,11 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                                             </div>
                                         )}
 
-                                        <div className={`w-10 h-10 rounded-full p-[1.5px] ${index === 0 ? 'bg-pink-400' : index === 1 ? 'bg-blue-400' : 'bg-gray-600'}`}>
+                                        <div className={`w-10 h-10 rounded-full p-[1.5px] ${index === 0 ? 'bg-pink-400' : index === 1 ? 'bg-blue-400' : 'bg-gray-600'} overflow-hidden`}>
                                             <img 
                                                 src={user.avatarUrl || 'https://picsum.photos/seed/default-avatar/200/200.jpg'} 
                                                 alt={user.name || 'Usuário'} 
-                                                className="w-full h-full rounded-full object-cover border border-[#161618]"
+                                                className="w-full h-full object-cover"
                                                 onError={(e) => {
                                                     e.currentTarget.src = 'https://picsum.photos/seed/fallback-avatar/200/200.jpg';
                                                 }}

@@ -48,13 +48,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="relative h-full w-full flex flex-col items-center justify-center bg-black font-sans text-white overflow-hidden">
+    <div className="relative h-full w-full flex flex-col items-center justify-center bg-[#110f13] font-sans text-white overflow-hidden">
       
-      <div className="z-10 w-full max-w-sm px-8 flex flex-col items-center justify-center min-h-[600px]">
+      <div className="z-10 w-full max-w-[340px] px-6 flex flex-col items-center justify-center min-h-[600px]">
         
         {/* Seção do Logo */}
-        <div className="mb-12 text-center">
-            <h1 className="text-6xl font-black italic tracking-tighter text-white drop-shadow-2xl" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div className="mb-10 text-center flex flex-col items-center">
+            <h1 className="text-5xl font-black italic tracking-tighter text-white drop-shadow-xl" style={{ fontFamily: 'Arial, sans-serif' }}>
                 Livenza
             </h1>
             <p className="text-xs font-bold tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 uppercase mt-2 drop-shadow-sm">
@@ -70,7 +70,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     placeholder="Seu nome real ou apelido" 
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-white/10 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 backdrop-blur-md transition-all"
+                    className="w-full bg-[#1b191e] border border-[#2a272e] rounded-[14px] px-5 py-[16px] text-white placeholder-[#716e75] text-[14px] font-medium focus:outline-none focus:border-[#d900ff] transition-colors"
                  />
             )}
             
@@ -79,48 +79,48 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 placeholder={isRegistering ? "seu@email.com" : "seu@email.com"} 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white/10 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 backdrop-blur-md transition-all"
+                className="w-full bg-[#1b191e] border border-[#2a272e] rounded-[14px] px-5 py-[16px] text-white placeholder-[#716e75] text-[14px] font-medium focus:outline-none focus:border-[#d900ff] transition-colors"
             />
             
             <input 
                 type="password" 
-                placeholder={isRegistering ? "Crie uma senha segura" : "Senha"} 
+                placeholder={isRegistering ? "Crie uma senha" : "Senha"} 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white/10 border border-white/10 rounded-2xl px-5 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/50 backdrop-blur-md transition-all"
+                className="w-full bg-[#1b191e] border border-[#2a272e] rounded-[14px] px-5 py-[16px] text-white placeholder-[#716e75] text-[14px] font-medium focus:outline-none focus:border-[#d900ff] transition-colors"
             />
 
             <button 
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-[#a855f7] to-[#db2777] text-white font-bold py-4 rounded-2xl shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 hover:opacity-90 active:scale-[0.98] transition-all uppercase tracking-wide text-lg mt-6 disabled:opacity-50"
+                className="w-full bg-gradient-to-r from-[#d900ff] to-[#f60172] text-white font-black py-[16px] rounded-[14px] shadow-[0_0_20px_rgba(217,0,255,0.2)] hover:opacity-90 active:scale-[0.98] transition-all uppercase tracking-wider text-[15px] mt-2 disabled:opacity-50"
             >
                 {isLoading ? (isRegistering ? "CRIANDO..." : "ENTRANDO...") : (isRegistering ? "CRIAR MINHA CONTA" : "ENTRAR")}
             </button>
         </form>
 
         {/* Links de Rodapé */}
-        <div className="mt-12 text-center">
-            <p className="text-gray-400 text-sm mb-3">
-                {isRegistering ? "Já possui uma conta ativa?" : "Ainda não tem acesso?"}
+        <div className="mt-10 text-center w-full">
+            <p className="text-[#646168] text-[13px] font-medium mb-4 flex items-center justify-center">
+                {isRegistering ? "Já possui acesso?" : "Ainda não tem acesso?"}
             </p>
             {error && (
-                <p className="text-red-500 text-sm mt-2">{error}</p>
+                <p className="text-[#ff275a] text-[13px] font-medium mt-2 mb-3">{error}</p>
             )}
             <button 
                 onClick={() => setIsRegistering(!isRegistering)}
-                className="relative text-white font-bold text-sm tracking-wider uppercase group pb-1"
+                className="relative text-white font-black text-[12px] tracking-wider uppercase hover:opacity-80 transition-opacity flex flex-col items-center mx-auto"
             >
-                {isRegistering ? "FAZER LOGIN NO SISTEMA" : "CRIAR MINHA CONTA AGORA"}
-                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-500 to-pink-500 transform scale-x-100 transition-transform"></span>
+                <div className="mb-2">{isRegistering ? "FAZER LOGIN NO SISTEMA" : "CRIAR MINHA CONTA AGORA"}</div>
+                <div className="h-[1px] w-full bg-white/10"></div>
             </button>
         </div>
 
       </div>
 
       {/* Versão no Rodapé */}
-      <div className="absolute bottom-8 z-10 text-white/20 text-[10px] font-bold tracking-[0.2em] uppercase">
-        LIVENZA
+      <div className="absolute bottom-8 w-full text-center z-10 text-[#2a272e] text-[9px] font-black tracking-[0.3em] uppercase">
+        LIVENZA © 2024 - PRIVATE ACCESS
       </div>
     </div>
   );

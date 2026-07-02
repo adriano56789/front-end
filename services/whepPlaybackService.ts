@@ -1,4 +1,5 @@
 import { getWhepEndpointUrl } from './mediaConfig';
+import { api } from './api';
 
 export class WhepPlaybackService {
   private pc: RTCPeerConnection | null = null;
@@ -32,21 +33,11 @@ export class WhepPlaybackService {
 
     console.log(`[WHEP] ICE ufrag=${this.iceUfrag}, mids=${this.mediaMids.join(',')}`);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sdp' },
-      body: sdp,
-    });
+    const result = await api.rtc.whep(streamKey, sdp);
+    await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
 
-    if (!response.ok) {
-      throw new Error(`WHEP POST failed: ${response.status}`);
-    }
-
-    const answerSdp = await response.text();
-    await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-
-    this.iceUrl = response.headers.get('location');
-    this.eTag = response.headers.get('ETag');
+    this.iceUrl = result.location;
+    this.eTag = result.eTag;
 
     if (this.iceUrl) {
       pc.onicecandidate = (event) => {
@@ -89,17 +80,10 @@ export class WhepPlaybackService {
       frag += `m=audio 9 RTP/AVP 0\r\na=mid:${mid}\r\na=${candidate.candidate}\r\n`;
     }
 
-    const res = await fetch(this.iceUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/trickle-ice-sdpfrag',
-        ETag: this.eTag,
-      },
-      body: frag,
-    });
-
-    if (!res.ok) {
-      console.warn(`[WHEP] ICE candidate PATCH returned ${res.status}`);
+    try {
+      await api.rtc.patchTrickleIce(this.iceUrl, this.eTag, frag);
+    } catch (err) {
+      console.warn('[WHEP] ICE candidate PATCH failed:', err);
     }
   }
 

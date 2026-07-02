@@ -40,6 +40,32 @@ html, body {
   top: 0;
   left: 0;
   padding-bottom: env(safe-area-inset-bottom, 0); /* Espaço para barra do Android */
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), left 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Responsividade de Tela para Laptops, Desktops, Ultrawide e Tablets */
+@media (min-width: 480px) {
+  .app-container {
+    width: 480px !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 64px rgba(0, 0, 0, 0.9);
+  }
+  
+  /* Forçar que elementos de overlay fixos fiquem confinados ao container centrado */
+  .app-container .fixed,
+  .app-container [class*="fixed "] {
+    width: 480px !important;
+    max-width: 100vw !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+  }
 }
 
 /* Container de Conteúdo */
@@ -63,7 +89,7 @@ html, body {
   position: fixed;
   top: 0;
   left: 0;
-  background: #f8f9fa;
+  background: #000000;
   padding-bottom: env(safe-area-inset-bottom, 0); /* Safe area para Android */
 }
 
@@ -323,3 +349,53 @@ body {
   height: 100vh;
   width: 100vw;
 }
+
+/* Perfect Circular Avatar Wrapper and Image */
+.perfect-avatar-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0); /* Forces GPU round clip rendering on WebViews */
+  aspect-ratio: 1 / 1 !important;
+  display: block;
+  padding: 0 !important;
+  margin: 0 !important;
+  -webkit-mask-image: -webkit-radial-gradient(circle, white 100%, transparent 100%);
+  mask-image: radial-gradient(circle, white 100%, transparent 100%);
+  background-color: #222222 !important; /* Background while loading */
+}
+
+.perfect-avatar-image {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100% !important;
+  min-height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 50% !important;
+  display: block;
+  padding: 0 !important;
+  margin: 0 !important;
+  transform: none !important;
+  transform-origin: center !important;
+}
+
+/* Forçar seleção de texto para cópia no mobile (iOS/Android/iFrames) */
+.select-text, .selectable-text, [class*="select-text"] {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+
+textarea, input {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+}
+

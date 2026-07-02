@@ -12,7 +12,7 @@ const Base64ConversionTest: React.FC = () => {
   const [testResults, setTestResults] = useState<any[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const { getCachedUrl, invalidateUrl, getCacheStats, processObject } = useImageCache();
+  const { getCachedUrl, invalidateUrl, getCacheStats, processObject } = useImageCache() as any;
 
   // Test data com Base64
   const testUser = {

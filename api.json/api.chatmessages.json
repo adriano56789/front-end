@@ -1,0 +1,22 @@
+[{
+  "_id": {
+    "$oid": "6a03f67881ff65d720309c96"
+  },
+  "id": "temp_1778644600076",
+  "__v": 0,
+  "content": "po",
+  "conversationId": "chat_private_98501723_98501723",
+  "createdAt": {
+    "$date": "2026-05-13T03:56:40.121Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "98501723",
+  "senderId": "98501723",
+  "sentAt": {
+    "$date": "2026-05-13T03:56:40.121Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-13T03:56:40.121Z"
+  }
+}]

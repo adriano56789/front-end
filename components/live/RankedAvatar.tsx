@@ -40,8 +40,13 @@ export const RankedAvatar: React.FC<RankedAvatarProps> = ({ user, rank, onClick 
     const frameGlowClass = '';
 
     return (
-        <button onClick={(e) => { e.stopPropagation(); onClick(user); }} className="relative shrink-0 w-8 h-8">
-            <img src={user.avatarUrl} alt={user.name} className="w-full h-full rounded-full object-cover" />
+        <button onClick={(e) => { e.stopPropagation(); onClick(user); }} className="relative shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-700">
+            <img 
+                src={user.avatarUrl || (user as any).avatar || `https://picsum.photos/seed/${user.id || 'default'}/200/200.jpg`} 
+                alt={user.name} 
+                className="absolute inset-0 w-full h-full object-cover block rounded-full" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
             <RankedAvatarBadge rank={rank} />
         </button>
     );

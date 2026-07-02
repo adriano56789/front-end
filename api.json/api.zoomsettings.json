@@ -1,0 +1,30 @@
+[{
+  "_id": {
+    "$oid": "69ec25ff3dd430637abbe7a1"
+  },
+  "userId": "98501723",
+  "zoomLevel": 90,
+  "isDefault": false,
+  "updatedAt": {
+    "$date": "2026-04-25T02:25:06.697Z"
+  },
+  "createdAt": {
+    "$date": "2026-04-25T02:25:03.569Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69ee79aa904994765908bea1"
+  },
+  "userId": "98501723",
+  "zoomLevel": 70,
+  "isDefault": false,
+  "updatedAt": {
+    "$date": "2026-04-28T12:19:38.752Z"
+  },
+  "createdAt": {
+    "$date": "2026-04-26T20:46:34.808Z"
+  },
+  "__v": 0
+}]
