@@ -1,0 +1,64 @@
+[{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e4a5"
+  },
+  "streamId": "adriano_archive_1",
+  "hostId": "adriano",
+  "viewers": 15,
+  "peakViewers": 32,
+  "coins": 250,
+  "giftsReceived": 12,
+  "messagesCount": 87,
+  "followers": 5,
+  "members": 3,
+  "fans": 2,
+  "totalDuration": 5400,
+  "isStreamMuted": false,
+  "isMicrophoneMuted": false,
+  "isAutoFollowEnabled": true,
+  "isAutoPrivateInviteEnabled": false,
+  "startTime": {
+    "$date": "2026-06-12T06:38:21.743Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T08:08:21.743Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-12T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T08:08:21.743Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e4a6"
+  },
+  "streamId": "adriano_archive_2",
+  "hostId": "adriano",
+  "viewers": 8,
+  "peakViewers": 20,
+  "coins": 100,
+  "giftsReceived": 5,
+  "messagesCount": 45,
+  "followers": 2,
+  "members": 1,
+  "fans": 1,
+  "totalDuration": 3600,
+  "isStreamMuted": false,
+  "isMicrophoneMuted": false,
+  "isAutoFollowEnabled": false,
+  "isAutoPrivateInviteEnabled": false,
+  "startTime": {
+    "$date": "2026-06-15T06:38:21.743Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T07:38:21.743Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-15T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T07:38:21.743Z"
+  }
+}]

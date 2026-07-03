@@ -1,0 +1,16 @@
+[{
+  "_id": {
+    "$oid": "6a3240f7d837966b6229915d"
+  },
+  "userId": "adriano",
+  "role": "admin",
+  "permissions": [
+    "all"
+  ],
+  "createdAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  }
+}]

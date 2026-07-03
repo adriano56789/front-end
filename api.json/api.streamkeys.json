@@ -1,9 +1,12 @@
-{
-  "streamKey": "98501723",
-  "rtmpIngestUrl": "rtmp://72.60.249.175:1935/live/98501723",
-  "srtIngestUrl": "srt://72.60.249.175:10000?streamid=98501723",
-  "streamServerUrl": "rtmp://72.60.249.175:1935/live",
-  "playbackUrl": "https://livego.store/live/98501723.flv",
-  "hlsUrl": "https://livego.store/live/98501723.m3u8",
-  "webrtcUrl": "webrtc://livego.store/live/98501723"
-}
+[{
+  "_id": {
+    "$oid": "6a2a82e2086cabd1427ec021"
+  },
+  "streamKey": "adriano",
+  "rtmpIngestUrl": "rtmp://2.25.192.154:1935/live/adriano",
+  "srtIngestUrl": "srt://2.25.192.154:10000?streamid=adriano",
+  "streamServerUrl": "rtmp://2.25.192.154:1935/live",
+  "playbackUrl": "https://livego.store/live/adriano.flv",
+  "hlsUrl": "https://livego.store/live/adriano.m3u8",
+  "webrtcUrl": "webrtc://livego.store/live/adriano"
+}]

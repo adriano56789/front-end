@@ -1,0 +1,28 @@
+[{
+  "_id": {
+    "$oid": "6a3240deb4bd3eee44ee0dce"
+  },
+  "userId": "adriano",
+  "username": "adriano",
+  "name": "adriano",
+  "avatarUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg",
+  "status": "online",
+  "streamId": "adriano",
+  "joinedAt": {
+    "$date": "2026-06-17T05:38:22.332Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240deb4bd3eee44ee0dcf"
+  },
+  "userId": "rafa",
+  "username": "rafa",
+  "name": "rafa",
+  "avatarUrl": "https://api.livego.store/uploads/avatars/avatar_rafa.jpg",
+  "status": "online",
+  "streamId": "adriano",
+  "joinedAt": {
+    "$date": "2026-06-17T06:08:22.332Z"
+  }
+}]

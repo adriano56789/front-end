@@ -1,0 +1,28 @@
+[{
+  "_id": {
+    "$oid": "6a3240f7d837966b62299159"
+  },
+  "userId": "adriano",
+  "camera": "granted",
+  "microphone": "granted",
+  "createdAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240f7d837966b6229915a"
+  },
+  "userId": "rafa",
+  "camera": "granted",
+  "microphone": "prompt",
+  "createdAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  }
+}]

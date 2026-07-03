@@ -2,7 +2,7 @@
   "_id": {
     "$oid": "69e709b956e57cc657b57501"
   },
-  "userId": "98501723",
+  "userId": "adriano",
   "notificationsEnabled": true,
   "newMessages": true,
   "liveStart": true,

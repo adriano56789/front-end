@@ -1,0 +1,1330 @@
+[{
+  "_id": {
+    "$oid": "6a2a81ca2806be4288fc8a2c"
+  },
+  "id": "hist_adriano_1781170634604",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781170508934.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-11T09:36:17.151Z"
+  },
+  "endTime": {
+    "$date": "2026-06-11T09:37:14.604Z"
+  },
+  "duration": "00:00:57",
+  "peakViewers": 1,
+  "totalCoins": 0,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-11T09:37:14.617Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-11T09:37:14.617Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2aa3322806be4288fc9629"
+  },
+  "id": "hist_adriano_1781179186650",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781170969111.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-11T11:51:09.506Z"
+  },
+  "endTime": {
+    "$date": "2026-06-11T11:59:46.650Z"
+  },
+  "duration": "00:08:37",
+  "peakViewers": 1,
+  "totalCoins": 0,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-11T11:59:46.662Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-11T11:59:46.662Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2b1b394a088f00e8c36a99"
+  },
+  "id": "hist_adriano_1781209913703",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781185419769.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-11T19:04:46.254Z"
+  },
+  "endTime": {
+    "$date": "2026-06-11T20:31:53.703Z"
+  },
+  "duration": "01:27:07",
+  "peakViewers": 1,
+  "totalCoins": 1,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-11T20:31:53.775Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-11T20:31:53.775Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2bc65ed200d0f0ef179623"
+  },
+  "id": "hist_adriano_1781253726469",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-12T08:39:47.748Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T08:42:06.469Z"
+  },
+  "duration": "00:02:18",
+  "peakViewers": 1,
+  "totalCoins": 1,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-12T08:42:06.484Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T08:42:06.484Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2be7f1d200d0f0ef17a120"
+  },
+  "id": "hist_adriano_1781262321455",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-12T09:23:27.459Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T11:05:21.455Z"
+  },
+  "duration": "01:41:53",
+  "peakViewers": 1,
+  "totalCoins": 1,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-12T11:05:21.489Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T11:05:21.489Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c2d97d200d0f0ef17b5da"
+  },
+  "id": "hist_adriano_1781280151365",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-12T11:05:39.559Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T16:02:31.365Z"
+  },
+  "duration": "04:56:51",
+  "peakViewers": 2,
+  "totalCoins": 152,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-12T16:02:32.614Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T16:02:32.614Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c3a5bd200d0f0ef17c760"
+  },
+  "id": "hist_adriano_1781283419878",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-12T16:10:01.770Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T16:56:59.878Z"
+  },
+  "duration": "00:46:58",
+  "peakViewers": 1,
+  "totalCoins": 182,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-12T16:57:00.273Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T16:57:00.273Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c569dd200d0f0ef17dd56"
+  },
+  "id": "hist_adriano_1781290653464",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-12T18:48:56.524Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T18:57:33.464Z"
+  },
+  "duration": "00:08:36",
+  "peakViewers": 1,
+  "totalCoins": 481,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-12T18:57:33.468Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T18:57:33.468Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c84886b080c5cbb51befa"
+  },
+  "id": "hist_adriano_1781302408992",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "m",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781299755882.png",
+  "title": "m",
+  "startTime": {
+    "$date": "2026-06-12T21:55:40.667Z"
+  },
+  "endTime": {
+    "$date": "2026-06-12T22:13:28.992Z"
+  },
+  "duration": "00:17:48",
+  "peakViewers": 1,
+  "totalCoins": 482,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "ca",
+  "createdAt": {
+    "$date": "2026-06-12T22:13:29.006Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T22:13:29.006Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ca8ce06a9911f3b549b04"
+  },
+  "id": "hist_adriano_1781311693092",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "n",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781309722595.png",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-13T00:21:25.719Z"
+  },
+  "endTime": {
+    "$date": "2026-06-13T00:48:13.092Z"
+  },
+  "duration": "00:26:47",
+  "peakViewers": 1,
+  "totalCoins": 482,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-13T00:48:14.623Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T00:48:14.623Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ca9aa06a9911f3b54a9bf"
+  },
+  "id": "hist_adriano_1781311914944",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "n",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781311720972.png",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-13T00:50:58.265Z"
+  },
+  "endTime": {
+    "$date": "2026-06-13T00:51:54.944Z"
+  },
+  "duration": "00:00:56",
+  "peakViewers": 1,
+  "totalCoins": 1,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-13T00:51:54.946Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T00:51:54.946Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2cb77c06a9911f3b54d0d1"
+  },
+  "id": "hist_adriano_1781315452082",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "n",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781315190046.png",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-13T01:48:47.903Z"
+  },
+  "endTime": {
+    "$date": "2026-06-13T01:50:52.082Z"
+  },
+  "duration": "00:02:04",
+  "peakViewers": 1,
+  "totalCoins": 483,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-13T01:50:52.088Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T01:50:52.088Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2fe19c40e43c9017cf077b"
+  },
+  "id": "hist_adriano_1781522844494",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781316038503.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-15T11:27:16.085Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T11:27:24.494Z"
+  },
+  "duration": "00:00:08",
+  "peakViewers": 2,
+  "totalCoins": 484,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T11:27:24.515Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T11:27:24.515Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2fe69340e43c9017cf2bab"
+  },
+  "id": "hist_adriano_1781524115464",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781316038503.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-15T11:47:07.420Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T11:48:35.464Z"
+  },
+  "duration": "00:01:28",
+  "peakViewers": 1,
+  "totalCoins": 484,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T11:48:35.468Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T11:48:35.468Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ff37c735fe82cd3a6a32f"
+  },
+  "id": "hist_adriano_1781527420106",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781316038503.png",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-15T12:42:31.392Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T12:43:40.106Z"
+  },
+  "duration": "00:01:08",
+  "peakViewers": 1,
+  "totalCoins": 484,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T12:43:40.117Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T12:43:40.117Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ff64009d5dc820cf9163b"
+  },
+  "id": "hist_adriano_1781528128853",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781527553668.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-15T12:53:58.191Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T12:55:28.853Z"
+  },
+  "duration": "00:01:30",
+  "peakViewers": 2,
+  "totalCoins": 484,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T12:55:28.861Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T12:55:28.861Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3020a509d5dc820cf9bea1"
+  },
+  "id": "hist_adriano_1781538981317",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-15T13:23:30.426Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T15:56:21.317Z"
+  },
+  "duration": "02:32:50",
+  "peakViewers": 1,
+  "totalCoins": 21582,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T15:56:21.330Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:56:21.330Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30443b09d5dc820cfa2f36"
+  },
+  "id": "hist_adriano_1781548091160",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "vv",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781547587546.jpg",
+  "title": "vv",
+  "startTime": {
+    "$date": "2026-06-15T18:26:49.597Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T18:28:11.160Z"
+  },
+  "duration": "00:01:21",
+  "peakViewers": 2,
+  "totalCoins": 22064,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T18:28:11.169Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T18:28:11.169Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3044bf09d5dc820cfa38a0"
+  },
+  "id": "hist_adriano_1781548223390",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781547587546.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-15T18:28:33.539Z"
+  },
+  "endTime": {
+    "$date": "2026-06-15T18:30:23.390Z"
+  },
+  "duration": "00:01:49",
+  "peakViewers": 1,
+  "totalCoins": 22064,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-15T18:30:23.391Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T18:30:23.391Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30f58994dcdb5dc482643f"
+  },
+  "id": "hist_adriano_1781593481765",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T06:58:54.536Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T07:04:41.765Z"
+  },
+  "duration": "00:05:47",
+  "peakViewers": 1,
+  "totalCoins": 22064,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T07:04:41.795Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:04:41.795Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3106e494dcdb5dc4828c07"
+  },
+  "id": "hist_adriano_1781597924107",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T07:05:09.099Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T08:18:44.107Z"
+  },
+  "duration": "01:13:35",
+  "peakViewers": 1,
+  "totalCoins": 26293,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T08:18:44.212Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T08:18:44.212Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3137b394dcdb5dc4837d11"
+  },
+  "id": "hist_adriano_1781610419818",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T11:46:54.905Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T11:46:59.818Z"
+  },
+  "duration": "00:00:04",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T11:46:59.862Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T11:46:59.862Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a313d5894dcdb5dc48388da"
+  },
+  "id": "hist_adriano_1781611864966",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T11:48:47.664Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T12:11:04.966Z"
+  },
+  "duration": "00:22:17",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T12:11:05.052Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T12:11:05.052Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31471494dcdb5dc4839da7"
+  },
+  "id": "hist_adriano_1781614356489",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T12:50:15.819Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T12:52:36.489Z"
+  },
+  "duration": "00:02:20",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T12:52:36.491Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T12:52:36.491Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31474794dcdb5dc483a505"
+  },
+  "id": "hist_adriano_1781614407441",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T12:53:23.582Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T12:53:27.441Z"
+  },
+  "duration": "00:00:03",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T12:53:27.442Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T12:53:27.442Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a316a2cf8cc34b5ca910f99"
+  },
+  "id": "hist_adriano_1781623340350",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T14:04:25.572Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T15:22:20.350Z"
+  },
+  "duration": "01:17:54",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T15:22:20.443Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T15:22:20.443Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a316a2cf8cc34b5ca910f9e"
+  },
+  "id": "hist_adriano_1781623340698",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T14:04:25.572Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T15:22:20.698Z"
+  },
+  "duration": "01:17:55",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T15:22:20.710Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T15:22:20.710Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3171e0845fac7c405f1ad2"
+  },
+  "id": "hist_adriano_1781625312951",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "v",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-16T15:53:23.544Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T15:55:12.951Z"
+  },
+  "duration": "00:01:49",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T15:55:12.997Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T15:55:12.997Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a317298845fac7c405f2643"
+  },
+  "id": "hist_adriano_1781625496631",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "n",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-16T15:56:48.636Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T15:58:16.631Z"
+  },
+  "duration": "00:01:27",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T15:58:16.668Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T15:58:16.668Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a317397845fac7c405f3b10"
+  },
+  "id": "hist_adriano_1781625751941",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T16:00:30.106Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T16:02:31.941Z"
+  },
+  "duration": "00:02:01",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T16:02:31.943Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:02:31.943Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3174ec845fac7c405f4c60"
+  },
+  "id": "hist_adriano_1781626092223",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "adriano",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "adriano",
+  "startTime": {
+    "$date": "2026-06-16T16:08:07.100Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T16:08:12.223Z"
+  },
+  "duration": "00:00:05",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T16:08:12.227Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:08:12.227Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3175d7845fac7c405f57d0"
+  },
+  "id": "hist_adriano_1781626327035",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T16:09:47.174Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T16:12:07.035Z"
+  },
+  "duration": "00:02:19",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T16:12:07.043Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:12:07.043Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3190a84a05e903ce856f59"
+  },
+  "id": "hist_adriano_1781633192954",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "n",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-16T18:06:22.141Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T18:06:32.954Z"
+  },
+  "duration": "00:00:10",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T18:06:32.962Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T18:06:32.962Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31925d4a05e903ce859cc1"
+  },
+  "id": "hist_adriano_1781633629803",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T18:07:18.194Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T18:13:49.803Z"
+  },
+  "duration": "00:06:31",
+  "peakViewers": 1,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T18:13:49.931Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T18:13:49.931Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31ab6b9163faacdfa04e06"
+  },
+  "id": "hist_adriano_1781640043071",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T20:00:19.437Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T20:00:43.071Z"
+  },
+  "duration": "00:00:23",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T20:00:43.121Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T20:00:43.121Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31c5562f2e7c3b648e2c75"
+  },
+  "id": "hist_adriano_1781646678888",
+  "streamId": "adriano",
+  "hostId": "adriano",
+  "hostName": "b",
+  "hostAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "title": "b",
+  "startTime": {
+    "$date": "2026-06-16T21:51:13.465Z"
+  },
+  "endTime": {
+    "$date": "2026-06-16T21:51:18.888Z"
+  },
+  "duration": "00:00:05",
+  "peakViewers": 2,
+  "totalCoins": 26775,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "Brasil",
+  "createdAt": {
+    "$date": "2026-06-16T21:51:18.939Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T21:51:18.939Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3215a122f400e537dc6d48"
+  },
+  "id": "hist_adri_1781667233649",
+  "streamId": "adri",
+  "hostId": "adri",
+  "hostName": "v",
+  "hostAvatar": "",
+  "title": "v",
+  "startTime": {
+    "$date": "2026-06-17T03:33:47.578Z"
+  },
+  "endTime": {
+    "$date": "2026-06-17T03:33:53.649Z"
+  },
+  "duration": "00:00:06",
+  "peakViewers": 1,
+  "totalCoins": 0,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-17T03:33:53.651Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T03:33:53.651Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a322151ce7eac7c0511725e"
+  },
+  "id": "hist_adri_1781670225804",
+  "streamId": "adri",
+  "hostId": "adri",
+  "hostName": "n",
+  "hostAvatar": "",
+  "title": "n",
+  "startTime": {
+    "$date": "2026-06-17T03:34:23.547Z"
+  },
+  "endTime": {
+    "$date": "2026-06-17T04:23:45.804Z"
+  },
+  "duration": "00:49:22",
+  "peakViewers": 2,
+  "totalCoins": 0,
+  "totalFollowers": 0,
+  "totalMembers": 0,
+  "totalFans": 0,
+  "category": "popular",
+  "tags": [
+    "popular"
+  ],
+  "country": "br",
+  "createdAt": {
+    "$date": "2026-06-17T04:23:45.808Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T04:23:45.808Z"
+  },
+  "__v": 0
+}]

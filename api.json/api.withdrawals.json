@@ -1,0 +1,42 @@
+[{
+  "_id": {
+    "$oid": "6a3240f7d837966b6229915b"
+  },
+  "id": "wd_1",
+  "userId": "adriano",
+  "amount": 50,
+  "transactionAmount": 50,
+  "netAmount": 42.5,
+  "feeAmount": 7.5,
+  "description": "Saque via PIX",
+  "status": "completed",
+  "payerEmail": "adrianomdk5@gmail.com",
+  "externalReference": "ext_ref_001",
+  "createdAt": {
+    "$date": "2026-06-05T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-05T08:38:47.142Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240f7d837966b6229915c"
+  },
+  "id": "wd_2",
+  "userId": "adriano",
+  "amount": 25,
+  "transactionAmount": 25,
+  "netAmount": 21.25,
+  "feeAmount": 3.75,
+  "description": "Saque via PIX",
+  "status": "completed",
+  "payerEmail": "adrianomdk5@gmail.com",
+  "externalReference": "ext_ref_002",
+  "createdAt": {
+    "$date": "2026-06-12T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T07:38:47.142Z"
+  }
+}]

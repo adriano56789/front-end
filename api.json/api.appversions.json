@@ -1,42 +1,40 @@
-[
-  {
-    "_id": {
-      "$oid": "69e71a10012bb1b0a7d333aa"
-    },
-    "app": "livenza",
-    "latestVersion": "1.0.0",
-    "forceUpdate": false,
-    "message": "Versão inicial do Livenza",
-    "updateUrl": "https://play.google.com/store/apps/details?id=com.livenza.app",
-    "websiteUrl": "https://livenza.store/",
-    "changelog": "Versão inicial do sistema Livenza",
-    "minSupportedVersion": "1.0.0",
-    "createdAt": {
-      "$date": "2026-04-21T06:32:48.735Z"
-    },
-    "updatedAt": {
-      "$date": "2026-04-21T06:32:48.735Z"
-    },
-    "__v": 0
+[{
+  "_id": {
+    "$oid": "69e71a10012bb1b0a7d333aa"
   },
-  {
-    "_id": {
-      "$oid": "69e71a11012bb1b0a7d333fa"
-    },
-    "app": "livego",
-    "latestVersion": "1.0.0",
-    "forceUpdate": false,
-    "message": "Versão inicial do Livego",
-    "updateUrl": "https://play.google.com/store/apps/details?id=com.livego.app",
-    "websiteUrl": "https://livego.store/",
-    "changelog": "Versão inicial do sistema Livego",
-    "minSupportedVersion": "1.0.0",
-    "createdAt": {
-      "$date": "2026-04-21T06:32:49.019Z"
-    },
-    "updatedAt": {
-      "$date": "2026-04-21T06:32:49.019Z"
-    },
-    "__v": 0
-  }
-] 
+  "app": "livenza",
+  "latestVersion": "1.0.0",
+  "forceUpdate": false,
+  "message": "Versão inicial do Livenza",
+  "updateUrl": "https://play.google.com/store/apps/details?id=com.livenza.app",
+  "websiteUrl": "https://livenza.store/",
+  "changelog": "Versão inicial do sistema Livenza",
+  "minSupportedVersion": "1.0.0",
+  "createdAt": {
+    "$date": "2026-04-21T06:32:48.735Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-21T06:32:48.735Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e71a11012bb1b0a7d333fa"
+  },
+  "app": "livego",
+  "latestVersion": "1.0.0",
+  "forceUpdate": false,
+  "message": "Versão inicial do Livego",
+  "updateUrl": "https://play.google.com/store/apps/details?id=com.livego.app",
+  "websiteUrl": "https://livego.store/",
+  "changelog": "Versão inicial do sistema Livego",
+  "minSupportedVersion": "1.0.0",
+  "createdAt": {
+    "$date": "2026-04-21T06:32:49.019Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-21T06:32:49.019Z"
+  },
+  "__v": 0
+}]

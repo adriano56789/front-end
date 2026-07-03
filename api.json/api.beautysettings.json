@@ -2,21 +2,36 @@
   "_id": {
     "$oid": "6a037a3309bcc449639307ff"
   },
-  "userId": "98501723",
+  "userId": "adriano",
   "__v": 0,
   "createdAt": {
     "$date": "2026-05-12T19:06:27.780Z"
   },
   "settings": {
-    "Branquear": 10,
-    "Alisar a pele": 15,
-    "Ruborizar": 20,
-    "Contraste": 5,
-    "selectedFilter": "Vitalidade",
+    "Branquear": 20,
+    "Alisar a pele": 10,
+    "Ruborizar": 30,
+    "Contraste": 15,
+    "selectedFilter": "Bonito",
     "activeTab": "Recomendar",
-    "selectedEffect": "Branquear"
+    "selectedEffect": "Contraste"
   },
   "updatedAt": {
     "$date": "2026-05-12T20:02:35.669Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a2ff5fe653e29cf04fdcc98"
+  },
+  "userId": "adri",
+  "settings": {
+    "Branquear": 20,
+    "Alisar a pele": 10,
+    "Ruborizar": 30,
+    "Contraste": 15,
+    "selectedFilter": "Vitalidade",
+    "activeTab": "Recomendar",
+    "selectedEffect": "Branquear"
   }
 }]

@@ -1,501 +1,712 @@
-[
-  {
-    "id": "coracao",
-    "name": "Coração",
-    "price": 1,
-    "icon": "❤️",
-    "category": "Popular"
-  },
-  {
-    "id": "rosa",
-    "name": "Rosa",
-    "price": 10,
-    "icon": "🌹",
-    "category": "Popular"
-  },
-  {
-    "id": "flor",
-    "name": "Flor",
-    "price": 20,
-    "icon": "💐",
-    "category": "Popular"
-  },
-  {
-    "id": "rosca",
-    "name": "Rosca",
-    "price": 30,
-    "icon": "🍩",
-    "category": "Popular"
-  },
-  {
-    "id": "balao",
-    "name": "Balão",
-    "price": 50,
-    "icon": "🎈",
-    "category": "Popular"
-  },
-  {
-    "id": "chocolate",
-    "name": "Chocolate",
-    "price": 80,
-    "icon": "🍫",
-    "category": "Popular"
-  },
-  {
-    "id": "batom",
-    "name": "Batom",
-    "price": 100,
-    "icon": "💄",
-    "category": "Popular"
-  },
-  {
-    "id": "cafe",
-    "name": "Café",
-    "price": 150,
-    "icon": "☕",
-    "category": "Popular"
-  },
-  {
-    "id": "hamburguer",
-    "name": "Hambúrguer",
-    "price": 200,
-    "icon": "🍔",
-    "category": "Popular"
-  },
-  {
-    "id": "perfume",
-    "name": "Perfume",
-    "price": 300,
-    "icon": "🧴",
-    "category": "Popular"
-  },
-  {
-    "id": "pizza",
-    "name": "Pizza",
-    "price": 500,
-    "icon": "🍕",
-    "category": "Popular"
-  },
-  {
-    "id": "pirulito",
-    "name": "Pirulito",
-    "price": 600,
-    "icon": "🍭",
-    "category": "Popular"
-  },
-  {
-    "id": "boia",
-    "name": "Boia",
-    "price": 800,
-    "icon": "🛟",
-    "category": "Luxo"
-  },
-  {
-    "id": "champanhe",
-    "name": "Champanhe",
-    "price": 1200,
-    "icon": "🍾",
-    "category": "Luxo"
-  },
-  {
-    "id": "urso",
-    "name": "Urso",
-    "price": 500,
-    "icon": "🧸",
-    "category": "Luxo"
-  },
-  {
-    "id": "moto",
-    "name": "Moto",
-    "price": 3000,
-    "icon": "🏍️",
-    "category": "Luxo"
-  },
-  {
-    "id": "violino",
-    "name": "Violino",
-    "price": 3500,
-    "icon": "🎻",
-    "category": "Luxo"
-  },
-  {
-    "id": "salto_alto",
-    "name": "Salto Alto",
-    "price": 4000,
-    "icon": "👠",
-    "category": "Luxo"
-  },
-  {
-    "id": "piano",
-    "name": "Piano",
-    "price": 4500,
-    "icon": "🎹",
-    "category": "Luxo"
-  },
-  {
-    "id": "colar",
-    "name": "Colar",
-    "price": 4800,
-    "icon": "📿",
-    "category": "Luxo"
-  },
-  {
-    "id": "coroa",
-    "name": "Coroa",
-    "price": 5000,
-    "icon": "👑",
-    "category": "Luxo"
-  },
-  {
-    "id": "bolsa_de_grife",
-    "name": "Bolsa de Grife",
-    "price": 6000,
-    "icon": "👜",
-    "category": "Luxo"
-  },
-  {
-    "id": "diamante_azul",
-    "name": "Diamante Azul",
-    "price": 6000,
-    "icon": "💎",
-    "category": "Luxo"
-  },
-  {
-    "id": "carro_esportivo",
-    "name": "Carro Esportivo",
-    "price": 8888,
-    "icon": "🏎️",
-    "category": "Luxo"
-  },
-  {
-    "id": "bola_de_futebol",
-    "name": "Bola de Futebol",
-    "price": 75,
-    "icon": "⚽",
-    "category": "Atividade"
-  },
-  {
-    "id": "tumulo",
-    "name": "Túmulo",
-    "price": 99,
-    "icon": "🪦",
-    "category": "Atividade"
-  },
-  {
-    "id": "bicicleta",
-    "name": "Bicicleta",
-    "price": 110,
-    "icon": "🚲",
-    "category": "Atividade"
-  },
-  {
-    "id": "haltere",
-    "name": "Haltere",
-    "price": 120,
-    "icon": "🏋️",
-    "category": "Atividade"
-  },
-  {
-    "id": "skate",
-    "name": "Skate",
-    "price": 130,
-    "icon": "🛹",
-    "category": "Atividade"
-  },
-  {
-    "id": "prancha_de_surf",
-    "name": "Prancha de Surf",
-    "price": 140,
-    "icon": "🏄",
-    "category": "Atividade"
-  },
-  {
-    "id": "luva_de_boxe",
-    "name": "Luva de Boxe",
-    "price": 160,
-    "icon": "🥊",
-    "category": "Atividade"
-  },
-  {
-    "id": "taco_de_golfe",
-    "name": "Taco de Golfe",
-    "price": 180,
-    "icon": "🏌️",
-    "category": "Atividade"
-  },
-  {
-    "id": "capacete_de_corrida",
-    "name": "Capacete de Corrida",
-    "price": 210,
-    "icon": "⛑️",
-    "category": "Atividade"
-  },
-  {
-    "id": "bola_de_tenis",
-    "name": "Bola de Tênis",
-    "price": 85,
-    "icon": "🎾",
-    "category": "Atividade"
-  },
-  {
-    "id": "boliche",
-    "name": "Boliche",
-    "price": 95,
-    "icon": "🎳",
-    "category": "Atividade"
-  },
-  {
-    "id": "bola_de_rugby",
-    "name": "Bola de Rugby",
-    "price": 105,
-    "icon": "🏉",
-    "category": "Atividade"
-  },
-  {
-    "id": "foguete",
-    "name": "Foguete",
-    "price": 500,
-    "icon": "🚀",
-    "category": "VIP",
-    "videoUrl": "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
-    "triggersAutoFollow": true
-  },
-  {
-    "id": "jato_privado",
-    "name": "Jato Privado",
-    "price": 600,
-    "icon": "✈️",
-    "category": "VIP"
-  },
-  {
-    "id": "anel",
-    "name": "Anel",
-    "price": 750,
-    "icon": "💍",
-    "category": "VIP"
-  },
-  {
-    "id": "carro",
-    "name": "Carro",
-    "price": 1000,
-    "icon": "🚗",
-    "category": "VIP"
-  },
-  {
-    "id": "fenix",
-    "name": "Fênix",
-    "price": 1200,
-    "icon": "🔥",
-    "category": "VIP"
-  },
-  {
-    "id": "leao",
-    "name": "Leão",
-    "price": 800,
-    "icon": "🦁",
-    "category": "VIP"
-  },
-  {
-    "id": "supercarro",
-    "name": "Supercarro",
-    "price": 1500,
-    "icon": "🏎️",
-    "category": "VIP"
-  },
-  {
-    "id": "dragao",
-    "name": "Dragão",
-    "price": 1800,
-    "icon": "🐉",
-    "category": "VIP"
-  },
-  {
-    "id": "castelo",
-    "name": "Castelo",
-    "price": 2000,
-    "icon": "🏰",
-    "category": "VIP"
-  },
-  {
-    "id": "iate",
-    "name": "Iate",
-    "price": 5000,
-    "icon": "🛥️",
-    "category": "VIP"
-  },
-  {
-    "id": "galaxia",
-    "name": "Galáxia",
-    "price": 6000,
-    "icon": "🌠",
-    "category": "VIP"
-  },
-  {
-    "id": "coroa_real",
-    "name": "Coroa Real",
-    "price": 8000,
-    "icon": "👑",
-    "category": "VIP"
-  },
-  {
-    "id": "explosao_de_confete",
-    "name": "Explosão de Confete",
-    "price": 19000,
-    "icon": "🎉",
-    "category": "Efeito"
-  },
-  {
-    "id": "invocacao_de_dragao",
-    "name": "Invocação de Dragão",
-    "price": 80000,
-    "icon": "🐲",
-    "category": "Efeito"
-  },
-  {
-    "id": "coracao_gigante",
-    "name": "Coração Gigante",
-    "price": 28000,
-    "icon": "❤️‍🔥",
-    "category": "Efeito"
-  },
-  {
-    "id": "beijo_de_anjo",
-    "name": "Beijo de Anjo",
-    "price": 23000,
-    "icon": "💋",
-    "category": "Efeito"
-  },
-  {
-    "id": "danca_dos_robos",
-    "name": "Dança dos Robôs",
-    "price": 33000,
-    "icon": "🤖",
-    "category": "Efeito"
-  },
-  {
-    "id": "portal_galactico",
-    "name": "Portal Galáctico",
-    "price": 42000,
-    "icon": "🌀",
-    "category": "Efeito"
-  },
-  {
-    "id": "ataque_de_tubarao",
-    "name": "Ataque de Tubarão",
-    "price": 37000,
-    "icon": "🦈",
-    "category": "Efeito"
-  },
-  {
-    "id": "nuvem_de_trovao",
-    "name": "Nuvem de Trovão",
-    "price": 31000,
-    "icon": "⛈️",
-    "category": "Efeito"
-  },
-  {
-    "id": "flor_de_lotus",
-    "name": "Flor de Lótus",
-    "price": 21000,
-    "icon": "🪷",
-    "category": "Efeito"
-  },
-  {
-    "id": "show_de_luzes",
-    "name": "Show de Luzes",
-    "price": 34000,
-    "icon": "🎆",
-    "category": "Efeito"
-  },
-  {
-    "id": "chuva_de_rosas",
-    "name": "Chuva de Rosas",
-    "price": 26000,
-    "icon": "🌹",
-    "category": "Efeito"
-  },
-  {
-    "id": "entrada_de_carro_de_luxo",
-    "name": "Entrada de Carro de Luxo",
-    "price": 1000,
-    "icon": "🏎️",
-    "category": "Entrada"
-  },
-  {
-    "id": "entrada_fenix_de_fogo",
-    "name": "Entrada Fênix de Fogo",
-    "price": 5000,
-    "icon": "🔥",
-    "category": "Entrada"
-  },
-  {
-    "id": "tapete_magico",
-    "name": "Tapete Mágico",
-    "price": 12000,
-    "icon": "🪁",
-    "category": "Entrada"
-  },
-  {
-    "id": "entrada_de_moto",
-    "name": "Entrada de Moto",
-    "price": 2000,
-    "icon": "🏍️",
-    "category": "Entrada"
-  },
-  {
-    "id": "entrada_dragao",
-    "name": "Entrada Dragão",
-    "price": 10000,
-    "icon": "🐉",
-    "category": "Entrada"
-  },
-  {
-    "id": "chegada_de_limousine",
-    "name": "Chegada de Limousine",
-    "price": 8000,
-    "icon": "🚘",
-    "category": "Entrada"
-  },
-  {
-    "id": "pouso_de_pegaso",
-    "name": "Pouso de Pégaso",
-    "price": 15000,
-    "icon": "🦄",
-    "category": "Entrada"
-  },
-  {
-    "id": "surfando_na_onda",
-    "name": "Surfando na Onda",
-    "price": 6000,
-    "icon": "🌊",
-    "category": "Entrada"
-  },
-  {
-    "id": "skate_voador",
-    "name": "Skate Voador",
-    "price": 4000,
-    "icon": "🛹",
-    "category": "Entrada"
-  },
-  {
-    "id": "chegada_de_tanque",
-    "name": "Chegada de Tanque",
-    "price": 9000,
-    "icon": "⛑️",
-    "category": "Entrada"
-  },
-  {
-    "id": "carruagem_real",
-    "name": "Carruagem Real",
-    "price": 11000,
-    "icon": "👑",
-    "category": "Entrada"
-  },
-  {
-    "id": "chegada_de_submarino",
-    "name": "Chegada de Submarino",
-    "price": 13000,
-    "icon": "🚢",
-    "category": "Entrada"
-  }
-]
+[{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "id": "coracao",
+  "name": "Coração",
+  "price": 1,
+  "icon": "❤️",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfd8"
+  },
+  "id": "rosa",
+  "name": "Rosa",
+  "price": 10,
+  "icon": "🌹",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfd9"
+  },
+  "id": "flor",
+  "name": "Flor",
+  "price": 20,
+  "icon": "💐",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfda"
+  },
+  "id": "rosca",
+  "name": "Rosca",
+  "price": 30,
+  "icon": "🍩",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfdb"
+  },
+  "id": "balao",
+  "name": "Balão",
+  "price": 50,
+  "icon": "🎈",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfdc"
+  },
+  "id": "chocolate",
+  "name": "Chocolate",
+  "price": 80,
+  "icon": "🍫",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfdd"
+  },
+  "id": "batom",
+  "name": "Batom",
+  "price": 100,
+  "icon": "💄",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfde"
+  },
+  "id": "cafe",
+  "name": "Café",
+  "price": 150,
+  "icon": "☕",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfdf"
+  },
+  "id": "hamburguer",
+  "name": "Hambúrguer",
+  "price": 200,
+  "icon": "🍔",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe0"
+  },
+  "id": "perfume",
+  "name": "Perfume",
+  "price": 300,
+  "icon": "🧴",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe1"
+  },
+  "id": "pizza",
+  "name": "Pizza",
+  "price": 500,
+  "icon": "🍕",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe2"
+  },
+  "id": "pirulito",
+  "name": "Pirulito",
+  "price": 600,
+  "icon": "🍭",
+  "category": "Popular"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe3"
+  },
+  "id": "boia",
+  "name": "Boia",
+  "price": 800,
+  "icon": "🛟",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe4"
+  },
+  "id": "champanhe",
+  "name": "Champanhe",
+  "price": 1200,
+  "icon": "🍾",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe5"
+  },
+  "id": "urso",
+  "name": "Urso",
+  "price": 500,
+  "icon": "🧸",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe6"
+  },
+  "id": "moto",
+  "name": "Moto",
+  "price": 3000,
+  "icon": "🏍️",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe7"
+  },
+  "id": "violino",
+  "name": "Violino",
+  "price": 3500,
+  "icon": "🎻",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe8"
+  },
+  "id": "salto_alto",
+  "name": "Salto Alto",
+  "price": 4000,
+  "icon": "👠",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfe9"
+  },
+  "id": "piano",
+  "name": "Piano",
+  "price": 4500,
+  "icon": "🎹",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfea"
+  },
+  "id": "colar",
+  "name": "Colar",
+  "price": 4800,
+  "icon": "📿",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfeb"
+  },
+  "id": "coroa",
+  "name": "Coroa",
+  "price": 5000,
+  "icon": "👑",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfec"
+  },
+  "id": "bolsa_de_grife",
+  "name": "Bolsa de Grife",
+  "price": 6000,
+  "icon": "👜",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfed"
+  },
+  "id": "diamante_azul",
+  "name": "Diamante Azul",
+  "price": 6000,
+  "icon": "💎",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfee"
+  },
+  "id": "carro_esportivo",
+  "name": "Carro Esportivo",
+  "price": 8888,
+  "icon": "🏎️",
+  "category": "Luxo"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfef"
+  },
+  "id": "bola_de_futebol",
+  "name": "Bola de Futebol",
+  "price": 75,
+  "icon": "⚽",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff0"
+  },
+  "id": "tumulo",
+  "name": "Túmulo",
+  "price": 99,
+  "icon": "🪦",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff1"
+  },
+  "id": "bicicleta",
+  "name": "Bicicleta",
+  "price": 110,
+  "icon": "🚲",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff2"
+  },
+  "id": "haltere",
+  "name": "Haltere",
+  "price": 120,
+  "icon": "🏋️",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff3"
+  },
+  "id": "skate",
+  "name": "Skate",
+  "price": 130,
+  "icon": "🛹",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff4"
+  },
+  "id": "prancha_de_surf",
+  "name": "Prancha de Surf",
+  "price": 140,
+  "icon": "🏄",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff5"
+  },
+  "id": "luva_de_boxe",
+  "name": "Luva de Boxe",
+  "price": 160,
+  "icon": "🥊",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff6"
+  },
+  "id": "taco_de_golfe",
+  "name": "Taco de Golfe",
+  "price": 180,
+  "icon": "🏌️",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff7"
+  },
+  "id": "capacete_de_corrida",
+  "name": "Capacete de Corrida",
+  "price": 210,
+  "icon": "⛑️",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff8"
+  },
+  "id": "bola_de_tenis",
+  "name": "Bola de Tênis",
+  "price": 85,
+  "icon": "🎾",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebff9"
+  },
+  "id": "boliche",
+  "name": "Boliche",
+  "price": 95,
+  "icon": "🎳",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebffa"
+  },
+  "id": "bola_de_rugby",
+  "name": "Bola de Rugby",
+  "price": 105,
+  "icon": "🏉",
+  "category": "Atividade"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebffb"
+  },
+  "id": "foguete",
+  "name": "Foguete",
+  "price": 500,
+  "icon": "🚀",
+  "category": "VIP",
+  "videoUrl": "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+  "triggersAutoFollow": true
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebffc"
+  },
+  "id": "jato_privado",
+  "name": "Jato Privado",
+  "price": 600,
+  "icon": "✈️",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebffd"
+  },
+  "id": "anel",
+  "name": "Anel",
+  "price": 750,
+  "icon": "💍",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebffe"
+  },
+  "id": "carro",
+  "name": "Carro",
+  "price": 1000,
+  "icon": "🚗",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ebfff"
+  },
+  "id": "fenix",
+  "name": "Fênix",
+  "price": 1200,
+  "icon": "🔥",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec000"
+  },
+  "id": "leao",
+  "name": "Leão",
+  "price": 800,
+  "icon": "🦁",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec001"
+  },
+  "id": "supercarro",
+  "name": "Supercarro",
+  "price": 1500,
+  "icon": "🏎️",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec002"
+  },
+  "id": "dragao",
+  "name": "Dragão",
+  "price": 1800,
+  "icon": "🐉",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec003"
+  },
+  "id": "castelo",
+  "name": "Castelo",
+  "price": 2000,
+  "icon": "🏰",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec004"
+  },
+  "id": "iate",
+  "name": "Iate",
+  "price": 5000,
+  "icon": "🛥️",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec005"
+  },
+  "id": "galaxia",
+  "name": "Galáxia",
+  "price": 6000,
+  "icon": "🌠",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec006"
+  },
+  "id": "coroa_real",
+  "name": "Coroa Real",
+  "price": 8000,
+  "icon": "👑",
+  "category": "VIP"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec007"
+  },
+  "id": "explosao_de_confete",
+  "name": "Explosão de Confete",
+  "price": 19000,
+  "icon": "🎉",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec008"
+  },
+  "id": "invocacao_de_dragao",
+  "name": "Invocação de Dragão",
+  "price": 80000,
+  "icon": "🐲",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec009"
+  },
+  "id": "coracao_gigante",
+  "name": "Coração Gigante",
+  "price": 28000,
+  "icon": "❤️‍🔥",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00a"
+  },
+  "id": "beijo_de_anjo",
+  "name": "Beijo de Anjo",
+  "price": 23000,
+  "icon": "💋",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00b"
+  },
+  "id": "danca_dos_robos",
+  "name": "Dança dos Robôs",
+  "price": 33000,
+  "icon": "🤖",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00c"
+  },
+  "id": "portal_galactico",
+  "name": "Portal Galáctico",
+  "price": 42000,
+  "icon": "🌀",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00d"
+  },
+  "id": "ataque_de_tubarao",
+  "name": "Ataque de Tubarão",
+  "price": 37000,
+  "icon": "🦈",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00e"
+  },
+  "id": "nuvem_de_trovao",
+  "name": "Nuvem de Trovão",
+  "price": 31000,
+  "icon": "⛈️",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec00f"
+  },
+  "id": "flor_de_lotus",
+  "name": "Flor de Lótus",
+  "price": 21000,
+  "icon": "🪷",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec010"
+  },
+  "id": "show_de_luzes",
+  "name": "Show de Luzes",
+  "price": 34000,
+  "icon": "🎆",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec011"
+  },
+  "id": "chuva_de_rosas",
+  "name": "Chuva de Rosas",
+  "price": 26000,
+  "icon": "🌹",
+  "category": "Efeito"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec012"
+  },
+  "id": "entrada_de_carro_de_luxo",
+  "name": "Entrada de Carro de Luxo",
+  "price": 1000,
+  "icon": "🏎️",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec013"
+  },
+  "id": "entrada_fenix_de_fogo",
+  "name": "Entrada Fênix de Fogo",
+  "price": 5000,
+  "icon": "🔥",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec014"
+  },
+  "id": "tapete_magico",
+  "name": "Tapete Mágico",
+  "price": 12000,
+  "icon": "🪁",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec015"
+  },
+  "id": "entrada_de_moto",
+  "name": "Entrada de Moto",
+  "price": 2000,
+  "icon": "🏍️",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec016"
+  },
+  "id": "entrada_dragao",
+  "name": "Entrada Dragão",
+  "price": 10000,
+  "icon": "🐉",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec017"
+  },
+  "id": "chegada_de_limousine",
+  "name": "Chegada de Limousine",
+  "price": 8000,
+  "icon": "🚘",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec018"
+  },
+  "id": "pouso_de_pegaso",
+  "name": "Pouso de Pégaso",
+  "price": 15000,
+  "icon": "🦄",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec019"
+  },
+  "id": "surfando_na_onda",
+  "name": "Surfando na Onda",
+  "price": 6000,
+  "icon": "🌊",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec01a"
+  },
+  "id": "skate_voador",
+  "name": "Skate Voador",
+  "price": 4000,
+  "icon": "🛹",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec01b"
+  },
+  "id": "chegada_de_tanque",
+  "name": "Chegada de Tanque",
+  "price": 9000,
+  "icon": "⛑️",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec01c"
+  },
+  "id": "carruagem_real",
+  "name": "Carruagem Real",
+  "price": 11000,
+  "icon": "👑",
+  "category": "Entrada"
+},
+{
+  "_id": {
+    "$oid": "6a2a82e1086cabd1427ec01d"
+  },
+  "id": "chegada_de_submarino",
+  "name": "Chegada de Submarino",
+  "price": 13000,
+  "icon": "🚢",
+  "category": "Entrada"
+}]

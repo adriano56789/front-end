@@ -1,0 +1,184 @@
+[
+  {
+    "_id": "search_adriano",
+    "userId": "adriano",
+    "userNickName": "adriano",
+    "isActive": true,
+    "followCount": 220,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_adri",
+    "userId": "adri",
+    "userNickName": "Adri",
+    "isActive": true,
+    "followCount": 403,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_rafa",
+    "userId": "rafa",
+    "userNickName": "rafa",
+    "isActive": true,
+    "followCount": 360,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_ana_silva",
+    "userId": "ana_silva",
+    "userNickName": "Ana Silva",
+    "isActive": true,
+    "followCount": 310,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_carlos_oliveira",
+    "userId": "carlos_oliveira",
+    "userNickName": "Carlos Oliveira",
+    "isActive": true,
+    "followCount": 237,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_julia_mendes",
+    "userId": "julia_mendes",
+    "userNickName": "Julia Mendes",
+    "isActive": true,
+    "followCount": 40,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_lucas_santos",
+    "userId": "lucas_santos",
+    "userNickName": "Lucas Santos",
+    "isActive": true,
+    "followCount": 452,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_maria_eduarda",
+    "userId": "maria_eduarda",
+    "userNickName": "Maria Eduarda",
+    "isActive": true,
+    "followCount": 127,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_pedro_alves",
+    "userId": "pedro_alves",
+    "userNickName": "Pedro Alves",
+    "isActive": true,
+    "followCount": 264,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_laura_lima",
+    "userId": "laura_lima",
+    "userNickName": "Laura Lima",
+    "isActive": true,
+    "followCount": 483,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_gabriel_rocha",
+    "userId": "gabriel_rocha",
+    "userNickName": "Gabriel Rocha",
+    "isActive": true,
+    "followCount": 319,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_isabela_costa",
+    "userId": "isabela_costa",
+    "userNickName": "Isabela Costa",
+    "isActive": true,
+    "followCount": 4,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  },
+  {
+    "_id": "search_rafael_martins",
+    "userId": "rafael_martins",
+    "userNickName": "Rafael Martins",
+    "isActive": true,
+    "followCount": 450,
+    "liveStatus": false,
+    "createdAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    },
+    "updatedAt": {
+      "$date": "2026-06-17T12:33:44.793Z"
+    }
+  }
+]

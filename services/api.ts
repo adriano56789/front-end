@@ -980,25 +980,6 @@ export const api = {
     },
 
 
-    // --- STARK API (Padrão Buscast) ---
-
-    stark: {
-        // Iniciar live via STARK (primeiro passo do fluxo)
-        startLive: (userId: string, title: string, category?: string) => callApi<{
-            code: number;
-            result: {
-                liveId: string;
-                streamId: string;
-                pushUrl: string;
-            };
-            msg: string;
-        }>('POST', '/api/stark/live/start', { userId, title, category }),
-
-        // Notificar publicação de live bem sucedida via STARK
-        publish: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/publish-success`)
-    },
-
-
     // --- Live Stream & Online Users ---
 
     // Iniciar live - Backend controla status e gera streamKey

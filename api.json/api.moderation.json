@@ -1,0 +1,66 @@
+[{
+  "_id": {
+    "$oid": "6a328b1925dd1d7fa3aa3fa6"
+  },
+  "action": "warn",
+  "targetUserId": "carlos_oliveira",
+  "moderatorId": "adriano",
+  "reason": "Linguagem inapropriada",
+  "streamId": "adriano",
+  "createdAt": {
+    "$date": "2026-06-17T11:55:05.499Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b1925dd1d7fa3aa3fa7"
+  },
+  "action": "mute",
+  "targetUserId": "lucas_santos",
+  "moderatorId": "rafa",
+  "reason": "Spam",
+  "streamId": "rafa",
+  "duration": 300,
+  "createdAt": {
+    "$date": "2026-06-17T11:55:05.499Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b1925dd1d7fa3aa3fa8"
+  },
+  "action": "ban",
+  "targetUserId": "test_user_1",
+  "moderatorId": "adriano",
+  "reason": "Conta falsa",
+  "createdAt": {
+    "$date": "2026-06-17T11:55:05.499Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b1925dd1d7fa3aa3fa9"
+  },
+  "action": "warn",
+  "targetUserId": "pedro_alves",
+  "moderatorId": "Adri",
+  "reason": "Link nao permitido",
+  "streamId": "Adri",
+  "createdAt": {
+    "$date": "2026-06-17T11:55:05.499Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b1925dd1d7fa3aa3faa"
+  },
+  "action": "timeout",
+  "targetUserId": "isabela_costa",
+  "moderatorId": "adriano",
+  "reason": "Comportamento agressivo",
+  "streamId": "adriano",
+  "duration": 600,
+  "createdAt": {
+    "$date": "2026-06-17T11:55:05.499Z"
+  }
+}]

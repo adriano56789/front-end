@@ -1,0 +1,22 @@
+[{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d630"
+  },
+  "userId": "adriano",
+  "avatarId": "avatar_adriano_1",
+  "imageUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg",
+  "purchaseDate": {
+    "$date": "2026-05-28T06:38:21.637Z"
+  },
+  "expirationDate": {
+    "$date": "2026-06-17T06:38:21.000Z"
+  },
+  "isActive": true,
+  "isCurrent": true,
+  "createdAt": {
+    "$date": "2026-05-28T06:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-28T06:38:21.637Z"
+  }
+}]

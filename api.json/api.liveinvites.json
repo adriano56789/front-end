@@ -1,0 +1,25 @@
+[{
+  "_id": {
+    "$oid": "6a3240deb4bd3eee44ee0dcb"
+  },
+  "inviterUsername": "adriano",
+  "inviterName": "adriano",
+  "inviteeUsername": "rafa",
+  "inviteeName": "rafa",
+  "inviteType": "co-host",
+  "status": "accepted",
+  "streamId": "adriano",
+  "inviteLink": "https://livego.store/invite/adriano",
+  "srsSfuConfig": {
+    "whipUrl": "https://api.livego.store/sfu/whip",
+    "whepUrl": "https://api.livego.store/sfu/whep",
+    "streamKey": "adriano",
+    "rtcRoomId": "adriano"
+  },
+  "createdAt": {
+    "$date": "2026-06-17T06:08:22.332Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:10:22.332Z"
+  }
+}]

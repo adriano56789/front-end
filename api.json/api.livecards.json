@@ -1,0 +1,62 @@
+[{
+  "_id": {
+    "$oid": "6a33a1cf75ec60d41742d290"
+  },
+  "hostId": "ve",
+  "name": "Ve",
+  "avatar": "http://127.0.0.1:3000/uploads/avatars/avatar_ve_1781763785200.jpg",
+  "title": "v",
+  "streamKey": "ve",
+  "playbackUrl": "https://2.25.192.154:8000/whep/ve",
+  "hlsUrl": "https://livego.store/live/ve.m3u8",
+  "country": "pt",
+  "isLive": false,
+  "streamStatus": "ended",
+  "viewers": 2,
+  "category": "dance",
+  "isPrivate": false,
+  "startTime": {
+    "$date": "2026-06-18T08:53:19.096Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-18T09:31:26.227Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-18T07:44:15.684Z"
+  },
+  "__v": 0,
+  "endTime": {
+    "$date": "2026-06-18T09:31:26.186Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a33acac6ecd62fe6664b218"
+  },
+  "hostId": "adriano",
+  "__v": 0,
+  "avatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781763200313.jpg",
+  "category": "popular",
+  "country": "pt",
+  "createdAt": {
+    "$date": "2026-06-18T08:30:36.785Z"
+  },
+  "hlsUrl": "https://livego.store/live/adriano.m3u8",
+  "isLive": false,
+  "isPrivate": false,
+  "name": "Adriano",
+  "playbackUrl": "https://2.25.192.154:8000/whep/adriano",
+  "startTime": {
+    "$date": "2026-06-18T08:33:08.357Z"
+  },
+  "streamKey": "adriano",
+  "streamStatus": "ended",
+  "title": "bb",
+  "updatedAt": {
+    "$date": "2026-06-18T08:53:29.571Z"
+  },
+  "viewers": 0,
+  "endTime": {
+    "$date": "2026-06-18T08:53:29.524Z"
+  }
+}]

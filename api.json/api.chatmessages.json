@@ -5,18 +5,213 @@
   "id": "temp_1778644600076",
   "__v": 0,
   "content": "po",
-  "conversationId": "chat_private_98501723_98501723",
+  "conversationId": "chat_private_adriano_adriano",
   "createdAt": {
     "$date": "2026-05-13T03:56:40.121Z"
   },
   "isRead": false,
   "messageType": "text",
-  "receiverId": "98501723",
-  "senderId": "98501723",
+  "receiverId": "adriano",
+  "senderId": "adriano",
   "sentAt": {
     "$date": "2026-05-13T03:56:40.121Z"
   },
   "updatedAt": {
     "$date": "2026-05-13T03:56:40.121Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3172775e7b18397ac79033"
+  },
+  "id": "temp_1781625466899",
+  "__v": 0,
+  "content": "Oi",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T15:57:43.467Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T15:57:43.466Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T15:57:43.467Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3173375e7b18397ac79034"
+  },
+  "id": "temp_1781625658399",
+  "__v": 0,
+  "content": "Oi",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T16:00:54.988Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T16:00:54.987Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:00:54.988Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a31764b5e7b18397ac79035"
+  },
+  "id": "temp_1781626447319",
+  "__v": 0,
+  "content": "👋 Oi!",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T16:14:03.953Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T16:14:03.952Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:14:03.953Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3176515e7b18397ac79036"
+  },
+  "id": "temp_1781626453379",
+  "__v": 0,
+  "content": "http://192.168.3.12:5173/",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T16:14:09.959Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T16:14:09.959Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:14:09.959Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3191725e7b18397ac79038"
+  },
+  "id": "temp_1781633398290",
+  "__v": 0,
+  "content": "Oi",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T18:09:54.898Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T18:09:54.897Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T18:09:54.898Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3191785e7b18397ac79039"
+  },
+  "id": "temp_1781633404212",
+  "__v": 0,
+  "content": "H",
+  "conversationId": "chat_private_Adri_adriano",
+  "createdAt": {
+    "$date": "2026-06-16T18:10:00.812Z"
+  },
+  "isRead": false,
+  "messageType": "text",
+  "receiverId": "adriano",
+  "senderId": "Adri",
+  "sentAt": {
+    "$date": "2026-06-16T18:10:00.811Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T18:10:00.812Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ae1"
+  },
+  "id": "cm_1781678516264",
+  "senderId": "adriano",
+  "receiverId": "rafa",
+  "conversationId": "chat_adriano_rafa",
+  "content": "Obrigado por vir na live!",
+  "messageType": "text",
+  "isRead": true,
+  "sentAt": {
+    "$date": "2026-06-16T06:41:56.232Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-16T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:41:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ae2"
+  },
+  "id": "cm_17816785162641",
+  "senderId": "rafa",
+  "receiverId": "adriano",
+  "conversationId": "chat_adriano_rafa",
+  "content": "Adorei! Vou seguir voce!",
+  "messageType": "text",
+  "isRead": true,
+  "sentAt": {
+    "$date": "2026-06-16T06:46:56.232Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-16T06:46:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:46:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ae3"
+  },
+  "id": "cm_17816785162642",
+  "senderId": "adriano",
+  "receiverId": "rafa",
+  "conversationId": "chat_adriano_rafa",
+  "content": "Que bom! Obrigado pelo apoio!",
+  "messageType": "text",
+  "isRead": true,
+  "sentAt": {
+    "$date": "2026-06-16T06:51:56.232Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-16T06:51:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:51:56.232Z"
   }
 }]

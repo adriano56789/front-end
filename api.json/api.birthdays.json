@@ -2,7 +2,7 @@
   "_id": {
     "$oid": "69ee69f930d2d0bdfb5f5cab"
   },
-  "userId": "98501723",
+  "userId": "adriano",
   "__v": 0,
   "age": 18,
   "birthDate": {
@@ -16,4 +16,19 @@
     "$date": "2026-04-28T13:18:25.527Z"
   },
   "zodiacSign": "Capricórnio"
+},
+{
+  "_id": {
+    "$oid": "6a2ff48f653e29cf04fdcc97"
+  },
+  "userId": "adri",
+  "age": 36,
+  "birthDate": {
+    "$date": "1990-07-01T03:00:00.000Z"
+  },
+  "isActive": true,
+  "updatedAt": {
+    "$date": "2026-06-15T12:48:18.941Z"
+  },
+  "zodiacSign": "Câncer"
 }]

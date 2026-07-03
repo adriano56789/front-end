@@ -1,0 +1,44 @@
+[{
+  "_id": {
+    "$oid": "6a3240deb4bd3eee44ee0dd0"
+  },
+  "id": "photo_adriano_1",
+  "userId": "adriano",
+  "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg",
+  "caption": "Meu novo visual!",
+  "tags": [
+    "selfie",
+    "novo"
+  ],
+  "isPublic": true,
+  "likes": 5,
+  "comments": 2,
+  "createdAt": {
+    "$date": "2026-06-10T06:38:22.332Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-10T06:38:22.332Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240deb4bd3eee44ee0dd1"
+  },
+  "id": "photo_adriano_2",
+  "userId": "adriano",
+  "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555632401-962822378.jpg",
+  "caption": "Dia de live!",
+  "tags": [
+    "live",
+    "stream"
+  ],
+  "isPublic": true,
+  "likes": 3,
+  "comments": 1,
+  "createdAt": {
+    "$date": "2026-06-14T06:38:22.332Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-14T06:38:22.332Z"
+  }
+}]

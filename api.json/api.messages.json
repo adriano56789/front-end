@@ -1,0 +1,68 @@
+[{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e99"
+  },
+  "chatId": "6a323c5e14d3ebb370d88e97",
+  "fromUserId": "adriano",
+  "toUserId": "rafa",
+  "text": "Oi, tudo bem?",
+  "status": "sent",
+  "type": "text",
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.404Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.404Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ade"
+  },
+  "chatId": "conv_chat_adriano_rafa",
+  "fromUserId": "rafa",
+  "toUserId": "adriano",
+  "text": "Oie! Tudo bem? Vi que voce esta ao vivo!",
+  "status": "delivered",
+  "type": "text",
+  "createdAt": {
+    "$date": "2026-06-15T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:41:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3adf"
+  },
+  "chatId": "conv_chat_adriano_rafa",
+  "fromUserId": "adriano",
+  "toUserId": "rafa",
+  "text": "Ola! Sim, estou fazendo uma live agora! Vem assistir!",
+  "status": "read",
+  "type": "text",
+  "createdAt": {
+    "$date": "2026-06-15T06:42:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:43:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ae0"
+  },
+  "chatId": "conv_chat_adriano_rafa",
+  "fromUserId": "rafa",
+  "toUserId": "adriano",
+  "text": "Ja estou na sala! Manda ver!",
+  "status": "read",
+  "type": "text",
+  "createdAt": {
+    "$date": "2026-06-15T06:43:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:44:56.232Z"
+  }
+}]

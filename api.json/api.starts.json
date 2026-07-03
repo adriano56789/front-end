@@ -1,0 +1,88 @@
+[{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50d5"
+  },
+  "userId": "adriano",
+  "liveId": "adriano",
+  "streamId": "adriano",
+  "pushUrl": "webrtc://srs.livego.store:8085/live/adriano?txSecret=abc123&txTime=9999999999",
+  "startTime": "1781683238906",
+  "liveCountry": "Brasil",
+  "streamType": "1",
+  "status": "live",
+  "isActive": true,
+  "category": "populár",
+  "title": "Live de Sexta! 🎉",
+  "createdAt": {
+    "$date": "2026-06-17T08:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T08:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50d6"
+  },
+  "userId": "rafa",
+  "liveId": "rafa",
+  "streamId": "rafa",
+  "pushUrl": "webrtc://srs.livego.store:8085/live/rafa?txSecret=def456&txTime=9999999999",
+  "startTime": "1781679638906",
+  "liveCountry": "Brasil",
+  "streamType": "1",
+  "status": "live",
+  "isActive": true,
+  "category": "games",
+  "title": "Jogando Valorant!",
+  "createdAt": {
+    "$date": "2026-06-17T07:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T07:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50d7"
+  },
+  "userId": "Adri",
+  "liveId": "lv_adri_001",
+  "streamId": "Adri",
+  "pushUrl": "webrtc://srs.livego.store:8085/live/Adri?txSecret=ghi789&txTime=9999999999",
+  "startTime": "1781676038906",
+  "liveCountry": "Brasil",
+  "streamType": "1",
+  "status": "live",
+  "isActive": true,
+  "category": "music",
+  "title": "Música ao vivo! 🎵",
+  "createdAt": {
+    "$date": "2026-06-17T06:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50d8"
+  },
+  "userId": "adriano",
+  "liveId": "lv_adriano_002",
+  "streamId": "adriano_archive_1",
+  "pushUrl": "webrtc://srs.livego.store:8085/live/adriano_archive_1?txSecret=jkl012&txTime=9999999999",
+  "startTime": "1781600438906",
+  "liveCountry": "Brasil",
+  "streamType": "1",
+  "status": "ended",
+  "isActive": false,
+  "category": "talk",
+  "title": "Bate-papo descontraído",
+  "createdAt": {
+    "$date": "2026-06-16T09:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T10:00:38.906Z"
+  }
+}]

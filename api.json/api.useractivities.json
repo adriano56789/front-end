@@ -1,0 +1,101 @@
+[{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d62b"
+  },
+  "id": "act_1",
+  "userId": "adriano",
+  "activityType": "login",
+  "timestamp": {
+    "$date": "2026-06-14T06:38:21.637Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-14T06:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-14T06:38:21.637Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d62c"
+  },
+  "id": "act_2",
+  "userId": "adriano",
+  "activityType": "start_stream",
+  "targetId": "adriano",
+  "targetType": "stream",
+  "timestamp": {
+    "$date": "2026-06-15T06:38:21.637Z"
+  },
+  "metadata": {
+    "title": "Live teste"
+  },
+  "createdAt": {
+    "$date": "2026-06-15T06:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:38:21.637Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d62d"
+  },
+  "id": "act_3",
+  "userId": "adriano",
+  "activityType": "send_gift",
+  "targetId": "rafa",
+  "targetType": "user",
+  "timestamp": {
+    "$date": "2026-06-16T06:38:21.637Z"
+  },
+  "metadata": {
+    "gift": "Coracao",
+    "quantity": 1,
+    "value": 1
+  },
+  "createdAt": {
+    "$date": "2026-06-16T06:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:38:21.637Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d62e"
+  },
+  "id": "act_4",
+  "userId": "rafa",
+  "activityType": "follow",
+  "targetId": "adriano",
+  "targetType": "user",
+  "timestamp": {
+    "$date": "2026-06-12T06:38:21.637Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-12T06:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T06:38:21.637Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd8587397567c5d62f"
+  },
+  "id": "act_5",
+  "userId": "adriano",
+  "activityType": "join_live",
+  "targetId": "adriano",
+  "targetType": "stream",
+  "timestamp": {
+    "$date": "2026-06-17T05:38:21.637Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-17T05:38:21.637Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T05:38:21.637Z"
+  }
+}]

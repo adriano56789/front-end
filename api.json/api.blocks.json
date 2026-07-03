@@ -1,0 +1,18 @@
+[{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3adc"
+  },
+  "blockerId": "adriano",
+  "blockedId": "usuario_bloqueado_1",
+  "blockedAt": {
+    "$date": "2026-05-18T06:41:56.232Z"
+  },
+  "isActive": true,
+  "reason": "Spam no chat",
+  "createdAt": {
+    "$date": "2026-05-18T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-18T06:41:56.232Z"
+  }
+}]

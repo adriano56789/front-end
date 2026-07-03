@@ -1,200 +1,4420 @@
-[
-  {
-    "_id": "69ecb32e28179233608b5e04",
-    "id": "98501723",
-    "identification": "98501723",
-    "email": "adrianomdk5@gmail.com",
-    "password": "$2b$10$G8ezjNpciMI.V7fcjIGRA.hSoR8McT3ZduoPvRrbE5OVU2k08a13O",
-    "name": "adriano",
-    "avatar": "",
-    "avatarUrl": "https://picsum.photos/seed/cover-stream_98501723/400/600.jpg",
-    "coverUrl": "",
-    "country": "Brasil",
-    "age": 25,
-    "gender": "male",
-    "level": 5,
-    "xp": 0,
-    "location": "São Paulo, SP",
-    "distance": "",
-    "fans": 0,
-    "following": 0,
-    "followingList": [
-      "10002001",
-      "10002002",
-      "10002003",
-      "10002004"
-    ],
-    "followersList": [
-      "10002001",
-      "10002002",
-      "10002003",
-      "10002004"
-    ],
-    "blockedUsers": [],
-    "friendsList": [
-      "10002001",
-      "10002002",
-      "10002003",
-      "10002004"
-    ],
-    "accountStatus": "active",
-    "isLive": false,
-    "isOnline": true,
-    "diamonds": 302,
-    "earnings": 698,
-    "bio": "oi",
-    "birthday": "01/01/2008",
-    "residence": "k",
-    "emotional_status": "",
-    "tags": [
-      "n"
-    ],
-    "profession": "Desenvolvedor Teste",
-    "isVIP": false,
-    "chatPermission": "all",
-    "pipEnabled": true,
-    "locationPermission": "granted",
-    "showActivityStatus": true,
-    "showLocation": true,
-    "currentStreamId": null,
-    "loginCount": 151,
-    "messagesSent": 0,
-    "profileViews": 0,
-    "searchesPerformed": 0,
-    "totalLives": 0,
-    "lastLogin": "2026-06-10T11:37:48.641Z",
-    "lastSeen": "2026-05-01T11:50:43.537+00:00",
-    "latitude": -9.387435797373357,
-    "longitude": -40.42961919195591,
-    "city": "São Paulo",
-    "state": "SP"
+[{
+  "_id": "69ecb32e28179233608b5e04",
+  "id": "adriano",
+  "identification": "adriano",
+  "email": "adrianomdk5@gmail.com",
+  "password": "$2b$10$G8ezjNpciMI.V7fcjIGRA.hSoR8McT3ZduoPvRrbE5OVU2k08a13O",
+  "name": "adriano",
+  "avatar": "",
+  "avatarUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "coverUrl": "",
+  "country": "Brasil",
+  "age": 25,
+  "gender": "male",
+  "level": 5,
+  "xp": 226,
+  "location": {
+    "type": "Point",
+    "coordinates": [
+      -40.42954790712112,
+      -9.387466456721123
+    ]
   },
-  {
-    "id": "10002001",
-    "identification": "10002001",
-    "name": "Melissa 🎵",
-    "email": "melissa@livego.store",
-    "avatarUrl": "https://picsum.photos/seed/user_melissa/400/600.jpg",
-    "age": 22,
-    "gender": "female",
-    "level": 12,
-    "diamonds": 500,
-    "earnings": 120,
-    "bio": "Oi, adoro conversar e fazer transmissões ao vivo de música! 🎶",
-    "country": "br",
-    "followingList": [
-      "98501723"
-    ],
-    "followersList": [
-      "98501723"
-    ],
-    "friendsList": [
-      "98501723"
-    ],
-    "isOnline": true,
-    "isLive": true,
-    "accountStatus": "active",
-    "isVIP": true,
-    "latitude": -22.9068,
-    "longitude": -43.1729,
-    "city": "Rio de Janeiro",
-    "state": "RJ",
-    "location": "Rio de Janeiro, RJ"
+  "distance": "",
+  "fans": 1,
+  "following": 1,
+  "followingList": [
+    "Adri"
+  ],
+  "followersList": [
+    "adri"
+  ],
+  "blockedUsers": [],
+  "friendsList": [],
+  "accountStatus": "active",
+  "isLive": false,
+  "isOnline": false,
+  "diamonds": 3678,
+  "earnings": 26491,
+  "bio": "oi",
+  "birthday": "01/01/2008",
+  "residence": "Juazeiro, Bahia",
+  "emotional_status": "",
+  "tags": [
+    "n"
+  ],
+  "profession": "Desenvolvedor Teste",
+  "isVIP": false,
+  "chatPermission": "all",
+  "pipEnabled": true,
+  "locationPermission": "granted",
+  "showActivityStatus": true,
+  "showLocation": true,
+  "currentStreamId": null,
+  "loginCount": 345,
+  "messagesSent": 0,
+  "profileViews": 24,
+  "searchesPerformed": 0,
+  "totalLives": 8,
+  "lastLogin": {
+    "$date": "2026-06-17T04:46:19.686Z"
   },
-  {
-    "id": "10002002",
-    "identification": "10002002",
-    "name": "Thiago 📸",
-    "email": "thiago@livego.store",
-    "avatarUrl": "https://picsum.photos/seed/user_thiago/400/600.jpg",
-    "age": 26,
-    "gender": "male",
-    "level": 8,
-    "diamonds": 200,
-    "earnings": 50,
-    "bio": "Fotógrafo amador e gamer nas horas vagas! 📸🎮",
-    "country": "br",
-    "followingList": [
-      "98501723"
-    ],
-    "followersList": [
-      "98501723"
-    ],
-    "friendsList": [
-      "98501723"
-    ],
-    "isOnline": true,
-    "isLive": true,
-    "accountStatus": "active",
-    "isVIP": false,
-    "latitude": -19.9167,
-    "longitude": -43.9345,
-    "city": "Belo Horizonte",
-    "state": "MG",
-    "location": "Belo Horizonte, MG"
+  "lastSeen": {
+    "$date": "2026-06-17T04:47:19.727Z"
   },
-  {
-    "id": "10002003",
-    "identification": "10002003",
-    "name": "Juliana ✨",
-    "email": "juliana@livego.store",
-    "avatarUrl": "https://picsum.photos/seed/user_juliana/400/600.jpg",
-    "age": 24,
-    "gender": "female",
-    "level": 15,
-    "diamonds": 1200,
-    "earnings": 450,
-    "bio": "Streamer oficial da Plataforma ✨ Seja bem-vindo!",
-    "country": "br",
-    "followingList": [
-      "98501723"
-    ],
-    "followersList": [
-      "98501723"
-    ],
-    "friendsList": [
-      "98501723"
-    ],
-    "isOnline": true,
-    "isLive": true,
-    "accountStatus": "active",
-    "isVIP": true,
-    "latitude": -25.4284,
-    "longitude": -49.2733,
-    "city": "Curitiba",
-    "state": "PR",
-    "location": "Curitiba, PR"
+  "updatedAt": {
+    "$date": "2026-06-17T04:47:19.730Z"
   },
-  {
-    "id": "10002004",
-    "identification": "10002004",
-    "name": "Felipe 👋",
-    "email": "felipe@livego.store",
-    "avatarUrl": "https://picsum.photos/seed/user_felipe/400/600.jpg",
-    "age": 23,
-    "gender": "male",
-    "level": 5,
-    "diamonds": 100,
-    "earnings": 10,
-    "bio": "Buscando novas amizades por aqui! Me manda um oi 👋",
-    "country": "br",
-    "followingList": [
-      "98501723"
-    ],
-    "followersList": [
-      "98501723"
-    ],
-    "friendsList": [
-      "98501723"
-    ],
-    "isOnline": false,
-    "isLive": true,
-    "accountStatus": "active",
-    "isVIP": false,
-    "latitude": -12.9777,
-    "longitude": -38.5016,
-    "city": "Salvador",
-    "state": "BA",
-    "location": "Salvador, BA"
+  "recentActivities": [
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:41:23.055Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311a4394dcdb5dc482e684"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:42:42.082Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311a9294dcdb5dc482e806"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:43:09.131Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311aad94dcdb5dc482e987"
+      }
+    },
+    {
+      "action": "settings_change",
+      "resource": "notification_settings",
+      "timestamp": {
+        "$date": "2026-06-16T09:43:11.830Z"
+      },
+      "endpoint": "/api/settings/notifications/settings/:id",
+      "_id": {
+        "$oid": "6a311aaf94dcdb5dc482ea85"
+      }
+    },
+    {
+      "action": "settings_change",
+      "resource": "notification_settings",
+      "timestamp": {
+        "$date": "2026-06-16T09:43:12.389Z"
+      },
+      "endpoint": "/api/settings/notifications/settings/:id",
+      "_id": {
+        "$oid": "6a311ab094dcdb5dc482eb86"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:44:09.197Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311ae994dcdb5dc482ec11"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:45:48.707Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311b4c94dcdb5dc482ed9e"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:46:48.818Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311b8894dcdb5dc482ee2c"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:46:49.178Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311b8994dcdb5dc482efb9"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:47:49.226Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311bc594dcdb5dc482f151"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:49:41.469Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311c3594dcdb5dc482f2f2"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:50:41.701Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311c7194dcdb5dc482f382"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:55:45.577Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a311da194dcdb5dc482f53d"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T09:56:45.686Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a311ddd94dcdb5dc482f5d1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:07:27.387Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31205f94dcdb5dc482f7b4"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:08:27.418Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31209b94dcdb5dc482f848"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:13:18.877Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3121be94dcdb5dc482fa0b"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:14:18.923Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3121fa94dcdb5dc482fdef"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:15:40.753Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31224c94dcdb5dc482ffa4"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:16:40.787Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31228894dcdb5dc4830396"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:12.586Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31262c94dcdb5dc483081b"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:35.994Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31264494dcdb5dc48309d1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:45.017Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31264d94dcdb5dc4830b8a"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:51.525Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a31265394dcdb5dc4830cb2"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:51.855Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a31265394dcdb5dc4830dda"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T10:32:52.525Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a31265494dcdb5dc4830e6f"
+      }
+    },
+    {
+      "action": "settings_change",
+      "resource": "notification_settings",
+      "timestamp": {
+        "$date": "2026-06-16T10:33:11.277Z"
+      },
+      "endpoint": "/api/settings/notifications/settings/:id",
+      "_id": {
+        "$oid": "6a31266794dcdb5dc483120b"
+      }
+    },
+    {
+      "action": "settings_change",
+      "resource": "notification_settings",
+      "timestamp": {
+        "$date": "2026-06-16T10:33:11.978Z"
+      },
+      "endpoint": "/api/settings/notifications/settings/:id",
+      "_id": {
+        "$oid": "6a31266894dcdb5dc483133a"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:33:45.059Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31268994dcdb5dc4831638"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:35:33.791Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3126f594dcdb5dc4831e14"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:36:20.883Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31272494dcdb5dc4831fed"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:37:20.964Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31276094dcdb5dc48321cb"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:44:55.057Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31292794dcdb5dc48328cc"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:45:55.119Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31296394dcdb5dc4832976"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:46:32.505Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31298894dcdb5dc4832b59"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:47:32.543Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3129c494dcdb5dc4832c05"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:54:06.945Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a312b4e94dcdb5dc48331ec"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T10:55:07.001Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a312b8b94dcdb5dc483329a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:11:40.483Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a312f6c94dcdb5dc48337e9"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:11:43.509Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a312f6f94dcdb5dc48339d3"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:12:43.764Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a312fab94dcdb5dc4834302"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:16:20.153Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31308494dcdb5dc483467c"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:17:20.215Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3130c094dcdb5dc4834739"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:22:42.141Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31320294dcdb5dc4834935"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:22:55.694Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31320f94dcdb5dc4834b32"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:23:07.973Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31321c94dcdb5dc4834ea3"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:23:08.225Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31321c94dcdb5dc4834f4f"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:23:15.592Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31322394dcdb5dc483517b"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:23:15.607Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31322394dcdb5dc483517e"
+      }
+    },
+    {
+      "action": "login",
+      "resource": "user_authentication",
+      "timestamp": {
+        "$date": "2026-06-16T11:24:47.311Z"
+      },
+      "endpoint": "/api/auth/login",
+      "_id": {
+        "$oid": "6a31327f94dcdb5dc4835526"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:25:14.942Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31329a94dcdb5dc4836426"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:25:14.977Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31329a94dcdb5dc4836428"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:26:13.660Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3132d594dcdb5dc4836537"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:26:13.661Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3132d594dcdb5dc4836539"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:27:07.476Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31330b94dcdb5dc4836809"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:27:37.548Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31332994dcdb5dc48368bb"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:28:37.607Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31336594dcdb5dc4836ad0"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:29:51.666Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3133af94dcdb5dc4836bca"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:35:49.722Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31351594dcdb5dc4836ea5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:36:49.783Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31355194dcdb5dc4836f67"
+      }
+    },
+    {
+      "action": "zoom_settings_viewed",
+      "resource": "user_preferences",
+      "timestamp": {
+        "$date": "2026-06-16T11:43:59.654Z"
+      },
+      "endpoint": "/api/zoom/user/:userId",
+      "_id": {
+        "$oid": "6a3136ff94dcdb5dc4837155"
+      }
+    },
+    {
+      "action": "zoom_settings_viewed",
+      "resource": "user_preferences",
+      "timestamp": {
+        "$date": "2026-06-16T11:43:59.660Z"
+      },
+      "endpoint": "/api/zoom/user/:userId",
+      "_id": {
+        "$oid": "6a3136ff94dcdb5dc4837157"
+      }
+    },
+    {
+      "action": "zoom_settings_updated",
+      "resource": "user_preferences",
+      "timestamp": {
+        "$date": "2026-06-16T11:44:08.347Z"
+      },
+      "endpoint": "/api/zoom/user/:userId",
+      "_id": {
+        "$oid": "6a31370894dcdb5dc4837214"
+      }
+    },
+    {
+      "action": "zoom_settings_updated",
+      "resource": "user_preferences",
+      "timestamp": {
+        "$date": "2026-06-16T11:44:09.807Z"
+      },
+      "endpoint": "/api/zoom/user/:userId",
+      "_id": {
+        "$oid": "6a31370994dcdb5dc4837296"
+      }
+    },
+    {
+      "action": "zoom_settings_reset",
+      "resource": "user_preferences",
+      "timestamp": {
+        "$date": "2026-06-16T11:44:10.695Z"
+      },
+      "endpoint": "/api/zoom/user/:userId/reset",
+      "_id": {
+        "$oid": "6a31370a94dcdb5dc483731a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:44:24.205Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31371894dcdb5dc48373e6"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:45:24.280Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31375494dcdb5dc4837657"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T11:46:59.365Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3137b394dcdb5dc4837cca"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:47:23.734Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3137cb94dcdb5dc4837df0"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:47:34.324Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3137d694dcdb5dc4837f73"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T11:47:34.333Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3137d694dcdb5dc4837f75"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:49:03.366Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31382f94dcdb5dc483851d"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T11:50:03.442Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31386b94dcdb5dc483857f"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:10:49.948Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a313d4a94dcdb5dc48387ed"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T12:10:59.771Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a313d5394dcdb5dc4838887"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:11:51.723Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a313d8794dcdb5dc4838932"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:16:23.242Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a313e9794dcdb5dc4838a2f"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:17:24.184Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a313ed594dcdb5dc4838a83"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:20:34.595Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a313f9294dcdb5dc4838b84"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:21:28.566Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a313fc894dcdb5dc4838c7a"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:22:28.733Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31400494dcdb5dc4838cd1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:23:03.660Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31402794dcdb5dc4838dd1"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:24:04.081Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31406494dcdb5dc4838e2c"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:30:58.623Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31420294dcdb5dc4838f52"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:31:58.721Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31423e94dcdb5dc4838faf"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:32:13.942Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31424d94dcdb5dc48390b9"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:33:14.025Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31428a94dcdb5dc4839118"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:50:01.440Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31467994dcdb5dc483942e"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:51:01.537Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3146b594dcdb5dc4839916"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:52:32.153Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31471094dcdb5dc4839c8c"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T12:52:36.262Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a31471494dcdb5dc4839d49"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T12:53:27.127Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a31474794dcdb5dc483a4a6"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T12:53:32.246Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31474c94dcdb5dc483a56e"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T14:04:13.354Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3157dd94dcdb5dc483a826"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T14:05:13.612Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31581994dcdb5dc483ac90"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T14:07:26.262Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31589e94dcdb5dc483addb"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T14:08:26.498Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3158da94dcdb5dc483ae4c"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T15:22:14.570Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a316a26f8cc34b5ca910ecf"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:24:43.824Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a316abbf8cc34b5ca9117b9"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:24:44.106Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a316abcf8cc34b5ca911883"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:24:44.836Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a316abcf8cc34b5ca9118e9"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:25:07.355Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a316ad3f8cc34b5ca9119ba"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:25:07.375Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a316ad3f8cc34b5ca911a22"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:25:07.975Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a316ad3f8cc34b5ca911af1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:32:00.008Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a316c70f8cc34b5ca911c52"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:33:00.259Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a316cacf8cc34b5ca911cc0"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:48:40.078Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317058845fac7c405f005a"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:48:42.908Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a31705a845fac7c405f0135"
+      }
+    },
+    {
+      "action": "earnings_viewed",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:48:43.223Z"
+      },
+      "endpoint": "/api/wallet/earnings/get/:id",
+      "_id": {
+        "$oid": "6a31705b845fac7c405f0211"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:48:44.419Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a31705c845fac7c405f0280"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:48:46.019Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a31705e845fac7c405f02f0"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:49:40.241Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a317094845fac7c405f0366"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:50:34.791Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3170ca845fac7c405f04c1"
+      }
+    },
+    {
+      "action": "withdrawal_calculated",
+      "resource": "wallet",
+      "timestamp": {
+        "$date": "2026-06-16T15:50:36.838Z"
+      },
+      "endpoint": "/api/wallet/earnings/calculate",
+      "_id": {
+        "$oid": "6a3170cc845fac7c405f0534"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:51:34.883Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a317106845fac7c405f05ad"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:52:20.365Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317134845fac7c405f0711"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:53:20.518Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a317170845fac7c405f0aa1"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T15:54:51.834Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3171cb845fac7c405f17c3"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T15:54:51.878Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3171cb845fac7c405f17c5"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T15:55:12.167Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3171e0845fac7c405f1a57"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T15:56:56.094Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a317248845fac7c405f21fb"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T15:56:56.433Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a317248845fac7c405f21fe"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T15:58:15.823Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a317297845fac7c405f25c3"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:58:41.124Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3172b1845fac7c405f27c5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:59:41.251Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3172ed845fac7c405f285c"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T16:00:47.008Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a31732f845fac7c405f2ebc"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T16:00:47.217Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a31732f845fac7c405f2f5f"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:01:13.259Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317349845fac7c405f320b"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:01:13.306Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317349845fac7c405f320d"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T16:02:30.639Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a317396845fac7c405f3a89"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:05:21.597Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317441845fac7c405f3cc5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:06:21.691Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31747d845fac7c405f3d6f"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:06:44.071Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317494845fac7c405f3f0a"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T16:07:36.215Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3174c8845fac7c405f4434"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T16:07:36.563Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3174c8845fac7c405f4547"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:07:45.406Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3174d1845fac7c405f45d3"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T16:08:11.780Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3174eb845fac7c405f4bd4"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:09:19.500Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31752f845fac7c405f4e16"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:10:20.231Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31756c845fac7c405f5598"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T16:12:06.399Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3175d6845fac7c405f5741"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:14:23.217Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31765f8edebba17def20e1"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:15:23.516Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31769b8edebba17def2181"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:15:49.635Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3176b58edebba17def2334"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:16:22.556Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3176d68edebba17def24ee"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:17:06.119Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3177028edebba17def27ef"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:18:06.222Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31773e8edebba17def2ee4"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:18:49.300Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31776a03bd8cdf43928359"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:19:52.134Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3177a803bd8cdf439287d7"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:30:08.036Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317a10a8a86024d460b30e"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:30:50.269Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317a3aa8a86024d460b649"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:06:22.328Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31909e4a05e903ce856c52"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:06:22.645Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31909e4a05e903ce856d87"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T18:06:31.491Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3190a74a05e903ce856ebd"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:07:10.572Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a3190ce4a05e903ce8570c1"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:07:16.464Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a3190d44a05e903ce8571fd"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:07:18.563Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3190d64a05e903ce85748f"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:07:18.674Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3190d64a05e903ce8575cd"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:08:09.904Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31910a4a05e903ce8577b5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:11.209Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3191484a05e903ce857ab6"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:37.693Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3191614a05e903ce857b97"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:38.238Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3191624a05e903ce857c68"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:21.566Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3192054a05e903ce858de1"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:22.851Z"
+      },
+      "endpoint": "/api/users/adriano",
+      "_id": {
+        "$oid": "6a3192064a05e903ce858eea"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:13:43.419Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3192574a05e903ce859ac8"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T18:13:47.533Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a31925b4a05e903ce859c19"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:14:33.229Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3192894a05e903ce859e60"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:14:33.548Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3192894a05e903ce85a021"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:14:43.629Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3192934a05e903ce85a376"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:15:25.954Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3192bd4a05e903ce85a6d3"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:16:26.026Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3192fa4a05e903ce85a8e3"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:27.924Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31a4179163faacdfa0156d"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:28.923Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31a4189163faacdfa016cb"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:34.940Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31a41e9163faacdfa0182c"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:38.442Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31a4229163faacdfa019a8"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:40.257Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31a4249163faacdfa01c68"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:32:41.523Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a4d99163faacdfa02471"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:33:09.053Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a4f69163faacdfa02692"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:34:10.588Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31a5329163faacdfa0279e"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:26.601Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aa6a9163faacdfa02c3d"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:43.890Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aa7b9163faacdfa02f31"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:57:44.415Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31aab89163faacdfa0319d"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:58:48.867Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aaf89163faacdfa033d8"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:59:10.864Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ab0e9163faacdfa0361b"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:59:21.050Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ab199163faacdfa0384a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:59:58.316Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ab3e9163faacdfa03c7b"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:00:10.809Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ab4b9163faacdfa03f8a"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T20:00:24.043Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31ab589163faacdfa04111"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T20:00:31.232Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31ab5f9163faacdfa04352"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T20:00:38.346Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a31ab669163faacdfa0480e"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:01:12.619Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ab889163faacdfa04f1b"
+      }
+    },
+    {
+      "action": "location_viewed",
+      "resource": "location_service",
+      "timestamp": {
+        "$date": "2026-06-16T20:01:27.818Z"
+      },
+      "endpoint": "/api/location/user",
+      "_id": {
+        "$oid": "6a31ab989163faacdfa04fdf"
+      }
+    },
+    {
+      "action": "location_updated",
+      "resource": "location_service",
+      "timestamp": {
+        "$date": "2026-06-16T20:01:41.447Z"
+      },
+      "endpoint": "/api/location/update",
+      "_id": {
+        "$oid": "6a31aba59163faacdfa050a7"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:07:19.040Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31acf79163faacdfa05530"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:07:25.317Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31acfd9163faacdfa0577c"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:07:32.775Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ad059163faacdfa05b53"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T20:07:51.861Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31ad179163faacdfa05cfe"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:08:33.828Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ad419163faacdfa05e19"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:09:39.829Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ad879163faacdfa06164"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:09:58.925Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ad969163faacdfa063c3"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:10:59.907Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31add39163faacdfa064e5"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:13:38.313Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ae769163faacdfa06914"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T20:14:22.199Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31ae9e9163faacdfa0700f"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:14:43.080Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31aeb39163faacdfa070e1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:47:59.440Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c48f2f2e7c3b648e0fac"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:48:12.400Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c49c2f2e7c3b648e1322"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T21:48:27.618Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31c4ab2f2e7c3b648e14d6"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T21:48:34.356Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31c4b22f2e7c3b648e1676"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:49:12.631Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31c4d82f2e7c3b648e21c7"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T21:51:06.954Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31c54a2f2e7c3b648e24d9"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T21:51:15.171Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31c5532f2e7c3b648e2849"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T21:51:15.438Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a31c5532f2e7c3b648e29f2"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-16T21:51:18.043Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a31c5562f2e7c3b648e2b9e"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:23.531Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3215bf22f400e537dc74bf"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:42.732Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215d222f400e537dc7f00"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:42.813Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215d222f400e537dc8118"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:52.370Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215dc22f400e537dc8567"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:52.438Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215dc22f400e537dc871c"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:55.202Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3215df22f400e537dc88d2"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:55.552Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3215df22f400e537dc8af7"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:35:23.558Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3215fb22f400e537dc918a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:35:50.483Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32161622f400e537dc9903"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:15.717Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32162f22f400e537dc9cf7"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:21.562Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a32163522f400e537dca179"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:21.598Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a32163522f400e537dca250"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:37:15.811Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32166b22f400e537dca662"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:45:02.144Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32183e22f400e537dca9f1"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:46:02.176Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32187a22f400e537dcaaeb"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:06:37.212Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321d4d0f00ba5a76956e19"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:06:46.746Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321d560f00ba5a7695721a"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:07:46.793Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a321d920f00ba5a76957387"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:08:49.469Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321dd10f00ba5a7695766a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:19.686Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32269bce7eac7c05118201"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:41.119Z"
+      },
+      "endpoint": "/api/streams/publish",
+      "_id": {
+        "$oid": "6a3226b1ce7eac7c051185e5"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:42.552Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3226b2ce7eac7c051189ad"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:42.621Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3226b2ce7eac7c05118b85"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:56.456Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226c0ce7eac7c05118c79"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:56.464Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226c0ce7eac7c05118c7c"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:59.835Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226c3ce7eac7c05119131"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:59.848Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226c3ce7eac7c05119133"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:47:06.997Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226cace7eac7c051195f4"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:47:07.015Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3226cbce7eac7c051195f7"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:47:19.727Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3226d7ce7eac7c05119b3a"
+      }
+    }
+  ],
+  "privateStreamSettings": {
+    "privateInvite": false,
+    "followersOnly": false,
+    "fansOnly": false,
+    "friendsOnly": false
+  },
+  "isAvatarProtected": true,
+  "enviados": 50,
+  "receptores": 198,
+  "activeFrameId": "Blue Crystal",
+  "adminWithdrawalMethod": null,
+  "avatarImages": [],
+  "city": "Sao Paulo",
+  "curtidas": [],
+  "diamonds_purchased": 0,
+  "displayName": "adriano",
+  "earnings_withdrawn": 0,
+  "frameExpiration": null,
+  "livesJoined": 21,
+  "obras": [
+    {
+      "id": "avatar_adriano_1781593006777",
+      "url": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+      "_id": {
+        "$oid": "6a30f3ac94dcdb5dc4825a7a"
+      }
+    }
+  ],
+  "ownedFrames": [
+    {
+      "frameId": "Blue Crystal",
+      "expirationDate": "2026-06-17T06:38:47.000Z"
+    },
+    {
+      "frameId": "Rose Garden",
+      "expirationDate": "2026-06-17T06:38:47.000Z"
+    }
+  ],
+  "photos": [],
+  "platformEarnings": 0,
+  "playbackUrl": "",
+  "rank": 0,
+  "roomId": "",
+  "rtmpIngestUrl": "",
+  "srtIngestUrl": "",
+  "state": "SP",
+  "streamKey": "",
+  "streamServerUrl": "",
+  "topFansAvatars": [],
+  "vipExpirationDate": "",
+  "vipSubscriptionDate": "",
+  "withdrawal_method": null,
+  "withdrawal_requests": [],
+  "latitude": -9.387466456721123,
+  "longitude": -40.42954790712112
+},
+{
+  "_id": {
+    "$oid": "6a2ff2e5735fe82cd3a6933b"
+  },
+  "id": "adri",
+  "email": "adrianomdk2@gmail.com",
+  "password": "$2b$10$dcPx95OOKuRnmwFFY8p3KudE9ek8Q566wr7GL5RoSjeN54tbhW7Ou",
+  "identification": "adri",
+  "name": "Adri",
+  "avatarUrl": "",
+  "photos": [],
+  "avatarImages": [],
+  "country": "br",
+  "age": 36,
+  "gender": "male",
+  "level": 1,
+  "xp": 0,
+  "location": null,
+  "distance": "",
+  "fans": 0,
+  "following": 1,
+  "followingList": [
+    "adriano"
+  ],
+  "followersList": [],
+  "blockedUsers": [],
+  "friendsList": [],
+  "receptores": 0,
+  "enviados": 0,
+  "topFansAvatars": [],
+  "accountStatus": "active",
+  "isLive": false,
+  "isOnline": false,
+  "diamonds": 1000,
+  "earnings": 0,
+  "earnings_withdrawn": 0,
+  "diamonds_purchased": 0,
+  "withdrawal_method": null,
+  "bio": "",
+  "curtidas": [],
+  "birthday": "01/07/1990",
+  "residence": "k",
+  "emotional_status": "0",
+  "tags": [],
+  "profession": "",
+  "isVIP": false,
+  "isAvatarProtected": false,
+  "activeFrameId": null,
+  "chatPermission": "all",
+  "pipEnabled": true,
+  "locationPermission": "granted",
+  "cameraPermissionStatus": "prompt",
+  "microphonePermissionStatus": "prompt",
+  "showActivityStatus": true,
+  "showLocation": true,
+  "privateStreamSettings": {
+    "privateInvite": false,
+    "followersOnly": false,
+    "fansOnly": false,
+    "friendsOnly": false
+  },
+  "platformEarnings": 0,
+  "withdrawal_requests": [],
+  "loginCount": 44,
+  "profileViews": 14,
+  "totalLives": 2,
+  "livesJoined": 8,
+  "messagesSent": 0,
+  "searchesPerformed": 0,
+  "createdAt": {
+    "$date": "2026-06-15T12:41:09.373Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T05:49:17.347Z"
+  },
+  "obras": [],
+  "ownedFrames": [],
+  "recentActivities": [
+    {
+      "action": "register",
+      "resource": "user_registration",
+      "timestamp": {
+        "$date": "2026-06-15T12:41:09.393Z"
+      },
+      "endpoint": "/api/auth/register",
+      "_id": {
+        "$oid": "6a2ff2e5735fe82cd3a6933d"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:42:48.133Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff348735fe82cd3a69da5"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:42:48.156Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff348735fe82cd3a69daa"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:43:19.695Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff367735fe82cd3a69f2a"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:43:19.714Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff367735fe82cd3a69f2e"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:44:05.130Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff395735fe82cd3a6b3f2"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:44:05.142Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff395735fe82cd3a6b3f6"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:44:13.479Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff39d735fe82cd3a6b5bd"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:44:13.482Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff39d735fe82cd3a6b5bf"
+      }
+    },
+    {
+      "action": "login",
+      "resource": "user_authentication",
+      "timestamp": {
+        "$date": "2026-06-15T12:47:58.618Z"
+      },
+      "endpoint": "/api/auth/login",
+      "_id": {
+        "$oid": "6a2ff47e735fe82cd3a6cc9c"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-15T12:47:58.756Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a2ff47e735fe82cd3a6ccb9"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:48:03.698Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff483735fe82cd3a6cccf"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:48:03.725Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff483735fe82cd3a6cd8a"
+      }
+    },
+    {
+      "action": "profile_update",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-15T12:48:13.722Z"
+      },
+      "endpoint": "/api/perfil/apelido",
+      "_id": {
+        "$oid": "6a2ff48d735fe82cd3a6cfb0"
+      }
+    },
+    {
+      "action": "profile_update",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-15T12:48:15.983Z"
+      },
+      "endpoint": "/api/perfil/aniversario",
+      "_id": {
+        "$oid": "6a2ff48f735fe82cd3a6cfc0"
+      }
+    },
+    {
+      "action": "profile_update",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-15T12:48:18.936Z"
+      },
+      "endpoint": "/api/perfil/aniversario",
+      "_id": {
+        "$oid": "6a2ff492735fe82cd3a6cfe1"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:50:19.153Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff50b735fe82cd3a6d588"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:50:19.155Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff50b735fe82cd3a6d58a"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:52:11.080Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff57b09d5dc820cf90504"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:52:11.132Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff57b09d5dc820cf90508"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:55:00.195Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff62409d5dc820cf91337"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-15T12:55:00.218Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a2ff62409d5dc820cf91409"
+      }
+    },
+    {
+      "action": "login",
+      "resource": "user_authentication",
+      "timestamp": {
+        "$date": "2026-06-16T15:56:16.602Z"
+      },
+      "endpoint": "/api/auth/login",
+      "_id": {
+        "$oid": "6a317220845fac7c405f1b9a"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T15:56:17.032Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a317221845fac7c405f1bd1"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T15:57:29.234Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317269845fac7c405f237f"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T15:57:29.239Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317269845fac7c405f2381"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:00:49.474Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317331845fac7c405f303c"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:00:49.490Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317331845fac7c405f303e"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:01:21.275Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317351845fac7c405f35a1"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T16:01:21.298Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a317351845fac7c405f35a5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:01:32.818Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31735c845fac7c405f3765"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:07:49.930Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3174d5845fac7c405f469e"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T16:17:29.617Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3177198edebba17def2d8d"
+      }
+    },
+    {
+      "action": "login",
+      "resource": "user_authentication",
+      "timestamp": {
+        "$date": "2026-06-16T18:08:51.448Z"
+      },
+      "endpoint": "/api/auth/login",
+      "_id": {
+        "$oid": "6a3191334a05e903ce857896"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:11.224Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3191484a05e903ce857ab8"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:38.170Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3191624a05e903ce857c66"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:38.503Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3191624a05e903ce857d57"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:43.253Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3191674a05e903ce857e2a"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:09:43.461Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3191674a05e903ce857ef8"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:10:22.657Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31918e4a05e903ce858411"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:10:47.681Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3191a74a05e903ce8585ac"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:10:49.112Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3191a94a05e903ce8585b0"
+      }
+    },
+    {
+      "action": "login",
+      "resource": "user_authentication",
+      "timestamp": {
+        "$date": "2026-06-16T18:11:51.043Z"
+      },
+      "endpoint": "/api/auth/login",
+      "_id": {
+        "$oid": "6a3191e74a05e903ce858aa0"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:07.983Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3191f74a05e903ce858c53"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:21.802Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3192054a05e903ce858eb7"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:23.232Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3192074a05e903ce858fc1"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:28.901Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31920c4a05e903ce859144"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:28.961Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31920c4a05e903ce859179"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:32.396Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3192104a05e903ce8595e6"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:32.468Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a3192104a05e903ce8595e8"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:41.668Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3192194a05e903ce859866"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:12:52.148Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3192244a05e903ce859908"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T18:13:53.014Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3192614a05e903ce859d71"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:18:03.239Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31935b4a05e903ce85a9a5"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T18:18:03.403Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31935b4a05e903ce85a9df"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:06:02.516Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a319e9a53fccfd950f9059d"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:06:16.418Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a319ea853fccfd950f9064d"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:28:47.590Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a3ef9163faacdfa01188"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:29:45.014Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a4299163faacdfa01d91"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:30:45.235Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31a4659163faacdfa0202f"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:31:11.400Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a47f9163faacdfa020f1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:31:33.227Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a4959163faacdfa021b5"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:32:33.376Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31a4d19163faacdfa02208"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:32:38.509Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31a4d69163faacdfa022ca"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:33:39.139Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31a5139163faacdfa02750"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:15.682Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aa5f9163faacdfa02a88"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:35.734Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aa739163faacdfa02d7f"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:44.533Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aa7c9163faacdfa0306f"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T19:56:47.643Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31aa7f9163faacdfa03142"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:00:01.493Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ab419163faacdfa03dc3"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:01:01.935Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ab7d9163faacdfa04ed2"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:04:50.820Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ac639163faacdfa0521d"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:05:51.869Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ac9f9163faacdfa05271"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:07:13.372Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31acf19163faacdfa0535c"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:08:13.823Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ad2d9163faacdfa05dc6"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:09:26.874Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ad779163faacdfa05f84"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:10:27.213Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31adb39163faacdfa06493"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:13:03.133Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31ae4f9163faacdfa0665b"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-16T20:13:17.046Z"
+      },
+      "endpoint": "/api/streams",
+      "_id": {
+        "$oid": "6a31ae5d9163faacdfa06721"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:13:47.663Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31ae7c9163faacdfa06b77"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:15:19.549Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31aed79163faacdfa07259"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T20:16:20.662Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31af149163faacdfa072ba"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:46:44.233Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c4442f2e7c3b648e03b4"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T21:46:50.533Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31c44b2f2e7c3b648e0409"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-16T21:46:51.962Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a31c44b2f2e7c3b648e0461"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:47:08.378Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c45c2f2e7c3b648e0c63"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:47:36.252Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c4782f2e7c3b648e0d6f"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:48:10.072Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a31c49a2f2e7c3b648e112c"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-16T21:49:10.237Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a31c4d62f2e7c3b648e216c"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-16T21:51:05.206Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a31c5492f2e7c3b648e22d4"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:28:34.109Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32146222f400e537dc6741"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:29:34.180Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32149e22f400e537dc67aa"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:33:37.232Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32159122f400e537dc6a90"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:33:47.765Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a32159b22f400e537dc6b62"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:33:47.906Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a32159b22f400e537dc6c23"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-17T03:33:52.855Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a3215a022f400e537dc6ce6"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:02.508Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3215aa22f400e537dc6e74"
+      }
+    },
+    {
+      "action": "live_start",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:22.421Z"
+      },
+      "endpoint": "/api/streams/publish",
+      "_id": {
+        "$oid": "6a3215be22f400e537dc72a4"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:23.660Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215bf22f400e537dc75ff"
+      }
+    },
+    {
+      "action": "live_join",
+      "resource": "streaming",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:23.873Z"
+      },
+      "endpoint": "/api/streams/:id/join",
+      "_id": {
+        "$oid": "6a3215bf22f400e537dc76ce"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:42.736Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a3215d222f400e537dc7f02"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:42.946Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a3215d222f400e537dc81f2"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:52.320Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a3215dc22f400e537dc8424"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:34:52.462Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a3215dc22f400e537dc87f8"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:35:42.237Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32160e22f400e537dc96dc"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:07.608Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a32162722f400e537dc9acb"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:21.512Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a32163522f400e537dca094"
+      }
+    },
+    {
+      "action": "profile_visit",
+      "resource": "user_profile",
+      "timestamp": {
+        "$date": "2026-06-17T03:36:21.532Z"
+      },
+      "endpoint": "/api/users/adri",
+      "_id": {
+        "$oid": "6a32163522f400e537dca097"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T03:37:07.649Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32166322f400e537dca5f1"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:06:44.866Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321d540f00ba5a76956fde"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:07:44.918Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a321d900f00ba5a76957316"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:09:39.417Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321e03ce7eac7c0511692b"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:10:19.331Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321e2bce7eac7c05116a89"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:11:19.456Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a321e67ce7eac7c05116b10"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:13:16.056Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a321edcce7eac7c05116c8c"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:14:16.104Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a321f18ce7eac7c05116d12"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:19:48.794Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322064ce7eac7c05116ed1"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:20:48.887Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3220a0ce7eac7c05116f59"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:23:37.708Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322149ce7eac7c051170f0"
+      }
+    },
+    {
+      "action": "live_end",
+      "resource": "live_broadcast",
+      "timestamp": {
+        "$date": "2026-06-17T04:23:45.197Z"
+      },
+      "endpoint": "/api/live/end",
+      "_id": {
+        "$oid": "6a322151ce7eac7c051171e4"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:23:52.316Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a322158ce7eac7c051172e2"
+      }
+    },
+    {
+      "action": "ranking_viewed",
+      "resource": "ranking_metadata",
+      "timestamp": {
+        "$date": "2026-06-17T04:23:52.411Z"
+      },
+      "endpoint": "/api/metadata/ranking/:period",
+      "_id": {
+        "$oid": "6a322158ce7eac7c05117360"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:24:37.756Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a322185ce7eac7c05117dc6"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:46:17.183Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322699ce7eac7c05117fac"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:47:17.228Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a3226d5ce7eac7c05119abb"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:48:35.707Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322723ce7eac7c05119d49"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T04:49:35.753Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32275fce7eac7c05119e00"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:24:54.125Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322fa6ce7eac7c0511a2a2"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:25:23.502Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a322fc3ce7eac7c0511a435"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:26:23.574Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a322fffce7eac7c0511a4ce"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:46:51.697Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a3234cbce7eac7c0511a7f7"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:47:51.755Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a323507ce7eac7c0511a894"
+      }
+    },
+    {
+      "action": "user_online",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:48:17.248Z"
+      },
+      "endpoint": "websocket_connection",
+      "_id": {
+        "$oid": "6a323521ce7eac7c0511aa2c"
+      }
+    },
+    {
+      "action": "user_offline",
+      "resource": "user_session",
+      "timestamp": {
+        "$date": "2026-06-17T05:49:17.340Z"
+      },
+      "endpoint": "websocket_disconnection",
+      "_id": {
+        "$oid": "6a32355dce7eac7c0511aac9"
+      }
+    }
+  ],
+  "__v": 4,
+  "lastSeen": {
+    "$date": "2026-06-17T05:49:17.340Z"
+  },
+  "playbackUrl": "https://api.livego.store/api/video/http/live/adri.flv",
+  "roomId": "room_adri",
+  "rtmpIngestUrl": "rtmp://2.25.192.154:1935/live",
+  "srtIngestUrl": "srt://2.25.192.154:10000?streamid=adri",
+  "streamKey": "adri",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkcmkiLCJfaWQiOiI2YTJmZjJlNTczNWZlODJjZDNhNjkzM2IiLCJpYXQiOjE3ODE2MzM1MTEsImV4cCI6MTc4NDIyNTUxMX0.homd6YtH3FRMTjbnhXt_BltiPAXeOP5Az2huP9bZjec",
+  "lastLogin": {
+    "$date": "2026-06-17T05:48:17.248Z"
+  },
+  "currentStreamId": null
+},
+{
+  "_id": {
+    "$oid": "6a32410ab8897924b6089094"
+  },
+  "id": "rafa",
+  "identification": "rafa",
+  "name": "rafa",
+  "avatarUrl": "https://api.livego.store/uploads/avatars/avatar_rafa.jpg",
+  "avatar": "https://api.livego.store/uploads/avatars/avatar_rafa.jpg",
+  "coverUrl": "",
+  "country": "br",
+  "age": 22,
+  "gender": "female",
+  "level": 3,
+  "xp": 450,
+  "city": "Rio de Janeiro",
+  "state": "RJ",
+  "fans": 1,
+  "following": 1,
+  "receptores": 500,
+  "enviados": 100,
+  "diamonds": 2000,
+  "earnings": 500,
+  "earnings_withdrawn": 100,
+  "bio": "Liveira nas horas vagas!",
+  "isLive": false,
+  "isOnline": false,
+  "isVIP": true,
+  "vipSubscriptionDate": "2026-05-18T06:39:06.135Z",
+  "vipExpirationDate": "2026-06-17T06:39:06.000Z",
+  "isAvatarProtected": false,
+  "activeFrameId": "Celestial Crown",
+  "ownedFrames": [
+    {
+      "frameId": "Celestial Crown",
+      "expirationDate": "2026-06-17T06:39:06.000Z"
+    }
+  ],
+  "chatPermission": "all",
+  "pipEnabled": true,
+  "locationPermission": "granted",
+  "showActivityStatus": true,
+  "showLocation": true,
+  "birthday": "15/06/2004",
+  "residence": "Rio de Janeiro",
+  "emotional_status": "",
+  "tags": [
+    "live",
+    "musica"
+  ],
+  "profession": "Streamer",
+  "loginCount": 45,
+  "messagesSent": 120,
+  "profileViews": 230,
+  "searchesPerformed": 15,
+  "totalLives": 8,
+  "lastLogin": "2026-06-17T06:39:06.135Z",
+  "lastSeen": "2026-06-17T06:39:06.135Z",
+  "createdAt": {
+    "$date": "2026-04-18T06:39:06.135Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:39:06.135Z"
   }
-]
+}]

@@ -1,12 +1,46 @@
-[
-  {
-    "_id": "69e67e2d82ac458b132114a0",
-    "followerId": "98501723",
-    "followingId": "98501723",
-    "followedAt": "2026-04-20T19:27:41.812Z",
-    "isActive": true,
-    "createdAt": "2026-04-20T19:27:41.835Z",
-    "updatedAt": "2026-04-20T19:27:41.835Z",
-    "__v": 0
-  }
-]
+[{
+  "_id": "69e67e2d82ac458b132114a0",
+  "followerId": "adriano",
+  "followingId": "adriano",
+  "followedAt": "2026-04-20T19:27:41.812Z",
+  "isActive": true,
+  "createdAt": "2026-04-20T19:27:41.835Z",
+  "updatedAt": "2026-04-20T19:27:41.835Z",
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31734f845fac7c405f3457"
+  },
+  "followerId": "adri",
+  "followingId": "adriano",
+  "followedAt": {
+    "$date": "2026-06-16T16:01:19.188Z"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-06-16T16:01:19.191Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T16:01:19.191Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a32163722f400e537dca414"
+  },
+  "followerId": "adriano",
+  "followingId": "Adri",
+  "followedAt": {
+    "$date": "2026-06-17T03:36:23.721Z"
+  },
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-06-17T03:36:23.725Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T03:36:23.725Z"
+  },
+  "__v": 0
+}]

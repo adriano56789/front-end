@@ -1,0 +1,56 @@
+[{
+  "_id": {
+    "$oid": "6a3240a1cad085f2358e29c3"
+  },
+  "streamerA": "adriano",
+  "streamerB": "rafa",
+  "scoreA": 150,
+  "scoreB": 120,
+  "heartsA": 75,
+  "heartsB": 60,
+  "status": "finished",
+  "winner": "adriano",
+  "startedAt": {
+    "$date": "2026-06-15T06:37:21.806Z"
+  },
+  "endedAt": {
+    "$date": "2026-06-15T06:42:21.806Z"
+  },
+  "durationSeconds": 300,
+  "roomId": "pk_room_1",
+  "opponentId": "rafa",
+  "createdAt": {
+    "$date": "2026-06-15T06:37:21.806Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:42:21.806Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240a1cad085f2358e29c4"
+  },
+  "streamerA": "adriano",
+  "streamerB": "rafa",
+  "scoreA": 80,
+  "scoreB": 200,
+  "heartsA": 40,
+  "heartsB": 100,
+  "status": "finished",
+  "winner": "rafa",
+  "startedAt": {
+    "$date": "2026-06-16T06:37:21.806Z"
+  },
+  "endedAt": {
+    "$date": "2026-06-16T06:42:21.806Z"
+  },
+  "durationSeconds": 300,
+  "roomId": "pk_room_2",
+  "opponentId": "rafa",
+  "createdAt": {
+    "$date": "2026-06-16T06:37:21.806Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:42:21.806Z"
+  }
+}]

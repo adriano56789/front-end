@@ -2,69 +2,18 @@
   "_id": {
     "$oid": "69e5c588bec92f6daf5a83b1"
   },
-  "user_id": "91282294",
   "__v": 0,
   "createdAt": {
     "$date": "2026-04-20T06:19:52.385Z"
   },
-  "is_online": false,
-  "last_seen": {
-    "$date": "2026-04-20T06:20:00.101Z"
-  },
   "updatedAt": {
     "$date": "2026-04-20T06:20:00.104Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69e5c59fbec92f6daf5a83b2"
   },
-  "user_id": "69e5c59eb434a54744b379a7",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-20T06:20:15.461Z"
+  "isOnline": false,
+  "lastSeen": {
+    "$date": "2026-04-20T06:20:00.101Z"
   },
-  "is_online": false,
-  "last_seen": {
-    "$date": "2026-04-20T06:33:09.082Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-20T06:33:09.083Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69e5c5a9bec92f6daf5a83b3"
-  },
-  "user_id": "28867128",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-20T06:20:25.065Z"
-  },
-  "is_online": false,
-  "last_seen": {
-    "$date": "2026-04-20T08:52:01.417Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-20T08:52:01.418Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69e63099bec92f6daf5a83b4"
-  },
-  "user_id": "69e63099b434a54744b37b14",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-20T13:56:41.628Z"
-  },
-  "is_online": false,
-  "last_seen": {
-    "$date": "2026-04-20T14:14:52.551Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-20T14:14:52.552Z"
-  }
+  "userId": "91282294"
 },
 {
   "_id": {
@@ -87,17 +36,17 @@
   "_id": {
     "$oid": "69e6782fbec92f6daf5a83b6"
   },
-  "userId": "98501723",
+  "userId": "adriano",
   "__v": 0,
   "createdAt": {
     "$date": "2026-04-20T19:02:07.708Z"
   },
   "isOnline": false,
   "lastSeen": {
-    "$date": "2026-04-24T12:05:54.698Z"
+    "$date": "2026-06-17T04:47:19.727Z"
   },
   "updatedAt": {
-    "$date": "2026-04-24T12:05:54.699Z"
+    "$date": "2026-06-17T04:47:19.728Z"
   }
 },
 {
@@ -268,23 +217,6 @@
   },
   "updatedAt": {
     "$date": "2026-04-24T23:46:41.732Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69ec067ba1fcaa134c896dc3"
-  },
-  "userId": "98501723",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-25T00:10:35.210Z"
-  },
-  "isOnline": false,
-  "lastSeen": {
-    "$date": "2026-04-25T03:20:01.711Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-25T03:20:01.712Z"
   }
 },
 {
@@ -476,52 +408,69 @@
 },
 {
   "_id": {
-    "$oid": "69ec7e21d4aa9393247af640"
+    "$oid": "6a2b4fa32f36d57d36ccff23"
   },
-  "userId": "11618491",
+  "userId": "mdk",
   "__v": 0,
   "createdAt": {
-    "$date": "2026-04-25T08:41:05.567Z"
-  },
-  "isOnline": false,
-  "lastSeen": {
-    "$date": "2026-04-25T08:47:24.547Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-25T08:47:24.548Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69ecb370d4aa9393247af641"
-  },
-  "userId": "98501723",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-25T12:28:32.516Z"
-  },
-  "isOnline": false,
-  "lastSeen": {
-    "$date": "2026-04-28T12:43:07.326Z"
-  },
-  "updatedAt": {
-    "$date": "2026-04-28T12:43:07.327Z"
-  }
-},
-{
-  "_id": {
-    "$oid": "69ee790d30d2d0bdfb5f5cac"
-  },
-  "userId": "98501723",
-  "__v": 0,
-  "createdAt": {
-    "$date": "2026-04-26T20:43:57.976Z"
+    "$date": "2026-06-12T00:15:31.229Z"
   },
   "isOnline": true,
   "lastSeen": {
-    "$date": "2026-04-28T12:20:30.354Z"
+    "$date": "2026-06-12T01:00:12.196Z"
   },
   "updatedAt": {
-    "$date": "2026-04-28T12:20:30.355Z"
+    "$date": "2026-06-12T01:00:12.197Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69e5c59fbec92f6daf5a83b2"
+  },
+  "userId": "69e5c59eb434a54744b379a7",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-04-20T06:20:15.461Z"
+  },
+  "isOnline": false,
+  "lastSeen": {
+    "$date": "2026-04-20T06:33:09.082Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-20T06:33:09.083Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "69e5c5a9bec92f6daf5a83b3"
+  },
+  "userId": "28867128",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-04-20T06:20:25.065Z"
+  },
+  "isOnline": false,
+  "lastSeen": {
+    "$date": "2026-04-20T08:52:01.417Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-20T08:52:01.418Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a2ff2e6653e29cf04fdcc96"
+  },
+  "userId": "adri",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-06-15T12:41:10.064Z"
+  },
+  "isOnline": false,
+  "lastSeen": {
+    "$date": "2026-06-17T05:49:17.340Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T05:49:17.341Z"
   }
 }]

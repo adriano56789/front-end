@@ -1,22 +1,668 @@
-[
-  {
-    "userId": "98501723",
-    "photoType": "avatar",
-    "isMain": true,
-    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg"
+[{
+  "_id": {
+    "$oid": "6a2a82e2086cabd1427ec01e"
   },
-  {
-    "userId": "98501723",
-    "photoType": "gallery",
-    "isMain": false,
-    "order": 1,
-    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555964767-361196488.jpg"
+  "userId": "adriano",
+  "photoType": "avatar",
+  "isMain": true,
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "isActive": true,
+  "metadata": {
+    "filename": "avatar_adriano_1781593002789.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-16T06:56:42.966Z"
+    },
+    "source": "avatar_upload"
   },
-  {
-    "userId": "98501723",
-    "photoType": "gallery",
-    "isMain": false,
-    "order": 2,
-    "photoUrl": "https://api.livego.store/uploads/avatars/avatar_1778555632401-962822378.jpg"
+  "obraId": "avatar_1781593002966_adriano",
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:42.970Z"
   }
-]
+},
+{
+  "_id": {
+    "$oid": "6a2a83192806be4288fc8b6f"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781170969287_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781170969111.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 21,
+  "metadata": {
+    "filename": "avatar_adriano_1781170969111.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-11T09:42:49.287Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-11T09:42:49.301Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2abb8b823fa6bab33b99ae"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781185419966_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781185419769.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 21,
+  "metadata": {
+    "filename": "avatar_adriano_1781185419769.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-11T13:43:39.966Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-11T13:43:39.969Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2b4fbb2f36d57d36ccff24"
+  },
+  "photoType": "avatar",
+  "isMain": true,
+  "userId": "mdk",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-06-12T00:15:55.050Z"
+  },
+  "isActive": true,
+  "metadata": {
+    "filename": "avatar_mdk_1781223355011.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-12T00:15:55.050Z"
+    },
+    "source": "avatar_upload"
+  },
+  "obraId": "avatar_1781223355049_mdk",
+  "order": 0,
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_mdk_1781223355011.jpg",
+  "updatedAt": {
+    "$date": "2026-06-12T00:15:55.050Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a2b4fbbb0a4eae39e6b7b6f"
+  },
+  "userId": "mdk",
+  "obraId": "gallery_1781223355067_mdk",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_mdk_1781223355011.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 0,
+  "metadata": {
+    "filename": "avatar_mdk_1781223355011.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-12T00:15:55.067Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T00:15:55.077Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T00:15:55.077Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2bb6fa0bbeb1630ef068ca"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781249786495_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 20,
+  "metadata": {
+    "filename": "avatar_adriano_1781249786390.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T07:36:26.495Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T07:36:26.501Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c56b5d200d0f0ef17ddf2"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781290677096_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781290677037.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 19,
+  "metadata": {
+    "filename": "avatar_adriano_1781290677037.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T18:57:57.096Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T18:57:57.098Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c775dbfb702886871b38e"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781299037522_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781299037464.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 18,
+  "metadata": {
+    "filename": "avatar_adriano_1781299037464.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T21:17:17.522Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T21:17:17.531Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c77abbe44cd79b2458135"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781299115319_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781299115260.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 17,
+  "metadata": {
+    "filename": "avatar_adriano_1781299115260.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T21:18:35.319Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T21:18:35.322Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c780c2a35b26504bb913e"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781299212938_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781299212789.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 16,
+  "metadata": {
+    "filename": "avatar_adriano_1781299212789.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T21:20:12.943Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T21:20:12.958Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c7a2cb5f3384eb8b33de3"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781299755999_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781299755882.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 15,
+  "metadata": {
+    "filename": "avatar_adriano_1781299755882.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T21:29:15.999Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T21:29:16.014Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c84996b080c5cbb51c0d8"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781302425047_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781302424787.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 14,
+  "metadata": {
+    "filename": "avatar_adriano_1781302424787.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T22:13:45.047Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T22:13:45.058Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c8de0358d96fa30ba6d0e"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781304800462_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781304800392.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 13,
+  "metadata": {
+    "filename": "avatar_adriano_1781304800392.png",
+    "uploadedAt": {
+      "$date": "2026-06-12T22:53:20.462Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-12T22:53:20.472Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c9e94358d96fa30ba7303"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781309076239_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781309076186.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 12,
+  "metadata": {
+    "filename": "avatar_adriano_1781309076186.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T00:04:36.239Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T00:04:36.243Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ca11a06a9911f3b548f50"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781309722787_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781309722595.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 11,
+  "metadata": {
+    "filename": "avatar_adriano_1781309722595.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T00:15:22.787Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T00:15:22.790Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ca8e906a9911f3b549ffd"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781311721508_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781311720972.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 10,
+  "metadata": {
+    "filename": "avatar_adriano_1781311720972.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T00:48:41.508Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T00:48:41.510Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2cac2906a9911f3b54b2e1"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781312553354_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781312552892.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 9,
+  "metadata": {
+    "filename": "avatar_adriano_1781312552892.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T01:02:33.354Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T01:02:33.356Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2cb67606a9911f3b54c36a"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781315190262_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781315190046.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 8,
+  "metadata": {
+    "filename": "avatar_adriano_1781315190046.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T01:46:30.262Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T01:46:30.265Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2cb9cc06a9911f3b54dcb4"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781316044496_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781316038503.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 7,
+  "metadata": {
+    "filename": "avatar_adriano_1781316038503.png",
+    "uploadedAt": {
+      "$date": "2026-06-13T02:00:44.496Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-13T02:00:44.507Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ff388735fe82cd3a6afa9"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781527432035_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781527431983.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 6,
+  "metadata": {
+    "filename": "avatar_adriano_1781527431983.png",
+    "uploadedAt": {
+      "$date": "2026-06-15T12:43:52.035Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-15T12:43:52.036Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ff401735fe82cd3a6c7dd"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781527553723_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781527553668.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 5,
+  "metadata": {
+    "filename": "avatar_adriano_1781527553668.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-15T12:45:53.723Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-15T12:45:53.724Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ff92b09d5dc820cf92eb0"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781528875450_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 4,
+  "metadata": {
+    "filename": "avatar_adriano_1781528875387.png",
+    "uploadedAt": {
+      "$date": "2026-06-15T13:07:55.450Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-15T13:07:55.453Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30423f09d5dc820cfa1e63"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781547583770_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781547583720.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 3,
+  "metadata": {
+    "filename": "avatar_adriano_1781547583720.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-15T18:19:43.770Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-15T18:19:43.771Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30424309d5dc820cfa205c"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781547587639_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781547587546.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 2,
+  "metadata": {
+    "filename": "avatar_adriano_1781547587546.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-15T18:19:47.639Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-15T18:19:47.640Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30f3ab94dcdb5dc4825a77"
+  },
+  "userId": "adriano",
+  "obraId": "gallery_1781593003157_adriano",
+  "photoUrl": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "photoType": "gallery",
+  "isActive": true,
+  "isMain": true,
+  "order": 1,
+  "metadata": {
+    "filename": "avatar_adriano_1781593002789.jpg",
+    "uploadedAt": {
+      "$date": "2026-06-16T06:56:43.157Z"
+    },
+    "source": "avatar_upload_gallery",
+    "isAvatar": true
+  },
+  "createdAt": {
+    "$date": "2026-06-16T06:56:43.174Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T06:56:43.250Z"
+  },
+  "__v": 0
+}]

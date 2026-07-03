@@ -1,0 +1,26 @@
+[{
+  "_id": {
+    "$oid": "6a3240b9d93f7d1fa4d4d5ee"
+  },
+  "userId": "adriano",
+  "photoId": "photo_rafa_1",
+  "createdAt": {
+    "$date": "2026-06-14T06:37:45.524Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-14T06:37:45.524Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240b9d93f7d1fa4d4d5ef"
+  },
+  "userId": "rafa",
+  "photoId": "photo_adriano_1",
+  "createdAt": {
+    "$date": "2026-06-13T06:37:45.524Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T06:37:45.524Z"
+  }
+}]

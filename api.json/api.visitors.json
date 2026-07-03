@@ -1,0 +1,48 @@
+[{
+  "_id": "ObjectId",
+  "visitorId": "adriano",
+  "visitedId": "rafa",
+  "visitorName": "adriano",
+  "visitorAvatar": "https://api.livego.store/uploads/avatars/avatar_adriano.jpg",
+  "visitedAt": "2026-06-12T07:10:56.522Z"
+},
+{
+  "_id": {
+    "$oid": "6a3191665e7b18397ac79037"
+  },
+  "visitorId": "Adri",
+  "visitedId": "adriano",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-06-16T18:09:42.975Z"
+  },
+  "id": "visitor_1781633548897_fan4er",
+  "updatedAt": {
+    "$date": "2026-06-16T18:12:28.958Z"
+  },
+  "visitedAt": {
+    "$date": "2026-06-16T18:12:28.897Z"
+  },
+  "visitorAvatar": "",
+  "visitorName": "Adri"
+},
+{
+  "_id": {
+    "$oid": "6a3192895e7b18397ac7903a"
+  },
+  "visitedId": "Adri",
+  "visitorId": "adriano",
+  "__v": 0,
+  "createdAt": {
+    "$date": "2026-06-16T18:14:33.159Z"
+  },
+  "id": "visitor_1781667295615_8ezgll",
+  "updatedAt": {
+    "$date": "2026-06-17T03:34:55.667Z"
+  },
+  "visitedAt": {
+    "$date": "2026-06-17T03:34:55.615Z"
+  },
+  "visitorAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "visitorName": "adriano"
+}]

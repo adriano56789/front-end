@@ -1,0 +1,41 @@
+[{
+  "_id": {
+    "$oid": "6a3240a9d3025867ffcda0f0"
+  },
+  "userId": "rafa",
+  "targetId": "photo_adriano_1",
+  "targetType": "photo",
+  "content": "Linda foto!",
+  "likes": 3,
+  "isActive": true,
+  "isEdited": false,
+  "parentId": null,
+  "createdAt": {
+    "$date": "2026-06-12T06:37:29.488Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T06:37:29.488Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240a9d3025867ffcda0f1"
+  },
+  "userId": "adriano",
+  "targetId": "photo_adriano_1",
+  "targetType": "photo",
+  "content": "Obrigado!",
+  "likes": 1,
+  "isActive": true,
+  "isEdited": true,
+  "editedAt": {
+    "$date": "2026-06-13T06:37:29.488Z"
+  },
+  "parentId": null,
+  "createdAt": {
+    "$date": "2026-06-12T06:37:29.488Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T06:37:29.488Z"
+  }
+}]

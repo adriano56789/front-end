@@ -1,0 +1,20 @@
+[{
+  "_id": {
+    "$oid": "6a3240a54e5209c3bd761d9d"
+  },
+  "hostId": "adriano",
+  "hostName": "adriano",
+  "guestId": "rafa",
+  "guestName": "rafa",
+  "roomId": "call_1",
+  "streamId": "adriano",
+  "streamKey": "adriano",
+  "status": "ended",
+  "signalingUrl": "wss://api.livego.store/sfu/signaling",
+  "createdAt": {
+    "$date": "2026-06-17T03:37:25.461Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T03:39:25.461Z"
+  }
+}]

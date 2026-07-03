@@ -1,0 +1,57 @@
+[{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e4a0"
+  },
+  "id": "purchase_adriano_1",
+  "userId": "adriano",
+  "type": "purchase_diamonds",
+  "description": "Compra de 800 diamantes",
+  "amountBRL": 7,
+  "amountCoins": 800,
+  "status": "Concluido",
+  "externalReference": "order_abc123",
+  "createdAt": {
+    "$date": "2026-06-07T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-07T06:38:21.743Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e4a1"
+  },
+  "id": "purchase_adriano_2",
+  "userId": "adriano",
+  "type": "purchase_diamonds",
+  "description": "Compra de 3000 diamantes",
+  "amountBRL": 25,
+  "amountCoins": 3000,
+  "status": "Concluido",
+  "externalReference": "order_def456",
+  "createdAt": {
+    "$date": "2026-06-12T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T06:38:21.743Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e4a2"
+  },
+  "id": "purchase_rafa_1",
+  "userId": "rafa",
+  "type": "purchase_diamonds",
+  "description": "Compra de 800 diamantes",
+  "amountBRL": 7,
+  "amountCoins": 800,
+  "status": "Concluido",
+  "externalReference": "order_ghi789",
+  "createdAt": {
+    "$date": "2026-06-15T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T06:38:21.743Z"
+  }
+}]

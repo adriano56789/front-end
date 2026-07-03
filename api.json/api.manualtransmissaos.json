@@ -1,0 +1,67 @@
+[{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ad8"
+  },
+  "title": "1. Preparando sua Transmissao",
+  "content": [
+    "Escolha uma imagem de capa clara e um titulo que chame a atencao.",
+    "Selecione a categoria correta (Musica, Danca, Jogos, etc).",
+    "Verifique sua conexao com a internet. Uma boa iluminacao e essencial."
+  ],
+  "createdAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ad9"
+  },
+  "title": "2. Durante a Transmissao",
+  "content": [
+    "Interaja com o Chat: Converse com seus espectadores!",
+    "Ferramentas de Co-host e PK: Convide amigos para participar.",
+    "Efeitos de Beleza: Utilize os filtros e efeitos de beleza."
+  ],
+  "createdAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3ada"
+  },
+  "title": "3. Tipo de Transmissao",
+  "content": [
+    "WebRTC (Padrao): A forma mais simples de comecar a transmitir.",
+    "RTMP/SRT: Para streamers avancados que usam OBS Studio."
+  ],
+  "createdAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3adb"
+  },
+  "title": "4. Dicas Importantes",
+  "content": [
+    "Seja Consistente: Tente transmitir em horarios regulares.",
+    "Divulgue: Avise seus seguidores em outras redes sociais.",
+    "Regras da Comunidade: Siga as diretrizes da plataforma."
+  ],
+  "createdAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:41:56.232Z"
+  }
+}]

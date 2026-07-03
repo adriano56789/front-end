@@ -1,0 +1,98 @@
+[{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50d9"
+  },
+  "userId": "adriano",
+  "streamId": "adriano",
+  "publishUrl": "webrtc://srs.livego.store:8085/live/adriano?txSecret=abc123&txTime=9999999999",
+  "playbackUrl": "https://srs.livego.store:8085/play/live/adriano.flv",
+  "rtmpUrl": "rtmp://srs.livego.store:1935/live/adriano",
+  "hlsUrl": "https://srs.livego.store:8085/hls/adriano.m3u8",
+  "streamKey": "adriano",
+  "status": "publishing",
+  "isPublishing": true,
+  "startedAt": {
+    "$date": "2026-06-17T08:00:38.906Z"
+  },
+  "endedAt": null,
+  "createdAt": {
+    "$date": "2026-06-17T08:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T08:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50da"
+  },
+  "userId": "rafa",
+  "streamId": "rafa",
+  "publishUrl": "webrtc://srs.livego.store:8085/live/rafa?txSecret=def456&txTime=9999999999",
+  "playbackUrl": "https://srs.livego.store:8085/play/live/rafa.flv",
+  "rtmpUrl": "rtmp://srs.livego.store:1935/live/rafa",
+  "hlsUrl": "https://srs.livego.store:8085/hls/rafa.m3u8",
+  "streamKey": "rafa",
+  "status": "publishing",
+  "isPublishing": true,
+  "startedAt": {
+    "$date": "2026-06-17T07:00:38.906Z"
+  },
+  "endedAt": null,
+  "createdAt": {
+    "$date": "2026-06-17T07:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T07:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50db"
+  },
+  "userId": "Adri",
+  "streamId": "Adri",
+  "publishUrl": "webrtc://srs.livego.store:8085/live/Adri?txSecret=ghi789&txTime=9999999999",
+  "playbackUrl": "https://srs.livego.store:8085/play/live/Adri.flv",
+  "rtmpUrl": "rtmp://srs.livego.store:1935/live/Adri",
+  "hlsUrl": "https://srs.livego.store:8085/hls/Adri.m3u8",
+  "streamKey": "Adri",
+  "status": "publishing",
+  "isPublishing": true,
+  "startedAt": {
+    "$date": "2026-06-17T06:00:38.906Z"
+  },
+  "endedAt": null,
+  "createdAt": {
+    "$date": "2026-06-17T06:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:00:38.906Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a326236196f0316c3ae50dc"
+  },
+  "userId": "adriano",
+  "streamId": "adriano_archive_1",
+  "publishUrl": "webrtc://srs.livego.store:8085/live/adriano_archive_1?txSecret=jkl012&txTime=9999999999",
+  "playbackUrl": "https://srs.livego.store:8085/play/live/adriano_archive_1.flv",
+  "rtmpUrl": "rtmp://srs.livego.store:1935/live/adriano_archive_1",
+  "hlsUrl": "https://srs.livego.store:8085/hls/adriano_archive_1.m3u8",
+  "streamKey": "adriano_archive_1",
+  "status": "ended",
+  "isPublishing": false,
+  "startedAt": {
+    "$date": "2026-06-16T09:00:38.906Z"
+  },
+  "endedAt": {
+    "$date": "2026-06-16T10:00:38.906Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-16T09:00:38.906Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T10:00:38.906Z"
+  }
+}]

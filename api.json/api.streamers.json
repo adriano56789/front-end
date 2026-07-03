@@ -1,1 +1,35 @@
-[]
+[{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e93"
+  },
+  "id": "adriano",
+  "hostId": "adriano",
+  "name": "adriano",
+  "avatar": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg",
+  "message": "Acabei de chegar aqui",
+  "category": "popular",
+  "country": "br",
+  "location": "Brasil",
+  "city": "São Paulo",
+  "state": "SP",
+  "isLive": true,
+  "streamStatus": "active",
+  "isPrivate": false,
+  "viewers": 1,
+  "diamonds": 0,
+  "quality": "480p",
+  "tags": [
+    "live"
+  ],
+  "time": "2026-06-17T06:19:10.366Z",
+  "rtmpIngestUrl": "rtmp://2.25.192.154:1935/live/adriano",
+  "hlsUrl": "https://livego.store/live/adriano.m3u8",
+  "playbackUrl": "https://livego.store/live/adriano.flv",
+  "streamKey": "adriano",
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.367Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.367Z"
+  }
+}]

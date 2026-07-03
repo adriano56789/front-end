@@ -2,11 +2,11 @@
   "_id": {
     "$oid": "69ecb564ecad72d13bd8f48f"
   },
-  "userId": "98501723",
-  "currentLevel": 1,
-  "currentExp": 168,
-  "expForNextLevel": 200,
-  "totalExp": 148,
+  "userId": "adriano",
+  "currentLevel": 5,
+  "currentExp": 226,
+  "expForNextLevel": 300,
+  "totalExp": 856,
   "levelHistory": [
     {
       "level": 1,
@@ -17,20 +17,172 @@
       "_id": {
         "$oid": "69ecb564ecad72d13bd8f490"
       }
+    },
+    {
+      "level": 2,
+      "reachedAt": {
+        "$date": "2026-06-12T07:51:05.966Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "6a2bba69944097f2c93da6a9"
+      }
+    },
+    {
+      "level": 2,
+      "reachedAt": {
+        "$date": "2026-06-12T07:51:06.077Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "6a2bba6a944097f2c93da6ac"
+      }
+    },
+    {
+      "level": 3,
+      "reachedAt": {
+        "$date": "2026-06-12T15:24:14.087Z"
+      },
+      "expRequired": 150,
+      "_id": {
+        "$oid": "6a2c249ed200d0f0ef17b22b"
+      }
+    },
+    {
+      "level": 4,
+      "reachedAt": {
+        "$date": "2026-06-12T18:48:56.054Z"
+      },
+      "expRequired": 200,
+      "_id": {
+        "$oid": "6a2c5498d200d0f0ef17d80d"
+      }
+    },
+    {
+      "level": 5,
+      "reachedAt": {
+        "$date": "2026-06-16T11:46:12.162Z"
+      },
+      "expRequired": 300,
+      "_id": {
+        "$oid": "6a31378494dcdb5dc4837900"
+      }
+    },
+    {
+      "level": 5,
+      "reachedAt": {
+        "$date": "2026-06-16T11:46:12.241Z"
+      },
+      "expRequired": 300,
+      "_id": {
+        "$oid": "6a31378494dcdb5dc4837907"
+      }
     }
   ],
   "lastExpGain": {
     "amount": 5,
     "reason": "Joined stream",
     "timestamp": {
-      "$date": "2026-04-28T20:04:40.518Z"
+      "$date": "2026-06-17T04:46:42.189Z"
     }
   },
   "createdAt": {
     "$date": "2026-04-25T12:36:52.950Z"
   },
   "updatedAt": {
-    "$date": "2026-04-28T20:04:40.521Z"
+    "$date": "2026-06-17T04:46:42.196Z"
+  },
+  "__v": 6
+},
+{
+  "_id": {
+    "$oid": "6a2ff5ef09d5dc820cf910a4"
+  },
+  "userId": "Adri",
+  "currentLevel": 3,
+  "currentExp": 0,
+  "expForNextLevel": 150,
+  "totalExp": 200,
+  "levelHistory": [
+    {
+      "level": 1,
+      "reachedAt": {
+        "$date": "2026-06-15T12:54:07.475Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "6a2ff5ef09d5dc820cf910a5"
+      }
+    },
+    {
+      "level": 2,
+      "reachedAt": {
+        "$date": "2026-06-16T16:13:26.983Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "6a3176268edebba17def1c01"
+      }
+    },
+    {
+      "level": 3,
+      "reachedAt": {
+        "$date": "2026-06-17T04:09:31.907Z"
+      },
+      "expRequired": 150,
+      "_id": {
+        "$oid": "6a321dfbce7eac7c05116842"
+      }
+    }
+  ],
+  "lastExpGain": {
+    "amount": 5,
+    "reason": "Joined stream",
+    "timestamp": {
+      "$date": "2026-06-17T04:09:31.906Z"
+    }
+  },
+  "createdAt": {
+    "$date": "2026-06-15T12:54:07.503Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T04:09:31.910Z"
+  },
+  "__v": 2
+},
+{
+  "_id": {
+    "$oid": "6a2ff94309d5dc820cf933d5"
+  },
+  "userId": "adri",
+  "currentLevel": 1,
+  "currentExp": 0,
+  "expForNextLevel": 100,
+  "totalExp": 0,
+  "levelHistory": [
+    {
+      "level": 1,
+      "reachedAt": {
+        "$date": "2026-06-15T13:08:19.275Z"
+      },
+      "expRequired": 100,
+      "_id": {
+        "$oid": "6a2ff94309d5dc820cf933d6"
+      }
+    }
+  ],
+  "lastExpGain": {
+    "amount": 0,
+    "reason": "",
+    "timestamp": {
+      "$date": "2026-06-15T13:08:19.277Z"
+    }
+  },
+  "createdAt": {
+    "$date": "2026-06-15T13:08:19.278Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T13:08:19.278Z"
   },
   "__v": 0
 }]

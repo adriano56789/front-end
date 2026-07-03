@@ -1,0 +1,16 @@
+[{
+  "_id": {
+    "$oid": "6a3241b4c48962a3ea0c3add"
+  },
+  "reporterId": "rafa",
+  "reportedUserId": "usuario_reportado_1",
+  "reason": "Comportamento inadequado",
+  "description": "Usuario fez comentarios ofensivos na live",
+  "status": "pending",
+  "createdAt": {
+    "$date": "2026-06-12T06:41:56.232Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T06:41:56.232Z"
+  }
+}]

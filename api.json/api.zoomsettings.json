@@ -2,11 +2,11 @@
   "_id": {
     "$oid": "69ec25ff3dd430637abbe7a1"
   },
-  "userId": "98501723",
-  "zoomLevel": 90,
-  "isDefault": false,
+  "userId": "adriano",
+  "zoomLevel": 100,
+  "isDefault": true,
   "updatedAt": {
-    "$date": "2026-04-25T02:25:06.697Z"
+    "$date": "2026-06-16T11:44:10.694Z"
   },
   "createdAt": {
     "$date": "2026-04-25T02:25:03.569Z"
@@ -17,7 +17,7 @@
   "_id": {
     "$oid": "69ee79aa904994765908bea1"
   },
-  "userId": "98501723",
+  "userId": "adriano",
   "zoomLevel": 70,
   "isDefault": false,
   "updatedAt": {

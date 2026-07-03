@@ -1,0 +1,1446 @@
+[{
+  "_id": {
+    "$oid": "69ee66bc2413687d83c1e320"
+  },
+  "id": "73684953",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-26T19:25:48.965Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-26T19:25:48.965Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69ee67f02413687d83c1f43a"
+  },
+  "id": "76665350",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bb"
+  },
+  "giftName": "Rosa",
+  "giftIcon": "🌷",
+  "giftPrice": 5,
+  "quantity": 1,
+  "totalValue": 5,
+  "createdAt": {
+    "$date": "2026-04-26T19:30:56.387Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-26T19:30:56.387Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69eeaefb21289fb3eb4a8b44"
+  },
+  "id": "98609924",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c3"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 25,
+  "quantity": 1,
+  "totalValue": 25,
+  "createdAt": {
+    "$date": "2026-04-27T00:34:03.411Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-27T00:34:03.411Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69ef490606bca76e7b44e5c0"
+  },
+  "id": "36751509",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bf"
+  },
+  "giftName": "Batom",
+  "giftIcon": "💄",
+  "giftPrice": 10,
+  "quantity": 1,
+  "totalValue": 10,
+  "createdAt": {
+    "$date": "2026-04-27T11:31:18.235Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-27T11:31:18.235Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c7a5f7ae2f8867b52330"
+  },
+  "id": "60090466",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c2"
+  },
+  "giftName": "Lanche",
+  "giftIcon": "🍔",
+  "giftPrice": 20,
+  "quantity": 1,
+  "totalValue": 20,
+  "createdAt": {
+    "$date": "2026-04-28T14:43:49.040Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:43:49.040Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c9f4f7ae2f8867b52b16"
+  },
+  "id": "80378228",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T14:53:40.799Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:53:40.799Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0c9fff7ae2f8867b52c08"
+  },
+  "id": "25968876",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T14:53:51.790Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T14:53:51.790Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d4b3f7ae2f8867b53857"
+  },
+  "id": "90589183",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c2"
+  },
+  "giftName": "Lanche",
+  "giftIcon": "🍔",
+  "giftPrice": 20,
+  "quantity": 1,
+  "totalValue": 20,
+  "createdAt": {
+    "$date": "2026-04-28T15:39:31.210Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:39:31.210Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d4d4f7ae2f8867b53939"
+  },
+  "id": "41254270",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c7"
+  },
+  "giftName": "Alvo",
+  "giftIcon": "🎯",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-04-28T15:40:04.782Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:40:04.782Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0d8e8f7ae2f8867b546a8"
+  },
+  "id": "16014526",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9be"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 9,
+  "quantity": 1,
+  "totalValue": 9,
+  "createdAt": {
+    "$date": "2026-04-28T15:57:28.398Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T15:57:28.398Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0df91f7ae2f8867b552d3"
+  },
+  "id": "23126674",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9be"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 9,
+  "quantity": 1,
+  "totalValue": 9,
+  "createdAt": {
+    "$date": "2026-04-28T16:25:53.110Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T16:25:53.110Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0e380f7ae2f8867b55a5f"
+  },
+  "id": "88785158",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9c3"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 25,
+  "quantity": 1,
+  "totalValue": 25,
+  "createdAt": {
+    "$date": "2026-04-28T16:42:40.032Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T16:42:40.032Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0e87af7ae2f8867b567fa"
+  },
+  "id": "16350001",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T17:03:54.764Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T17:03:54.764Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f0eac1f7ae2f8867b56918"
+  },
+  "id": "76987553",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T17:13:37.458Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T17:13:37.458Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f1027acece94074f646ed7"
+  },
+  "id": "90221799",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T18:54:50.081Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T18:54:50.081Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f10292cece94074f646ffd"
+  },
+  "id": "83762287",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T18:55:14.228Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T18:55:14.228Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f10e4cac5862f52f247f13"
+  },
+  "id": "11479899",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:45:16.426Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:45:16.426Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f110bc50a4e2e50ef69567"
+  },
+  "id": "65852386",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:55:40.331Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:55:40.331Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f110d250a4e2e50ef6969d"
+  },
+  "id": "42223726",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T19:56:02.626Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T19:56:02.626Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f1133150a4e2e50ef6a118"
+  },
+  "id": "54960899",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T20:06:09.263Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T20:06:09.263Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f13ef29cc6df3e86f30ef6"
+  },
+  "id": "96544655",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9b8"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-04-28T23:12:50.429Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-28T23:12:50.429Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69f26bd261c786547a91b053"
+  },
+  "id": "78975195",
+  "fromUserId": "adriano",
+  "toUserId": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "69ee64b95c5f227d9b39f9bf"
+  },
+  "giftName": "Batom",
+  "giftIcon": "💄",
+  "giftPrice": 10,
+  "quantity": 1,
+  "totalValue": 10,
+  "createdAt": {
+    "$date": "2026-04-29T20:36:34.046Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-29T20:36:34.046Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2b07304a088f00e8c3667b"
+  },
+  "id": "gift_tx_1781204784186_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781185419769.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-06-11T19:06:24.186Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-11T19:06:24.186Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c2430d200d0f0ef17b0a7"
+  },
+  "id": "gift_tx_1781277744196_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-06-12T15:22:24.196Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T15:22:24.196Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c24a1d200d0f0ef17b300"
+  },
+  "id": "gift_tx_1781277857136_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfde"
+  },
+  "giftName": "Café",
+  "giftIcon": "☕",
+  "giftPrice": 150,
+  "quantity": 1,
+  "totalValue": 150,
+  "createdAt": {
+    "$date": "2026-06-12T15:24:17.136Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T15:24:17.136Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c2f96d200d0f0ef17bd65"
+  },
+  "id": "gift_tx_1781280662552_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfda"
+  },
+  "giftName": "Rosca",
+  "giftIcon": "🍩",
+  "giftPrice": 30,
+  "quantity": 1,
+  "totalValue": 30,
+  "createdAt": {
+    "$date": "2026-06-12T16:11:02.552Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T16:11:02.552Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2c54f8d200d0f0ef17dcae"
+  },
+  "id": "gift_tx_1781290232239_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781249786390.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe0"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 300,
+  "quantity": 1,
+  "totalValue": 300,
+  "createdAt": {
+    "$date": "2026-06-12T18:50:32.239Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-12T18:50:32.239Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2ca98506a9911f3b54a5dc"
+  },
+  "id": "gift_tx_1781311877542_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781311720972.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-06-13T00:51:17.544Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T00:51:17.544Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a2cbf0e06a9911f3b54eb89"
+  },
+  "id": "gift_tx_1781317390717_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781316038503.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-06-13T02:23:10.717Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-13T02:23:10.717Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a300f7b09d5dc820cf95b6f"
+  },
+  "id": "gift_tx_1781534587342_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfda"
+  },
+  "giftName": "Rosca",
+  "giftIcon": "🍩",
+  "giftPrice": 30,
+  "quantity": 1,
+  "totalValue": 30,
+  "createdAt": {
+    "$date": "2026-06-15T14:43:07.342Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T14:43:07.342Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a300f8909d5dc820cf95f40"
+  },
+  "id": "gift_tx_1781534601140_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdf"
+  },
+  "giftName": "Hambúrguer",
+  "giftIcon": "🍔",
+  "giftPrice": 200,
+  "quantity": 1,
+  "totalValue": 200,
+  "createdAt": {
+    "$date": "2026-06-15T14:43:21.140Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T14:43:21.140Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30141a09d5dc820cf9686c"
+  },
+  "id": "gift_tx_1781535770788_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdb"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-06-15T15:02:50.788Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:02:50.788Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30142309d5dc820cf96c4e"
+  },
+  "id": "gift_tx_1781535779829_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe1"
+  },
+  "giftName": "Pizza",
+  "giftIcon": "🍕",
+  "giftPrice": 500,
+  "quantity": 1,
+  "totalValue": 500,
+  "createdAt": {
+    "$date": "2026-06-15T15:02:59.829Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:02:59.829Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30142709d5dc820cf97029"
+  },
+  "id": "gift_tx_1781535783939_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfde"
+  },
+  "giftName": "Café",
+  "giftIcon": "☕",
+  "giftPrice": 150,
+  "quantity": 1,
+  "totalValue": 150,
+  "createdAt": {
+    "$date": "2026-06-15T15:03:03.939Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:03:03.939Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30143209d5dc820cf974cb"
+  },
+  "id": "gift_tx_1781535794114_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe4"
+  },
+  "giftName": "Champanhe",
+  "giftIcon": "🍾",
+  "giftPrice": 1200,
+  "quantity": 1,
+  "totalValue": 1200,
+  "createdAt": {
+    "$date": "2026-06-15T15:03:14.114Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:03:14.114Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30146909d5dc820cf97989"
+  },
+  "id": "gift_tx_1781535849716_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe3"
+  },
+  "giftName": "Boia",
+  "giftIcon": "🛟",
+  "giftPrice": 800,
+  "quantity": 1,
+  "totalValue": 800,
+  "createdAt": {
+    "$date": "2026-06-15T15:04:09.716Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:04:09.716Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3014fe09d5dc820cf98afd"
+  },
+  "id": "gift_tx_1781535998722_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe5"
+  },
+  "giftName": "Urso",
+  "giftIcon": "🧸",
+  "giftPrice": 500,
+  "quantity": 1,
+  "totalValue": 500,
+  "createdAt": {
+    "$date": "2026-06-15T15:06:38.722Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:06:38.722Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30184e09d5dc820cf99380"
+  },
+  "id": "gift_tx_1781536846908_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe4"
+  },
+  "giftName": "Champanhe",
+  "giftIcon": "🍾",
+  "giftPrice": 1200,
+  "quantity": 1,
+  "totalValue": 1200,
+  "createdAt": {
+    "$date": "2026-06-15T15:20:46.908Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:20:46.908Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30201709d5dc820cf9a604"
+  },
+  "id": "gift_tx_1781538839270_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe4"
+  },
+  "giftName": "Champanhe",
+  "giftIcon": "🍾",
+  "giftPrice": 1200,
+  "quantity": 1,
+  "totalValue": 1200,
+  "createdAt": {
+    "$date": "2026-06-15T15:53:59.270Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:53:59.270Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30205f09d5dc820cf9acc8"
+  },
+  "id": "gift_tx_1781538911781_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebffd"
+  },
+  "giftName": "Anel",
+  "giftIcon": "💍",
+  "giftPrice": 750,
+  "quantity": 1,
+  "totalValue": 750,
+  "createdAt": {
+    "$date": "2026-06-15T15:55:11.781Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:55:11.781Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30206c09d5dc820cf9b0f9"
+  },
+  "id": "gift_tx_1781538924597_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebffe"
+  },
+  "giftName": "Carro",
+  "giftIcon": "🚗",
+  "giftPrice": 1000,
+  "quantity": 1,
+  "totalValue": 1000,
+  "createdAt": {
+    "$date": "2026-06-15T15:55:24.597Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:55:24.597Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30207509d5dc820cf9b530"
+  },
+  "id": "gift_tx_1781538933231_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ec006"
+  },
+  "giftName": "Coroa Real",
+  "giftIcon": "👑",
+  "giftPrice": 8000,
+  "quantity": 1,
+  "totalValue": 8000,
+  "createdAt": {
+    "$date": "2026-06-15T15:55:33.231Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:55:33.231Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30207c09d5dc820cf9b95e"
+  },
+  "id": "gift_tx_1781538940315_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781528875387.png",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ec005"
+  },
+  "giftName": "Galáxia",
+  "giftIcon": "🌠",
+  "giftPrice": 6000,
+  "quantity": 1,
+  "totalValue": 6000,
+  "createdAt": {
+    "$date": "2026-06-15T15:55:40.315Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-15T15:55:40.315Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30f6ed94dcdb5dc4826b9e"
+  },
+  "id": "gift_tx_1781593837276_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd8"
+  },
+  "giftName": "Rosa",
+  "giftIcon": "🌹",
+  "giftPrice": 10,
+  "quantity": 1,
+  "totalValue": 10,
+  "createdAt": {
+    "$date": "2026-06-16T07:10:37.276Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:10:37.276Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30fb6194dcdb5dc4827208"
+  },
+  "id": "gift_tx_1781594977780_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe2"
+  },
+  "giftName": "Pirulito",
+  "giftIcon": "🍭",
+  "giftPrice": 600,
+  "quantity": 1,
+  "totalValue": 600,
+  "createdAt": {
+    "$date": "2026-06-16T07:29:37.781Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:29:37.781Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30fd2494dcdb5dc4827473"
+  },
+  "id": "gift_tx_1781595428140_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfde"
+  },
+  "giftName": "Café",
+  "giftIcon": "☕",
+  "giftPrice": 150,
+  "quantity": 1,
+  "totalValue": 150,
+  "createdAt": {
+    "$date": "2026-06-16T07:37:08.140Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:37:08.140Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30fd8094dcdb5dc4827659"
+  },
+  "id": "gift_tx_1781595520531_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe3"
+  },
+  "giftName": "Boia",
+  "giftIcon": "🛟",
+  "giftPrice": 800,
+  "quantity": 1,
+  "totalValue": 800,
+  "createdAt": {
+    "$date": "2026-06-16T07:38:40.531Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:38:40.531Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30fe8394dcdb5dc4827855"
+  },
+  "id": "gift_tx_1781595779077_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe4"
+  },
+  "giftName": "Champanhe",
+  "giftIcon": "🍾",
+  "giftPrice": 1200,
+  "quantity": 1,
+  "totalValue": 1200,
+  "createdAt": {
+    "$date": "2026-06-16T07:42:59.077Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:42:59.077Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30fe9594dcdb5dc48279d2"
+  },
+  "id": "gift_tx_1781595797801_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe3"
+  },
+  "giftName": "Boia",
+  "giftIcon": "🛟",
+  "giftPrice": 800,
+  "quantity": 1,
+  "totalValue": 800,
+  "createdAt": {
+    "$date": "2026-06-16T07:43:17.801Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:43:17.801Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30ff3e94dcdb5dc4827bea"
+  },
+  "id": "gift_tx_1781595966251_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe0"
+  },
+  "giftName": "Perfume",
+  "giftIcon": "🧴",
+  "giftPrice": 300,
+  "quantity": 1,
+  "totalValue": 300,
+  "createdAt": {
+    "$date": "2026-06-16T07:46:06.251Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:46:06.251Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30ff6994dcdb5dc4827d74"
+  },
+  "id": "gift_tx_1781596009815_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdb"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-06-16T07:46:49.815Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:46:49.815Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a30ff9894dcdb5dc4827efe"
+  },
+  "id": "gift_tx_1781596056438_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdd"
+  },
+  "giftName": "Batom",
+  "giftIcon": "💄",
+  "giftPrice": 100,
+  "quantity": 1,
+  "totalValue": 100,
+  "createdAt": {
+    "$date": "2026-06-16T07:47:36.438Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:47:36.438Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31009c94dcdb5dc4828102"
+  },
+  "id": "gift_tx_1781596316700_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfd7"
+  },
+  "giftName": "Coração",
+  "giftIcon": "❤️",
+  "giftPrice": 1,
+  "quantity": 1,
+  "totalValue": 1,
+  "createdAt": {
+    "$date": "2026-06-16T07:51:56.700Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:51:56.700Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31015994dcdb5dc48282e4"
+  },
+  "id": "gift_tx_1781596505541_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdb"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-06-16T07:55:05.541Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:55:05.541Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a31025494dcdb5dc4828628"
+  },
+  "id": "gift_tx_1781596756815_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfe2"
+  },
+  "giftName": "Pirulito",
+  "giftIcon": "🍭",
+  "giftPrice": 600,
+  "quantity": 1,
+  "totalValue": 600,
+  "createdAt": {
+    "$date": "2026-06-16T07:59:16.815Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T07:59:16.815Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a3102e694dcdb5dc4828807"
+  },
+  "id": "gift_tx_1781596902635_adriano",
+  "fromUserId": "adriano",
+  "fromUserName": "adriano",
+  "fromUserAvatar": "http://127.0.0.1:3000/uploads/avatars/avatar_adriano_1781593002789.jpg",
+  "toUserId": "adriano",
+  "toUserName": "adriano",
+  "streamId": "adriano",
+  "giftId": {
+    "$oid": "6a2a82e1086cabd1427ebfdb"
+  },
+  "giftName": "Balão",
+  "giftIcon": "🎈",
+  "giftPrice": 50,
+  "quantity": 1,
+  "totalValue": 50,
+  "createdAt": {
+    "$date": "2026-06-16T08:01:42.635Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-16T08:01:42.635Z"
+  },
+  "__v": 0
+}]

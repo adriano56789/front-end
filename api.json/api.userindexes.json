@@ -1,0 +1,39 @@
+[{
+  "_id": {
+    "$oid": "6a3240f7d837966b62299155"
+  },
+  "userId": "adriano",
+  "searchIndex": "adriano adriano adrianomdk5",
+  "tags": [
+    "dev",
+    "streamer"
+  ],
+  "lastUpdated": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240f7d837966b62299156"
+  },
+  "userId": "rafa",
+  "searchIndex": "rafa",
+  "tags": [
+    "streamer"
+  ],
+  "lastUpdated": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:38:47.142Z"
+  }
+}]

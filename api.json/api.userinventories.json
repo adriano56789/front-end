@@ -1,0 +1,22 @@
+[{
+  "_id": {
+    "$oid": "6a3240f7d837966b62299157"
+  },
+  "userId": "adriano",
+  "itemId": "frame_blue_crystal",
+  "itemType": "avatar",
+  "purchaseDate": {
+    "$date": "2026-06-02T06:38:47.142Z"
+  },
+  "expirationDate": {
+    "$date": "2026-06-17T06:38:47.000Z"
+  },
+  "isActive": true,
+  "isEquipped": true,
+  "createdAt": {
+    "$date": "2026-06-02T06:38:47.142Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-02T06:38:47.142Z"
+  }
+}]

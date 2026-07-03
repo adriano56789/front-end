@@ -1,0 +1,16 @@
+[{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e96"
+  },
+  "streamId": "adriano",
+  "userId": "adriano",
+  "timestamp": {
+    "$date": "2026-06-17T06:19:10.390Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.390Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.390Z"
+  }
+}]

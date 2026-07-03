@@ -1,0 +1,66 @@
+[{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf13c"
+  },
+  "userId": "adriano",
+  "event": "stream_started",
+  "streamId": "adriano",
+  "createdAt": {
+    "$date": "2026-06-17T10:55:05.833Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf13d"
+  },
+  "userId": "rafa",
+  "event": "stream_started",
+  "streamId": "rafa",
+  "createdAt": {
+    "$date": "2026-06-17T09:55:05.833Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf13e"
+  },
+  "userId": "Adri",
+  "event": "stream_started",
+  "streamId": "Adri",
+  "createdAt": {
+    "$date": "2026-06-17T10:25:05.833Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf13f"
+  },
+  "userId": "adriano",
+  "event": "gift_received",
+  "streamId": "adriano",
+  "createdAt": {
+    "$date": "2026-06-17T10:56:45.833Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf140"
+  },
+  "userId": "adriano",
+  "event": "stream_ended",
+  "streamId": "adriano",
+  "createdAt": {
+    "$date": "2026-06-17T11:38:25.833Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a328b196c3558fa54baf141"
+  },
+  "userId": "maria_eduarda",
+  "event": "user_joined",
+  "streamId": "Adri",
+  "createdAt": {
+    "$date": "2026-06-17T10:26:45.833Z"
+  }
+}]

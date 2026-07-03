@@ -1,0 +1,60 @@
+[{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e9a"
+  },
+  "id": "mochila_escolar",
+  "name": "Mochila Escolar",
+  "category": "mochila",
+  "price": 500,
+  "duration": 30,
+  "description": "Mochila estilosa para seu avatar",
+  "icon": "🎒",
+  "image": "/shop/backpack.svg",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e9b"
+  },
+  "id": "carro_esportivo",
+  "name": "Carro Esportivo",
+  "category": "carro",
+  "price": 2000,
+  "duration": 30,
+  "description": "Carro luxuoso para seu perfil",
+  "icon": "🏎️",
+  "image": "/shop/sports-car.svg",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a323c5e14d3ebb370d88e9c"
+  },
+  "id": "anel_diamante",
+  "name": "Anel de Diamante",
+  "category": "anel",
+  "price": 1500,
+  "duration": 30,
+  "description": "Anel brilhante para seu avatar",
+  "icon": "💍",
+  "image": "/shop/diamond-ring.svg",
+  "isActive": true,
+  "createdAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-17T06:19:10.415Z"
+  }
+}]

@@ -1,0 +1,53 @@
+[{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e49e"
+  },
+  "userId": "adriano",
+  "changedFields": [
+    "avatarUrl",
+    "bio"
+  ],
+  "oldValues": {
+    "avatarUrl": "",
+    "bio": ""
+  },
+  "newValues": {
+    "avatarUrl": "https://api.livego.store/uploads/avatars/avatar_1778555967850-769593648.jpg",
+    "bio": "oi"
+  },
+  "timestamp": {
+    "$date": "2026-06-02T06:38:21.743Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-02T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-02T06:38:21.743Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6a3240dd2a29f4342fb8e49f"
+  },
+  "userId": "adriano",
+  "changedFields": [
+    "tags"
+  ],
+  "oldValues": {
+    "tags": []
+  },
+  "newValues": {
+    "tags": [
+      "n"
+    ]
+  },
+  "timestamp": {
+    "$date": "2026-06-07T06:38:21.743Z"
+  },
+  "createdAt": {
+    "$date": "2026-06-07T06:38:21.743Z"
+  },
+  "updatedAt": {
+    "$date": "2026-06-07T06:38:21.743Z"
+  }
+}]
