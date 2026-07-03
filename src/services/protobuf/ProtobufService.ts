@@ -159,29 +159,13 @@ function loadSchemaText(protoText: string): boolean {
 // Inicializar síncrono com o fallback imediatamente
 loadSchemaText(FALLBACK_PROTO_TEXT);
 
-// Inicializar o Protobuf (e atualizar opcionalmente do backend)
+// Inicializar o Protobuf (usa o schema embutido — sem chamada de rede)
 async function initProtobuf() {
   try {
-    // Garantir que já temos os tipos carregados com o fallback estático
     if (!ChatEvent) {
       loadSchemaText(FALLBACK_PROTO_TEXT);
     }
-    
-    // Tentar atualizar dinamicamente a partir do backend
-    try {
-      const protoText = await api.getProtobufDefinition();
-      if (protoText && protoText.trim().startsWith('syntax')) {
-        const success = loadSchemaText(protoText);
-        if (success) {
-          console.log('✅ [PROTOBUF] Protocol buffers dynamically updated from backend successfully');
-          return;
-        }
-      }
-    } catch (apiError) {
-      console.warn('⚠️ [PROTOBUF] Could not fetch dynamic proto definition, using embedded fallback:', apiError.message);
-    }
-    
-    console.log('✅ [PROTOBUF] Protocol buffers initialized successfully (using embedded fallback)');
+    console.log('✅ [PROTOBUF] Protocol buffers initialized successfully');
   } catch (error) {
     console.error('❌ [PROTOBUF] Error during protocol buffers initialization:', error);
   }

@@ -4264,6 +4264,7 @@ const App: React.FC = () => {
             <Route path="/golive" element={<AppContentWithRouter />} />
             <Route path="/profile" element={<AppContentWithRouter />} />
             <Route path="/profile/*" element={<AppContentWithRouter />} />
+            <Route path="/wallet" element={<AppContentWithRouter />} />
           </Routes>
         </Router>
       </LanguageProvider>

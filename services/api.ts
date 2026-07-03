@@ -1121,7 +1121,6 @@ export const api = {
 
     respondToPKInvite: (inviteId: string, status: 'accepted' | 'declined') => callApi<{ success: boolean, invite: any }>('POST', `/api/pk/invites/${inviteId}/respond`, { status }),
 
-    getProtobufDefinition: () => callApiWithOptions<string>('GET', '/protobuf/livego.proto', undefined, { responseType: 'text' }),
 
     getGiftSendersForStream: (streamId: string) => callApi<any>('GET', `/api/interactions/presents/live/${streamId}`),
 
