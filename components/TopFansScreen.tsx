@@ -241,7 +241,7 @@ const TopFansScreen: React.FC<{ onBack: () => void; onViewProfile: (user: User) 
                                                     
                                                     <div>
                                                         <h3 className="font-bold text-sm text-zinc-100">{user.name || 'Usuário'}</h3>
-                                                        <p className="text-xs text-zinc-500 mt-0.5">@{user.name || 'usuario'}</p>
+                                                        <p className="text-xs text-zinc-500 mt-0.5">@{user.id || user.name || 'usuario'}</p>
                                                     </div>
                                                 </div>
                                                 

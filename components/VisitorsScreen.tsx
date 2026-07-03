@@ -61,7 +61,7 @@ const VisitorItem: React.FC<{ visitor: Visitor; onClick: () => void }> = ({ visi
                 <div className="flex flex-col justify-center">
                     <h3 className="font-bold text-white text-[18px] tracking-tight leading-tight">{visitor.name}</h3>
                     <p className="text-[13px] text-[#8E8E93] mt-[5px] font-medium tracking-wide">
-                        {t('profile.id') || 'Identificação'}: <span className="text-[#AEAEB2]">{visitor.name}</span>
+                        {t('profile.id') || 'Identificação'}: <span className="text-[#AEAEB2]">{visitor.id || visitor.name}</span>
                     </p>
                 </div>
             </div>

@@ -144,7 +144,7 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
                 <h2 className="text-xl font-bold text-white tracking-tight leading-normal mb-0.5">{user.name}</h2>
                 
                 {/* User handle */}
-                <span className="text-xs text-zinc-500 block mb-3 font-mono">@{user.name}</span>
+                <span className="text-xs text-zinc-500 block mb-3 font-mono">@{user.id}</span>
                 
                 {/* User stats & details */}
                 <div className="bg-white/[0.02] border border-white/[0.04] rounded-2xl p-3.5 mb-6 text-left text-sm space-y-2.5">

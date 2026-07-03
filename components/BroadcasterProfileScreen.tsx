@@ -537,10 +537,10 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
 
                         {/* ID text aligned with copies */}
                         <div className="flex items-center space-x-1.5 text-sm text-gray-400 mt-1">
-                            <span>{t('profile.id')}: {user.name}</span>
+                            <span>{t('profile.id')}: {user.id}</span>
                             <button 
                                 onClick={() => {
-                                    navigator.clipboard.writeText(user.name);
+                                    navigator.clipboard.writeText(user.id);
                                 }} 
                                 className="text-gray-500 hover:text-white transition-colors"
                             >
