@@ -219,7 +219,7 @@ const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProf
                     </div>
                     <div className="flex items-center mt-1">
                         <p className="text-[14px] text-[#A0A0A5] truncate pr-2">
-                            {t('profile.id')}: {friend.name}
+                            {t('profile.id')}: {friend.id}
                         </p>
                     </div>
                 </div>

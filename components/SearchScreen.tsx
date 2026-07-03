@@ -37,7 +37,7 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
                             <span className="text-green-400 text-sm flex-shrink-0">👥</span>
                         )}
                     </div>
-                    <p className="text-sm text-gray-400">{t('profile.id')}: {user.name}</p>
+                    <p className="text-sm text-gray-400">{t('profile.id')}: {user.id}</p>
                 </div>
             </div>
             <button

@@ -637,7 +637,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           <div className="text-center text-gray-400 text-sm cursor-pointer" onClick={avatarAction}>
               <div className="flex items-center justify-center space-x-2">
-                  <span>{t('profile.id')}: {displayUser.name}</span>
+                  <span>{t('profile.id')}: {displayUser.id}</span>
                   <button className="text-gray-500 hover:text-white" onClick={(e) => { e.stopPropagation(); /* copy logic here if needed */ }}><CopyIcon className="h-4 w-4" /></button>
               </div>
               <p>
