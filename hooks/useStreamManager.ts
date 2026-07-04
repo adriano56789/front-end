@@ -62,15 +62,12 @@ export const useStreamManager = (
       });
 
       if (newStream) {
-        const streamResponse = newStream.stream || newStream;
-        const stream = streamResponse as Streamer;
-
-        if (!stream || !stream.id) {
+        if (!newStream.id) {
           throw new Error("Stream criado sem ID válido");
         }
 
-        setDraftStream(stream);
-        return stream;
+        setDraftStream(newStream);
+        return newStream;
       }
 
       throw new Error("Falha ao criar stream");
