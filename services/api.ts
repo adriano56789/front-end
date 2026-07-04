@@ -1043,6 +1043,10 @@ export const api = {
         return response?.stream;
     },
 
+    publishStream: async (streamId: string) => {
+        const response = await callApi<{ success: boolean, stream: Streamer }>('POST', `/api/streams/${streamId}/publish`);
+        return response?.stream;
+    },
 
     updateStream: async (streamId: string, updates: Partial<Streamer>) => {
         const response = await callApi<any>('PUT', `/api/streams/${streamId}`, updates);

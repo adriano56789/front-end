@@ -213,7 +213,15 @@ export const useStreamManager = (
         throw new Error("Falha ao registrar a transmissão no backend.");
       }
 
-      // 3. Construct final streamer object
+      // 3. Mark stream as live on backend (creates LiveCard so it appears in home feed)
+      try {
+        await api.publishStream(streamId);
+        console.log('[STREAM_MANAGER] ✅ Transmissão publicada com sucesso no backend!');
+      } catch (publishErr) {
+        console.warn('[STREAM_MANAGER] ⚠️ Falha ao publicar transmissão:', publishErr);
+      }
+
+      // 4. Construct final streamer object
       const streamer: Streamer = {
         ...registeredStream,
         id: streamId,
