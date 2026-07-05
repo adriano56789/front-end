@@ -126,6 +126,15 @@ export class LiveKitRoom {
 
     const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
 
+    let canPublish = false;
+    try {
+      const payload = token.split('.')[1];
+      if (payload) {
+        const decoded = JSON.parse(atob(payload));
+        canPublish = decoded.video?.canPublish || false;
+      }
+    } catch (_) {}
+
     try {
       const realRoom = new RealRoom({
         adaptiveStream: true,
@@ -243,42 +252,40 @@ export class LiveKitRoom {
         this._updateRemoteParticipant(participant);
       });
 
-      // Automatically capture real microphone and camera tracks and publish them
-      try {
-        console.log('[LiveKit] Capturando mídia real...');
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 360 } },
-          audio: true
-        });
-
-        // Publish video track
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          const pub = await realRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-          tracksMap.set(pub.trackSid, {
-            trackSid: pub.trackSid,
-            trackName: 'camera',
-            source: 'camera',
-            isMuted: false,
-            track: videoTrack
+      // Only auto-publish if the token grants publishing permission
+      if (canPublish) {
+        try {
+          console.log('[LiveKit] Capturando mídia real...');
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 360 } },
+            audio: true
           });
-          console.log('✅ Stream publicada.');
+          const videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            const pub = await realRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
+            tracksMap.set(pub.trackSid, {
+              trackSid: pub.trackSid,
+              trackName: 'camera',
+              source: 'camera',
+              isMuted: false,
+              track: videoTrack
+            });
+            console.log('✅ Stream publicada.');
+          }
+          const audioTrack = stream.getAudioTracks()[0];
+          if (audioTrack) {
+            const pub = await realRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
+            tracksMap.set(pub.trackSid, {
+              trackSid: pub.trackSid,
+              trackName: 'microphone',
+              source: 'microphone',
+              isMuted: false,
+              track: audioTrack
+            });
+          }
+        } catch (e) {
+          console.warn('[LiveKit] Falha ao capturar mídias locais (microfone/câmera):', e);
         }
-
-        // Publish audio track
-        const audioTrack = stream.getAudioTracks()[0];
-        if (audioTrack) {
-          const pub = await realRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-          tracksMap.set(pub.trackSid, {
-            trackSid: pub.trackSid,
-            trackName: 'microphone',
-            source: 'microphone',
-            isMuted: false,
-            track: audioTrack
-          });
-        }
-      } catch (e) {
-        console.warn('[LiveKit] Falha ao capturar mídias locais (microfone/câmera):', e);
       }
 
       this.emit(RoomEvent.RoomMetadataChanged, this);
