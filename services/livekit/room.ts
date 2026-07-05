@@ -118,14 +118,10 @@ export class LiveKitRoom {
       const payload = token.split('.')[1];
       if (payload) {
         const decoded = JSON.parse(atob(payload));
-        this.roomId = decoded.room || '';
+        this.roomId = decoded.video?.room || decoded.room || '';
       }
     } catch {
       this.roomId = '';
-    }
-
-    if (!this.roomId) {
-      throw new Error('Token não contém sala válida');
     }
 
     const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
