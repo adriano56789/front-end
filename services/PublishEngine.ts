@@ -36,13 +36,7 @@ const DEFAULT_CONFIG: Required<Pick<PublishEngineConfig, 'videoCodec' | 'maxVide
 };
 
 const PC_CONFIG: any = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-  ],
+  iceServers: [],
   sdpSemantics: 'unified-plan',
   bundlePolicy: 'max-bundle',
 };
@@ -132,46 +126,30 @@ export class PublishEngine {
     console.log('📡 [WebRTC-WHIP] Iniciando fluxo de publicação WebRTC...');
     console.log('📡 [WebRTC-WHIP] Buscando servidores STUN/TURN atualizados do backend...');
     
-    const defaultIceServers = [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-    ];
-
-    let dynamicIceServers = defaultIceServers;
+    let iceServers: RTCIceServer[] = [];
 
     try {
       const response = await api.getIceServers();
       const respAny = response as any;
       if (response && Array.isArray(response.iceServers)) {
-        dynamicIceServers = response.iceServers;
+        iceServers = response.iceServers;
       } else if (response && Array.isArray(response)) {
-        dynamicIceServers = response;
+        iceServers = response;
       } else if (respAny && respAny.result && Array.isArray(respAny.result.iceServers)) {
-        dynamicIceServers = respAny.result.iceServers;
-      } else {
-        console.warn('⚠️ [WebRTC-WHIP] Resposta de servidores ICE inválida ou ausente:', response);
+        iceServers = respAny.result.iceServers;
       }
     } catch (e) {
-      console.warn('⚠️ [WebRTC-WHIP] Falha ao carregar servidores ICE dinâmicos, usando backup:', e);
-    }
-
-    // Double check that we have a valid array of ice servers
-    if (!Array.isArray(dynamicIceServers)) {
-      console.warn('⚠️ [WebRTC-WHIP] dynamicIceServers não é um array. Revertendo para backup...');
-      dynamicIceServers = defaultIceServers;
+      console.warn('⚠️ [WebRTC-WHIP] Falha ao carregar servidores ICE:', e);
     }
 
     const config: any = {
-      iceServers: dynamicIceServers,
+      iceServers,
       sdpSemantics: 'unified-plan',
       bundlePolicy: 'max-bundle',
     };
 
     console.log('📡 [WebRTC-WHIP] Criando instância de RTCPeerConnection...');
-    console.log('📡 [WebRTC-WHIP] Configuração dos servidores STUN/TURN utilizados:', JSON.stringify(config.iceServers));
+    console.log('📡 [WebRTC-WHIP] Configuração dos servidores ICE:', JSON.stringify(config.iceServers));
 
     const pc = new RTCPeerConnection(config);
     this._pc = pc;
