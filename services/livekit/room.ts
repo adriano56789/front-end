@@ -114,21 +114,21 @@ export class LiveKitRoom {
     }
 
     this.state = 'connecting';
-    this.roomId = 'LK_ROOM_DEFAULT';
-    
     try {
       const payload = token.split('.')[1];
       if (payload) {
         const decoded = JSON.parse(atob(payload));
-        if (decoded.room) {
-          this.roomId = decoded.room;
-        }
+        this.roomId = decoded.room || '';
       }
-    } catch {}
+    } catch {
+      this.roomId = '';
+    }
+
+    if (!this.roomId) {
+      throw new Error('Token não contém sala válida');
+    }
 
     const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
-
-    console.log(`[LiveKit] Conectando à sala ${this.roomId}...`);
 
     try {
       const realRoom = new RealRoom({
