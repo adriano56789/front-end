@@ -200,6 +200,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         if (!cId || !fId) return '';
         return `chat_private_${cId < fId ? cId + '_' + fId : fId + '_' + cId}`;
     }, [currentUser?.id, user?.id]);
+
+    // Entrar na sala do socket e atualizar status online ao abrir o chat
+    useEffect(() => {
+        if (!chatKey || !currentUser?.id) return;
+        socketService.joinRoom(chatKey);
+        socketService.updateUserStatus(currentUser.id, true);
+        return () => {
+            socketService.leaveRoom(chatKey);
+        };
+    }, [chatKey, currentUser?.id]);
     const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
     
     // Cache local para evitar requisições duplicadas

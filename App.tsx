@@ -112,7 +112,7 @@ import ProfileScreen from './components/ProfileScreen';
 
 import MessagesScreen from './components/MessagesScreen';
 
-import ChatScreenWithWebSocket from './components/ChatScreenWithWebSocket';
+import ChatScreen from './components/ChatScreen';
 
 import FooterNav from './components/FooterNav';
 
@@ -3680,7 +3680,7 @@ const logLiveEvent = (type: string, data: any) => {
 
         <div className="fixed inset-0 z-[999999]">
 
-          <ChatScreenWithWebSocket
+          <ChatScreen
 
             user={chattingWith}
 
