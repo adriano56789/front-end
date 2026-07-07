@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import callInvitationService, { CallInvitation } from '../services/CallInvitationService';
+import { useLiveKit } from '../../hooks/useLiveKit';
+import { RoomEvent, LiveKitParticipant } from '../../services/livekit/room';
 
 interface LiveCallInvitationProps {
   streamId: string;
@@ -121,7 +123,7 @@ const ActionButton = styled.button<{ $variant?: 'accept' | 'decline' | 'end' }>`
   }}
 `;
 
-const GuestVideo = styled.div`
+const GuestVideoContainer = styled.div`
   position: fixed;
   bottom: 100px;
   right: 20px;
@@ -151,6 +153,25 @@ const GuestInfo = styled.div`
   font-size: 12px;
 `;
 
+const RemoteVideoWrapper = styled.div`
+  position: fixed;
+  bottom: 260px;
+  right: 20px;
+  width: 200px;
+  height: 150px;
+  background: #000;
+  border-radius: 8px;
+  border: 2px solid white;
+  overflow: hidden;
+  z-index: 15;
+  
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+
 const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({ 
   streamId, 
   isHost, 
@@ -165,14 +186,22 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
   const [guestUserName, setGuestUserName] = useState('');
   const [isInCall, setIsInCall] = useState(false);
 
+  const {
+    room: lkRoom,
+    connect: connectLiveKit,
+    disconnect: disconnectLiveKit,
+    remoteParticipants,
+    localParticipant
+  } = useLiveKit();
+
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
+
   useEffect(() => {
-    // Configurar listeners do serviço de convites
     callInvitationService.addListener('callInvitation', handleCallInvitation);
     callInvitationService.addListener('connected', handleConnected);
     callInvitationService.addListener('disconnected', handleDisconnected);
     callInvitationService.addListener('error', handleError);
 
-    // Verificar se já está em chamada
     const existingCall = callInvitationService.getCurrentCall();
     if (existingCall) {
       setCurrentCall(existingCall);
@@ -186,6 +215,42 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
       callInvitationService.removeListener('error', handleError);
     };
   }, []);
+
+  // Conectar ao LiveKit quando o usuário aceita o convite (recebe token)
+  useEffect(() => {
+    if (!currentCall?.livekitToken || !currentCall?.livekitUrl) return;
+    const doConnect = async () => {
+      try {
+        await connectLiveKit(currentCall.livekitUrl!, currentCall.livekitToken!);
+      } catch (err) {
+        console.error('[LiveCallInvitation] Erro ao conectar LiveKit:', err);
+      }
+    };
+    doConnect();
+  }, [currentCall?.livekitToken, currentCall?.livekitUrl]);
+
+  // Anexar tracks remotas aos elementos de vídeo
+  useEffect(() => {
+    remoteParticipants.forEach((p: LiveKitParticipant) => {
+      const videoEl = videoRefs.current.get(p.identity);
+      if (!videoEl) return;
+      p.tracks.forEach((pub: any) => {
+        if (pub.track && pub.track instanceof MediaStreamTrack) {
+          if (videoEl.srcObject instanceof MediaStream) {
+            const existingTrackIds = new Set(
+              (videoEl.srcObject as MediaStream).getTracks().map(t => t.id)
+            );
+            if (!existingTrackIds.has(pub.track.id)) {
+              (videoEl.srcObject as MediaStream).addTrack(pub.track);
+            }
+          } else {
+            const stream = new MediaStream([pub.track]);
+            videoEl.srcObject = stream;
+          }
+        }
+      });
+    });
+  }, [remoteParticipants]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     console.log(`[${type.toUpperCase()}] ${message}`);
@@ -211,6 +276,7 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
         showToast('O usuário recusou o convite para entrar na live', 'info');
         break;
       case 'call_ended':
+        disconnectLiveKit();
         setCurrentCall(null);
         setIsInCall(false);
         onGuestLeft?.();
@@ -226,6 +292,7 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
 
   const handleDisconnected = () => {
     console.log('Desconectado da chamada');
+    disconnectLiveKit();
     setCurrentCall(null);
     setIsInCall(false);
     onGuestLeft?.();
@@ -306,6 +373,7 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
 
     const result = await callInvitationService.endCall(currentCall.id);
     if (result.success) {
+      disconnectLiveKit();
       setCurrentCall(null);
       setIsInCall(false);
       showToast('Chamada encerrada', 'success');
@@ -314,9 +382,11 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
     }
   };
 
+  // Obter identidades dos participantes remotos para usar como chaves únicas
+  const remoteIdentities = remoteParticipants.map((p: LiveKitParticipant) => p.identity);
+
   return (
     <>
-      {/* Botão de chamada para o host */}
       {isHost && (
         <CallButton 
           onClick={handleInviteClick}
@@ -335,7 +405,6 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
         </CallButton>
       )}
 
-      {/* Botão para encerrar chamada quando está ativa */}
       {isInCall && currentCall && (
         <CallButton 
           onClick={handleEndCall}
@@ -349,7 +418,6 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
         </CallButton>
       )}
 
-      {/* Modal para convidar usuário */}
       {showInviteModal && (
         <InvitationModal>
           <InvitationContent>
@@ -398,7 +466,6 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
         </InvitationModal>
       )}
 
-      {/* Modal para convite recebido */}
       {showIncomingModal && incomingInvitation && (
         <InvitationModal>
           <InvitationContent>
@@ -419,20 +486,25 @@ const LiveCallInvitation: React.FC<LiveCallInvitationProps> = ({
         </InvitationModal>
       )}
 
-      {/* Vídeo do convidado quando está em chamada */}
-      {isInCall && currentCall && (
-        <GuestVideo>
-          <video 
-            id={`guest-video-${currentCall.guestId}`}
-            autoPlay 
-            playsInline
-            muted={false}
-          />
-          <GuestInfo>
-            {currentCall.guestName || currentCall.guestId}
-          </GuestInfo>
-        </GuestVideo>
-      )}
+      {/* Vídeo do convidado principal via LiveKit */}
+      {isInCall && remoteIdentities.map((identity: string) => (
+        <div key={identity}>
+          <GuestVideoContainer>
+            <video
+              ref={(el) => {
+                if (el) videoRefs.current.set(identity, el);
+                else videoRefs.current.delete(identity);
+              }}
+              autoPlay
+              playsInline
+              muted={false}
+            />
+            <GuestInfo>
+              {identity.replace(/^(streamer_|viewer_|guest_)/, '')}
+            </GuestInfo>
+          </GuestVideoContainer>
+        </div>
+      ))}
     </>
   );
 };

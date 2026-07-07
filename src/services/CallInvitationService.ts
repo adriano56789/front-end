@@ -2,7 +2,7 @@ import { io, Socket } from 'socket.io-client';
 import { getUserIdFromToken } from '../utils/auth';
 import { callApi } from '../../services/api';
 import { env } from '../config/environment';
-import { webrtcService } from '../../services/webrtcService';
+import { livekitService } from '../../services/livekit/room';
 
 export interface CallInvitation {
   id: string;
@@ -14,6 +14,9 @@ export interface CallInvitation {
   streamId: string;
   streamTitle?: string;
   webrtcUrl?: string;
+  livekitRoom?: string;
+  livekitToken?: string;
+  livekitUrl?: string;
 }
 
 export interface CallInvitationEvent {
@@ -25,7 +28,7 @@ class CallInvitationService {
   private socket: Socket | null = null;
   private currentCall: CallInvitation | null = null;
   private listeners: Map<string, Function[]> = new Map();
-  private activeGuestStreams: Map<string, string> = new Map();
+  private livekitRoom: any = null;
 
   constructor() {
     this.initializeSocket();
@@ -76,18 +79,18 @@ class CallInvitationService {
 
       case 'invitation_accepted': {
         const invitation = event.invitation;
-        if (invitation.webrtcUrl && invitation.guestId) {
+        if (invitation.livekitRoom && invitation.livekitToken) {
           this.currentCall = invitation;
-          this.startGuestPlayback(invitation.webrtcUrl, invitation.guestId);
+          this.connectToLiveKit(invitation.livekitToken);
         }
         break;
       }
 
       case 'call_joined': {
         const invitation = event.invitation;
-        if (invitation.webrtcUrl) {
+        if (invitation.livekitRoom && invitation.livekitToken) {
           this.currentCall = invitation;
-          this.startOwnPublish(invitation.webrtcUrl);
+          this.connectToLiveKit(invitation.livekitToken);
         }
         break;
       }
@@ -100,38 +103,25 @@ class CallInvitationService {
     this.notifyListeners('callInvitation', event);
   }
 
-  private async startOwnPublish(webrtcUrl: string) {
+  private async connectToLiveKit(token: string) {
     try {
-      console.log(`📞 Publicando próprio vídeo em: ${webrtcUrl}`);
-      await webrtcService.startPublish(webrtcUrl);
-      this.notifyListeners('connected', { webrtcUrl });
+      const livekitUrl = this.currentCall?.livekitUrl || 'wss://livego.store/livekit';
+      console.log(`📞 Conectando ao LiveKit SFU: ${livekitUrl}`);
+      const room = livekitService.createRoom();
+      await room.connect(livekitUrl, token);
+      this.livekitRoom = room;
+      this.notifyListeners('connected', { livekitUrl, token });
     } catch (err) {
-      console.error('📞 Erro ao publicar vídeo:', err);
-      this.notifyListeners('error', { error: 'Falha ao publicar vídeo via SRS' });
-    }
-  }
-
-  private async startGuestPlayback(webrtcUrl: string, guestId: string) {
-    try {
-      console.log(`📞 Reproduzindo vídeo do convidado ${guestId} de: ${webrtcUrl}`);
-      const remoteStream = await webrtcService.startPlay(webrtcUrl);
-
-      const videoEl = document.getElementById(`guest-video-${guestId}`) as HTMLVideoElement;
-      if (videoEl && remoteStream) {
-        videoEl.srcObject = remoteStream;
-        this.activeGuestStreams.set(guestId, webrtcUrl);
-      }
-
-      this.notifyListeners('connected', { guestId, webrtcUrl });
-    } catch (err) {
-      console.error(`📞 Erro ao reproduzir vídeo do convidado ${guestId}:`, err);
-      this.notifyListeners('error', { error: `Falha ao reproduzir vídeo do convidado ${guestId}` });
+      console.error('📞 Erro ao conectar ao LiveKit:', err);
+      this.notifyListeners('error', { error: 'Falha ao conectar ao LiveKit SFU' });
     }
   }
 
   private cleanupCall() {
-    webrtcService.stop();
-    this.activeGuestStreams.clear();
+    if (this.livekitRoom) {
+      this.livekitRoom.disconnect();
+      this.livekitRoom = null;
+    }
     this.currentCall = null;
     this.notifyListeners('disconnected', {});
   }

@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CloseIcon, ClockIcon, FilterIcon, SearchIcon, BellOffIcon, QuestionMarkIcon, UserIcon, LiveIndicatorIcon } from './icons';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
 import { useTranslation } from '../i18n';
+import { socketService } from '../services/socket';
+
+interface LiveUserEntry {
+  userId: string;
+  username: string;
+  name: string;
+  avatarUrl: string;
+  status: string;
+}
 
 interface CoHostModalProps {
   isOpen: boolean;
@@ -28,26 +37,113 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const [friends, setFriends] = useState<User[]>([]);
+  const [liveUsers, setLiveUsers] = useState<LiveUserEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
   const [acceptFriendsOnly, setAcceptFriendsOnly] = useState(true);
 
+  // Atualiza lista de live users
+  const fetchLiveUsers = useCallback(async () => {
+    if (!streamId) return;
+    try {
+      const res = await api.getLiveBattleUsers(streamId);
+      console.log(`[CoHostModal] LiveUsers atualizados: ${res?.users?.length || 0}`);
+      setLiveUsers(res?.users || []);
+    } catch (err) {
+      console.error('[CoHostModal] Erro ao atualizar live users:', err);
+    }
+  }, [streamId]);
+
   useEffect(() => {
     if (isOpen && currentUser) {
       setIsLoading(true);
-      api.getFriends(currentUser.id)
-        .then(data => setFriends(data || []))
-        .catch(console.error)
+      console.log(`[CoHostModal] Aberto mode=${mode} streamId=${streamId} currentUser.id=${currentUser.id}`);
+
+      const fetchFriends = api.getFriends(currentUser.id)
+        .then(data => {
+          console.log(`[CoHostModal] Amigos carregados: ${data?.length || 0}`);
+          setFriends(data || []);
+        })
+        .catch(() => setFriends([]));
+
+      const fetchLive = mode === 'battle'
+        ? api.getLiveBattleUsers(streamId)
+            .then(res => {
+              console.log(`[CoHostModal] LiveUsers resposta inicial:`, res);
+              console.log(`[CoHostModal] LiveUsers carregados: ${res?.users?.length || 0}`);
+              if (res?.users?.length > 0) {
+                console.log(`[CoHostModal] LiveUsers:`, res.users.map((u: any) => ({ userId: u.userId, name: u.name, status: u.status })));
+              }
+              setLiveUsers(res?.users || []);
+            })
+            .catch((err) => {
+              console.error(`[CoHostModal] Erro ao buscar live users:`, err);
+              setLiveUsers([]);
+            })
+        : Promise.resolve();
+
+      Promise.all([fetchFriends, fetchLive])
         .finally(() => setIsLoading(false));
     } else if (!isOpen) {
-      // Reset state when modal closes
       setInvitedFriends(new Set());
       setSearchTerm('');
       setInvitingFriendId(null);
+      setLiveUsers([]);
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, streamId, mode, fetchLiveUsers]);
+
+  // Socket listeners para atualização em tempo real
+  useEffect(() => {
+    if (!isOpen || mode !== 'battle') return;
+
+    const handleNewLive = () => {
+      console.log('[CoHostModal] Socket: new_live — atualizando lista');
+      fetchLiveUsers();
+    };
+
+    const socket = socketService.getSocket();
+    if (socket) {
+      socket.on('new_live', handleNewLive);
+      socket.on('stream_started', handleNewLive);
+      socket.on('stream_ended', handleNewLive);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('new_live', handleNewLive);
+        socket.off('stream_started', handleNewLive);
+        socket.off('stream_ended', handleNewLive);
+      }
+    };
+  }, [isOpen, mode, fetchLiveUsers]);
+
+  // Merge live users into a User-like format, deduplicating with friends
+  const allUsers: User[] = React.useMemo(() => {
+    const friendMap = new Map<string, User>();
+    friends.forEach(f => friendMap.set(f.id, f));
+
+    const merged: User[] = [...friends];
+    liveUsers.forEach(lu => {
+      if (!friendMap.has(lu.userId)) {
+        merged.push({
+          id: lu.userId,
+          name: lu.name,
+          avatarUrl: lu.avatarUrl,
+          username: lu.username,
+          isLive: lu.status === 'broadcasting',
+          isOnline: true,
+        } as User);
+      }
+    });
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return merged.filter(u => u.name?.toLowerCase().includes(term) || u.id?.toLowerCase().includes(term));
+    }
+    return merged;
+  }, [friends, liveUsers, searchTerm]);
 
   const handleInviteClick = async (friend: User) => {
     if (invitedFriends.has(friend.id) || invitingFriendId === friend.id) return;
@@ -57,11 +153,11 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     addToast(ToastType.Info, `Convidando ${friend.name} para ${inviteTypeLabel}...`);
 
     try {
-      const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id);
+      const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
+      const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
       if (success) {
         addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
         setInvitedFriends(prev => new Set(prev).add(friend.id));
-        // Preserves the original UI flow (e.g., starting a PK battle / cohost session)
         onInvite(friend); 
       } else {
         addToast(ToastType.Error, error || 'Falha ao enviar convite.');
@@ -74,10 +170,11 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
   };
 
   const handleQuickInvite = () => {
-    if (friends.length > 0) {
-      // Invite a random available friend as a quick invite
-      const randomFriend = friends[Math.floor(Math.random() * friends.length)];
-      handleInviteClick(randomFriend);
+    const liveNow = allUsers.filter(u => (u as any).isLive || liveUsers.some(lu => lu.userId === u.id && lu.status === 'broadcasting'));
+    const candidates = acceptFriendsOnly ? liveNow.filter(u => friends.some(f => f.id === u.id)) : liveNow;
+    if (candidates.length > 0) {
+      const randomUser = candidates[Math.floor(Math.random() * candidates.length)];
+      handleInviteClick(randomUser);
     } else {
       addToast(ToastType.Info, mode === 'battle' ? 'Procurando oponentes rápidos para Batalha PK...' : 'Procurando novos criadores para Co-host...');
       setTimeout(() => {
@@ -85,8 +182,6 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
       }, 1500);
     }
   };
-
-  const filteredFriends = friends.filter(friend => friend.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   const getButtonState = (friendId: string) => {
       if (invitingFriendId === friendId) {
@@ -100,6 +195,10 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
           disabled: false, 
           className: "bg-[#FF2D55] text-white hover:bg-[#E02447] active:scale-95" 
       };
+  };
+
+  const isUserLive = (userId: string): boolean => {
+    return liveUsers.some(lu => lu.userId === userId && lu.status === 'broadcasting');
   };
 
   return (
@@ -175,10 +274,8 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
           <div className="flex items-center justify-between bg-white/[0.03] p-4 rounded-xl border border-white/[0.02]">
             <div className="flex items-center space-x-3.5">
               <div className="flex -space-x-2.5 relative flex-row items-center">
-                {/* Overlapping Avatars */}
                 <div className="relative w-[38px] h-[38px] flex-shrink-0">
                   <img className="w-[38px] h-[38px] rounded-full ring-2 ring-[#131124] object-cover flex-shrink-0" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt=""/>
-                  {/* Clock badge on the first avatar's bottom right */}
                   <div className="absolute -bottom-1 -right-1 bg-black rounded-full w-[16px] h-[16px] flex items-center justify-center ring-1 ring-[#131124] flex-shrink-0">
                     <svg className="w-[11px] h-[11px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -205,43 +302,54 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
             </button>
           </div>
 
-          {/* Friends List */}
+          {/* Live Users Count (battle mode) */}
+          {mode === 'battle' && liveUsers.length > 0 && (
+            <div className="bg-green-500/10 border border-green-500/30 p-3 rounded-xl">
+              <p className="text-green-400 text-sm font-semibold text-center">
+                {liveUsers.length} criador(es) ao vivo disponíve(is) para batalha!
+              </p>
+            </div>
+          )}
+
+          {/* Users List */}
           <div className="space-y-2">
             <div className="px-1 pt-1">
               <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wider">
-                Amigos ({filteredFriends.length})
+                {mode === 'battle' ? 'Criadores Disponíveis' : 'Amigos'} ({allUsers.length})
               </h3>
             </div>
 
             {isLoading ? (
               <div className="flex justify-center py-8"><LoadingSpinner /></div>
-            ) : filteredFriends.length > 0 ? (
+            ) : allUsers.length > 0 ? (
               <div className="space-y-1">
-                {filteredFriends.map(friend => {
-                  const buttonState = getButtonState(friend.id);
+                {allUsers.map(user => {
+                  const buttonState = getButtonState(user.id);
+                  const isLive = isUserLive(user.id);
                   return (
-                    <div key={friend.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.04] transition-colors">
+                    <div key={user.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.04] transition-colors">
                       <div className="flex items-center space-x-3">
                         <div className="relative">
-                          <img src={friend.avatarUrl} alt={friend.name} className="w-11 h-11 rounded-full object-cover ring-1 ring-gray-800" />
-                          {friend.isLive ? (
+                          <img src={user.avatarUrl} alt={user.name} className="w-11 h-11 rounded-full object-cover ring-1 ring-gray-800" />
+                          {isLive ? (
                             <div className="absolute -bottom-1 -right-1 bg-black p-0.5 rounded-full ring-1 ring-[#131124]">
                               <LiveIndicatorIcon className="w-[14px] h-[14px] text-red-500 animate-pulse" />
                             </div>
-                          ) : friend.isOnline && (
+                          ) : (
                             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border border-[#131124]"></div>
                           )}
                         </div>
                         <div>
-                          <p className="text-white font-semibold text-[14px]">{friend.name}</p>
+                          <p className="text-white font-semibold text-[14px]">{user.name}</p>
                           <div className="flex items-center space-x-1 text-gray-400 text-xs font-medium mt-0.5">
                             <UserIcon className="w-3 h-3 text-gray-500"/>
-                            <span>@{friend.name}</span>
+                            <span>@{user.name}</span>
+                            {isLive && <span className="text-red-400 ml-1">● AO VIVO</span>}
                           </div>
                         </div>
                       </div>
                       <button 
-                        onClick={() => handleInviteClick(friend)} 
+                        onClick={() => handleInviteClick(user)} 
                         disabled={buttonState.disabled}
                         className={`font-semibold px-4 py-1.5 rounded-full transition-all text-sm w-24 text-center ${buttonState.className}`}
                       >
@@ -254,7 +362,7 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <p className="text-gray-500 text-[14px] font-medium">
-                  {searchTerm ? 'Nenhum amigo corresponde à sua busca.' : 'Nenhum amigo encontrado.'}
+                  {searchTerm ? 'Nenhum usuário corresponde à sua busca.' : mode === 'battle' ? 'Nenhum criador ao vivo no momento.' : 'Nenhum amigo encontrado.'}
                 </p>
               </div>
             )}

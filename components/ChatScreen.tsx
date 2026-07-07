@@ -183,8 +183,9 @@ const BecameFriendsIndicator: React.FC<{ onNavigate: () => void }> = ({ onNaviga
 };
 
 
-const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer }) => {
+const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages }) => {
     const [messages, setMessages] = useState<Message[]>([]);
+    const effectiveMessages = propMessages || messages;
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [userStatus, setUserStatus] = useState<{ isOnline?: boolean; lastSeen?: string } | null>(null);
@@ -264,27 +265,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     useEffect(() => {
         const handleNewMessage = (message: Message & { tempId?: string }) => {
-            if (message.chatId === chatKey || (message.from === user.id && message.to === currentUser.id) || (message.from === currentUser.id && message.to === user.id)) {
-                setMessages(prev => {
-                    const tempId = message.tempId;
-                    // If it's an ack for an optimistic message, replace it
-                    if (tempId && prev.some(m => m.id === tempId)) {
-                        return prev.map(m => (m.id === tempId ? { ...message, tempId: undefined } : m));
-                    }
-                    // If it's a new message from the other user, or a duplicate broadcast (already replaced)
-                    else if (!prev.some(m => m.id === message.id)) {
-                        return [...prev, message];
-                    }
-                    return prev; // It's a duplicate, do nothing
-                });
+            const msgChatId = message.chatId || `chat_private_${message.from < message.to ? message.from + '_' + message.to : message.to + '_' + message.from}`;
+            if (msgChatId === chatKey || (message.from === user.id && message.to === currentUser.id) || (message.from === currentUser.id && message.to === user.id)) {
+                if (!propMessages) {
+                    setMessages(prev => {
+                        const tempId = message.tempId;
+                        if (tempId && prev.some(m => m.id === tempId)) {
+                            return prev.map(m => (m.id === tempId ? { ...message, tempId: undefined } : m));
+                        }
+                        else if (!prev.some(m => m.id === message.id)) {
+                            return [...prev, message];
+                        }
+                        return prev;
+                    });
+                }
             }
         };
 
-        socketService.on('newMessage', handleNewMessage);
-        return () => {
-            socketService.off('newMessage', handleNewMessage);
+        const onSocketMessage = (event: Event) => {
+            handleNewMessage((event as CustomEvent).detail);
         };
-    }, [chatKey, currentUser.id, user.id]);
+
+        window.addEventListener('newChatMessage', onSocketMessage);
+        return () => {
+            window.removeEventListener('newChatMessage', onSocketMessage);
+        };
+    }, [chatKey, currentUser.id, user.id, propMessages]);
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -339,7 +345,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const handleSendMessage = async () => {
         const hasText = newMessage.trim() !== '';
         const hasImage = !!selectedImageFile;
-        const sendingMessage = messages.some(m => m.status === 'sending');
+        const sendingMessage = effectiveMessages.some(m => m.status === 'sending');
 
         if ((!hasText && !hasImage) || sendingMessage) return;
 
@@ -524,7 +530,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         <div className="flex-grow flex items-center justify-center">
                             <LoadingSpinner />
                         </div>
-                    ) : messages.length === 0 ? (
+                    ) : effectiveMessages.length === 0 ? (
                         <div className="flex-grow flex flex-col items-center justify-center text-center p-8 select-none">
                             <div className="relative mb-8">
                                 <div className="w-[110px] h-[110px] bg-[#1a1721] rounded-[32px] flex items-center justify-center">
@@ -554,7 +560,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         </div>
                     ) : (
                         <div className="space-y-4 mt-auto">
-                            {messages.map((msg) => {
+                            {effectiveMessages.map((msg) => {
                                 if (msg.type === 'system-friend-notification') {
                                     return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
                                 }
@@ -616,9 +622,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         <button
                             onClick={handleSendMessage}
                             className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
-                            disabled={(!newMessage.trim() && !selectedImageFile) || messages.some(m => m.status === 'sending')}
+                            disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
                         >
-                            {messages.some(m => m.status === 'sending') ? (
+                            {effectiveMessages.some(m => m.status === 'sending') ? (
                                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
                             ) : (
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

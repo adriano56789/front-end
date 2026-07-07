@@ -234,25 +234,34 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, [streamer.id, currentUser.id, isBroadcaster]);
 
+    // Refs para garantir que handlers e pré-carregamento rodem apenas uma vez por sessão
+    const lkRoomRef = useRef<typeof lkRoom>(null);
+    const initialLoadDoneRef = useRef(false);
+    const handlersRegisteredRef = useRef(false);
+
     // Escutar por mensagens de chat reais e sinalizações completas vindas do canal de dados do LiveKit
     useEffect(() => {
         if (!lkRoom) return;
+        lkRoomRef.current = lkRoom;
 
-        // Buscar lista inicial de usuários online via API real
-        const loadInitialOnlineUsers = async () => {
-            try {
-                const users = await api.getStreamOnlineUsers(streamer.id);
-                if (users) {
-                    setOnlineUsers(users);
-                    updateLiveSession({ viewers: users.length });
+        // 1. Buscar lista inicial de usuários online via API real (apenas uma vez)
+        if (!initialLoadDoneRef.current) {
+            initialLoadDoneRef.current = true;
+            const loadInitialOnlineUsers = async () => {
+                try {
+                    const users = await api.getStreamOnlineUsers(streamer.id);
+                    if (users) {
+                        setOnlineUsers(users);
+                        updateLiveSession({ viewers: users.length });
+                    }
+                } catch (err) {
+                    console.warn('[StreamRoom-LiveKit] Erro ao carregar usuários iniciais:', err);
                 }
-            } catch (err) {
-                console.warn('[StreamRoom-LiveKit] Erro ao carregar usuários iniciais:', err);
-            }
-        };
-        loadInitialOnlineUsers();
+            };
+            loadInitialOnlineUsers();
+        }
 
-        // 1. Tratador de Participante Entrando
+        // 2. Tratador de Participante Entrando
         const handleParticipantConnected = async (participant: any) => {
             const identity = participant.identity;
             console.log(`[StreamRoom-LiveKit] Participante entrou na sala: ${identity}`);
@@ -301,7 +310,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             }
         };
 
-        // 2. Tratador de Participante Saindo
+        // 3. Tratador de Participante Saindo
         const handleParticipantDisconnected = (participant: any) => {
             const identity = participant.identity;
             console.log(`[StreamRoom-LiveKit] Participante saiu da sala: ${identity}`);
@@ -319,7 +328,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             });
         };
 
-        // 3. Tratador de dados (Chat, Likes, Presentes) via canal de dados LiveKit
+        // 4. Tratador de dados (Chat, Likes, Presentes) via canal de dados LiveKit
         const handleDataReceived = (data: any) => {
             if (!data) return;
             console.log('[StreamRoom-LiveKit] Sinalização recebida via Data Channel:', data.type);
@@ -386,23 +395,32 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             }
         };
 
-        lkRoom.on('participantConnected', handleParticipantConnected);
-        lkRoom.on('participantDisconnected', handleParticipantDisconnected);
-        lkRoom.on('data_received', handleDataReceived);
+        // Registrar handlers apenas uma vez
+        if (!handlersRegisteredRef.current) {
+            handlersRegisteredRef.current = true;
+            lkRoom.on('participantConnected', handleParticipantConnected);
+            lkRoom.on('participantDisconnected', handleParticipantDisconnected);
+            lkRoom.on('data_received', handleDataReceived);
 
-        // Pré-carregar participantes que já estão conectados na sala do LiveKit
-        if (lkRoom.remoteParticipants) {
-            lkRoom.remoteParticipants.forEach((p: any) => {
-                handleParticipantConnected(p);
-            });
+            // Pré-carregar participantes que já estão conectados na sala do LiveKit
+            if (lkRoom.remoteParticipants && lkRoom.remoteParticipants.size > 0) {
+                lkRoom.remoteParticipants.forEach((p: any) => {
+                    handleParticipantConnected(p);
+                });
+            }
         }
 
         return () => {
-            lkRoom.off('participantConnected', handleParticipantConnected);
-            lkRoom.off('participantDisconnected', handleParticipantDisconnected);
-            lkRoom.off('data_received', handleDataReceived);
+            if (lkRoomRef.current) {
+                lkRoomRef.current.off('participantConnected', handleParticipantConnected);
+                lkRoomRef.current.off('participantDisconnected', handleParticipantDisconnected);
+                lkRoomRef.current.off('data_received', handleDataReceived);
+            }
+            lkRoomRef.current = null;
+            initialLoadDoneRef.current = false;
+            handlersRegisteredRef.current = false;
         };
-    }, [lkRoom, streamer.id, currentUser.id, gifts, liveSession]);
+    }, [lkRoom, streamer.id, currentUser.id]);
 
     const isFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
 

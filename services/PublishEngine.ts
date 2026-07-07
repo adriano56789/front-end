@@ -473,7 +473,6 @@ export class PublishEngine {
         let bytesSent = 0;
         let currentLayer = 'default';
 
-        let usingTurn = false;
         stats.forEach(report => {
           if (report.type === 'outbound-rtp') {
             if (report.kind === 'video') {
@@ -487,19 +486,7 @@ export class PublishEngine {
           if (report.type === 'remote-inbound-rtp') {
             packetsLost = report.packetsLost || 0;
           }
-          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-            const localCand = stats.get(report.localCandidateId);
-            if (localCand && localCand.candidateType === 'relay') {
-              usingTurn = true;
-            }
-          }
         });
-
-        if (usingTurn) {
-          console.log('⚠️ [WebRTC-WHIP] Canal ativo utilizando fallback TURN (relay) para contornar restrições de rede.');
-        } else {
-          console.log('📡 [WebRTC-WHIP] Canal ativo utilizando conexão direta (STUN / host).');
-        }
 
         this._metrics.framesDropped = videoFramesDropped;
         this._metrics.framesEncoded = videoFramesEncoded;

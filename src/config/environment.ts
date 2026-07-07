@@ -23,11 +23,7 @@ export const detectEnvironment = (): EnvironmentConfig => {
   let apiBaseUrl = '';
 
   if (isProd) {
-    if (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('livego.store')) {
-      apiBaseUrl = window.location.origin;
-    } else {
-      apiBaseUrl = 'https://api.livego.store';
-    }
+    apiBaseUrl = window.location.origin;
   } else if (useRealApis) {
     // IMPORTANTE: Deixa vazio para usar o Proxy do Vite configurado em vite.config.ts
     // Isso evita erros de CORS pois o navegador acha que a API é local.

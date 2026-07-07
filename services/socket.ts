@@ -11,12 +11,26 @@ class SocketService {
     private socket: Socket | null = null;
     private listeners: Map<string, Function[]> = new Map();
     private heartbeatInterval: NodeJS.Timeout | null = null;
+    private _connecting: boolean = false;
+    private _connectPromise: Promise<void> | null = null;
 
     async connect() {
-        if (this.socket?.connected) {
-            return;
+        if (this.socket?.connected) return;
+        if (this._connecting) {
+            return this._connectPromise;
         }
-        
+
+        this._connecting = true;
+        this._connectPromise = this._doConnect();
+        try {
+            await this._connectPromise;
+        } finally {
+            this._connecting = false;
+            this._connectPromise = null;
+        }
+    }
+
+    private async _doConnect() {
         // Inicializar Protobuf antes de conectar
         await ProtobufService.init();
 
@@ -61,6 +75,26 @@ class SocketService {
             
             // Iniciar heartbeat
             this.startHeartbeat();
+        });
+
+        // ─── Eventos de convite (disparam CustomEvent para o app) ───
+        this.socket.on('live_invite', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite', { detail: data }));
+        });
+        this.socket.on('live_invite_response', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite_response', { detail: data }));
+        });
+        this.socket.on('live_invite_timeout', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite_timeout', { detail: data }));
+        });
+        this.socket.on('private_stream_invite', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:private_stream_invite', { detail: data }));
+        });
+        this.socket.on('invite_sent', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:invite_sent', { detail: data }));
+        });
+        this.socket.on('call_invitation', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:call_invitation', { detail: data }));
         });
 
         this.socket.on('connect_error', (err) => {
@@ -166,7 +200,9 @@ class SocketService {
         }
     }
 
-    private tryAlternativeConnection() {
+    private tryAlternativeConnection(urlIndex = 0) {
+        if (this.socket?.connected) return;
+        
         const alternativeUrls = [
             `${env.apiBaseUrl.replace(':3000', ':3001')}`,
             `https://${env.srs.host}:3001`,
@@ -175,25 +211,35 @@ class SocketService {
             'http://www.livego.store:3001'
         ];
         
-        for (const url of alternativeUrls) {
-            const alternativeSocket = io(url, {
-                transports: ['websocket', 'polling'],
-                reconnectionAttempts: 3,
-                reconnectionDelay: 1000,
-                timeout: 10000,
-                forceNew: true,
-                withCredentials: true
-            });
-            
-            alternativeSocket.on('connect', () => {
-                // Usar esta conexão como principal
-                this.socket = alternativeSocket;
-                this.setupSocketEvents();
-            });
-            
-            alternativeSocket.on('connect_error', (err) => {
-            });
+        if (urlIndex >= alternativeUrls.length) return;
+        
+        // Desconectar socket anterior se existir
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
         }
+        
+        const url = alternativeUrls[urlIndex];
+        const alternativeSocket = io(url, {
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: 2,
+            reconnectionDelay: 1000,
+            timeout: 10000,
+            forceNew: true,
+            withCredentials: true
+        });
+        
+        alternativeSocket.on('connect', () => {
+            this.socket = alternativeSocket;
+            this.setupSocketEvents();
+        });
+        
+        alternativeSocket.on('connect_error', () => {
+            alternativeSocket.removeAllListeners();
+            alternativeSocket.disconnect();
+            // Tentar próxima URL
+            this.tryAlternativeConnection(urlIndex + 1);
+        });
     }
     
     private setupSocketEvents() {
@@ -209,6 +255,26 @@ class SocketService {
         
         this.socket.on('disconnect', (reason) => {
             this.stopHeartbeat();
+        });
+
+        // ─── Eventos de convite ───
+        this.socket.on('live_invite', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite', { detail: data }));
+        });
+        this.socket.on('live_invite_response', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite_response', { detail: data }));
+        });
+        this.socket.on('live_invite_timeout', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:live_invite_timeout', { detail: data }));
+        });
+        this.socket.on('private_stream_invite', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:private_stream_invite', { detail: data }));
+        });
+        this.socket.on('invite_sent', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:invite_sent', { detail: data }));
+        });
+        this.socket.on('call_invitation', (data: any) => {
+            window.dispatchEvent(new CustomEvent('livego:call_invitation', { detail: data }));
         });
     }
 

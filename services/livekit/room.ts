@@ -162,7 +162,7 @@ export class LiveKitRoom {
       // Event: ParticipantConnected
       realRoom.on(RealRoomEvent.ParticipantConnected, (participant) => {
         console.log('✅ Participante entrou:', participant.identity);
-        this._updateRemoteParticipant(participant);
+        this._addRemoteParticipant(participant);
       });
 
       // Event: ParticipantDisconnected
@@ -177,7 +177,7 @@ export class LiveKitRoom {
       // Event: TrackSubscribed
       realRoom.on(RealRoomEvent.TrackSubscribed, (track, publication, participant) => {
         console.log('✅ Stream recebida.');
-        this._updateRemoteParticipant(participant);
+        this._updateParticipantTracks(participant);
         const p = this.remoteParticipants.get(participant.identity);
         if (p) {
           const pub: TrackPublication = {
@@ -193,7 +193,7 @@ export class LiveKitRoom {
 
       // Event: TrackUnsubscribed
       realRoom.on(RealRoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-        this._updateRemoteParticipant(participant);
+        this._updateParticipantTracks(participant);
         const p = this.remoteParticipants.get(participant.identity);
         if (p) {
           const pub: TrackPublication = {
@@ -249,7 +249,7 @@ export class LiveKitRoom {
 
       // Populate already existing remote participants
       realRoom.remoteParticipants.forEach((participant) => {
-        this._updateRemoteParticipant(participant);
+        this._addRemoteParticipant(participant);
       });
 
       // Only auto-publish if the token grants publishing permission
@@ -298,7 +298,18 @@ export class LiveKitRoom {
     }
   }
 
-  private _updateRemoteParticipant(participant: RealRemoteParticipant) {
+  private _addRemoteParticipant(participant: RealRemoteParticipant) {
+    if (this.remoteParticipants.has(participant.identity)) {
+      return;
+    }
+    this._updateParticipantTracks(participant);
+    const p = this.remoteParticipants.get(participant.identity);
+    if (p) {
+      this.emit(RoomEvent.ParticipantConnected, p);
+    }
+  }
+
+  private _updateParticipantTracks(participant: RealRemoteParticipant) {
     const tracksMap = new Map<string, TrackPublication>();
     const publications = participant.trackPublications || (participant as any).tracks;
     if (publications) {
@@ -322,7 +333,6 @@ export class LiveKitRoom {
     };
 
     this.remoteParticipants.set(participant.identity, p);
-    this.emit(RoomEvent.ParticipantConnected, p);
   }
 
   /**

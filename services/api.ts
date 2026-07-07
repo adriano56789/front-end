@@ -154,6 +154,16 @@ const callApi = async <T = any>(method: Method, url: string, data?: any, customH
     return callApiWithOptions<T>(method, url, data, { customHeaders });
 };
 
+const isExternalUrl = (url: string): boolean => {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
+    try {
+        const hostname = new URL(url).hostname;
+        return !hostname.includes('livego.store') && !hostname.includes('localhost') && hostname !== '127.0.0.1';
+    } catch {
+        return false;
+    }
+};
+
 const callApiWithOptions = async <T = any>(
     method: Method,
     url: string,
@@ -161,11 +171,9 @@ const callApiWithOptions = async <T = any>(
     options?: CallApiOptions
 ): Promise<T> => {
     try {
-        // Se a URL já for absoluta (ex: SRS externo), usa diretamente; senão, prefixa com API_BASE_URL
         const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
         const fullUrl = isAbsolute ? url : `${API_BASE_URL}${url}`;
-
-        // Usar token do banco de dados
+        const external = isExternalUrl(fullUrl);
         const token = await getDbAuthToken();
 
         const config: any = {
@@ -174,9 +182,9 @@ const callApiWithOptions = async <T = any>(
             responseType: options?.responseType || 'json',
             signal: options?.signal,
             headers: {
-                'Content-Type': 'application/json',
+                ...(external ? {} : { 'Content-Type': 'application/json' }),
                 ...(options?.customHeaders || {}),
-                ...(token && { Authorization: `Bearer ${token}` })
+                ...(token && !external && { Authorization: `Bearer ${token}` })
             }
         };
 
@@ -942,6 +950,8 @@ export const api = {
 
     getChatPermissionStatus: (userId: string) => callApi<{ permission: 'all' | 'followers' | 'none' }>('GET', `/api/chat-permission/status/${userId}`),
 
+    canSendMessage: (fromId: string, toId: string) => callApi<{ allowed: boolean; reason: string | null }>('GET', `/api/can-send-message/${fromId}/${toId}`),
+
     updateChatPermission: (userId: string, permission: string) => callApi<{ success: boolean, user: User }>('POST', `/api/chat-permission/update/${userId}`, { permission }),
 
 
@@ -1134,7 +1144,24 @@ export const api = {
 
     checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean }>('GET', `/api/streams/${streamId}/access-check?userId=${userId}`),
 
-    inviteFriendForCoHost: (streamId: string, inviteeId: string) => callApi<{ success: boolean, message?: string, error?: string }>('POST', '/api/friends/invite', { streamId, inviteeId }),
+    inviteFriendForCoHost: (streamId: string, inviteeId: string, inviteType: 'co-host' | 'pk-battle' = 'pk-battle') => {
+      const fromUserId = (() => {
+        try {
+          const token = getAuthToken();
+          if (!token) return '';
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.id || payload.userId || '';
+        } catch { return ''; }
+      })();
+      return callApi<{ success: boolean, message?: string, error?: string }>('POST', '/api/live/invite', {
+        inviterUsername: fromUserId,
+        inviterName: '',
+        inviteeUsername: inviteeId,
+        inviteeName: '',
+        inviteType,
+        streamId
+      });
+    },
 
     sendStreamInteraction: (streamId: string, type: string, data: any) => callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/interactions`, { type, ...data }),
 
@@ -2097,6 +2124,17 @@ export const api = {
       callApi<{ allowed: boolean; reason?: string }>(
         'POST', '/api/streams/validate-access', { streamId, action }
       ),
+    
+    getLiveBattleUsers: (streamId: string) =>
+      callApi<{ success: boolean, users: Array<{ userId: string, username: string, name: string, avatarUrl: string, status: string }> }>(
+        'GET', `/api/live/online-users?streamId=${streamId}&mode=battle`
+      ),
+    
+    get: <T = any>(url: string) => callApi<T>('GET', url),
+    post: <T = any>(url: string, data?: any) => callApi<T>('POST', url, data),
+    put: <T = any>(url: string, data?: any) => callApi<T>('PUT', url, data),
+    patch: <T = any>(url: string, data?: any) => callApi<T>('PATCH', url, data),
+    delete: <T = any>(url: string, data?: any) => callApi<T>('DELETE', url, data),
     
 };
 

@@ -50,7 +50,7 @@ const LocationPermissionModal: React.FC<LocationPermissionModalProps> = ({ isOpe
 
   return (
     <div
-      className="absolute inset-0 z-[100] flex items-end justify-center bg-black/60"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60"
       aria-modal="true"
       role="dialog"
     >

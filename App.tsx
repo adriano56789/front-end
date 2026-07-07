@@ -920,6 +920,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       setMessageNotifications(prev => [...prev, notification]);
 
+      addToast(ToastType.Info, notification.text);
+
     };
 
 
@@ -1002,6 +1004,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [lastPhotoLikeUpdate, setLastPhotoLikeUpdate] = useState<number>(0);
 
+  // Refs para evitar loops no useEffect dos sockets
+  const currentUserRef = useRef(currentUser);
+  useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+
   const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
 
   const [visitors, setVisitors] = useState<Visitor[]>(INITIAL_DATA.visitors);
@@ -1034,8 +1040,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, []);
 
-
-
   const updateUserEverywhere = useCallback((updatedUser: User) => {
 
     const updater = (users: User[] | undefined) => {
@@ -1043,25 +1047,27 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       return users.map(u => u.id === updatedUser.id ? updatedUser : u);
     };
 
+    const cur = currentUserRef.current;
+    if (cur?.id === updatedUser.id) {
 
+      // Só re-renderiza se realmente houve mudança (evita loop)
+      if (JSON.stringify(cur) !== JSON.stringify(updatedUser)) {
+        setCurrentUser(updatedUser);
+        (window as any).currentUser = updatedUser;
+      }
 
-    if (currentUser?.id === updatedUser.id) {
-
-      setCurrentUser(updatedUser);
-
-      // Sincronizar com window para API ter acesso
-
-      (window as any).currentUser = updatedUser;
-
-      // SALVAR AUTOMATICAMENTE NO BANCO DE DADOS DA VPS/API IMEDIATAMENTE (SEM SIMULAÇÃO)
-      // Sincroniza qualquer alteração de estado ou configurações do usuário diretamente no banco
-      api.updateProfile(updatedUser.id, updatedUser).then(res => {
-        if (res && res.success) {
-          console.log("💾 [AUTOSAVE] Sucesso: Dados do usuário salvos no banco", updatedUser.id);
-        }
-      }).catch(err => {
-        console.error("❌ [AUTOSAVE ERROR] Falha ao persistir alterações no banco:", err);
-      });
+      // Só persiste no backend se campos de perfil mudaram (não runtime: diamonds, earnings, isOnline etc.)
+      const profileFields: (keyof User)[] = ['name', 'displayName', 'avatarUrl', 'coverUrl', 'bio', 'gender', 'birthday', 'residence', 'profession', 'emotional_status', 'tags', 'city', 'state', 'country', 'age', 'isAvatarProtected', 'chatPermission', 'pipEnabled', 'locationPermission', 'showActivityStatus', 'showLocation', 'privateStreamSettings', 'activeFrameId', 'obras'];
+      const hasProfileChange = profileFields.some(f => cur[f] !== updatedUser[f]);
+      if (hasProfileChange) {
+        api.updateProfile(updatedUser.id, updatedUser).then(res => {
+          if (res && res.success) {
+            console.log("💾 [AUTOSAVE] Sucesso: Dados do usuário salvos no banco", updatedUser.id);
+          }
+        }).catch(err => {
+          console.error("❌ [AUTOSAVE ERROR] Falha ao persistir alterações no banco:", err);
+        });
+      }
 
     }
 
@@ -1108,7 +1114,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     }
 
-  }, [currentUser, viewingProfile, pkOpponent, activeStream]);
+  }, [viewingProfile, pkOpponent, activeStream]);
 
 
 
@@ -1307,13 +1313,39 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   useEffect(() => {
 
-    if (currentUser) {
+    if (currentUserRef.current) {
 
       // Socket conectado globalmente para receber atualizações de presença e novos eventos de transmissão em tempo real
       socketService.connect();
 
-      if (currentUser?.id) {
-        socketService.joinRoom(currentUser.id);
+      if (currentUserRef.current?.id) {
+        socketService.joinRoom(currentUserRef.current.id);
+      }
+
+      // Inicializar Firebase Cloud Messaging para notificações push
+      if ('serviceWorker' in navigator && 'Notification' in window) {
+        navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => {
+          console.log('[FCM] Service Worker registrado');
+        }).catch((err) => {
+          console.warn('[FCM] Erro ao registrar Service Worker:', err);
+        });
+        import('./services/notificationService').then(({ initNotifications }) => {
+          initNotifications(currentUserRef.current.id);
+        });
+        import('./services/firebase').then(({ onForegroundMessage }) => {
+          onForegroundMessage((payload) => {
+            const title = payload.notification?.title || payload.data?.title || 'Nova notificação';
+            const body = payload.notification?.body || payload.data?.body || '';
+            const type = payload.data?.type;
+            if (type === 'new_message') {
+              addToast(ToastType.Info, `${title}: ${body}`);
+            } else if (type === 'live_started') {
+              addToast(ToastType.Info, `🔴 ${title} está ao vivo!`);
+            } else if (body) {
+              addToast(ToastType.Info, `${title}: ${body}`);
+            }
+          });
+        });
       }
 
 
@@ -1322,9 +1354,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       socketService.on('user_status_updated', (data: { userId: string; isOnline: boolean }) => {
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
-          const updatedUser = { ...currentUser, isOnline: data.isOnline };
+          const updatedUser = { ...currentUserRef.current, isOnline: data.isOnline };
 
           updateUserEverywhere(updatedUser);
 
@@ -1338,9 +1370,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       socketService.on('avatar_updated', (data: { userId: string; avatarUrl: string }) => {
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
-          const updatedUser = { ...currentUser, avatarUrl: data.avatarUrl };
+          const updatedUser = { ...currentUserRef.current, avatarUrl: data.avatarUrl };
 
           updateUserEverywhere(updatedUser);
 
@@ -1356,11 +1388,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
           // 🔧 SINCRONIZAÇÃO: Atualiza diamonds E enviados do remetente com dados reais da API
 
-          const updatedUser: any = { ...currentUser, diamonds: data.diamonds };
+          const updatedUser: any = { ...currentUserRef.current, diamonds: data.diamonds };
 
           if (data.enviados !== undefined) {
 
@@ -1392,7 +1424,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
           // 🔧 SINCRONIZAÇÃO: Atualiza earnings e receptores com dados reais do banco de dados
 
@@ -1430,7 +1462,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
           // Atualizar usuário com dados completos do saque
 
@@ -1470,11 +1502,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       socketService.on('platform_earnings_updated', (data: { userId: string; added_fee: number; total_platform_earnings: number; from_user?: string; timestamp: string }) => {
 
-        if (data.userId === currentUser.id) {
+        if (data.userId === currentUserRef.current.id) {
 
           // Atualizar platformEarnings do usuário ADM com dados reais do banco
 
-          const updatedUser = { ...currentUser, platformEarnings: data.total_platform_earnings };
+          const updatedUser = { ...currentUserRef.current, platformEarnings: data.total_platform_earnings };
 
           updateUserEverywhere(updatedUser);
 
@@ -1722,7 +1754,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     };
 
-  }, [currentUser, activeStream]);
+  }, [activeStream]);
 
 
 
@@ -2391,19 +2423,26 @@ const logLiveEvent = (type: string, data: any) => {
 
       if (locationPermissionStatus === 'granted') {
 
-        // Se já foi concedido, ir diretamente para nearby
-
         setActiveCategory('nearby');
-
         setShowLocationBanner(false);
+
+        setIsLoadingStreamers(true);
+        try {
+          const streams = await api.getLiveStreamers('nearby');
+          setStreamers(Array.isArray(streams) ? streams : []);
+        } catch {
+          setStreamers([]);
+        } finally {
+          setIsLoadingStreamers(false);
+        }
 
       } else if (locationPermissionStatus === 'denied') {
 
-        // Se foi negado, ir para nearby mas mostrar banner
+        // Mostrar modal para que o usuário possa re-solicitar permissão
 
         setActiveCategory('nearby');
-
         setShowLocationBanner(true);
+        setIsLocationPermissionModalOpen(true);
 
       } else {
 
@@ -2501,14 +2540,20 @@ const logLiveEvent = (type: string, data: any) => {
   const handleAllowLocation = async () => {
 
     setLocationPermissionStatus('granted');
-
     setActiveCategory('nearby');
-
     setShowLocationBanner(false);
-
     addToast(ToastType.Success, "Permissão de localização concedida.");
-
     setIsLocationPermissionModalOpen(false);
+
+    setIsLoadingStreamers(true);
+    try {
+      const streams = await api.getLiveStreamers('nearby');
+      setStreamers(Array.isArray(streams) ? streams : []);
+    } catch {
+      setStreamers([]);
+    } finally {
+      setIsLoadingStreamers(false);
+    }
 
   };
 
@@ -2517,14 +2562,20 @@ const logLiveEvent = (type: string, data: any) => {
   const handleDenyLocation = async () => {
 
     setLocationPermissionStatus('denied');
-
     setActiveCategory('nearby');
-
     setShowLocationBanner(true);
-
     addToast(ToastType.Info, "Permissão de localização negada.");
-
     setIsLocationPermissionModalOpen(false);
+
+    setIsLoadingStreamers(true);
+    try {
+      const streams = await api.getLiveStreamers('nearby');
+      setStreamers(Array.isArray(streams) ? streams : []);
+    } catch {
+      setStreamers([]);
+    } finally {
+      setIsLoadingStreamers(false);
+    }
 
   };
 
@@ -2725,7 +2776,7 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (currentUser && streamer.hostId === currentUser.id) {
 
-      const updatedUser = { ...currentUser, isLive: true, isOnline: true };
+      const updatedUser = { ...currentUserRef.current, isLive: true, isOnline: true };
 
       updateUserEverywhere(updatedUser);
 
@@ -2956,12 +3007,36 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
-  const handleStartChatWithStreamer = (user: User) => {
+  const handleStartChatWithStreamer = async (user: User) => {
+    if (!currentUser) return;
+
+    try {
+      const check = await api.canSendMessage(currentUser.id, user.id);
+      if (!check.allowed) {
+        addToast(ToastType.Error, check.reason || 'Não é possível enviar mensagem');
+        return;
+      }
+    } catch {
+      return;
+    }
 
     setChattingWith(user);
+  };
 
-    // Não navega para a tela de mensagens, apenas abre o chat diretamente
+  const handleStartChat = async (user: User) => {
+    if (!currentUser) return;
 
+    try {
+      const check = await api.canSendMessage(currentUser.id, user.id);
+      if (!check.allowed) {
+        addToast(ToastType.Error, check.reason || 'Não é possível enviar mensagem');
+        return;
+      }
+    } catch {
+      return;
+    }
+
+    setChattingWith(user);
   };
 
 
@@ -3056,7 +3131,7 @@ const logLiveEvent = (type: string, data: any) => {
 
         const updatedFollowed = { ...userToFollow, isFollowed: isNowFollowing };
 
-        const updatedFollower = { ...currentUser, following: (currentUser.following || 0) + (isNowFollowing ? 1 : -1) };
+        const updatedFollower = { ...currentUserRef.current, following: (currentUser.following || 0) + (isNowFollowing ? 1 : -1) };
 
 
 
@@ -3188,7 +3263,7 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
-    const updatedUser = { ...currentUser, diamonds: currentUser.diamonds + pkg.diamonds };
+    const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds + pkg.diamonds };
 
     updateUserEverywhere(updatedUser);
 
@@ -3232,7 +3307,7 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
-    const updatedUser = { ...currentUser, diamonds: currentUser.diamonds - 100 };
+    const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds - 100 };
 
     updateUserEverywhere(updatedUser);
 
@@ -3348,7 +3423,7 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (currentUser && currentUser.diamonds && gift.price && currentUser.diamonds >= gift.price) {
 
-      const updatedUser = { ...currentUser, diamonds: currentUser.diamonds - gift.price };
+      const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds - gift.price };
 
       updateUserEverywhere(updatedUser);
 
@@ -3404,7 +3479,7 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
-    const updatedUser = { ...currentUser, isVIP: true };
+    const updatedUser = { ...currentUserRef.current, isVIP: true };
 
     updateUserEverywhere(updatedUser);
 
@@ -3807,6 +3882,7 @@ const logLiveEvent = (type: string, data: any) => {
                   activeTab={activeCategory}
                   onTabChange={handleTabChange}
                   showLocationBanner={showLocationBanner}
+                  unreadCount={totalUnreadMessages}
                 />
               ) : location.pathname.startsWith('/live/') && location.pathname !== '/live' ? (
                 <div className="h-full flex items-center justify-center text-gray-500">
@@ -3822,7 +3898,7 @@ const logLiveEvent = (type: string, data: any) => {
                 />
               ) : location.pathname === '/messages' ? (
                 <MessagesScreen
-                  onStartChat={setChattingWith}
+                  onStartChat={handleStartChat}
                   onViewProfile={handleViewProfile}
                   conversations={conversations}
                   friends={friends}
@@ -3968,7 +4044,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} currentUser={currentUser} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); navigate('/'); }} />}
 
-      {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={setChattingWith} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} />}
+      {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={handleStartChat} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} />}
 
       {isEditingProfile && <EditProfileScreen user={currentUser} onBack={() => setIsEditingProfile(false)} onSave={handleSaveProfile} />}
 
@@ -4036,7 +4112,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       <LiveHistoryScreen isOpen={isLiveHistoryOpen} onClose={() => setIsLiveHistoryOpen(false)} history={streamHistory} />
 
-      <PrivateChatModal isOpen={isPrivateChatModalOpen} onClose={() => setIsPrivateChatModalOpen(false)} onStartChat={(user) => { setIsPrivateChatModalOpen(false); setChattingWith(user); }} conversations={conversations} />
+      <PrivateChatModal isOpen={isPrivateChatModalOpen} onClose={() => setIsPrivateChatModalOpen(false)} onStartChat={(user) => { setIsPrivateChatModalOpen(false); handleStartChat(user); }} conversations={conversations} />
 
       
 

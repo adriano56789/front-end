@@ -17,6 +17,7 @@ interface MainScreenProps {
   activeTab: string;
   onTabChange: (tabKey: string) => void;
   showLocationBanner: boolean;
+  unreadCount?: number;
 }
 
 const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void}> = ({ streamer, onSelect }) => {
@@ -116,7 +117,7 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 };
 
 
-const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner }) => {
+const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0 }) => {
   const { t } = useTranslation();
   const mainRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -215,7 +216,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
   
   return (
     <div className="flex flex-col w-full min-w-0 h-full bg-[#000000] select-none overflow-hidden">
-      <Header onOpenReminderModal={onOpenReminderModal} onOpenRegionModal={onOpenRegionModal} onOpenSearch={onOpenSearch} />
+      <Header onOpenReminderModal={onOpenReminderModal} onOpenRegionModal={onOpenRegionModal} onOpenSearch={onOpenSearch} unreadCount={unreadCount} />
       
       <nav className="flex-shrink-0 w-full relative z-10 border-b border-white/[0.02]">
         <div 
