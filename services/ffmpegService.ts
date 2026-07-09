@@ -87,7 +87,7 @@ class FfmpegService {
     filters: FfmpegFilterConfig
   ): string {
     const inputUrl = `rtmp://127.0.0.1:1935/live/stream_${streamId}`;
-    const outputUrl = `rtmp://127.0.0.1:1935/live/stream_${streamId}_transcoded`;
+    const outputUrl = `rtmp://127.0.0.1:1935/live/stream_${streamId}`;
     
     let args: string[] = ['ffmpeg', '-re', '-i', inputUrl];
 
