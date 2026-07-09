@@ -1607,20 +1607,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       // Escutar novas lives em tempo real
 
       socketService.on('new_live', (data: { id: string; hostId: string; name: string; avatar: string; isLive: boolean; streamStatus: string; country: string; viewers: number; }) => {
+        if (!data || !data.id) return;
 
         console.log('[new_live] Nova live recebida:', data.id, data.name);
 
         setStreamers(prev => {
-
           const list = Array.isArray(prev) ? prev : [];
           if (list.some(s => s.id === data.id)) {
             return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } : s);
           }
-
-          return [data, ...list] as any;
-
+          return [data, ...list];
         });
-
       });
 
 
@@ -1628,20 +1625,20 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       // Escutar novas lives via evento stream_started em tempo real
 
       socketService.onStreamStarted((data: any) => {
+        const streamId = data.streamId || data.id;
+        if (!streamId) return;
 
-        console.log('[stream_started] Nova live recebida:', data.id, data.name);
+        const safeData = { ...data, id: streamId };
+
+        console.log('[stream_started] Nova live recebida:', safeData.id, safeData.name);
 
         setStreamers(prev => {
-
           const list = Array.isArray(prev) ? prev : [];
-          if (list.some(s => s.id === data.id)) {
-            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } : s);
+          if (list.some(s => s.id === safeData.id)) {
+            return list.map(s => s.id === safeData.id ? { ...s, ...safeData, isLive: true } : s);
           }
-
-          return [data, ...list];
-
+          return [safeData, ...list];
         });
-
       });
 
 

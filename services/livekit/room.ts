@@ -42,12 +42,15 @@ export class LiveKitRoom {
   private realRoom: RealRoom | null = null;
   private eventListeners: Map<string, Set<Function>> = new Map();
   private mockIntervals: any[] = [];
+  private intentionalDisconnect = false;
+  private isReconnecting = false;
 
   constructor() {
     this.reset();
   }
 
   private reset() {
+    this.intentionalDisconnect = true;
     this.state = 'disconnected';
     this.localParticipant = null;
     this.remoteParticipants.clear();
@@ -59,6 +62,8 @@ export class LiveKitRoom {
       } catch {}
       this.realRoom = null;
     }
+    this.intentionalDisconnect = false;
+    this.isReconnecting = false;
     // Clean up fallback socket listeners
     try {
       const socket = socketService.getSocket();
@@ -70,6 +75,11 @@ export class LiveKitRoom {
         socket.off('livekit_room_deleted');
       }
     } catch {}
+  }
+
+  private cleanupReconnection() {
+    this.isReconnecting = false;
+    this.intentionalDisconnect = false;
   }
 
   /**
@@ -109,7 +119,7 @@ export class LiveKitRoom {
    * Connects to a LiveKit Room
    */
   public async connect(url: string, token: string): Promise<void> {
-    if (this.state !== 'disconnected') {
+    if (this.state !== 'disconnected' && this.state !== 'reconnecting') {
       throw new Error('Room is already connecting or connected');
     }
 
@@ -149,14 +159,37 @@ export class LiveKitRoom {
       realRoom.on(RealRoomEvent.Connected, () => {
         console.log('✅ LiveKit conectado.');
         this.state = 'connected';
+        this.cleanupReconnection();
         this.emit(RoomEvent.RoomMetadataChanged, this);
       });
 
-      // Event: Disconnected
+      // Event: Disconnected (final - reconnection failed or intentional)
       realRoom.on(RealRoomEvent.Disconnected, () => {
-        console.log('[LiveKit] Desconectado.');
-        this.state = 'disconnected';
-        this.emit(RoomEvent.Disconnected);
+        if (this.intentionalDisconnect) {
+          console.log('[LiveKit] Desconectado por ação do usuário.');
+          this.state = 'disconnected';
+          this.cleanupReconnection();
+          this.emit(RoomEvent.Disconnected);
+          return;
+        }
+        console.log('[LiveKit] Conexão perdida. Tentando reconectar...');
+        this.isReconnecting = true;
+      });
+
+      // Event: Reconnecting
+      realRoom.on(RealRoomEvent.Reconnecting, () => {
+        console.log('[LiveKit] Reconectando...');
+        this.state = 'reconnecting';
+        this.emit(RoomEvent.Reconnecting);
+      });
+
+      // Event: Reconnected
+      realRoom.on(RealRoomEvent.Reconnected, () => {
+        console.log('✅ LiveKit reconectado.');
+        this.state = 'connected';
+        this.isReconnecting = false;
+        this.emit(RoomEvent.Reconnected);
+        this.emit(RoomEvent.RoomMetadataChanged, this);
       });
 
       // Event: ParticipantConnected
@@ -408,7 +441,8 @@ export class LiveKitRoom {
    * Send a chat message via LiveKit data channel
    */
   public sendChatMessage(payload: any): void {
-    if (this.realRoom) {
+    // Só tenta DataChannel se estiver conectado e não estiver reconectando
+    if (this.realRoom && this.state === 'connected' && !this.isReconnecting) {
       try {
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify({
@@ -420,25 +454,30 @@ export class LiveKitRoom {
             console.log('[LiveKit] Mensagem de chat enviada com sucesso.');
           })
           .catch((err) => {
-            console.warn('[LiveKit] Falha ao transmitir mensagem:', err);
+            console.warn('[LiveKit] Falha ao transmitir mensagem, usando fallback Socket.IO:', err);
+            this.fallbackSendChatMessage(payload);
           });
       } catch (e) {
         console.error('[LiveKit] Erro ao serializar mensagem:', e);
+        this.fallbackSendChatMessage(payload);
       }
     } else {
-      // In fallback mode, send message via socketService
-      const userId = this.localParticipant?.identity || getCurrentUserId();
-      const userName = this.localParticipant?.name || 'User';
-      const userAvatar = '';
-      socketService.sendChatMessage(this.roomId, userId, userName, userAvatar, payload.message || payload.text || '');
+      this.fallbackSendChatMessage(payload);
     }
+  }
+
+  private fallbackSendChatMessage(payload: any): void {
+    const userId = this.localParticipant?.identity || getCurrentUserId();
+    const userName = this.localParticipant?.name || 'User';
+    const userAvatar = '';
+    socketService.sendChatMessage(this.roomId, userId, userName, userAvatar, payload.message || payload.text || '');
   }
 
   /**
    * Send arbitrary data via LiveKit data channel
    */
   public sendData(payload: any): void {
-    if (this.realRoom) {
+    if (this.realRoom && this.state === 'connected' && !this.isReconnecting) {
       try {
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(payload));
@@ -461,16 +500,28 @@ export class LiveKitRoom {
    * Disconnects cleanly
    */
   public async disconnect(): Promise<void> {
-    if (this.state === 'disconnected') return;
-    
-    // In fallback mode, notify socket of leaving direct room
-    if (!this.realRoom) {
+    if (this.state === 'disconnected' && !this.isReconnecting) return;
+
+    this.intentionalDisconnect = true;
+
+    if (this.realRoom) {
+      try {
+        this.realRoom.disconnect();
+      } catch {}
+    } else {
       try {
         socketService.leaveRoom(this.roomId);
       } catch {}
     }
 
-    this.reset();
+    this.state = 'disconnected';
+    this.localParticipant = null;
+    this.remoteParticipants.clear();
+    this.isReconnecting = false;
+    this.intentionalDisconnect = false;
+    if (this.realRoom) {
+      this.realRoom = null;
+    }
     this.emit(RoomEvent.Disconnected);
   }
 

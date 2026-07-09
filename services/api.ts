@@ -2011,8 +2011,8 @@ export const api = {
         ...res,
         identity,
         room,
-        livekitUrl: res.serverUrl || 'wss://sfu.livego.store',
-        serverUrl: res.serverUrl || 'wss://sfu.livego.store'
+        livekitUrl: res.serverUrl || 'wss://livego.store/livekit',
+        serverUrl: res.serverUrl || 'wss://livego.store/livekit'
       }));
     },
 

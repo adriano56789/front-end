@@ -6,6 +6,8 @@ interface UseLiveKitOptions {
   onParticipantConnected?: (participant: LiveKitParticipant) => void;
   onParticipantDisconnected?: (participant: LiveKitParticipant) => void;
   onDisconnected?: () => void;
+  onReconnecting?: () => void;
+  onReconnected?: () => void;
 }
 
 export function useLiveKit(options: UseLiveKitOptions = {}) {
@@ -59,6 +61,18 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
       optionsRef.current.onDisconnected?.();
     };
 
+    const handleReconnecting = () => {
+      setConnectionState('reconnecting');
+      optionsRef.current.onReconnecting?.();
+    };
+
+    const handleReconnected = () => {
+      setConnectionState('connected');
+      setLocalParticipant(activeRoom.localParticipant);
+      setRemoteParticipants(Array.from(activeRoom.remoteParticipants.values()));
+      optionsRef.current.onReconnected?.();
+    };
+
     // Listen to Room events
     activeRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
     activeRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
@@ -66,6 +80,8 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
     activeRoom.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
     activeRoom.on(RoomEvent.RoomMetadataChanged, handleRoomMetadataChanged);
     activeRoom.on(RoomEvent.Disconnected, handleDisconnected);
+    activeRoom.on(RoomEvent.Reconnecting, handleReconnecting);
+    activeRoom.on(RoomEvent.Reconnected, handleReconnected);
 
     return () => {
       activeRoom.disconnect();
@@ -75,6 +91,7 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
 
   const connect = async (url: string, token: string) => {
     if (!roomRef.current) return;
+    if (connectionState === 'connected') return;
     setConnectionState('connecting');
     try {
       await roomRef.current.connect(url, token);

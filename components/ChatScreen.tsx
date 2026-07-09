@@ -490,8 +490,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         : "absolute inset-0 z-50 bg-[#131317] text-white flex flex-col";
 
     const contentClasses = isModal
-        ? "bg-[#131317] text-white flex flex-col w-full max-w-md h-[75%] rounded-t-2xl"
-        : "text-white flex flex-col w-full h-full";
+        ? "bg-[#131317] text-white flex flex-col w-full max-w-md h-[75%] rounded-t-2xl relative"
+        : "text-white flex flex-col w-full h-full relative";
 
     const backdropClick = isModal ? onBack : undefined;
 
@@ -535,41 +535,32 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         <ThreeDotsIcon className="w-5 h-5" />
                     </button>
                 </header>
-                <main className="flex-grow p-4 overflow-y-auto no-scrollbar flex flex-col">
+                <main className="flex-grow overflow-y-auto no-scrollbar flex flex-col min-h-0 pb-[68px]">
                     {isLoading ? (
                         <div className="flex-grow flex items-center justify-center">
                             <LoadingSpinner />
                         </div>
                     ) : effectiveMessages.length === 0 ? (
-                        <div className="flex-grow flex flex-col items-center justify-center text-center p-8 select-none">
-                            <div className="relative mb-8">
-                                <div className="w-[110px] h-[110px] bg-[#1a1721] rounded-[32px] flex items-center justify-center">
-                                    <svg width="56" height="56" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <div className="flex-grow flex flex-col items-center justify-center text-center px-8 py-4 select-none">
+                            <div className="relative mb-6">
+                                <div className="w-[90px] h-[90px] bg-[#1a1721] rounded-[32px] flex items-center justify-center">
+                                    <svg width="46" height="46" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                                         <path d="M9 19c-1.657 0-3-1.343-3-3V7c0-1.657 1.343-3 3-3h12c1.657 0 3 1.343 3 3v2h-1c-2.761 0-5 2.239-5 5v7H9z" fill="#8000b3"/>
-                                        <path d="M7 23l4-3 1-1h-3c-1.657 0-3-1.343-3-3v-5c0-.987.48-1.85 1.218-2.385C7.304 9.4 7.6 10.156 7.6 11v5c0 1.105.895 2 2 2h3.5l-3.5 3.5V23h-2.6z" fill="#8000b3"/>
                                         <path d="M13 25c-1.657 0-3-1.343-3-3v-9c0-1.657 1.343-3 3-3h12c1.657 0 3 1.343 3 3v9c0 1.657-1.343 3-3 3h-5l-5 4v-4h-2z" fill="#aa00ff"/>
                                     </svg>
                                 </div>
-                                <div className="absolute -top-3 -right-3 bg-[#9b0eed] p-2.5 rounded-full ring-[6px] ring-[#131317]">
-                                    <span className="text-[14px] text-white flex items-center justify-center leading-none">👋</span>
-                                </div>
                             </div>
-                            <p className="text-[20px] font-bold text-white mb-2 tracking-tight">Nenhuma mensagem ainda</p>
-                            <p className="text-[14px] text-[#888691] font-medium mb-10">Comece a conversar com pessoas!</p>
+                            <p className="text-[18px] font-bold text-white mb-1 tracking-tight">Nenhuma mensagem ainda</p>
+                            <p className="text-[13px] text-[#888691] font-medium mb-6">Comece a conversar com pessoas!</p>
                             <button 
                                 onClick={() => setNewMessage('👋 Oi!') || handleSendMessage()}
-                                className="bg-[#2a1334] hover:bg-[#34173d] text-[#d21fff] font-bold py-[14px] px-8 rounded-full flex items-center space-x-2 transition-colors active:scale-95 border border-[#3b194a]/30"
+                                className="bg-[#2a1334] hover:bg-[#34173d] text-[#d21fff] font-bold py-[12px] px-7 rounded-full flex items-center space-x-2 transition-colors active:scale-95 border border-[#3b194a]/30"
                             >
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M17.5 7.5a2.5 2.5 0 0 0-2.5-2.5c-.24 0-.47.04-.69.1l.03-3.05a2.5 2.5 0 0 0-2.84-2.48l-.94.13c-1.35.18-2.3 1.4-2.07 2.75l.48 2.87a2.54 2.54 0 0 0-2.33 1.05A2.5 2.5 0 0 0 4.1 6.5l.38 6.46C3.07 14.28 2 15.68 2 17.5c0 2.48 2.02 4.5 4.5 4.5h7c3.86 0 7-3.14 7-7v-5a2.5 2.5 0 0 0-3-2.5zM19 15c0 3.03-2.47 5.5-5.5 5.5h-7A3 3 0 0 1 3.5 17.5c0-1.28.8-2.46 2.03-2.88l1.45-.5.18-5.32c.04-.84.77-1.48 1.6-1.43a1.5 1.5 0 0 1 1.43 1.58L10 11.23l1.5.08.38-7.3a1.03 1.03 0 0 1 1.25-1.04l.94-.13a1 1 0 0 1 1.13 1l.24 7.21L17 11.2a1 1 0 0 1 2 .1v3.7z"/>
-                                    <path d="M21.5 5.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z" opacity="0.5"/>
-                                    <path d="M19 2.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z" opacity="0.7"/>
-                                </svg>
-                                <span className="text-[15px] tracking-wide">Mandar um salve</span>
+                                <span className="text-[14px] tracking-wide">Mandar um salve</span>
                             </button>
                         </div>
                     ) : (
-                        <div className="space-y-4 mt-auto">
+                        <div className="space-y-3 px-4 pt-2 mt-auto">
                             {effectiveMessages.map((msg) => {
                                 if (msg.type === 'system-friend-notification') {
                                     return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
@@ -590,9 +581,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         </div>
                     )}
                 </main>
-                <footer className="p-4 py-3 bg-[#131317] flex-shrink-0">
+                <footer className="absolute bottom-0 left-0 right-0 z-10 bg-[#131317] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3">
                     {selectedImage && (
-                        <div className="relative p-2 mb-2 w-fit">
+                        <div className="relative mb-2 w-fit">
                             <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
                             <button
                             onClick={() => {

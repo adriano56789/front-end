@@ -172,6 +172,7 @@ export interface Obra {
 }
 
 export interface User {
+  avatar: string;
   isBroadcaster?: boolean;
   id: string;
   identification: string;

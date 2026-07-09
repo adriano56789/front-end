@@ -1,4 +1,4 @@
-                  import React, { useState, useEffect, useRef, useMemo } from 'react';
+                  import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import OnlineUsersModal from './live/OnlineUsersModal';
 const OnlineUsersModalAny: any = OnlineUsersModal;
 import ChatMessage from './live/ChatMessage';
@@ -173,6 +173,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
+    const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
@@ -633,11 +634,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
         setMessages(prev => [...prev, messagePayload]);
         
-        // Transmitir mensagem real via LiveKit Chat (data channel)
+        // Transmitir mensagem via LiveKit ou fallback Socket.IO
         if (lkRoom && lkRoom.state === 'connected') {
             lkRoom.sendChatMessage(messagePayload);
         } else {
-            console.warn('[StreamRoom] LiveKit não está conectado. Mensagem exibida apenas localmente.');
+            socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, currentUser.avatarUrl || currentUser.avatar || '', chatInput.trim());
         }
         
         setChatInput('');
@@ -704,11 +705,20 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
     };
 
-    useEffect(() => {
+    // Scroll inteligente: só vai para o fim se usuário NÃO tiver scrollado para cima
+    const handleChatScroll = useCallback(() => {
         if (chatContainerRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+            const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+            setIsUserScrolledUp(!isNearBottom);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (chatContainerRef.current && !isUserScrolledUp) {
             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
         }
-    }, [messages]);
+    }, [messages, isUserScrolledUp]);
 
     // Periodic gold system announcements to simulate live stream events in real-time, free and lightweight
     useEffect(() => {
@@ -867,18 +877,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         const userId = user.fullUser?.id || user.id || Date.now();
         const userName = user.user || user.fullUser?.name || 'Usuário Anônimo';
         
+        // Usar país real do fullUser, ou do streamerUser, ou fallback br
+        const userCountry = user.fullUser?.country || streamerUser?.country || 'br';
+        const userLocation = user.fullUser?.location || streamerUser?.location || (userCountry === 'br' ? 'Brasil' : userCountry.toUpperCase());
+        
         return {
             id: userId.toString(),
             identification: user.fullUser?.identification || userId.toString(),
             name: userName,
             avatarUrl: user.avatar || user.fullUser?.avatarUrl || `https://picsum.photos/seed/${userId}/200/200`,
             coverUrl: user.fullUser?.coverUrl || `https://picsum.photos/seed/${userId}/400/600`,
-            country: 'br',
+            country: userCountry,
             gender: user.gender || 'not_specified',
             level: user.level || 1,
             xp: 0,
             age: user.age || 18,
-            location: 'Brasil',
+            location: userLocation,
             distance: 'desconhecida',
             fans: 0,
             following: 0,
@@ -1370,7 +1384,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
                 {!isBroadcaster && (
-                    <div ref={chatContainerRef} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 relative z-10">
+                    <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 relative z-10">
                         <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
                             {messages.map((msg) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
