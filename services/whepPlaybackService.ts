@@ -12,10 +12,13 @@ export class WhepPlaybackService {
   async start(streamKey: string, video: HTMLVideoElement): Promise<void> {
     this.stop();
 
-    const endpoint = getWhepEndpointUrl(streamKey);
-    console.log(`[WHEP] Connecting to ${endpoint}`);
-
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+      iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
+    });
     this.pc = pc;
     this.mediaMids = [];
 

@@ -6,124 +6,43 @@ export interface WhepResult {
   stream: MediaStream;
 }
 
-const PC_CONFIG: any = {
-  iceServers: [],
-  sdpSemantics: 'unified-plan',
-  bundlePolicy: 'max-bundle',
-};
-
 export class WhepClient {
   static async connect(
     streamKey: string,
     signal?: AbortSignal,
   ): Promise<WhepResult> {
-    console.log('📡 [WebRTC-WHEP] Iniciando fluxo de reprodução WebRTC (WHEP)...');
-    console.log('📡 [WebRTC-WHEP] Buscando servidores STUN/TURN atualizados do backend...');
+    const iceServers: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ];
 
-    let iceServers: RTCIceServer[] = [];
-
-    try {
-      const response = await api.getIceServers();
-      const respAny = response as any;
-      if (response && Array.isArray(response.iceServers)) {
-        iceServers = response.iceServers;
-      } else if (response && Array.isArray(response)) {
-        iceServers = response;
-      } else if (respAny && respAny.result && Array.isArray(respAny.result.iceServers)) {
-        iceServers = respAny.result.iceServers;
-      }
-    } catch (e) {
-      console.warn('⚠️ [WebRTC-WHEP] Falha ao carregar servidores ICE:', e);
-    }
-
-    const config: any = {
+    const pc = new RTCPeerConnection({
       iceServers,
+      iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
       sdpSemantics: 'unified-plan',
       bundlePolicy: 'max-bundle',
-    };
-
-    console.log('📡 [WebRTC-WHEP] Criando instância de RTCPeerConnection...');
-    console.log('📡 [WebRTC-WHEP] Configuração dos servidores ICE:', JSON.stringify(config.iceServers));
-
-    const pc = new RTCPeerConnection(config);
+    });
     const stream = new MediaStream();
 
-    console.log(`📡 [WebRTC-WHEP] Estado inicial da sinalização (signalingState): ${pc.signalingState}`);
-    console.log(`📡 [WebRTC-WHEP] Estado inicial da conexão ICE (iceConnectionState): ${pc.iceConnectionState}`);
-    console.log(`📡 [WebRTC-WHEP] Estado inicial da conexão (connectionState): ${pc.connectionState}`);
-    console.log(`📡 [WebRTC-WHEP] Estado inicial da coleta de ICE (iceGatheringState): ${pc.iceGatheringState}`);
-
-    pc.addEventListener('signalingstatechange', () => {
-      console.log(`📡 [WebRTC-WHEP] signalingState mudou: ${pc.signalingState}`);
-    });
-
-    pc.addEventListener('iceconnectionstatechange', () => {
-      console.log(`📡 [WebRTC-WHEP] iceConnectionState mudou: ${pc.iceConnectionState}`);
-    });
-
-    pc.addEventListener('connectionstatechange', () => {
-      console.log(`📡 [WebRTC-WHEP] connectionState mudou: ${pc.connectionState}`);
-      if (pc.connectionState === 'connected') {
-        console.log('✅ [WebRTC-WHEP] Conexão estabelecida com sucesso! Player conectado.');
-      }
-    });
-
-    pc.addEventListener('icegatheringstatechange', () => {
-      console.log(`📡 [WebRTC-WHEP] iceGatheringState mudou: ${pc.iceGatheringState}`);
-    });
-
-    pc.addEventListener('icecandidate', (event) => {
-      if (event.candidate) {
-        const candStr = event.candidate.candidate;
-        let type = 'unknown';
-        if (candStr.includes('typ host')) type = 'host';
-        else if (candStr.includes('typ srflx')) type = 'srflx';
-        else if (candStr.includes('typ relay')) type = 'relay';
-
-        console.log(`📡 [WebRTC-WHEP] ICE Candidate gerado: tipo=${type}, candidate=${candStr}`);
-
-        if (type === 'relay') {
-          console.log('⚠️ [WebRTC-WHEP] Candidato TURN (relay) detectado! Fallback para TURN disponível.');
-        }
-      } else {
-        console.log('📡 [WebRTC-WHEP] Coleta de ICE candidates finalizada (null candidate).');
-      }
-    });
-
-    if ('onicecandidateerror' in pc) {
-      (pc as any).onicecandidateerror = (event: any) => {
-        console.error('❌ [WebRTC-WHEP] Erro de ICE Candidate:', event.errorCode, event.errorText, 'URL:', event.url);
-      };
-    }
-
-    console.log('📡 [WebRTC-WHEP] Configurando transceivers de recebimento...');
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
 
     pc.ontrack = (event) => {
-      const track = event.track;
-      console.log(`📡 [WebRTC-WHEP] Evento ontrack disparado: kind=${track.kind}, id=${track.id}`);
       if (event.streams[0]) {
         event.streams[0].getTracks().forEach(t => {
           if (!stream.getTracks().includes(t)) {
-            console.log(`📡 [WebRTC-WHEP] Adicionando track da stream recebida: kind=${t.kind}`);
             stream.addTrack(t);
           }
         });
       } else {
-        console.log(`📡 [WebRTC-WHEP] Adicionando track avulsa recebida: kind=${track.kind}`);
-        stream.addTrack(track);
+        stream.addTrack(event.track);
       }
     };
 
-    console.log('📡 [WebRTC-WHEP] Criando SDP offer...');
     const offer = await pc.createOffer();
-    console.log('📡 [WebRTC-WHEP] Configurando local description (offer SDP)...');
     await pc.setLocalDescription(offer);
 
-    // Wait for ICE gathering to complete or at least gather some candidates before sending offer!
     if (pc.iceGatheringState !== 'complete') {
-      console.log('📡 [WebRTC-WHEP] Aguardando a conclusão da coleta de ICE...');
       await new Promise<void>(resolve => {
         const check = () => {
           if (pc.iceGatheringState === 'complete') {
@@ -135,7 +54,7 @@ export class WhepClient {
         setTimeout(() => {
           pc.removeEventListener('icegatheringstatechange', check);
           resolve();
-        }, 2000); // 2 seconds timeout fallback
+        }, 2000);
       });
     }
 
@@ -147,22 +66,14 @@ export class WhepClient {
     const finalOffer = pc.localDescription?.sdp;
     if (!finalOffer) throw new Error('SDP offer could not be generated');
 
-    console.log(`📡 [WebRTC-WHEP] Enviando requisição HTTP POST (WHEP Play) para o SRS...`);
-    console.log(`📡 [WebRTC-WHEP] Endpoint de reprodução: /api/rtc/v1/whep/?app=live&stream=${streamKey}`);
-    console.log(`📡 [WebRTC-WHEP] Offer SDP enviada:\n`, finalOffer);
-
     let result;
     try {
       result = await api.rtc.whep(streamKey, finalOffer);
-      console.log(`✅ [WebRTC-WHEP] Resposta HTTP recebida com sucesso! Status: 201 Created`);
-      console.log(`📡 [WebRTC-WHEP] Answer SDP recebida:\n`, result.sdp);
     } catch (err: any) {
-      console.error(`❌ [WebRTC-WHEP] Falha na requisição HTTP de sinalização para /rtc/v1/play:`, err);
       throw err;
     }
 
     await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
-    console.log(`📡 [WebRTC-WHEP] setRemoteDescription concluído. signalingState atual: ${pc.signalingState}`);
 
     const iceUrl = result.location;
     const eTag = result.eTag;
@@ -197,7 +108,6 @@ export class WhepClient {
         if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
           if (stream.getTracks().length > 0) {
             clearTimeout(timeout);
-            console.log('✅ [WebRTC-WHEP] Player conectado e recebendo mídia!');
             resolve({ pc, stream });
           }
         } else if (pc.iceConnectionState === 'failed') {
@@ -212,7 +122,6 @@ export class WhepClient {
         if (pc.connectionState === 'connected') {
           if (stream.getTracks().length > 0) {
             clearTimeout(timeout);
-            console.log('✅ [WebRTC-WHEP] Player conectado e recebendo mídia!');
             resolve({ pc, stream });
           }
         } else if (pc.connectionState === 'failed') {
