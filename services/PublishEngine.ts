@@ -149,7 +149,7 @@ export class PublishEngine {
 
     const pc = new RTCPeerConnection({
       iceServers,
-      iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
+      iceTransportPolicy: 'all' as RTCIceTransportPolicy,
       sdpSemantics: 'unified-plan',
       bundlePolicy: 'max-bundle',
     });
