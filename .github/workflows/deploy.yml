@@ -23,7 +23,7 @@ jobs:
         run: npm run build
 
       - name: Package dist as tar.gz
-        run: tar czf /tmp/frontend.tar.gz -C dist .
+        run: tar czf frontend.tar.gz -C dist .
 
       - name: Upload tar to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -31,8 +31,8 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "/tmp/frontend.tar.gz"
-          target: "/tmp/"
+          source: "frontend.tar.gz"
+          target: "/var/www/livego.store/"
 
       - name: Extract and deploy on VPS
         uses: appleboy/ssh-action@v1
@@ -41,16 +41,14 @@ jobs:
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # Backup current version
-            rm -rf /var/www/livego.store.bak
-            [ -d /var/www/livego.store/assets ] && mv /var/www/livego.store /var/www/livego.store.bak || true
+            # Enter web root
+            cd /var/www/livego.store
 
-            # Create fresh directory and extract
-            mkdir -p /var/www/livego.store
-            tar xzf /tmp/frontend.tar.gz -C /var/www/livego.store
+            # Extract tar directly (creates files in place: index.html, assets/, etc.)
+            tar xzf frontend.tar.gz
 
             # Clean up tar
-            rm -f /tmp/frontend.tar.gz
+            rm -f frontend.tar.gz
 
             # Reload Nginx
             sudo nginx -t && sudo systemctl reload nginx || sudo nginx -s reload
