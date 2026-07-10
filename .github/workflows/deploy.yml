@@ -27,7 +27,7 @@ jobs:
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: mkdir -p /app/frontend/dist
 
       - name: Upload dist to VPS via SCP
@@ -35,7 +35,7 @@ jobs:
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           source: "dist/"
           target: "/app/frontend/dist/"
 
@@ -44,6 +44,6 @@ jobs:
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
-          key: ${{ secrets.DEPLOY_KEY }}
+          key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             sudo nginx -t && sudo systemctl reload nginx || sudo nginx -s reload
