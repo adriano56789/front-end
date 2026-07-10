@@ -31,7 +31,7 @@ jobs:
           script: mkdir -p /app/frontend/dist
 
       - name: Upload dist to VPS via SCP
-        uses: appleboy/scp-action@v0
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
