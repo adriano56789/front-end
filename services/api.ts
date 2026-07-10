@@ -8,7 +8,7 @@ import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, Notif
 import axios, { Method } from 'axios';
 import { env } from '../src/config/environment';
 import { safeLog, safeError } from '../utils/maskSensitiveData';
-import { getAuthToken as getDbAuthToken } from '../components/utils/TokenStorage';
+
 
 
 
@@ -174,7 +174,8 @@ const callApiWithOptions = async <T = any>(
         const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
         const fullUrl = isAbsolute ? url : `${API_BASE_URL}${url}`;
         const external = isExternalUrl(fullUrl);
-        const token = await getDbAuthToken();
+        const token = getAuthToken();
+        // NOTA: getAuthToken() local retorna o token em memória SEM depender de import circular
 
         const config: any = {
             method,
