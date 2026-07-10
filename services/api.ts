@@ -1919,17 +1919,23 @@ export const api = {
     // --- WHIP/WHEP (comunicação direta com SRS via axios centralizado) ---
 
     whipPublish: async (endpoint: string, sdp: string): Promise<{ ok: boolean; status: number; sdp: string; location: string | null }> => {
-        // 🔥 CRÍTICO: Garantir token no header explicitamente (não depender do callApiWithOptions)
         const token = getAuthToken();
         const authHeaders: Record<string, string> = { 'Content-Type': 'application/sdp' };
         if (token) {
             authHeaders['Authorization'] = `Bearer ${token}`;
         }
+        // 🔍 LOG: URL completa que sera chamada
+        const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+        console.log('[WHIP-DEBUG] URL:', fullUrl);
+        console.log('[WHIP-DEBUG] Headers:', { ...authHeaders, Authorization: authHeaders.Authorization ? 'Bearer ***' : 'NENHUM' });
+        console.log('[WHIP-DEBUG] Token presente:', !!token);
+        console.log('[WHIP-DEBUG] SDP length:', sdp?.length || 0);
         const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
             customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
         });
+        console.log('[WHIP-DEBUG] Status resposta:', result.status);
         return {
             ok: result.ok,
             status: result.status,
