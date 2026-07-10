@@ -1,0 +1,49 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build with Vite
+        run: npm run build
+
+      - name: Ensure dist directory on VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: mkdir -p /app/frontend/dist
+
+      - name: Upload dist to VPS via SCP
+        uses: appleboy/scp-action@v0
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          source: "dist/"
+          target: "/app/frontend/dist/"
+
+      - name: Reload Nginx
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            sudo nginx -t && sudo systemctl reload nginx || sudo nginx -s reload
