@@ -87,7 +87,7 @@ const ConversationItem: React.FC<{ conversation: Conversation; onClick: () => vo
             <div className="relative mr-4 flex-shrink-0">
                 <div className="w-[52px] h-[52px] rounded-full p-[2px] bg-gradient-to-tr from-purple-800 via-purple-600 to-indigo-600 shadow-[0_0_12px_rgba(168,85,247,0.35)]">
                     <img 
-                        src={conversation.friend.avatarUrl || 'https://via.placeholder.com/150'} 
+                        src={conversation.friend.avatarUrl || 'https://placehold.co/150'} 
                         alt={conversation.friend.name} 
                         className="w-full h-full rounded-full object-cover border border-[#0d0d12]" 
                     />

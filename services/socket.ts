@@ -474,7 +474,7 @@ class SocketService {
                 id: giftEvent.from_user?.user_id,
                 identification: giftEvent.from_user?.user_id || '',
                 name: giftEvent.from_user?.user_name || 'Usuário',
-                avatarUrl: giftEvent.from_user?.user_avatar || 'https://via.placeholder.com/40',
+                avatarUrl: giftEvent.from_user?.user_avatar || 'https://placehold.co/40',
                 diamonds: 0,
                 earnings: 0,
                 level: giftEvent.from_user?.user_level || 1,
@@ -486,7 +486,7 @@ class SocketService {
             fromUser: {
                 id: giftEvent.from_user?.user_id,
                 name: giftEvent.from_user?.user_name || 'Usuário',
-                avatarUrl: giftEvent.from_user?.user_avatar || 'https://via.placeholder.com/40',
+                avatarUrl: giftEvent.from_user?.user_avatar || 'https://placehold.co/40',
                 level: giftEvent.from_user?.user_level || 1
             },
             to: {
@@ -546,7 +546,7 @@ class SocketService {
         const payload = {
             userId: userJoinedEvent.user?.user_id,
             userName: userJoinedEvent.user?.user_name || 'LiveGo User',
-            userAvatar: userJoinedEvent.user?.user_avatar || 'https://via.placeholder.com/40',
+            userAvatar: userJoinedEvent.user?.user_avatar || 'https://placehold.co/40',
             userLevel: userJoinedEvent.user?.user_level || 1,
             streamId: userJoinedEvent.base?.stream_id,
             timestamp: (userJoinedEvent.timestamp || Date.now()).toString()
@@ -743,7 +743,7 @@ class SocketService {
         }
     }
     
-    sendProtobufUserOffline(userId: string, userName: string = 'LiveGo User', userAvatar: string = 'https://via.placeholder.com/40') {
+    sendProtobufUserOffline(userId: string, userName: string = 'LiveGo User', userAvatar: string = 'https://placehold.co/40') {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
@@ -774,7 +774,7 @@ class SocketService {
         this.socket?.emit('binary_data', arrayBuffer);
     }
     
-    sendUserOnline(userId: string, userName: string = 'LiveGo User', userAvatar: string = 'https://via.placeholder.com/40') {
+    sendUserOnline(userId: string, userName: string = 'LiveGo User', userAvatar: string = 'https://placehold.co/40') {
         if (!this.socket?.connected) return;
         
         // Enviar user_online como binário via Protobuf
@@ -940,7 +940,7 @@ class SocketService {
         // Enviar como binário via Protobuf de forma dinâmica com dados reais da conta do usuário
         let userId = getCurrentUserId();
         let userName = 'LiveGo User';
-        let userAvatar = 'https://via.placeholder.com/40';
+        let userAvatar = 'https://placehold.co/40';
         let userLevel = 1;
         let actualMessage = message;
 

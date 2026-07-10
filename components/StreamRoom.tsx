@@ -293,7 +293,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             const newUser = {
                                 id: parsedUserId,
                                 name: identity,
-                                avatarUrl: 'https://via.placeholder.com/40',
+                                avatarUrl: 'https://placehold.co/40',
                                 level: 1,
                                 value: 0,
                                 identification: parsedUserId,
