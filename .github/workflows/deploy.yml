@@ -22,13 +22,16 @@ jobs:
       - name: Build with Vite
         run: npm run build
 
-      - name: Ensure dist directory on VPS
+      - name: Ensure web root directory on VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script: mkdir -p /app/frontend/dist
+          script: |
+            mkdir -p /var/www/livego.store
+            rm -rf /var/www/livego.store.bak
+            [ -d /var/www/livego.store/assets ] && mv /var/www/livego.store /var/www/livego.store.bak || true
 
       - name: Upload dist to VPS via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -37,7 +40,7 @@ jobs:
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: "dist/"
-          target: "/app/frontend/dist/"
+          target: "/var/www/livego.store/"
 
       - name: Reload Nginx
         uses: appleboy/ssh-action@v1
