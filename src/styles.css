@@ -167,6 +167,15 @@ body {
   background: #a8a8a8;
 }
 
+/* Scrollbar oculta mas com scroll funcional (para modais como seleção de região) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* WebView Android Compatibility */
 @supports (-webkit-touch-callout: none) {
   .page-container {

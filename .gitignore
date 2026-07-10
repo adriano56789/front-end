@@ -48,3 +48,5 @@ desktop.ini
 # Android (Configurações Locais)
 android/local.properties
 android/.kotlin/
+
+nul

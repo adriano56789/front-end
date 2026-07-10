@@ -198,6 +198,12 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             selectedRegion: region,
             selectedCategoryKey: CATEGORIES[0]?.key || 'popular'
         });
+        // Persistir região selecionada no backend (apenas códigos de país reais, não ICON_GLOBE)
+        if (currentUser?.id && region && region !== 'ICON_GLOBE') {
+            api.updateProfile(currentUser.id, { country: region }).catch(err =>
+                console.error('❌ [REGION] Erro ao salvar região:', err)
+            );
+        }
     };
 
     const handleTogglePrivate = () => {

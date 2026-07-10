@@ -72,7 +72,7 @@ const RegionModal: React.FC<RegionModalProps> = ({ isOpen, onClose, countries, s
           </button>
         </header>
 
-        <div className="flex-grow overflow-y-auto pb-4 scrollbar-none">
+        <div className="flex-grow overflow-y-auto pb-4 scrollbar-hide">
           <div className="grid grid-cols-4 gap-x-2 gap-y-4 text-center py-2">
             {displayCountries.map((country) => {
               const isSelected = selectedCountryCode === country.code;

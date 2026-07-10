@@ -5,7 +5,7 @@ import { BackIcon, PlusIcon, ChevronRightIcon, TrashIcon, PlayIcon, MaleIcon, Fe
 import { EditTextModal, EditTextAreaModal, EditGenderModal, EditBirthdayModal } from './modals/edit-profile';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api'; // Import api service
-import { base64ConversionService, processUserImages, isValidImageUrl } from '../services/base64ConversionService';
+import { processUserImages } from '../services/base64ConversionService';
 
 interface EditProfileScreenProps {
   user: User;
@@ -16,13 +16,7 @@ interface EditProfileScreenProps {
 
 type EditableField = keyof User | null;
 
-const IMAGE_PLACEHOLDER = '/placeholders/avatar-placeholder.svg';
 
-const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-  if (e.currentTarget.src !== IMAGE_PLACEHOLDER && !e.currentTarget.src.includes(IMAGE_PLACEHOLDER)) {
-    e.currentTarget.src = IMAGE_PLACEHOLDER;
-  }
-};
 
 
 const EditableRow: React.FC<{label: string; value: string | undefined; onClick: () => void; placeholder: string}> = ({label, value, onClick, placeholder}) => (
@@ -271,15 +265,18 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
   };
 
 
+  // Ref para evitar stale closure no onchange do upload
+  const obrasRef = useRef(formData.obras || []);
+  useEffect(() => { obrasRef.current = formData.obras || []; }, [formData.obras]);
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const currentObras = formData.obras || [];
+      const currentObras = obrasRef.current;
       if (currentObras.length < 8) {
         const file = e.target.files[0];
         const isVideo = file.type.startsWith('video/');
 
         if (isVideo) {
-            // Check video duration
             const video = document.createElement('video');
             video.preload = 'metadata';
             video.onloadedmetadata = async () => {
@@ -288,11 +285,11 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
                     alert("Vídeos não podem ter mais de 30 segundos.");
                     return;
                 }
-                await processUpload(file, currentObras);
+                await processUpload(file, [...currentObras]);
             };
             video.src = URL.createObjectURL(file);
         } else {
-            processUpload(file, currentObras);
+            processUpload(file, [...currentObras]);
         }
       }
     }
@@ -314,12 +311,35 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
         if (result.success) {
           console.log('🔄 Atualizando avatar para:', result.avatarUrl);
           const newObra = { id: `avatar_${user.id}_${Date.now()}`, url: result.avatarUrl };
+          
+          // Usar ref para ler obras mais recentes (evita stale closure)
+          const currentObras = obrasRef.current;
+          const newObras = [newObra, ...currentObras];
+          
+          // Atualizar estado local IMEDIATAMENTE
           setFormData(prev => ({ 
             ...prev, 
             avatarUrl: result.avatarUrl,
-            obras: [newObra, ...(prev.obras || [])]
+            obras: newObras
           }));
           console.log('✅ Avatar atualizado no estado');
+          
+          // PERSISTIR obras no backend para garantir que sobreviva a refresh
+          try {
+            const updateResp = await api.updateProfile(user.id, { 
+              obras: newObras, 
+              avatarUrl: result.avatarUrl 
+            });
+            if (updateResp.success) {
+              console.log('✅ Avatar e obras persistidos no backend');
+              // Atualizar com a resposta do servidor (dados frescos)
+              if (updateResp.user) {
+                setFormData(prev => ({ ...prev, ...updateResp.user }));
+              }
+            }
+          } catch (persistErr) {
+            console.error('❌ Erro ao persistir obras no backend:', persistErr);
+          }
           
           // Notificar que nova foto foi upload
           onPhotoUploaded?.();
@@ -482,8 +502,7 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
                       </div>
                   ) : (
                       <img 
-                        src={isValidImageUrl(obra.url) ? obra.url : IMAGE_PLACEHOLDER} 
-                        onError={handleImageError} 
+                        src={obra.url}
                         alt={`Profile photo ${index + 1}`} 
                         className="w-full h-full object-cover" 
                       />

@@ -1075,13 +1075,9 @@ export const api = {
     uploadStreamCoverFile: async (streamId: string, file: File): Promise<{ success: boolean; stream: Streamer; coverUrl: string }> => {
         const formData = new FormData();
         formData.append('cover', file);
-        const response = await axios({
-            method: 'POST',
-            url: `${API_BASE_URL}/api/upload/cover/${streamId}`,
-            data: formData,
-            headers: { 'Content-Type': 'multipart/form-data' },
+        return callApiWithOptions<{ success: boolean; stream: Streamer; coverUrl: string }>('POST', `/api/upload/cover/${streamId}`, formData, {
+            customHeaders: { 'Content-Type': 'multipart/form-data' }
         });
-        return response.data;
     },
 
     getStreamManual: () => callApi<any[]>('GET', '/api/streams/manual'),
@@ -1185,6 +1181,7 @@ export const api = {
 
     getStreamMessages: (streamId: string) => callApi<Message[]>('GET', `/api/streams/${streamId}/messages`),
 
+    sendLiveMessage: (streamId: string, text: string) => callApi<{ success: boolean; message: string; data: { id: string; userId: string; userName: string; avatarUrl: string; level: number; text: string; timestamp: Date } }>('POST', `/api/streams/${streamId}/live-message`, { text }),
 
 
     // --- Feed & Photos ---
@@ -1199,15 +1196,9 @@ export const api = {
     uploadChatImage: async (file: File) => {
         const formData = new FormData();
         formData.append('image', file);
-
-        const token = getAuthToken(); // Removido await - agora é síncrono
-        
-        return axios.post(`${API_BASE_URL}/api/upload/chat`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-                ...(token && { Authorization: `Bearer ${token}` })
-            }
-        }).then(response => response.data);
+        return callApiWithOptions<{ success: boolean; url: string }>('POST', '/api/upload/chat', formData, {
+            customHeaders: { 'Content-Type': 'multipart/form-data' }
+        });
     },
 
 
@@ -1227,17 +1218,9 @@ export const api = {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        // Usar API_BASE_URL para manter consistência
-        const response = await axios({
-            method: 'POST',
-            url: `${API_BASE_URL}/api/upload/avatar/${userId}`,
-            data: formData,
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+        return callApiWithOptions<{ success: boolean; avatarUrl: string }>('POST', `/api/upload/avatar/${userId}`, formData, {
+            customHeaders: { 'Content-Type': 'multipart/form-data' }
         });
-
-        return response.data;
     },
 
 
@@ -2129,7 +2112,53 @@ export const api = {
       callApi<{ success: boolean, users: Array<{ userId: string, username: string, name: string, avatarUrl: string, status: string }> }>(
         'GET', `/api/live/online-users?streamId=${streamId}&mode=battle`
       ),
-    
+
+    // --- Shop / Loja ---
+
+    shop: {
+        // Mochilas
+        getMochilas: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/mochilas'),
+        buyMochila: (itemId: string, userId: string) => callApi<{ success: boolean; inventory: any; userDiamonds: number }>('POST', `/api/shop/mochilas/${itemId}/purchase`, { userId }),
+        getUserMochilas: (userId: string) => callApi<any[]>('GET', `/api/shop/mochilas/user/${userId}`),
+
+        // Quadros
+        getQuadros: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/quadros'),
+        buyQuadro: (itemId: string, userId: string) => callApi<{ success: boolean; inventory: any; userDiamonds: number }>('POST', `/api/shop/quadros/${itemId}/purchase`, { userId }),
+        getUserQuadros: (userId: string) => callApi<any[]>('GET', `/api/shop/quadros/user/${userId}`),
+
+        // Carros
+        getCarros: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/carros'),
+        buyCarro: (itemId: string, userId: string) => callApi<{ success: boolean; inventory: any; userDiamonds: number }>('POST', `/api/shop/carros/${itemId}/purchase`, { userId }),
+        getUserCarros: (userId: string) => callApi<any[]>('GET', `/api/shop/carros/user/${userId}`),
+
+        // Bolhas
+        getBolhas: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/bolhas'),
+        buyBolha: (itemId: string, userId: string) => callApi<{ success: boolean; inventory: any; userDiamonds: number }>('POST', `/api/shop/bolhas/${itemId}/purchase`, { userId }),
+        getUserBolhas: (userId: string) => callApi<any[]>('GET', `/api/shop/bolhas/user/${userId}`),
+
+        // Anéis
+        getAneis: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/aneis'),
+        buyAnel: (itemId: string, userId: string) => callApi<{ success: boolean; inventory: any; userDiamonds: number }>('POST', `/api/shop/aneis/${itemId}/purchase`, { userId }),
+        getUserAneis: (userId: string) => callApi<any[]>('GET', `/api/shop/aneis/user/${userId}`),
+
+        // Avatares
+        getAvatars: () => callApi<Array<{ id: string; name: string; description: string; price: number; image: string; category: string }>>('GET', '/api/shop/avatars'),
+        buyAvatar: (itemId: string, userId: string) => callApi<{ success: boolean; userAvatar: any; userDiamonds: number; expirationDate: string }>('POST', `/api/shop/avatars/${itemId}/purchase`, { userId }),
+        equipAvatar: (avatarId: string, userId: string) => callApi<{ success: boolean; currentAvatar: any; message: string }>('POST', `/api/shop/avatars/${avatarId}/equip`, { userId }),
+        getUserAvatars: (userId: string) => callApi<any[]>('GET', `/api/shop/avatars/user/${userId}`),
+        getCurrentAvatar: (userId: string) => callApi<any>('GET', `/api/shop/avatars/current/${userId}`),
+
+        // Inventário do usuário
+        getUserInventory: (userId: string) => callApi<{
+            mochilas: Array<{ itemId: string }>;
+            quadros: Array<{ itemId: string }>;
+            carros: Array<{ itemId: string }>;
+            bolhas: Array<{ itemId: string }>;
+            aneis: Array<{ itemId: string }>;
+            avatars: Array<{ avatarId: string; isCurrent: boolean }>;
+        }>('GET', `/api/shop/user/${userId}/inventory`),
+    },
+
     get: <T = any>(url: string) => callApi<T>('GET', url),
     post: <T = any>(url: string, data?: any) => callApi<T>('POST', url, data),
     put: <T = any>(url: string, data?: any) => callApi<T>('PUT', url, data),

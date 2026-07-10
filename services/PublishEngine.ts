@@ -1,5 +1,5 @@
 import { getWhipEndpointUrl } from './mediaConfig';
-import { api } from './api';
+import { api, callApi } from './api';
 
 export type PublishState = 'idle' | 'connecting' | 'publishing' | 'reconnecting' | 'failed';
 
@@ -131,20 +131,16 @@ export class PublishEngine {
     try {
       const turnEndpoint = (await api.getIceServers() as any).turnCredentialsEndpoint;
       if (turnEndpoint) {
-        const turnRes = await fetch(turnEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: this._streamKey, streamId: this._streamKey }),
-        });
-        if (turnRes.ok) {
-          const turnCreds = await turnRes.json();
-          if (turnCreds?.username && turnCreds?.credential && turnCreds?.urls) {
-            iceServers.push({
-              urls: turnCreds.urls,
-              username: turnCreds.username,
-              credential: turnCreds.credential,
-            });
-          }
+        const turnRes = await callApi('POST', turnEndpoint, 
+          { userId: this._streamKey, streamId: this._streamKey },
+          { 'Content-Type': 'application/json' }
+        );
+        if (turnRes?.username && turnRes?.credential && turnRes?.urls) {
+          iceServers.push({
+            urls: turnRes.urls,
+            username: turnRes.username,
+            credential: turnRes.credential,
+          });
         }
       }
     } catch (e) {

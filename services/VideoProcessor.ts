@@ -217,10 +217,10 @@ export class VideoProcessor {
           vec2 texelSize = 1.0 / u_resolution;
           vec3 blurred = vec3(0.0);
           
-          // Kernel 3x3 simplificado com maior espalhamento para suavização visível
+          // Kernel 3x3 com espalhamento calibrado (max ~7 pixels no pico para evitar vanish da imagem)
           for (int x = -1; x <= 1; x++) {
             for (int y = -1; y <= 1; y++) {
-              vec2 offset = vec2(float(x), float(y)) * texelSize * (1.0 + smoothing * 6.0);
+              vec2 offset = vec2(float(x), float(y)) * texelSize * (1.0 + smoothing * 0.06);
               vec3 sample = texture2D(u_texture, uv + offset).rgb;
               blurred += sample;
             }
