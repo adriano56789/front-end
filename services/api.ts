@@ -1919,8 +1919,14 @@ export const api = {
     // --- WHIP/WHEP (comunicação direta com SRS via axios centralizado) ---
 
     whipPublish: async (endpoint: string, sdp: string): Promise<{ ok: boolean; status: number; sdp: string; location: string | null }> => {
+        // 🔥 CRÍTICO: Garantir token no header explicitamente (não depender do callApiWithOptions)
+        const token = getAuthToken();
+        const authHeaders: Record<string, string> = { 'Content-Type': 'application/sdp' };
+        if (token) {
+            authHeaders['Authorization'] = `Bearer ${token}`;
+        }
         const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
-            customHeaders: { 'Content-Type': 'application/sdp' },
+            customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
         });
@@ -1933,14 +1939,25 @@ export const api = {
     },
 
     whipStop: async (resourceUrl: string): Promise<void> => {
+        const token = getAuthToken();
+        const authHeaders: Record<string, string> = {};
+        if (token) {
+            authHeaders['Authorization'] = `Bearer ${token}`;
+        }
         await callApiWithOptions('DELETE', resourceUrl, undefined, {
+            customHeaders: authHeaders,
             responseType: 'text',
         });
     },
 
     whepPlay: async (endpoint: string, sdp: string, signal?: AbortSignal): Promise<{ ok: boolean; status: number; sdp: string; location: string | null; eTag: string | null }> => {
+        const token = getAuthToken();
+        const authHeaders: Record<string, string> = { 'Content-Type': 'application/sdp' };
+        if (token) {
+            authHeaders['Authorization'] = `Bearer ${token}`;
+        }
         const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
-            customHeaders: { 'Content-Type': 'application/sdp' },
+            customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
             signal,
@@ -1955,11 +1972,16 @@ export const api = {
     },
 
     whepSendIceCandidate: async (iceUrl: string, eTag: string, frag: string): Promise<{ ok: boolean; status: number }> => {
+        const token = getAuthToken();
+        const authHeaders: Record<string, string> = {
+            'Content-Type': 'application/trickle-ice-sdpfrag',
+            ETag: eTag,
+        };
+        if (token) {
+            authHeaders['Authorization'] = `Bearer ${token}`;
+        }
         const result = await callApiWithOptions<{ ok: boolean; status: number; headers: any }>('PATCH', iceUrl, frag, {
-            customHeaders: {
-                'Content-Type': 'application/trickle-ice-sdpfrag',
-                ETag: eTag,
-            },
+            customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
         });
