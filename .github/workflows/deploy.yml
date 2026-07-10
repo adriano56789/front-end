@@ -22,37 +22,35 @@ jobs:
       - name: Build with Vite
         run: npm run build
 
-      - name: Package and deploy to VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            # Clean up old backup
-            rm -rf /var/www/livego.store.bak
+      - name: Package dist as tar.gz
+        run: tar czf /tmp/frontend.tar.gz -C dist .
 
-            # Backup current version
-            [ -d /var/www/livego.store/assets ] && mv /var/www/livego.store /var/www/livego.store.bak || true
-
-            # Create fresh directory
-            mkdir -p /var/www/livego.store
-
-      - name: Upload dist via SCP (contents only)
+      - name: Upload tar to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "./dist/*"
-          target: "/var/www/livego.store/"
-          strip_components: 1
+          source: "/tmp/frontend.tar.gz"
+          target: "/tmp/"
 
-      - name: Reload Nginx
+      - name: Extract and deploy on VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            # Backup current version
+            rm -rf /var/www/livego.store.bak
+            [ -d /var/www/livego.store/assets ] && mv /var/www/livego.store /var/www/livego.store.bak || true
+
+            # Create fresh directory and extract
+            mkdir -p /var/www/livego.store
+            tar xzf /tmp/frontend.tar.gz -C /var/www/livego.store
+
+            # Clean up tar
+            rm -f /tmp/frontend.tar.gz
+
+            # Reload Nginx
             sudo nginx -t && sudo systemctl reload nginx || sudo nginx -s reload
