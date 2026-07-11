@@ -4,6 +4,7 @@
 
 
 
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo } from '../types';
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 import { env } from '../src/config/environment';
@@ -182,63 +183,32 @@ const callApiWithOptions = async <T = any>(
             ...(token && !external ? { Authorization: `Bearer ${token}` } : {})
         };
 
-        const fetchOptions: RequestInit = {
-            method,
+        const config: AxiosRequestConfig = {
+            method: method as any,
+            url: fullUrl,
             headers,
             signal: options?.signal,
+            responseType: options?.responseType === 'text' ? 'text' :
+                options?.responseType === 'blob' ? 'blob' :
+                options?.responseType === 'arraybuffer' ? 'arraybuffer' : 'json',
         };
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-            const ct = headers['Content-Type'] || '';
-            fetchOptions.body = ct.includes('application/sdp') || ct.includes('text/') ? data : JSON.stringify(data);
+            config.data = data;
         }
 
-        const response = await fetch(fullUrl, fetchOptions);
-
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => null);
-            const errMsg = errorData?.error || errorData?.message || `HTTP ${response.status}`;
-            const httpError: any = new Error(errMsg);
-            httpError.response = {
-                status: response.status,
-                data: errorData,
-                headers: response.headers,
-            };
-            httpError.config = { method, url: fullUrl, data: JSON.stringify(data) };
-            throw httpError;
-        }
-
-        const responseType = options?.responseType || 'json';
-
-        let responseData: any;
-        if (responseType === 'text') {
-            responseData = await response.text();
-        } else if (responseType === 'blob') {
-            responseData = await response.blob();
-        } else if (responseType === 'arraybuffer') {
-            responseData = await response.arrayBuffer();
-        } else {
-            const text = await response.text();
-            if (text.trim().startsWith('<')) {
-                throw new Error('API returned HTML instead of JSON');
-            }
-            responseData = JSON.parse(text);
-        }
-
-        if (response.status === 304) {
-            return responseData as T;
-        }
+        const response: AxiosResponse = await axios(config);
 
         if (options?.returnFullResponse) {
             return {
-                ok: response.ok,
+                ok: response.status >= 200 && response.status < 300,
                 status: response.status,
-                data: responseData,
+                data: response.data,
                 headers: response.headers,
             } as T;
         }
 
-        return responseData as T;
+        return response.data as T;
     } catch (error: any) {
         if (error.message &&
             (error.message.includes('useCache') ||
