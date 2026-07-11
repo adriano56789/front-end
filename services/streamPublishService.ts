@@ -319,11 +319,28 @@ class StreamPublishService {
         audio: false 
       });
 
-      try {
-        console.log('[PUBLISH_SERVICE] Capturing switched camera using cameraService...');
-        newStream = await cameraService.captureStream(nextFacing);
-      } catch (switchErr) {
-        console.error('[PUBLISH_SERVICE] Failed to switch camera using cameraService:', switchErr);
+      // Try each constraint tier in order until one succeeds
+      for (let i = 0; i < constraintAttempts.length; i++) {
+        try {
+          console.log(`[PUBLISH_SERVICE] Camera constraint tier ${i + 1}/${constraintAttempts.length}...`);
+          newStream = await navigator.mediaDevices.getUserMedia(constraintAttempts[i] as any);
+          if (newStream && newStream.getVideoTracks().length > 0) {
+            console.log(`[PUBLISH_SERVICE] Camera constraint tier ${i + 1} succeeded`);
+            break;
+          }
+        } catch (tierErr) {
+          console.warn(`[PUBLISH_SERVICE] Camera constraint tier ${i + 1} failed:`, tierErr);
+        }
+      }
+
+      // Fallback: try cameraService.captureStream if all tiers failed
+      if (!newStream) {
+        try {
+          console.log('[PUBLISH_SERVICE] Falling back to cameraService.captureStream...');
+          newStream = await cameraService.captureStream(nextFacing);
+        } catch (switchErr) {
+          console.error('[PUBLISH_SERVICE] cameraService.captureStream also failed:', switchErr);
+        }
       }
 
       if (!newStream) {
