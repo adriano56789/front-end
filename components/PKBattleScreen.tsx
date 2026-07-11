@@ -495,7 +495,14 @@ export default function PKBattleScreen({
                 previousOnlineUsersRef.current = newUsers;
             }
         };
-        const handleNewMessage = (message: any) => { if (message.roomId === streamer.id) setMessages(prev => [...prev, message]); };
+        // Receber mensagens vindas do Socket.IO (via Protobuf) — sem filtro roomId pois não é enviado
+        const handleNewMessage = (message: any) => {
+            // Evitar duplicatas: não adicionar mensagem já existente
+            setMessages(prev => {
+                if (prev.some(m => m.id === message.id)) return prev;
+                return [...prev, { ...message, type: 'chat' }];
+            });
+        };
         const handleHeartUpdate = (data: { roomId: string, heartsA: number, heartsB: number }) => {
              if (data.roomId === streamer.id) {
                 setMyHearts(data.heartsA);
@@ -545,6 +552,27 @@ export default function PKBattleScreen({
             socketService.off('live_gift_received', handleNewGift);
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
+
+    // Escutar mensagens do LiveKit data channel (data_received)
+    useEffect(() => {
+        if (!lkRoom) return;
+
+        const handleDataReceived = (data: any) => {
+            if (!data || !data.type) return;
+            if (data.type === 'chat_message' || data.type === 'chat') {
+                setMessages(prev => {
+                    if (prev.some(m => m.id === data.id)) return prev;
+                    return [...prev, { ...data, type: 'chat' }];
+                });
+            }
+        };
+
+        lkRoom.on('data_received', handleDataReceived);
+
+        return () => {
+            lkRoom.off('data_received', handleDataReceived);
+        };
+    }, [lkRoom]);
 
     const handleFollowStreamer = (user: User) => onFollowUser(user, streamer.id);
 
@@ -617,6 +645,7 @@ export default function PKBattleScreen({
         const safePayload = {
             ...messagePayload,
             avatar: messagePayload.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=random`,
+            roomId: streamer.id, // Incluir roomId para que receptores possam filtrar
         };
         
         // Otimista: adicionar mensagem localmente
