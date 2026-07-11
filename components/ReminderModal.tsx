@@ -55,7 +55,7 @@ const StreamerItem: React.FC<StreamerItemProps> = ({ streamer, isFollowed, onFol
                 {streamer.name}
             </h3>
             <div className="flex items-center text-xs text-gray-500 mt-1 space-x-1">
-                 <span className="truncate max-w-[100px]">{streamer.location || 'Em algum lugar'}</span>
+                 <span className="truncate max-w-[100px]">{typeof streamer.location === 'string' ? streamer.location : 'Em algum lugar'}</span>
                  <span>•</span>
                  <span>{streamer.time || 'Agora'}</span>
             </div>

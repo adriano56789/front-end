@@ -3023,14 +3023,17 @@ const logLiveEvent = (type: string, data: any) => {
   const handleStartChat = async (user: User) => {
     if (!currentUser) return;
 
-    try {
-      const check = await api.canSendMessage(currentUser.id, user.id);
-      if (!check.allowed) {
-        addToast(ToastType.Error, check.reason || 'Não é possível enviar mensagem');
+    const existingConvo = conversations.find(c => c.friend?.id === user.id);
+    if (!existingConvo) {
+      try {
+        const check = await api.canSendMessage(currentUser.id, user.id);
+        if (!check.allowed) {
+          addToast(ToastType.Error, check.reason || 'Não é possível enviar mensagem');
+          return;
+        }
+      } catch {
         return;
       }
-    } catch {
-      return;
     }
 
     setChattingWith(user);

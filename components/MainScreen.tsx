@@ -25,18 +25,20 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
     
     // Construct dynamic geographic location using real database variables
     let locationDisplay = 'Brasil';
-    if (streamer.location && streamer.state) {
-        if (streamer.location.toLowerCase() === 'brasil' || streamer.location.toLowerCase() === 'brazil') {
-            locationDisplay = `Brasil - ${streamer.state}`;
+    const loc = typeof streamer.location === 'string' ? streamer.location : '';
+    const st = typeof streamer.state === 'string' ? streamer.state : '';
+    if (loc && st) {
+        if (loc.toLowerCase() === 'brasil' || loc.toLowerCase() === 'brazil') {
+            locationDisplay = `Brasil - ${st}`;
         } else {
-            locationDisplay = `${streamer.location} - ${streamer.state}`;
+            locationDisplay = `${loc} - ${st}`;
         }
-    } else if (streamer.city && streamer.state) {
-        locationDisplay = `${streamer.city} - ${streamer.state}`;
-    } else if (streamer.location) {
-        locationDisplay = streamer.location;
-    } else if (streamer.state) {
-        locationDisplay = `Brasil - ${streamer.state}`;
+    } else if (streamer.city && st) {
+        locationDisplay = `${streamer.city} - ${st}`;
+    } else if (loc) {
+        locationDisplay = loc;
+    } else if (st) {
+        locationDisplay = `Brasil - ${st}`;
     }
 
     // Capture standard title message or fallback gracefully

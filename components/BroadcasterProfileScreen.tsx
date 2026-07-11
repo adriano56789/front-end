@@ -559,7 +559,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
 
                         {/* Filter details text */}
                         <p className="text-xs text-gray-400 select-none">
-                            {freshUser.city && freshUser.state ? `${freshUser.city}, ${freshUser.state}` : (freshUser.location && freshUser.location !== 'desconhecido' ? freshUser.location : 'Brasil')}
+                            {freshUser.city && freshUser.state ? `${freshUser.city}, ${freshUser.state}` : (typeof freshUser.location === 'string' && freshUser.location !== 'desconhecido' ? freshUser.location : 'Brasil')}
                             {computedDistanceStr ? ` | ${computedDistanceStr}` : ''}
                         </p>
                     </div>

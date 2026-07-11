@@ -641,7 +641,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   <button className="text-gray-500 hover:text-white" onClick={(e) => { e.stopPropagation(); /* copy logic here if needed */ }}><CopyIcon className="h-4 w-4" /></button>
               </div>
               <p>
-                  {displayUser.city && displayUser.state ? `${displayUser.city}, ${displayUser.state}` : (displayUser.location && displayUser.location !== 'desconhecido' ? displayUser.location : 'Brasil')}
+                   {displayUser.city && displayUser.state ? `${displayUser.city}, ${displayUser.state}` : (typeof displayUser.location === 'string' && displayUser.location !== 'desconhecido' ? displayUser.location : 'Brasil')}
               </p>
           </div>
 
