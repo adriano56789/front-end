@@ -18,7 +18,6 @@ export class WhepClient {
 
     const pc = new RTCPeerConnection({
       iceServers,
-      iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
       bundlePolicy: 'max-bundle',
     } as RTCConfiguration);
     const stream = new MediaStream();
