@@ -51,6 +51,7 @@ interface StreamRoomProps {
     streamer: Streamer;
     onRequestEndStream: () => void;
     onLeaveStreamView: () => void;
+    onMinimizeStreamView?: () => void;
     onStartPKBattle: (opponent: User) => void;
     onViewProfile: (user: User) => void;
     currentUser: User;
@@ -115,7 +116,7 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
 // Controle global para evitar múltiplas chamadas simultâneas
 const globalFetchControl = new Map<string, boolean>();
 
-const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
+const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onMinimizeStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
     const { t } = useTranslation();
 
     // Early validation for required props
@@ -1210,8 +1211,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             ))}
                         </div>
 
-                        {/* Notification bell & Close button */}
-                        <div className="flex items-center gap-4">
+                        {/* Notification bell, Minimize button & Close button */}
+                        <div className="flex items-center gap-2">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setOnlineUsersOpen(true); }}
                                 className="flex items-center bg-black/40 hover:bg-black/60 rounded-full px-2.5 py-1.5 space-x-1.5 text-sm cursor-pointer transition-all border border-white/[0.02] active:scale-95 focus:outline-none"
@@ -1219,9 +1220,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
                                 <span className="text-white font-bold select-none">{Math.max(1, onlineUsers.length)}</span>
                             </button>
+                            {/* Minimize button (viewers only) - always PiP, like ZEGO's minimizingButton */}
+                            {!isBroadcaster && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onMinimizeStreamView(); }}
+                                    className="focus:outline-none cursor-pointer text-white/70 hover:text-white transition-all hover:scale-110 active:scale-90"
+                                    title="Minimizar para janela flutuante"
+                                >
+                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
+                                    </svg>
+                                </button>
+                            )}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
                                 className="focus:outline-none cursor-pointer text-white hover:opacity-85 transition-opacity"
+                                title={isBroadcaster ? 'Encerrar transmissão' : 'Fechar'}
                             >
                                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"></path>

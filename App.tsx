@@ -1161,6 +1161,21 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     }
   }, [pipStreamer]);
 
+  // Minimizar SEMPRE para PiP (ignora config pipEnabled), como ZEGO's minimizingButton
+  const handleMinimizeToPiP = useCallback(() => {
+    const isHost = activeStream?.hostId === currentUser?.id;
+    if (activeStream && !isHost) {
+      setPipStreamer(activeStream);
+      setIsPiPMode(true);
+      setActiveStream(null);
+      setIsPKBattleActive(false);
+      setPkOpponent(null);
+      setLiveSession(null);
+      setStreamRoomData(null);
+      navigate('/');
+    }
+  }, [activeStream, currentUser, navigate]);
+
 
 
   const handleLogout = async () => {
@@ -3893,6 +3908,8 @@ const logLiveEvent = (type: string, data: any) => {
             streamer={activeStream}
 
             onRequestEndStream={handleRequestEndStream}
+
+            onMinimizeStreamView={handleMinimizeToPiP}
 
             onStartPKBattle={handleStartPKBattle}
 
