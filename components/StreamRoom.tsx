@@ -189,8 +189,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
-    // Native PiP (out-of-app) hook
+    // Native PiP (out-of-app) hook — ZEGO's pipButton + enableWhenBackground
     const [nativePiPActive, setNativePiPActive] = useState(false);
+    const enableWhenBg = currentUser?.enableWhenBackground !== undefined ? currentUser.enableWhenBackground : true;
     const { setVideoRef, requestPiP, exitPiP, isPiPSupported } = useNativePiP({
       onEnterNativePiP: () => {
         setNativePiPActive(true);
@@ -199,7 +200,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       onLeaveNativePiP: () => {
         setNativePiPActive(false);
       },
-      autoPiPOnBackground: true, // enableWhenBackground = true (ZEGO default)
+      config: {
+        enableWhenBackground: enableWhenBg, // ZEGO's enableWhenBackground — user configurable via Settings
+        mediaSessionMetadata: {
+          title: streamer.name || 'Live Stream',
+          artist: `${currentUser.name} está assistindo`,
+          artwork: streamer.avatar
+            ? [{ src: streamer.avatar!, sizes: '96x96', type: 'image/jpeg' }]
+            : [],
+        },
+      },
     });
 
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);

@@ -229,6 +229,7 @@ export interface User {
   ownedFrames: { frameId: string; expirationDate: string; }[];
   chatPermission?: 'all' | 'followers' | 'none';
   pipEnabled?: boolean;
+  enableWhenBackground?: boolean; // ZEGO-style auto PiP on background
   locationPermission?: 'granted' | 'denied' | 'prompt';
   showActivityStatus?: boolean;
   showLocation?: boolean;

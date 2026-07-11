@@ -1,33 +1,94 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 
+interface NativePiPConfig {
+  enableWhenBackground?: boolean;    // ZEGO's enableWhenBackground
+  mediaSessionMetadata?: {            // MediaSession metadata for Android PiP controls
+    title?: string;
+    artist?: string;
+    artwork?: { src: string; sizes: string; type: string }[];
+  };
+}
+
 interface UseNativePiPOptions {
   onEnterNativePiP?: () => void;
   onLeaveNativePiP?: () => void;
-  autoPiPOnBackground?: boolean; // enableWhenBackground equivalent (ZEGO)
+  config?: NativePiPConfig;
 }
 
+/**
+ * Detects if PiP is supported in the current browser/WebView.
+ * Android WebView (Chrome-based) supports video.requestPictureInPicture().
+ */
+function isPiPSupported(): boolean {
+  return typeof document !== 'undefined' &&
+    'pictureInPictureEnabled' in document &&
+    document.pictureInPictureEnabled;
+}
+
+/**
+ * Sets up MediaSession metadata for better Android PiP controls.
+ * The browser's PiP window on Android shows media controls (play/pause, previous/next)
+ * based on the MediaSession API metadata.
+ */
+function updateMediaSession(metadata?: NativePiPConfig['mediaSessionMetadata']) {
+  if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  
+  const mediaSession = (navigator as any).mediaSession;
+  
+  if (metadata) {
+    // Filter out undefined artwork entries to prevent MediaMetadata rejection
+    const safeArtwork = (metadata.artwork || []).filter(a => a && a.src);
+    mediaSession.metadata = new MediaMetadata({
+      title: metadata.title || 'Live Stream',
+      artist: metadata.artist || '',
+      artwork: safeArtwork,
+    });
+  }
+}
+
+/**
+ * Hook that manages the browser native Picture-in-Picture (PiP) API.
+ * 
+ * ZEGO reference:
+ * - pipButton → PiP button in top menu bar
+ * - enableWhenBackground → auto PiP when app goes to background
+ * - aspectWidth / aspectHeight → PiP window aspect ratio
+ * - android.background → background widget (default black)
+ * 
+ * For our PWA-in-WebView architecture:
+ * - Uses video.requestPictureInPicture() (works in Chrome/WebView Android)
+ * - Falls back gracefully when PiP is not supported
+ * - Supports user gesture requirement (auto PiP only after first manual PiP)
+ * - Integrates with MediaSession for Android PiP controls
+ * 
+ * Nota: `enableWhenBackground` é o equivalente ZEGO (enableWhenBackground).
+ * O PiP nativo no Android WebView funciona porque o WebView Android moderno
+ * é baseado em Chrome e suporta video.requestPictureInPicture().
+ */
 export function useNativePiP(options: UseNativePiPOptions = {}) {
-  const { onEnterNativePiP, onLeaveNativePiP, autoPiPOnBackground = true } = options;
+  const { onEnterNativePiP, onLeaveNativePiP } = options;
+  const config = options.config || {};
+  const { enableWhenBackground = true, mediaSessionMetadata } = config;
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isNativePiPActive, setIsNativePiPActive] = useState(false);
   const hasUserGesture = useRef(false);
 
-  // Check if the browser supports the standard Picture-in-Picture API
-  const isSupported = typeof document !== 'undefined' &&
-    'pictureInPictureEnabled' in document &&
-    document.pictureInPictureEnabled;
-
   // Register the video element ref
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el;
-  }, []);
+    if (el && mediaSessionMetadata) {
+      updateMediaSession(mediaSessionMetadata);
+    }
+  }, [mediaSessionMetadata]);
 
   // Request native PiP mode — uses video.requestPictureInPicture()
-  // (wider support: Chrome, Edge, Safari, Firefox)
+  // (wider support: Chrome, Edge, Safari, Firefox, Android WebView)
   const requestPiP = useCallback(async () => {
-    if (!videoRef.current || !isSupported) return false;
+    if (!videoRef.current || !isPiPSupported()) return false;
     // Don't re-enter PiP if already active
     if (document.pictureInPictureElement) return true;
+    
     try {
       await videoRef.current.requestPictureInPicture();
       setIsNativePiPActive(true);
@@ -38,7 +99,7 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
       console.error('[NativePiP] Error entering PiP:', err);
       return false;
     }
-  }, [isSupported, onEnterNativePiP]);
+  }, [onEnterNativePiP]);
 
   // Exit native PiP mode
   const exitPiP = useCallback(async () => {
@@ -54,12 +115,9 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
   }, [onLeaveNativePiP]);
 
   // Auto-PiP when tab goes to background (ZEGO's enableWhenBackground)
-  // Note: video.requestPictureInPicture() requires a user gesture (transient activation)
-  // in all browsers. Auto-PiP on visibilitychange will only work if the user has
-  // previously triggered PiP via a click (hasUserGesture = true) or if the browser
-  // has granted automatic PiP permission to this origin.
+  // Only attempts after user has manually triggered PiP (hasUserGesture = true)
   useEffect(() => {
-    if (!autoPiPOnBackground || !isSupported) return;
+    if (!enableWhenBackground || !isPiPSupported()) return;
 
     const handleVisibilityChange = () => {
       if (document.hidden && videoRef.current && !isNativePiPActive && hasUserGesture.current) {
@@ -71,7 +129,7 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [autoPiPOnBackground, isSupported, requestPiP, isNativePiPActive]);
+  }, [enableWhenBackground, requestPiP, isNativePiPActive]);
 
   // Deduplication guard — prevents double onLeaveNativePiP calls
   const hasCalledLeaveRef = useRef(false);
@@ -118,11 +176,20 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
     };
   }, [onLeaveNativePiP]);
 
+  // Clean up MediaSession on unmount
+  useEffect(() => {
+    return () => {
+      if ('mediaSession' in navigator) {
+        (navigator as any).mediaSession.metadata = null;
+      }
+    };
+  }, []);
+
   return {
     setVideoRef,
     requestPiP,
     exitPiP,
-    isPiPSupported: isSupported,
+    isPiPSupported: isPiPSupported(),
     isNativePiPActive,
   };
 }
