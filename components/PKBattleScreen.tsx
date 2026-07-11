@@ -631,71 +631,340 @@ export default function PKBattleScreen({
 
     return (
         <div className="absolute inset-0 bg-[#000000] flex flex-col font-sans text-white z-10 select-none">
-            {/* Top Split Stream View Container */}
-            <div className="relative w-full h-[52vh] min-h-[380px] flex-shrink-0 bg-zinc-950 overflow-hidden" onClick={handleHeartClick}>
-                {/* Background Stream Columns */}
-                <div className="absolute inset-0 grid grid-cols-2 bg-black">
-                    {/* Host Camera Stream (Left Column) — via SRS (public broadcast) */}
-                    <div className="relative w-full h-full bg-zinc-900 overflow-hidden">
-                        {/* SRS LivePlayer: public stream for ALL viewers */}
-                        <LivePlayer
-                            url={getStreamUrl()}
-                            streamId={streamer.streamKey || streamer.id}
-                            isBroadcaster={isBroadcaster}
-                            userId={currentUser.id}
-                            muted={!isBroadcaster && isLocalMuted}
-                        />
-                        {/* Fallback cover image overlay while player connects */}
-                        <img 
-                            src={streamerUser.coverUrl} 
-                            alt={streamerUser.name} 
-                            className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-15 z-10" 
-                        />
-                        {/* Self-preview overlay (LiveKit local camera) for the host only */}
-                        {isBroadcaster && (
-                            <div className="absolute bottom-2 left-2 w-[80px] h-[140px] rounded-lg overflow-hidden border-2 border-white/20 shadow-lg z-20 bg-black">
-                                <video
-                                    ref={selfPreviewRef}
-                                    autoPlay
-                                    playsInline
-                                    muted
-                                    className="absolute inset-0 w-full h-full object-cover"
-                                />
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent py-1 px-1.5">
-                                    <span className="text-white text-[7px] font-bold">Seu vídeo</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    {/* Opponent Camera Stream (Right Column) */}
-                    <div className="relative w-full h-full bg-zinc-950 overflow-hidden">
+            {/* ═══════════════════════════════════════════════════════════
+               PROFESSIONAL PICTURE-IN-PICTURE PK BATTLE LAYOUT
+               
+               ARQUITETURA:
+               - Fundo fullscreen: Host video (SRS HLS/WHEP) — stream pública
+               - Janela PiP flutuante: Opponent video (LiveKit remote track)
+               - Mini-PiP: Self-preview (LiveKit local camera) para broadcaster
+               - VS Banner: overlay centralizado no topo
+               - Chat: sobreposição no bottom
+               ═══════════════════════════════════════════════════════════ */}
+            
+            {/* Main Video Container — full height, host video as background */}
+            <div 
+                className="relative w-full h-full bg-zinc-950 overflow-hidden"
+                onClick={handleHeartClick}
+            >
+                {/* ─── LAYER 1: Host Video (Full Background via SRS) ─── */}
+                <div className="absolute inset-0 bg-black">
+                    <LivePlayer
+                        url={getStreamUrl()}
+                        streamId={streamer.streamKey || streamer.id}
+                        isBroadcaster={isBroadcaster}
+                        userId={currentUser.id}
+                        muted={!isBroadcaster && isLocalMuted}
+                    />
+                    {/* Subtle dark vignette overlay for depth */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none" />
+                    {/* Fallback cover while player connects */}
+                    <img 
+                        src={streamerUser.coverUrl} 
+                        alt="" 
+                        className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-10" 
+                    />
+                </div>
+
+                {/* ─── LAYER 2: Floating PiP — Opponent Video (LiveKit) ─── */}
+                {/* 
+                    Professional PiP styling (top-right corner, like Zoom/Google Meet):
+                    - Positioned top-right to avoid overlapping with chat input at bottom
+                    - ~25% width with 9:16 aspect ratio (portrait video call feel)
+                    - 14px rounded corners with thick glowing border
+                    - Glassmorphism backdrop when opponent not connected
+                    - Smooth scale+opacity entrance animation
+                    - Team-colored shadow glow
+                */}
+                <div 
+                    className={`absolute sm:top-4 top-[72px] right-3 z-30 transition-all duration-500 ease-out
+                        ${isOpponentConnected 
+                            ? 'opacity-100 scale-100 translate-x-0' 
+                            : 'opacity-80 scale-95 translate-x-2'
+                        }`}
+                    style={{
+                        width: 'min(26%, 170px)',
+                        minWidth: '100px',
+                        maxWidth: '170px',
+                        aspectRatio: '9 / 16',
+                    }}
+                >
+                    {/* Glowing border ring — team blue/cyan gradient */}
+                    <div className={`absolute inset-0 rounded-2xl transition-all duration-700 ${
+                        isOpponentConnected 
+                            ? 'shadow-[0_0_30px_rgba(0,122,255,0.4)] border-[2.5px] border-white/40' 
+                            : 'shadow-[0_0_15px_rgba(0,122,255,0.15)] border-[2px] border-white/15'
+                    }`} />
+                    
+                    {/* Video element */}
+                    <div className="absolute inset-0 rounded-2xl overflow-hidden bg-black/80 backdrop-blur-sm">
                         <video
                             ref={remoteVideoRef}
                             autoPlay
                             playsInline
-                            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isOpponentConnected ? 'opacity-100' : 'opacity-0'}`}
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
+                                isOpponentConnected ? 'opacity-100' : 'opacity-0'
+                            }`}
                         />
-                        <img 
-                            src={opponent.coverUrl} 
-                            alt={opponent.name} 
-                            className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-20 z-10" 
-                        />
-                        {/* Placeholder enquanto oponente não conecta */}
+                        
+                        {/* Placeholder when opponent not connected */}
                         {!isOpponentConnected && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-zinc-950/90">
-                                <div className="w-12 h-12 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mb-3" />
-                                <p className="text-zinc-400 text-xs font-medium tracking-wide">Aguardando oponente...</p>
-                                <p className="text-zinc-600 text-[10px] mt-1">{opponent.name} está sendo convidado</p>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
+                                {/* Animated pulsing avatar placeholder */}
+                                <div className="relative mb-3">
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 p-[2px] animate-pulse">
+                                        <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+                                            <img 
+                                                src={opponent.avatarUrl} 
+                                                alt={opponent.name}
+                                                className="w-full h-full rounded-full object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    {/* Small loading spinner */}
+                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-black">
+                                        <svg className="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <p className="text-blue-200/70 text-[9px] font-medium tracking-wide">AGUARDANDO</p>
+                                <p className="text-white/50 text-[8px] mt-0.5">{opponent.name}</p>
                             </div>
                         )}
                     </div>
+                    
+                    {/* Opponent name badge — glassmorphism overlay at bottom of PiP */}
+                    <div className={`absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-500 ${
+                        isOpponentConnected ? 'opacity-100' : 'opacity-0'
+                    }`}>
+                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5 rounded-b-2xl">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded-full bg-blue-500/30 ring-1 ring-white/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    <img src={opponent.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                                <span className="text-white text-[9px] font-bold truncate drop-shadow-lg">
+                                    {opponent.name}
+                                </span>
+                                <span className="ml-auto text-blue-300 text-[7px] font-semibold">LIVE</span>
+                            </div>
+                            {/* Small score indicator */}
+                            <div className="flex items-center gap-1 mt-0.5">
+                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
+                                <span className="text-blue-200/70 text-[7px] font-medium">
+                                    {opponentScore.toLocaleString()} pts
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Golden Thin Vertical Separator Line */}
-                <div className="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-gradient-to-b from-[#fcd34d] via-[#f59e0b] to-[#fcd34d] -translate-x-1/2 z-10 pointer-events-none" />
+                {/* ─── LAYER 3: Self-Preview (Mini PiP) — only for broadcaster ─── */}
+                {isBroadcaster && (
+                    <div 
+                        className="absolute bottom-3 left-3 z-30 rounded-xl overflow-hidden border border-white/20 shadow-lg bg-black/60 backdrop-blur-sm transition-all duration-300 hover:scale-105"
+                        style={{
+                            width: '70px',
+                            aspectRatio: '9 / 16',
+                        }}
+                    >
+                        <video
+                            ref={selfPreviewRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        {/* Glossy label */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent py-1 px-1.5">
+                            <span className="text-white text-[6px] font-bold tracking-wide">VOCÊ</span>
+                        </div>
+                    </div>
+                )}
 
-                {/* Banner Notifications Overlay */}
-                <div className="absolute top-28 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
+                {/* ─── LAYER 4: VS Battle Banner (centered top) ─── */}
+                <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {/* Gradient header background */}
+                    <div className="bg-gradient-to-b from-black/70 via-black/30 to-transparent pb-12 pt-4 px-4">
+                        {/* VS Progress Bar */}
+                        <div className="relative w-full h-1.5 bg-zinc-800/60 rounded-full overflow-visible flex items-center">
+                            {/* Pink (host) bar */}
+                            <div 
+                                className="h-full bg-gradient-to-r from-pink-500 to-[#FF2D55] rounded-l-full transition-all duration-500 shadow-[0_0_8px_rgba(255,45,85,0.4)]" 
+                                style={{ width: `${myProgress}%` }}
+                            />
+                            {/* Blue (opponent) bar */}
+                            <div 
+                                className="h-full bg-gradient-to-r from-[#007AFF] to-[#0A84FF] rounded-r-full transition-all duration-500 flex-grow shadow-[0_0_8px_rgba(0,122,255,0.4)]" 
+                            />
+                            {/* VS badge — floating center */}
+                            <div 
+                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[8px] text-black px-2 py-0.5 border border-white/60 shadow-lg shadow-yellow-500/30 z-10 select-none"
+                                style={{ left: `${myProgress}%` }}
+                            >
+                                VS
+                            </div>
+                        </div>
+
+                        {/* Score row: Host — Timer — Opponent */}
+                        <div className="flex justify-between items-center mt-3">
+                            {/* Host score */}
+                            <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1">
+                                    <div className="w-7 h-7 rounded-full ring-2 ring-pink-500/60 overflow-hidden flex-shrink-0">
+                                        <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
+                                            {streamerDisplayUser.name}
+                                        </span>
+                                        <span className="text-pink-300 text-[9px] font-bold">
+                                            {myScore.toLocaleString()}
+                                            <span className="text-pink-400/60 text-[7px] ml-0.5">({myHearts}♥)</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Timer */}
+                            <div className="bg-black/60 backdrop-blur-md rounded-full px-3 py-1 border border-white/10 shadow-lg">
+                                <span className="text-white font-mono text-[12px] font-bold tracking-wider">
+                                    {formatTime(timeLeft)}
+                                </span>
+                            </div>
+
+                            {/* Opponent score */}
+                            <div className="flex items-center gap-1.5 text-right">
+                                <div className="flex items-center gap-1 flex-row-reverse">
+                                    <div className="w-7 h-7 rounded-full ring-2 ring-blue-500/60 overflow-hidden flex-shrink-0">
+                                        <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
+                                            {opponent.name}
+                                        </span>
+                                        <span className="text-blue-300 text-[9px] font-bold">
+                                            {opponentScore.toLocaleString()}
+                                            <span className="text-blue-400/60 text-[7px] ml-0.5">({opponentHearts}♥)</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Top-right action buttons */}
+                    <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
+                            className="bg-black/40 hover:bg-black/60 backdrop-blur-md p-2 rounded-full transition-all active:scale-90 border-none cursor-pointer"
+                        >
+                            <BellIcon className="w-4 h-4 text-yellow-400" />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
+                            className="bg-black/40 hover:bg-black/60 backdrop-blur-md p-2 rounded-full transition-all active:scale-90 border-none cursor-pointer"
+                        >
+                            <CloseIcon className="w-4 h-4 text-white" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
+                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {/* Chat messages */}
+                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'
+                    }}>
+                        {messages.map((msg) => {
+                            if (msg.type === 'entry' && msg.fullUser) {
+                                return <EntryChatMessage 
+                                    key={msg.id} 
+                                    user={msg.fullUser} 
+                                    currentUser={currentUser}
+                                    onClick={onViewProfile}
+                                    onFollow={onFollowUser}
+                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
+                            }
+                            if (msg.type === 'chat' && msg.user && msg.avatar) {
+                                const chatUser = constructUserFromMessage(msg);
+                                const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
+                                return <ChatMessage 
+                                    key={msg.id} 
+                                    userObject={chatUser}
+                                    message={msg.message}
+                                    onAvatarClick={() => handleViewChatUserProfile(msg)} 
+                                    onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
+                                    isFollowed={followingUsers.some(f => f.id === chatUser.id)}
+                                    onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                    isModerator={msg.isModerator}
+                                />;
+                            }
+                            if (msg.type === 'follow' && msg.user && msg.followedUser) {
+                                return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
+                            }
+                            if (msg.type === 'friend_request' && msg.follower) {
+                                return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                            }
+                            return null;
+                        })}
+                    </div>
+
+                    {/* Chat input footer */}
+                    <footer className="px-3 pb-3 pt-1 pointer-events-auto">
+                        <div className="flex items-center gap-2">
+                            <div className="flex-grow">
+                                <input 
+                                    type="text"
+                                    placeholder={t('streamRoom.sayHi')}
+                                    value={chatInput}
+                                    onChange={(e) => setChatInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {/* Send button */}
+                                <button 
+                                    onClick={handleSendMessage} 
+                                    className="rounded-full p-2.5 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                                >
+                                    <SendIcon className="w-4 h-4 text-white" />
+                                </button>
+                                {/* Gift button */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                                >
+                                    <img 
+                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                        alt="Gift" 
+                                        className="w-8 h-8 object-cover rounded-full shadow-lg" 
+                                    />
+                                </button>
+                                {/* More options */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
+                                    className="text-white/70 hover:text-white transition-opacity cursor-pointer shrink-0 border-none bg-transparent"
+                                >
+                                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                                        <circle cx="5" cy="12" r="2"></circle>
+                                        <circle cx="12" cy="12" r="2"></circle>
+                                        <circle cx="19" cy="12" r="2"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+
+                {/* ─── LAYER 6: Gift notifications ─── */}
+                <div className="absolute top-24 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
                     <GiftQueueManager
                         gifts={bannerGifts}
                         onAnimationEnd={handleBannerAnimationEnd}
@@ -709,212 +978,15 @@ export default function PKBattleScreen({
                     onEnd={() => setCurrentEffect(null)}
                 />
 
-                {/* Split Float Header over Columns */}
-                <header className={`absolute top-0 left-0 right-0 p-3 z-20 flex justify-between items-start bg-gradient-to-b from-black/80 via-black/30 to-transparent transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    {/* Left Half Header: Host Item */}
-                    <div className="flex items-start space-x-2">
-                        <div className="relative">
-                            {/* Avatar Frame with pink gradient ring */}
-                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF2D55] via-purple-600 to-indigo-500 flex items-center justify-center">
-                                <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full rounded-full object-cover border border-black/50" />
-                            </div>
-                            {/* Overlapping Pink "+" Button Badge */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); handleFollowStreamer(streamerUser); }}
-                                className="absolute -right-1 -bottom-1 w-[18px] h-[18px] bg-gradient-to-r from-pink-500 to-rose-500 rounded-full flex items-center justify-center text-white text-[12px] font-bold shadow-md hover:scale-110 active:scale-95 transition-all border-none cursor-pointer"
-                            >
-                                +
-                            </button>
-                        </div>
-                        <div className="flex flex-col text-left">
-                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md">
-                                Live de {streamerDisplayUser.name}
-                            </h4>
-                            <p className="text-gray-350 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
-                                @{streamerDisplayUser.name}
-                            </p>
-                            <div className="flex items-center space-x-1 mt-0.5 text-yellow-400 text-[10px] bg-black/35 px-1.5 py-0.5 rounded-full w-max">
-                                <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full flex items-center justify-center text-[7px] text-black font-extrabold pb-[0.5px]">G</span>
-                                <span className="font-semibold">{myScore.toLocaleString()}</span>
-                            </div>
-                        </div>
+                {/* ─── LAYER 7: Hearts on click ─── */}
+                {hearts.map(heart => (
+                    <div key={heart.id} className="heart-anim pointer-events-none fixed" style={{ left: `${heart.x - 16}px`, top: `${heart.y - 16}px` }}>
+                        <HeartIcon className={`w-8 h-8 ${heart.side === 'mine' ? 'text-pink-500' : 'text-blue-500'}`} />
                     </div>
-
-                    {/* Right Half Header: Opponent Item */}
-                    <div className="flex items-start space-x-2 text-right">
-                        <div className="flex flex-col items-end">
-                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md flex items-center gap-1">
-                                {opponent.name} <span className="text-purple-400 text-[10px]">🎵</span>
-                            </h4>
-                            <p className="text-gray-300 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
-                                @{opponent.name}
-                            </p>
-                        </div>
-                        <div className="relative">
-                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-teal-400 flex items-center justify-center">
-                                <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full rounded-full object-cover border border-black/50" />
-                            </div>
-                        </div>
-
-                        {/* Split Header Action Icons */}
-                        <div className="flex items-center space-x-1.5 ml-1.5">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
-                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
-                            >
-                                <BellIcon className="w-4 h-4 text-yellow-400" />
-                                <span className="text-[10px] font-bold text-white ml-0.5">0</span>
-                            </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
-                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
-                            >
-                                <CloseIcon className="w-4 h-4 text-white" />
-                            </button>
-                        </div>
-                    </div>
-                </header>
-                
-                {/* VS Progress Bar and Score Details aligned under Header */}
-                <div className={`w-full px-4 absolute top-[68px] left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    {/* Pink and Blue split Progress Bar with yellow center VS badge */}
-                    <div className="relative w-full h-[10px] bg-zinc-850 rounded-full overflow-visible flex items-center">
-                        <div 
-                            className="h-full bg-gradient-to-r from-pink-500 to-[#FF2D55] rounded-l-full transition-all duration-500" 
-                            style={{ width: `${myProgress}%` }}
-                        />
-                        <div 
-                            className="h-full bg-gradient-to-r from-[#007AFF] to-[#0A84FF] rounded-r-full transition-all duration-500 flex-grow" 
-                        />
-                        <div 
-                            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[9px] text-black px-1.5 py-0.5 border border-white shadow-md z-30 select-none pb-[1px]" 
-                            style={{ left: `${myProgress}%` }}
-                        >
-                            VS
-                        </div>
-                    </div>
-
-                    {/* Left/Right Score labels and transclucent Timer capsule */}
-                    <div className="flex justify-between items-center mt-2.5">
-                        <div className="flex items-center space-x-1 text-left">
-                            <StarIcon className="w-3.5 h-3.5 text-pink-500 fill-current" />
-                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">
-                                {myScore.toLocaleString()}
-                            </span>
-                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">
-                                ({myHearts})
-                            </span>
-                        </div>
-
-                        {/* Floating Timer Badge */}
-                        <div className="bg-black/65 border border-white/[0.08] backdrop-blur-md rounded-full px-4 py-1 text-white font-mono text-[13px] font-bold shadow-lg flex items-center justify-center">
-                            {formatTime(timeLeft)}
-                        </div>
-
-                        <div className="flex items-center space-x-1 text-right">
-                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">
-                                ({opponentHearts})
-                            </span>
-                            <StarIcon className="w-3.5 h-3.5 text-blue-500 fill-current" />
-                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">
-                                {opponentScore.toLocaleString()}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                ))}
             </div>
 
-            {/* Bottom Section: Flat Solid Black Area for Public Chat scrolling content and controls */}
-            <div className={`flex-1 flex flex-col bg-black justify-between min-h-0 relative ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} data-chat-container>
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto no-scrollbar p-4 flex flex-col space-y-2.5 justify-end">
-                    {messages.map((msg) => {
-                        if (msg.type === 'entry' && msg.fullUser) {
-                            return <EntryChatMessage 
-                                key={msg.id} 
-                                user={msg.fullUser} 
-                                currentUser={currentUser}
-                                onClick={onViewProfile}
-                                onFollow={onFollowUser}
-                                isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
-                        }
-                        if (msg.type === 'chat' && msg.user && msg.avatar) {
-                            const chatUser = constructUserFromMessage(msg);
-                            const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
-                            return <ChatMessage 
-                                key={msg.id} 
-                                userObject={chatUser}
-                                message={msg.message}
-                                onAvatarClick={() => handleViewChatUserProfile(msg)} 
-                                onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
-                                isFollowed={followingUsers.some(f => f.id === chatUser.id)}
-                                onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
-                                isModerator={msg.isModerator}
-                            />;
-                        }
-                        if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                            return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
-                        }
-                        if (msg.type === 'friend_request' && msg.follower) {
-                            return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
-                        }
-                        return null;
-                    })}
-                </div>
-
-                <footer className="p-3 bg-transparent pointer-events-auto">
-                    <div className="flex items-center gap-3" data-purpose="bottom-controls">
-                        <div className="flex-grow">
-                            <input 
-                                type="text"
-                                placeholder={t('streamRoom.sayHi')}
-                                value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                            />
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {/* Share/Send Action */}
-                            <button 
-                                onClick={handleSendMessage} 
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
-                            {/* Gift Action */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
-                                className="hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
-                            >
-                                <img 
-                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
-                                    alt="Gift Icon" 
-                                    className="w-9 h-9 object-cover rounded-full shadow-lg" 
-                                />
-                            </button>
-                            {/* More Options / Tools Modal wrapper for broadcasters/spectators */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
-                                className="text-white hover:opacity-85 transition-opacity cursor-pointer shrink-0 border-none bg-transparent focus:outline-none"
-                            >
-                                <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="5" cy="12" r="2"></circle>
-                                    <circle cx="12" cy="12" r="2"></circle>
-                                    <circle cx="19" cy="12" r="2"></circle>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                </footer>
-            </div>
-            
-            {hearts.map(heart => (
-              <div key={heart.id} className="heart-anim pointer-events-none" style={{ left: `${heart.x - 16}px`, top: `${heart.y - 16}px` }}>
-                <HeartIcon className={`w-8 h-8 ${heart.side === 'mine' ? 'text-pink-500' : 'text-blue-500'}`} />
-              </div>
-            ))}
-            
+            {/* ─── MODAIS ─── */}
             {isOnlineUsersOpen && (
                 <OnlineUsersModal 
                     onClose={() => setIsOnlineUsersOpen(false)} 
