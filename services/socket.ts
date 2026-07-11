@@ -402,6 +402,14 @@ class SocketService {
             window.dispatchEvent(new CustomEvent('livego:pk_invite_response', { detail: event.pk_invite_response }));
         } else if (event.pk_heart) {
             window.dispatchEvent(new CustomEvent('livego:pk_heart', { detail: event.pk_heart }));
+        } else if (event.pk_battle_started) {
+            window.dispatchEvent(new CustomEvent('livego:pk_battle_started', { detail: event.pk_battle_started }));
+        } else if (event.pk_battle_ended) {
+            window.dispatchEvent(new CustomEvent('livego:pk_battle_ended', { detail: event.pk_battle_ended }));
+        } else if (event.pk_score_update) {
+            window.dispatchEvent(new CustomEvent('livego:pk_score_update', { detail: event.pk_score_update }));
+        } else if (event.pk_timer_sync) {
+            window.dispatchEvent(new CustomEvent('livego:pk_timer_sync', { detail: event.pk_timer_sync }));
         } else if (event.heartbeat) {
             // heartbeat — não logar como erro
         } else {

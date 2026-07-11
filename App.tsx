@@ -980,6 +980,65 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     window.addEventListener('livego:pk_invite', handlePKInvite);
     window.addEventListener('livego:pk_invite_response', handlePKInviteResponse);
 
+    // ─── Eventos de estado da batalha PK ───
+    const handlePKBattleStarted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      console.log("⚔️ [PK-STARTED] Battle started event:", detail);
+      if (detail && detail.opponentId) {
+        const opponentUser = streamers.find((s: any) => s.id === detail.opponentId || s.hostId === detail.opponentId);
+        if (opponentUser) {
+          setPkOpponent(opponentUser);
+        } else {
+          // Fallback: criar perfil mínimo do oponente
+          setPkOpponent({
+            id: detail.opponentId,
+            identification: detail.inviterId || '',
+            name: detail.opponentName || 'Oponente',
+            avatarUrl: detail.opponentAvatar || 'https://picsum.photos/seed/pkdef/400/600',
+            level: 1
+          } as User);
+        }
+        setIsPKBattleActive(true);
+        addToast(ToastType.Success, '⚔️ Batalha PK iniciada!');
+      }
+    };
+
+    const handlePKBattleEnded = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      console.log("⚔️ [PK-ENDED] Battle ended event:", detail);
+      if (detail && detail.streamId && detail.streamId !== activeStream?.id) return;
+      addToast(ToastType.Info, detail?.reason || 'Batalha PK encerrada.');
+      setIsPKBattleActive(false);
+      setPkOpponent(null);
+    };
+
+    const handlePKScoreUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.streamId && detail.streamId !== activeStream?.id) return;
+      // O score é sincronizado via LiveKit data channel no PKBattleScreen
+      // Este evento é útil para espectadores via Socket.IO
+      if (detail) {
+        window.dispatchEvent(new CustomEvent('livego:pk_score_sync', { 
+          detail: { scoreA: detail.scoreA || detail.teamAScore, scoreB: detail.scoreB || detail.teamBScore }
+        }));
+      }
+    };
+
+    const handlePKTimerSync = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.streamId && detail.streamId !== activeStream?.id) return;
+      if (detail && detail.timeLeft !== undefined) {
+        window.dispatchEvent(new CustomEvent('livego:pk_timer_sync', { 
+          detail: { timeLeft: detail.timeLeft }
+        }));
+      }
+    };
+
+    window.addEventListener('livego:pk_battle_started', handlePKBattleStarted);
+    window.addEventListener('livego:pk_battle_ended', handlePKBattleEnded);
+    window.addEventListener('livego:pk_score_update', handlePKScoreUpdate);
+    window.addEventListener('livego:pk_timer_sync', handlePKTimerSync);
+
     // Initial check for pending invites
     const checkPendingInvites = async () => {
       try {
@@ -996,6 +1055,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     return () => {
       window.removeEventListener('livego:pk_invite', handlePKInvite);
       window.removeEventListener('livego:pk_invite_response', handlePKInviteResponse);
+      window.removeEventListener('livego:pk_battle_started', handlePKBattleStarted);
+      window.removeEventListener('livego:pk_battle_ended', handlePKBattleEnded);
+      window.removeEventListener('livego:pk_score_update', handlePKScoreUpdate);
+      window.removeEventListener('livego:pk_timer_sync', handlePKTimerSync);
     };
   }, [currentUser, activeStream, streamers]);
 

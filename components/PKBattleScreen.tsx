@@ -105,6 +105,8 @@ export default function PKBattleScreen({
     
     const [isUiVisible, setIsUiVisible] = useState(true);
     const [timeLeft, setTimeLeft] = useState(pkBattleDuration * 60);
+    const timeLeftRef = useRef(timeLeft);
+    useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -553,17 +555,35 @@ export default function PKBattleScreen({
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
 
-    // Escutar mensagens do LiveKit data channel (data_received)
+    // Escutar todas as mensagens do LiveKit data channel (chat + pk sync)
     useEffect(() => {
         if (!lkRoom) return;
 
         const handleDataReceived = (data: any) => {
             if (!data || !data.type) return;
+            // Mensagens de chat
             if (data.type === 'chat_message' || data.type === 'chat') {
                 setMessages(prev => {
                     if (prev.some(m => m.id === data.id)) return prev;
                     return [...prev, { ...data, type: 'chat' }];
                 });
+            }
+            // Sync de estado PK
+            else if (data.type === 'pk_state_sync') {
+                setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
+                if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
+                    setTimeLeft(data.timeLeft);
+                }
+                if (data.opponentHearts !== undefined) {
+                    setOpponentHearts(data.opponentHearts);
+                }
+            }
+            // Comandos PK (end_battle etc)
+            else if (data.type === 'pk_battle_command') {
+                if (data.command === 'end_battle') {
+                    addToast(ToastType.Info, 'O oponente encerrou a batalha.');
+                    onEndPKBattle();
+                }
             }
         };
 
@@ -588,14 +608,120 @@ export default function PKBattleScreen({
         }
     }, [currentEffect, effectsQueue]);
 
+    // Enviar estado do PK via LiveKit data channel para sincronização entre participantes
+    useEffect(() => {
+        if (!lkRoom || lkRoom.state !== 'connected') return;
+        
+        const interval = setInterval(() => {
+            try {
+                const pkState = {
+                    type: 'pk_state_sync',
+                    myScore,
+                    opponentScore,
+                    timeLeft,
+                    myHearts,
+                    opponentHearts,
+                    timestamp: Date.now()
+                };
+                lkRoom.sendChatMessage(pkState);
+            } catch (e) {
+                // silent fail - data channel pode não estar pronto
+            }
+        }, 5000); // Sync a cada 5 segundos
+        
+        return () => clearInterval(interval);
+    }, [lkRoom, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
+
+    // Escutar eventos CustomEvent para sincronização de score/timer vindos do backend
+    useEffect(() => {
+        const handleScoreSync = (e: Event) => {
+            const { scoreA, scoreB } = (e as CustomEvent).detail;
+            if (scoreA !== undefined) setMyScore(scoreA);
+            if (scoreB !== undefined) setOpponentScore(scoreB);
+        };
+        const handleTimerSync = (e: Event) => {
+            const { timeLeft: newTime } = (e as CustomEvent).detail;
+            if (newTime !== undefined) setTimeLeft(newTime);
+        };
+        const handleBattleEnded = () => {
+            handleEndBattle();
+        };
+
+        window.addEventListener('livego:pk_score_sync', handleScoreSync);
+        window.addEventListener('livego:pk_timer_sync', handleTimerSync);
+        window.addEventListener('livego:pk_battle_ended', handleBattleEnded);
+
+        return () => {
+            window.removeEventListener('livego:pk_score_sync', handleScoreSync);
+            window.removeEventListener('livego:pk_timer_sync', handleTimerSync);
+            window.removeEventListener('livego:pk_battle_ended', handleBattleEnded);
+        };
+    }, []);
+
+    // Timer countdown — ao expirar, usar handleEndBattle via ref para evitar re-registros
     useEffect(() => {
         if (timeLeft <= 0) {
-            onEndPKBattle();
+            handleEndBattleRef.current();
             return;
         }
         const timerId = setInterval(() => setTimeLeft(t => t - 1), 1000);
         return () => clearInterval(timerId);
-    }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
+    }, [timeLeft]);
+
+    // Tratamento de reconexão do LiveKit
+    useEffect(() => {
+        if (!lkRoom) return;
+
+        const handleReconnecting = () => {
+            addToast(ToastType.Info, 'Reconectando ao servidor PK...');
+        };
+        const handleReconnected = () => {
+            addToast(ToastType.Success, 'PK reconectado!');
+            // Re-enviar estado atual para o oponente
+            try {
+                const pkState = {
+                    type: 'pk_state_sync',
+                    myScore,
+                    opponentScore,
+                    timeLeft,
+                    myHearts,
+                    opponentHearts,
+                    timestamp: Date.now()
+                };
+                lkRoom.sendChatMessage(pkState);
+            } catch (e) {
+                // silent
+            }
+        };
+        const handleDisconnected = () => {
+            addToast(ToastType.Error, 'Conexão PK perdida. A batalha será encerrada.');
+            setTimeout(() => handleEndBattle(), 3000);
+        };
+
+        lkRoom.on('reconnecting', handleReconnecting);
+        lkRoom.on('reconnected', handleReconnected);
+        lkRoom.on('disconnected', handleDisconnected);
+
+        return () => {
+            lkRoom.off('reconnecting', handleReconnecting);
+            lkRoom.off('reconnected', handleReconnected);
+            lkRoom.off('disconnected', handleDisconnected);
+        };
+    }, [lkRoom, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
+
+    // Override do onEndPKBattle para enviar comando de fim via LiveKit antes de encerrar
+    const handleEndBattle = () => {
+        if (lkRoom && lkRoom.state === 'connected') {
+            try {
+                lkRoom.sendChatMessage({ type: 'pk_battle_command', command: 'end_battle' });
+            } catch (e) {
+                // silent
+            }
+        }
+        onEndPKBattle();
+    };
+    const handleEndBattleRef = useRef(handleEndBattle);
+    handleEndBattleRef.current = handleEndBattle;
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
@@ -1066,7 +1192,7 @@ export default function PKBattleScreen({
                 onClose={() => setIsToolsOpen(false)} 
                 onOpenCoHostModal={handleOpenCoHostModal}
                 isPKBattleActive={true} 
-                onEndPKBattle={(e: any) => { e.stopPropagation(); onEndPKBattle(); }}
+                onEndPKBattle={(e: any) => { e.stopPropagation(); handleEndBattle(); }}
                 onOpenBeautyPanel={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setBeautyPanelOpen(true); }} 
                 onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }} 
                 onOpenPrivateInviteModal={(e: any) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
