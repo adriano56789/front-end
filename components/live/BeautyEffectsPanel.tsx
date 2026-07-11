@@ -200,24 +200,41 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         };
     };
 
-    // Inicializar processamento de beleza
+    // Inicializar processamento de beleza e conectar ao pipeline de publicação
     const initializeBeautyProcessing = async () => {
         try {
             const video = activeVideoRef?.current;
             if (!video) return;
 
-            // Inicializar processador de vídeo
+            // Inicializar processador de vídeo com o elemento de vídeo da câmera
             const success = await videoProcessor.initialize(video);
             if (!success) {
+                console.warn('[BEAUTY_PANEL] VideoProcessor não conseguiu inicializar, usando CSS filters como fallback');
                 return;
             }
 
-            // Iniciar processamento
+            // Iniciar processamento — retorna stream com efeitos aplicados via WebGL
             const processedStream = videoProcessor.startProcessing();
-            
+            if (!processedStream) {
+                console.warn('[BEAUTY_PANEL] processedStream é nulo');
+                return;
+            }
+
+            // 🔥 CONECTAR AO PIPELINE DE PUBLICAÇÃO: o streamPublishService usará este stream
+            // para substituir a track de vídeo original pela processada
+            const { streamPublishService } = await import('../../services/streamPublishService');
+            streamPublishService.setBeautyProcessedStream(processedStream);
+
+            // Se já estiver publicando, substituir a track dinamicamente
+            if (streamPublishService.isPublishing()) {
+                await streamPublishService.updateBeautyTrack();
+            }
+
             // Configurar integração com WebRTC
             await beautyWebRTCIntegration.initialize(processedStream);
             beautyWebRTCIntegration.toggleBeauty(); // Ativar beleza
+
+            console.log('✅ [BEAUTY_PANEL] Processamento WebGL ativo e conectado à publicação');
             
         } catch (error) {
             console.error('❌ [BEAUTY_PANEL] Erro ao inicializar processamento:', error);

@@ -13,6 +13,8 @@ class StreamPublishService {
   private currentFacingMode: 'user' | 'environment' = 'user';
   private currentStream: MediaStream | null = null;
   private currentVideoRef: { current: HTMLVideoElement | null } | null = null;
+  // Stream processado com efeitos de beleza (WebGL)
+  private beautyProcessedStream: MediaStream | null = null;
 
   getCurrentStream(): MediaStream | null {
     return this.currentStream;
@@ -20,6 +22,92 @@ class StreamPublishService {
 
   setCurrentStream(stream: MediaStream | null): void {
     this.currentStream = stream;
+  }
+
+  /**
+   * Definir stream processado com efeitos de beleza
+   */
+  setBeautyProcessedStream(stream: MediaStream | null): void {
+    this.beautyProcessedStream = stream;
+  }
+
+  /**
+   * Obter stream processado com efeitos de beleza
+   */
+  getBeautyProcessedStream(): MediaStream | null {
+    return this.beautyProcessedStream;
+  }
+
+  /**
+   * Substituir track de vídeo do stream atual pela do stream processado (beleza)
+   * Retorna o stream modificado ou o original se não houver processamento
+   */
+  applyBeautyToStream(mediaStream: MediaStream): MediaStream {
+    const processed = this.beautyProcessedStream;
+    if (!processed) return mediaStream;
+
+    const processedVideoTracks = processed.getVideoTracks();
+    if (processedVideoTracks.length === 0) return mediaStream;
+
+    // Remover tracks de vídeo originais e adicionar as processadas
+    mediaStream.getVideoTracks().forEach(track => {
+      mediaStream.removeTrack(track);
+      track.stop();
+    });
+
+    processedVideoTracks.forEach(track => {
+      mediaStream.addTrack(track);
+    });
+
+    console.log('✅ [PUBLISH_SERVICE] Beleza aplicada ao stream de publicação');
+    return mediaStream;
+  }
+
+  /**
+   * Atualizar dinamicamente a track de vídeo com o stream processado (beleza)
+   * Usado quando a beleza é ativada após a publicação já ter iniciado
+   */
+  async updateBeautyTrack(): Promise<void> {
+    const processed = this.beautyProcessedStream;
+    if (!processed || !this.currentStream) return;
+
+    const processedVideoTracks = processed.getVideoTracks();
+    if (processedVideoTracks.length === 0) return;
+
+    const newVideoTrack = processedVideoTracks[0];
+
+    // Substituir no currentStream
+    this.currentStream.getVideoTracks().forEach(track => {
+      this.currentStream!.removeTrack(track);
+      track.stop();
+    });
+    this.currentStream.addTrack(newVideoTrack);
+
+    // Se estiver publicando, substituir no WebRTC PeerConnection
+    if (this.isPublishing()) {
+      if (this.useBackendProxy) {
+        await webrtcService.replaceTrack('video', newVideoTrack);
+      } else {
+        await whipPublishService.replaceTrack('video', newVideoTrack);
+      }
+    }
+
+    // Atualizar preview se houver
+    if (this.currentVideoRef?.current) {
+      const videoEl = this.currentVideoRef.current;
+      if (videoEl.srcObject) {
+        videoEl.srcObject = this.currentStream;
+      }
+    }
+
+    console.log('✅ [PUBLISH_SERVICE] Beauty track updated dynamically');
+  }
+
+  /**
+   * Limpar stream processado de beleza e restaurar track original
+   */
+  clearBeautyProcessedStream(): void {
+    this.beautyProcessedStream = null;
   }
 
   setUseBackendProxy(use: boolean): void {
@@ -120,17 +208,20 @@ class StreamPublishService {
       this.currentStream = mediaStream;
       this.currentVideoRef = options.videoRef ?? null;
 
+      // 🔥 APLICAR EFEITOS DE BELEZA: substituir track de vídeo pela processada (WebGL)
+      const streamWithBeauty = this.applyBeautyToStream(mediaStream);
+
       if (typeof window !== 'undefined') {
         if (!(window as any).__activeStreamsMap) {
           (window as any).__activeStreamsMap = {};
         }
-        (window as any).__activeStreamsMap[streamKey] = mediaStream;
+        (window as any).__activeStreamsMap[streamKey] = streamWithBeauty;
         // fallback match standard keys too
         const rawId = streamKey.replace('stream_', '');
-        (window as any).__activeStreamsMap[rawId] = mediaStream;
+        (window as any).__activeStreamsMap[rawId] = streamWithBeauty;
       }
 
-      await whipPublishService.start(streamKey, mediaStream);
+      await whipPublishService.start(streamKey, streamWithBeauty);
     }
   }
 
@@ -143,6 +234,7 @@ class StreamPublishService {
     this.currentStream = null;
     this.currentVideoRef = null;
     this.currentFacingMode = 'user';
+    this.beautyProcessedStream = null;
 
     if (this.useBackendProxy) {
       webrtcService.stop();
