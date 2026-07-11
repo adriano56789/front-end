@@ -5,7 +5,7 @@
 
 
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo } from '../types';
-import axios, { Method } from 'axios';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 import { env } from '../src/config/environment';
 import { safeLog, safeError } from '../utils/maskSensitiveData';
 
@@ -175,55 +175,70 @@ const callApiWithOptions = async <T = any>(
         const fullUrl = isAbsolute ? url : `${API_BASE_URL}${url}`;
         const external = isExternalUrl(fullUrl);
         const token = getAuthToken();
-        // NOTA: getAuthToken() local retorna o token em memória SEM depender de import circular
 
-        const config: any = {
+        const headers: Record<string, string> = {
+            ...(external ? {} : { 'Content-Type': 'application/json' }),
+            ...(options?.customHeaders || {}),
+            ...(token && !external ? { Authorization: `Bearer ${token}` } : {})
+        };
+
+        const fetchOptions: RequestInit = {
             method,
-            url: fullUrl,
-            responseType: options?.responseType || 'json',
+            headers,
             signal: options?.signal,
-            headers: {
-                ...(external ? {} : { 'Content-Type': 'application/json' }),
-                ...(options?.customHeaders || {}),
-                ...(token && !external && { Authorization: `Bearer ${token}` })
-            }
         };
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-            config.data = data;
+            fetchOptions.body = JSON.stringify(data);
         }
 
-        const response = await axios(config);
+        const response = await fetch(fullUrl, fetchOptions);
 
-        // Check for HTML response (only for JSON responses)
-        if ((options?.responseType || 'json') === 'json') {
-            const contentType = response.headers['content-type'];
-            if (contentType && typeof contentType === 'string' && contentType.includes('text/html')) {
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            const errMsg = errorData?.error || errorData?.message || `HTTP ${response.status}`;
+            const httpError: any = new Error(errMsg);
+            httpError.response = {
+                status: response.status,
+                data: errorData,
+                headers: response.headers,
+            };
+            httpError.config = { method, url: fullUrl, data: JSON.stringify(data) };
+            throw httpError;
+        }
+
+        const responseType = options?.responseType || 'json';
+
+        let responseData: any;
+        if (responseType === 'text') {
+            responseData = await response.text();
+        } else if (responseType === 'blob') {
+            responseData = await response.blob();
+        } else if (responseType === 'arraybuffer') {
+            responseData = await response.arrayBuffer();
+        } else {
+            const text = await response.text();
+            if (text.trim().startsWith('<')) {
                 throw new Error('API returned HTML instead of JSON');
             }
-
-            if (typeof response.data === 'string' && response.data.trim().startsWith('<')) {
-                throw new Error('API returned HTML-like string instead of JSON');
-            }
+            responseData = JSON.parse(text);
         }
 
-        // Tratar status 304 Not Modified - dados não modificados
         if (response.status === 304) {
-            return response.data as T;
+            return responseData as T;
         }
 
         if (options?.returnFullResponse) {
             return {
-                ok: response.status >= 200 && response.status < 300,
+                ok: response.ok,
                 status: response.status,
-                data: response.data,
+                data: responseData,
                 headers: response.headers,
             } as T;
         }
 
-        return response.data as T;
+        return responseData as T;
     } catch (error: any) {
-        // Ignorar erros específicos de extensões
         if (error.message &&
             (error.message.includes('useCache') ||
                 error.message.includes('Receiving end does not exist') ||
@@ -232,7 +247,6 @@ const callApiWithOptions = async <T = any>(
             throw error;
         }
 
-        // Tratamento detalhado para erro 400 (Bad Request)
         if (error.response?.status === 400) {
             console.error('🚨 [API-ERROR] Erro 400 - Bad Request');
             console.error('🔍 [API-ERROR] URL:', error.config?.url);
@@ -240,50 +254,37 @@ const callApiWithOptions = async <T = any>(
             console.error('🔍 [API-ERROR] Data sent:', maskSensitiveData(error.config?.data));
             console.error('🔍 [API-ERROR] Response:', error.response?.data);
 
-            // Extrair mensagens específicas de validação
             const responseData = error.response?.data;
             if (responseData) {
-                // Se for erro de validação do Zod
                 if (responseData.errors && Array.isArray(responseData.errors)) {
                     console.error('❌ [VALIDATION-ERROR] Erros de validação:');
                     responseData.errors.forEach((err: any, index: number) => {
                         console.error(`  ${index + 1}. Campo: ${err.field}, Erro: ${err.message}`);
                     });
-
-                    // Criar mensagem amigável para o usuário
                     const firstError = responseData.errors[0];
                     const userFriendlyMessage = `Erro no campo "${firstError.field}": ${firstError.message}`;
-
                     throw new Error(userFriendlyMessage);
                 }
 
-                // Se for mensagem simples de erro
                 if (responseData.error) {
                     console.error('❌ [VALIDATION-ERROR] Erro simples:', responseData.error);
-
-                    // Se tiver informações adicionais
                     if (responseData.currentStream) {
                         console.error('❌ [VALIDATION-ERROR] Stream ativa existente:', responseData.currentStream);
                         throw new Error(`${responseData.error}. Stream atual: ${responseData.currentStream.id} - ${responseData.currentStream.name}`);
                     }
-
                     throw new Error(responseData.error);
                 }
 
-                // Se tiver mensagem
                 if (responseData.message) {
                     console.error('❌ [VALIDATION-ERROR] Mensagem:', responseData.message);
                     throw new Error(responseData.message);
                 }
             }
 
-            // Mensagem genérica se não conseguir extrair detalhes
             throw new Error('Dados inválidos na requisição. Verifique os campos obrigatórios.');
         }
 
-        // Tratamento padrão de outros erros
         if (error.response?.status === 401) {
-            // Token expirado ou inválido
             removeAuthToken();
             window.dispatchEvent(new CustomEvent('auth:logout'));
         }
