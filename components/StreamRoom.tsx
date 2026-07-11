@@ -201,144 +201,62 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
 
-    // Conectar à sala LiveKit SFU real para chat e sinalização descentralizada
+    // ═══════════════════════════════════════════════════════════════════
+    // ARQUITETURA:
+    // - SRS: TRANSMISSÃO da live (WHIP publish) + entrega aos
+    //   espectadores (HLS/WHEP via SrsPlayerEngine)
+    // - LiveKit: TEMPO REAL da sala (chat, participantes online,
+    //   likes, gifts, PK Battle, chamada de vídeo, convite privado)
+    // - Socket.IO: fallback para chat quando LiveKit não disponível
+    // ═══════════════════════════════════════════════════════════════════
+
     const {
         room: lkRoom,
         connect: connectLiveKit,
         disconnect: disconnectLiveKit,
     } = useLiveKit();
 
+    // Conectar ao LiveKit para chat e participantes em tempo real
     useEffect(() => {
         if (!streamer.id || !currentUser.id) return;
 
         let active = true;
-        const identity = isBroadcaster 
-          ? `streamer_${currentUser.id}` 
-          : `viewer_${currentUser.id || 'user_' + Math.random().toString(36).slice(2, 6)}`;
+        const identity = isBroadcaster
+            ? `streamer_${currentUser.id}`
+            : `viewer_${currentUser.id || 'user_' + Math.random().toString(36).slice(2, 6)}`;
 
         const startConnection = async () => {
-          try {
-            console.log(`[StreamRoom-LiveKit] Conectando à sala LiveKit SFU: ${streamer.id}...`);
-            const res = await api.getLiveKitToken(streamer.id, identity, isBroadcaster);
-            if (res.success && active) {
-              await connectLiveKit(res.serverUrl, res.token);
+            try {
+                const res = await api.getLiveKitToken(streamer.id, identity, isBroadcaster);
+                if (res.success && active) {
+                    await connectLiveKit(res.serverUrl, res.token);
+                }
+            } catch (err) {
+                console.warn('[LiveKit] Falha ao conectar (chat funcionará via Socket.IO):', err);
             }
-          } catch (err) {
-            console.error('[StreamRoom-LiveKit] Falha ao conectar ao LiveKit SFU:', err);
-          }
         };
 
         startConnection();
 
         return () => {
-          active = false;
-          disconnectLiveKit();
+            active = false;
+            disconnectLiveKit();
         };
     }, [streamer.id, currentUser.id, isBroadcaster]);
 
-    // Refs para garantir que handlers e pré-carregamento rodem apenas uma vez por sessão
-    const lkRoomRef = useRef<typeof lkRoom>(null);
-    const initialLoadDoneRef = useRef(false);
-    const handlersRegisteredRef = useRef(false);
-
-    // Escutar por mensagens de chat reais e sinalizações completas vindas do canal de dados do LiveKit
+    // Escutar mensagens e eventos vindos do data channel do LiveKit
+    // (chat, gifts, likes de outros participantes)
     useEffect(() => {
         if (!lkRoom) return;
-        lkRoomRef.current = lkRoom;
 
-        // 1. Buscar lista inicial de usuários online via API real (apenas uma vez)
-        if (!initialLoadDoneRef.current) {
-            initialLoadDoneRef.current = true;
-            const loadInitialOnlineUsers = async () => {
-                try {
-                    const users = await api.getStreamOnlineUsers(streamer.id);
-                    if (users) {
-                        setOnlineUsers(users);
-                        updateLiveSession({ viewers: users.length });
-                    }
-                } catch (err) {
-                    console.warn('[StreamRoom-LiveKit] Erro ao carregar usuários iniciais:', err);
-                }
-            };
-            loadInitialOnlineUsers();
-        }
-
-        // 2. Tratador de Participante Entrando
-        const handleParticipantConnected = async (participant: any) => {
-            const identity = participant.identity;
-            console.log(`[StreamRoom-LiveKit] Participante entrou na sala: ${identity}`);
-            let parsedUserId = identity;
-            if (identity.startsWith('viewer_')) {
-                parsedUserId = identity.substring('viewer_'.length);
-            } else if (identity.startsWith('streamer_')) {
-                parsedUserId = identity.substring('streamer_'.length);
-            }
-
-            try {
-                const userProfile = await api.getUser(parsedUserId);
-                if (userProfile) {
-                    setOnlineUsers(prev => {
-                        const exists = prev.find(u => u.id === userProfile.id);
-                        if (!exists) {
-                            const newUser = { ...userProfile, value: 0 };
-                            const updated = [...prev, newUser];
-                            updateLiveSession({ viewers: updated.length });
-                            return updated;
-                        }
-                        return prev;
-                    });
-                } else {
-                    setOnlineUsers(prev => {
-                        const exists = prev.find(u => u.id === parsedUserId);
-                        if (!exists) {
-                            const newUser = {
-                                id: parsedUserId,
-                                name: identity,
-                                avatarUrl: 'https://placehold.co/40',
-                                level: 1,
-                                value: 0,
-                                identification: parsedUserId,
-                                fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
-                            };
-                            const updated = [...prev, newUser];
-                            updateLiveSession({ viewers: updated.length });
-                            return updated;
-                        }
-                        return prev;
-                    });
-                }
-            } catch (e) {
-                console.error('[StreamRoom-LiveKit] Erro ao carregar perfil de participante:', e);
-            }
-        };
-
-        // 3. Tratador de Participante Saindo
-        const handleParticipantDisconnected = (participant: any) => {
-            const identity = participant.identity;
-            console.log(`[StreamRoom-LiveKit] Participante saiu da sala: ${identity}`);
-            let parsedUserId = identity;
-            if (identity.startsWith('viewer_')) {
-                parsedUserId = identity.substring('viewer_'.length);
-            } else if (identity.startsWith('streamer_')) {
-                parsedUserId = identity.substring('streamer_'.length);
-            }
-
-            setOnlineUsers(prev => {
-                const updated = prev.filter(u => u.id !== parsedUserId);
-                updateLiveSession({ viewers: updated.length });
-                return updated;
-            });
-        };
-
-        // 4. Tratador de dados (Chat, Likes, Presentes) via canal de dados LiveKit
         const handleDataReceived = (data: any) => {
-            if (!data) return;
-            console.log('[StreamRoom-LiveKit] Sinalização recebida via Data Channel:', data.type);
+            if (!data || !data.type) return;
 
             if (data.type === 'chat_message' || data.type === 'chat') {
                 setMessages(prev => {
                     if (prev.some(m => m.id === data.id)) return prev;
-                    return [...prev, data];
+                    // Normalizar type: LiveKit envia como 'chat_message', render espera 'chat'
+                    return [...prev, { ...data, type: 'chat' }];
                 });
             } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
                 const payload: GiftPayload = {
@@ -354,75 +272,75 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                         id: data.toUser?.id,
                         name: data.toUser?.name || 'Streamer'
                     },
-                    gift: gifts?.find((g: any) => g.name === data.gift?.name || g.id === data.gift?.id) || {
-                        name: data.gift?.name,
-                        price: data.gift?.price || 0,
-                        icon: data.gift?.icon || '🎁',
-                        category: data.gift?.category || 'Popular'
-                    },
+                    gift: data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' },
                     quantity: data.quantity || 1,
                     roomId: streamer.id,
                     id: data.id || (Date.now() + Math.random())
                 };
 
-                const isSenderSelf = (data.from?.id === currentUser?.id) ||
-                                     (data.fromUser?.id === currentUser?.id) ||
-                                     (payload.fromUser?.id === currentUser?.id);
-
+                const isSenderSelf = data.from?.id === currentUser?.id || data.fromUser?.id === currentUser?.id;
                 if (!isSenderSelf) {
                     setGiftQueue(prev => [...prev, payload]);
                     setFullscreenGiftQueue(prev => [...prev, payload]);
                     postGiftChatMessage(payload);
                 }
-
-                if (data.toUser?.id === streamer.id) {
-                    updateLiveSession({
-                        coins: (liveSession?.coins || 0) + ((data.gift?.price || 0) * (data.quantity || 1))
-                    });
-                }
-            } else if (data.type === 'stream_liked') {
-                if (data.streamId === streamer.id) {
-                    setLikes(data.totalLikes);
-                    if (data.userId === currentUser.id) {
-                        setIsLiked(true);
-                    }
-                }
-            } else if (data.type === 'stream_unliked') {
-                if (data.streamId === streamer.id) {
-                    setLikes(data.totalLikes);
-                    if (data.userId === currentUser.id) {
-                        setIsLiked(false);
-                    }
-                }
+            } else if (data.type === 'stream_liked' && data.streamId === streamer.id) {
+                setLikes(data.totalLikes);
+                if (data.userId === currentUser.id) setIsLiked(true);
+            } else if (data.type === 'stream_unliked' && data.streamId === streamer.id) {
+                setLikes(data.totalLikes);
+                if (data.userId === currentUser.id) setIsLiked(false);
             }
         };
 
-        // Registrar handlers apenas uma vez
-        if (!handlersRegisteredRef.current) {
-            handlersRegisteredRef.current = true;
-            lkRoom.on('participantConnected', handleParticipantConnected);
-            lkRoom.on('participantDisconnected', handleParticipantDisconnected);
-            lkRoom.on('data_received', handleDataReceived);
-
-            // Pré-carregar participantes que já estão conectados na sala do LiveKit
-            if (lkRoom.remoteParticipants && lkRoom.remoteParticipants.size > 0) {
-                lkRoom.remoteParticipants.forEach((p: any) => {
-                    handleParticipantConnected(p);
-                });
-            }
-        }
+        lkRoom.on('data_received', handleDataReceived);
 
         return () => {
-            if (lkRoomRef.current) {
-                lkRoomRef.current.off('participantConnected', handleParticipantConnected);
-                lkRoomRef.current.off('participantDisconnected', handleParticipantDisconnected);
-                lkRoomRef.current.off('data_received', handleDataReceived);
-            }
-            lkRoomRef.current = null;
-            initialLoadDoneRef.current = false;
-            handlersRegisteredRef.current = false;
+            lkRoom.off('data_received', handleDataReceived);
         };
     }, [lkRoom, streamer.id, currentUser.id]);
+
+    // Escutar mensagens de chat via Socket.IO (redundância quando LiveKit não roteia)
+    useEffect(() => {
+        if (!streamer.id) return;
+
+        const handleNewChatMessage = (message: any) => {
+            if (!message || !message.text) return;
+            
+            // Extrair dados do formato Socket.IO
+            const chatMsg: ChatMessageType = {
+                id: message.id || Date.now() + Math.random(),
+                type: 'chat',
+                user: message.userName || message.user || 'Usuário',
+                message: message.text || message.message,
+                avatar: message.avatarUrl || message.avatar || '',
+                level: message.level || 1,
+            };
+
+            // Não adicionar se já existe (evitar duplicatas com LiveKit)
+            setMessages(prev => {
+                if (prev.some(m => m.id === chatMsg.id)) return prev;
+                return [...prev, chatMsg];
+            });
+        };
+
+        // Escutar evento 'new_chat_message' do Socket.IO
+        socketService.onNewChatMessage(handleNewChatMessage);
+
+        // Também escutar evento global window (caso socket.ts dispare via CustomEvent)
+        const handleWindowChat = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail) {
+                handleNewChatMessage(detail);
+            }
+        };
+        window.addEventListener('livego:chat_message', handleWindowChat);
+
+        return () => {
+            socketService.off('new_chat_message', handleNewChatMessage);
+            window.removeEventListener('livego:chat_message', handleWindowChat);
+        };
+    }, [streamer.id]);
 
     const isFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
 
@@ -633,14 +551,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             frameExpiration: currentUser.frameExpiration,
             fullUser: currentUser,
         };
-        setMessages(prev => [...prev, messagePayload]);
+        // Garantir que avatar sempre tenha um valor para ser renderizado no chat
+        const safePayload = {
+            ...messagePayload,
+            avatar: messagePayload.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=random`,
+            id: Date.now() + Math.random(), // Garantir unicidade
+        };
+        setMessages(prev => [...prev, safePayload]);
         
-        // Transmitir mensagem via LiveKit ou fallback Socket.IO
+        // Transmitir mensagem via LiveKit + Socket.IO simultaneamente
+        // LiveKit: data channel em tempo real (principal)
         if (lkRoom && lkRoom.state === 'connected') {
-            lkRoom.sendChatMessage(messagePayload);
-        } else {
-            socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, currentUser.avatarUrl || currentUser.avatar || '', chatInput.trim());
+            lkRoom.sendChatMessage(safePayload);
         }
+        // Socket.IO: redundância para garantir distribuição a TODOS os participantes
+        // (LiveKit SFU pode não estar roteando data channel entre participantes)
+        socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, safePayload.avatar, chatInput.trim());
         
         setChatInput('');
     };
@@ -674,14 +600,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(false);
-                    // Emitir via canal de dados real do LiveKit
+                    // Transmitir like via LiveKit data channel
                     if (lkRoom && lkRoom.state === 'connected') {
-                        lkRoom.sendData({
-                            type: 'stream_unliked',
-                            streamId: streamer.id,
-                            totalLikes: response.totalLikes,
-                            userId: currentUser.id
-                        });
+                        lkRoom.sendData({ type: 'stream_unliked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id });
                     }
                 }
             } else {
@@ -690,14 +611,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(true);
-                    // Emitir via canal de dados real do LiveKit
+                    // Transmitir like via LiveKit data channel
                     if (lkRoom && lkRoom.state === 'connected') {
-                        lkRoom.sendData({
-                            type: 'stream_liked',
-                            streamId: streamer.id,
-                            totalLikes: response.totalLikes,
-                            userId: currentUser.id
-                        });
+                        lkRoom.sendData({ type: 'stream_liked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id });
                     }
                 }
             }
@@ -975,31 +891,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             postGiftChatMessage(giftPayload);
             setFullscreenGiftQueue(prev => [...prev, giftPayload]);
 
-            // Enviar via canal de dados real do LiveKit
+            // Transmitir presente via LiveKit data channel
             if (lkRoom && lkRoom.state === 'connected') {
                 lkRoom.sendData({
                     type: 'live_gift_received',
-                    from: {
-                        id: currentUser.id,
-                        identification: currentUser.identification || currentUser.id,
-                        name: currentUser.name,
-                        avatarUrl: currentUser.avatarUrl,
-                        level: currentUser.level || 1,
-                    },
-                    toUser: {
-                        id: streamer.hostId || streamer.id,
-                        name: streamer.name || 'Streamer'
-                    },
-                    gift: {
-                        id: gift.name,
-                        name: gift.name,
-                        price: gift.price,
-                        icon: gift.icon,
-                        category: gift.category
-                    },
-                    quantity: quantity,
-                    roomId: streamer.id,
-                    id: giftPayload.id
+                    from: { id: currentUser.id, identification: currentUser.identification || currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level || 1 },
+                    toUser: { id: streamer.hostId || streamer.id, name: streamer.name || 'Streamer' },
+                    gift: { id: gift.name, name: gift.name, price: gift.price, icon: gift.icon, category: gift.category },
+                    quantity, roomId: streamer.id, id: giftPayload.id
                 });
             }
 
@@ -1218,7 +1117,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     />
                 )}
 
-                {/* Video Layer - Player HLS profissional integrado com LiveKit SFU */}
+                {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
                 <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} room={lkRoom} />
 
 

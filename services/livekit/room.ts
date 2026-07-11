@@ -7,6 +7,7 @@ import {
   Room as RealRoom,
   RoomEvent as RealRoomEvent,
   RemoteParticipant as RealRemoteParticipant,
+  setLogLevel,
 } from 'livekit-client';
 
 export enum RoomEvent {
@@ -146,6 +147,9 @@ export class LiveKitRoom {
     } catch (_) {}
 
     try {
+      // Reduzir verbosidade do SDK LiveKit para exibir apenas avisos e erros
+      setLogLevel('warn');
+
       const realRoom = new RealRoom({
         adaptiveStream: true,
         dynacast: true,
@@ -450,9 +454,7 @@ export class LiveKitRoom {
           ...payload
         }));
         this.realRoom.localParticipant.publishData(data, { reliable: true })
-          .then(() => {
-            console.log('[LiveKit] Mensagem de chat enviada com sucesso.');
-          })
+          // noop — confirmação silenciosa (log removido para reduzir ruído)
           .catch((err) => {
             console.warn('[LiveKit] Falha ao transmitir mensagem, usando fallback Socket.IO:', err);
             this.fallbackSendChatMessage(payload);

@@ -87,6 +87,9 @@ export interface Gift {
   category: 'Popular' | 'Luxo' | 'Atividade' | 'VIP' | 'Efeito' | 'Entrada';
   triggersAutoFollow?: boolean;
   videoUrl?: string;
+  audioUrl?: string;
+  duration?: number; // em milissegundos
+  noBlend?: boolean; // se true, não remove o fundo preto (mix-blend-screen)
 }
 
 export interface Obra {

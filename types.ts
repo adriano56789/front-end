@@ -163,6 +163,9 @@ export interface Gift {
   category: 'Popular' | 'Luxo' | 'Atividade' | 'VIP' | 'Efeito' | 'Entrada';
   triggersAutoFollow?: boolean;
   videoUrl?: string;
+  audioUrl?: string;
+  duration?: number;
+  noBlend?: boolean;
 }
 
 export interface Obra {

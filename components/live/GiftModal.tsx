@@ -77,7 +77,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     };
 
     // Função chamada quando uma aba é clicada
-    const handleTabChange = (tab: string) => {
+    const handleTabChange = (tab: Gift['category'] | 'Galeria') => {
         setActiveTab(tab);
         fetchGiftsByCategory(tab); // Chamar para todas as abas, incluindo Galeria
     };
@@ -270,7 +270,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                                           <p className="text-[10px] text-gray-300 text-center truncate font-medium">{gift.name}</p>
                                         </div>
                                         <div className="flex items-center space-x-1">
-                                            <span className="text-[10px] text-[#FFD700] font-black">x{gift.count}</span>
+                                            <span className="text-[10px] text-[#FFD700] font-black">x{(gift as any).count || 1}</span>
                                         </div>
                                     </div>
                                 ))}

@@ -4,7 +4,7 @@
 
 
 
-import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
+
 import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo } from '../types';
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 import { env } from '../src/config/environment';
@@ -27,21 +27,55 @@ const getOryxApiBaseUrl = () => {
 
 
 
-// Gerenciamento de token - APENAS MEMÓRIA (SEM LOCALSTORAGE)
-// Removido armazenamento local - tudo via API
+// Gerenciamento de token - MEMÓRIA + LOCALSTORAGE
+// Persistência em localStorage para evitar 401 em recarregamentos
+
+const AUTH_TOKEN_KEY = 'livego_auth_token';
 
 let authToken: string | null = null;
 
+// Carregar token do localStorage na inicialização (com proteção contra falhas)
+try {
+    const persistedToken = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+    if (persistedToken) {
+        authToken = persistedToken;
+    }
+} catch (e) {
+    // localStorage pode não estar disponível (SSR, modo privado, etc.)
+}
+
 export const setAuthToken = (token: string) => {
     authToken = token;
+    try {
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
+    } catch (e) {
+        console.warn('[API] Erro ao salvar token no localStorage:', e);
+    }
 };
 
 export const getAuthToken = (): string | null => {
-    return authToken;
+    if (authToken) return authToken;
+    
+    // Fallback: tentar recuperar do localStorage
+    try {
+        const stored = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (stored) {
+            authToken = stored;
+            return stored;
+        }
+    } catch (e) {
+        // localStorage pode não estar disponível em alguns ambientes
+    }
+    return null;
 };
 
 export const removeAuthToken = () => {
     authToken = null;
+    try {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch (e) {
+        console.warn('[API] Erro ao remover token do localStorage:', e);
+    }
 };
 
 
@@ -183,32 +217,128 @@ const callApiWithOptions = async <T = any>(
             ...(token && !external ? { Authorization: `Bearer ${token}` } : {})
         };
 
-        const config: AxiosRequestConfig = {
-            method: method as any,
-            url: fullUrl,
+        const fetchInit: RequestInit = {
+            method,
             headers,
             signal: options?.signal,
-            responseType: options?.responseType === 'text' ? 'text' :
-                options?.responseType === 'blob' ? 'blob' :
-                options?.responseType === 'arraybuffer' ? 'arraybuffer' : 'json',
         };
 
+        // Adicionar body para métodos que suportam
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-            config.data = data;
+            // Se for FormData, usar como está (não serializar)
+            if (data instanceof FormData) {
+                fetchInit.body = data;
+                // Deixar o browser definir o Content-Type para FormData (com boundary)
+                delete headers['Content-Type'];
+            } else if (typeof data === 'string') {
+                // String crua (ex: SDP) - enviar como está
+                fetchInit.body = data;
+            } else {
+                // Objeto - serializar como JSON
+                fetchInit.body = JSON.stringify(data);
+            }
         }
 
-        const response: AxiosResponse = await axios(config);
+        const response = await fetch(fullUrl, fetchInit);
+
+        // Extrair headers de resposta
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+            responseHeaders[key] = value;
+        });
 
         if (options?.returnFullResponse) {
+            let responseData: any = null;
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                responseData = await response.json();
+            } else {
+                responseData = await response.text();
+            }
+
             return {
-                ok: response.status >= 200 && response.status < 300,
+                ok: response.ok,
                 status: response.status,
-                data: response.data,
-                headers: response.headers,
+                data: responseData,
+                headers: responseHeaders,
             } as T;
         }
 
-        return response.data as T;
+        // Tratar erros HTTP
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            let errorBody: any = null;
+            if (contentType.includes('application/json')) {
+                errorBody = await response.json().catch(() => null);
+            } else {
+                errorBody = await response.text().catch(() => '');
+            }
+
+            if (response.status === 400) {
+                console.error('🚨 [API-ERROR] Erro 400 - Bad Request');
+                console.error('🔍 [API-ERROR] URL:', fullUrl);
+                console.error('🔍 [API-ERROR] Method:', method);
+                console.error('🔍 [API-ERROR] Data sent:', maskSensitiveData(data));
+                console.error('🔍 [API-ERROR] Response:', errorBody);
+
+                if (errorBody) {
+                    if (errorBody.errors && Array.isArray(errorBody.errors)) {
+                        console.error('❌ [VALIDATION-ERROR] Erros de validação:');
+                        errorBody.errors.forEach((err: any, index: number) => {
+                            console.error(`  ${index + 1}. Campo: ${err.field}, Erro: ${err.message}`);
+                        });
+                        const firstError = errorBody.errors[0];
+                        throw new Error(`Erro no campo "${firstError.field}": ${firstError.message}`);
+                    }
+                    if (errorBody.error) {
+                        console.error('❌ [VALIDATION-ERROR] Erro:', errorBody.error);
+                        if (errorBody.currentStream) {
+                            throw new Error(`${errorBody.error}. Stream atual: ${errorBody.currentStream.id} - ${errorBody.currentStream.name}`);
+                        }
+                        throw new Error(errorBody.error);
+                    }
+                    if (errorBody.message) {
+                        throw new Error(errorBody.message);
+                    }
+                }
+                throw new Error('Dados inválidos na requisição. Verifique os campos obrigatórios.');
+            }
+
+            if (response.status === 401) {
+                // NÃO limpar token nem disparar auth:logout aqui!
+                // Cada caller (restoreSession, createDraftStream, etc.) já trata
+                // seus próprios erros. Disparar auth:logout aqui causa redirect
+                // ao login durante criação de stream, que é indesejado.
+                console.warn('[API] 401 recebido - deixando o caller tratar o erro');
+            }
+
+            // Criar erro similar ao axios para compatibilidade
+            const httpError = new Error(`Request failed with status code ${response.status}`) as any;
+            httpError.status = response.status;
+            httpError.response = {
+                status: response.status,
+                data: errorBody,
+                headers: responseHeaders,
+            };
+            throw httpError;
+        }
+
+        // Resposta OK - processar conforme responseType
+        const contentType = response.headers.get('content-type') || '';
+        if (options?.responseType === 'text') {
+            return await response.text() as T;
+        }
+        if (options?.responseType === 'blob') {
+            return await response.blob() as T;
+        }
+        if (options?.responseType === 'arraybuffer') {
+            return await response.arrayBuffer() as T;
+        }
+        // Default: JSON
+        if (contentType.includes('application/json')) {
+            return await response.json() as T;
+        }
+        return await response.text() as T;
     } catch (error: any) {
         if (error.message &&
             (error.message.includes('useCache') ||
@@ -218,48 +348,12 @@ const callApiWithOptions = async <T = any>(
             throw error;
         }
 
-        if (error.response?.status === 400) {
-            console.error('🚨 [API-ERROR] Erro 400 - Bad Request');
-            console.error('🔍 [API-ERROR] URL:', error.config?.url);
-            console.error('🔍 [API-ERROR] Method:', error.config?.method?.toUpperCase());
-            console.error('🔍 [API-ERROR] Data sent:', maskSensitiveData(error.config?.data));
-            console.error('🔍 [API-ERROR] Response:', error.response?.data);
-
-            const responseData = error.response?.data;
-            if (responseData) {
-                if (responseData.errors && Array.isArray(responseData.errors)) {
-                    console.error('❌ [VALIDATION-ERROR] Erros de validação:');
-                    responseData.errors.forEach((err: any, index: number) => {
-                        console.error(`  ${index + 1}. Campo: ${err.field}, Erro: ${err.message}`);
-                    });
-                    const firstError = responseData.errors[0];
-                    const userFriendlyMessage = `Erro no campo "${firstError.field}": ${firstError.message}`;
-                    throw new Error(userFriendlyMessage);
-                }
-
-                if (responseData.error) {
-                    console.error('❌ [VALIDATION-ERROR] Erro simples:', responseData.error);
-                    if (responseData.currentStream) {
-                        console.error('❌ [VALIDATION-ERROR] Stream ativa existente:', responseData.currentStream);
-                        throw new Error(`${responseData.error}. Stream atual: ${responseData.currentStream.id} - ${responseData.currentStream.name}`);
-                    }
-                    throw new Error(responseData.error);
-                }
-
-                if (responseData.message) {
-                    console.error('❌ [VALIDATION-ERROR] Mensagem:', responseData.message);
-                    throw new Error(responseData.message);
-                }
-            }
-
-            throw new Error('Dados inválidos na requisição. Verifique os campos obrigatórios.');
+        // Se já é nosso erro HTTP (com status), propagar
+        if (error.status) {
+            throw error;
         }
 
-        if (error.response?.status === 401) {
-            removeAuthToken();
-            window.dispatchEvent(new CustomEvent('auth:logout'));
-        }
-
+        // Erro de rede ou parse
         throw error;
     }
 };
@@ -1887,18 +1981,12 @@ export const api = {
         if (token) {
             authHeaders['Authorization'] = `Bearer ${token}`;
         }
-        // 🔍 LOG: URL completa que sera chamada
         const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-        console.log('[WHIP-DEBUG] URL:', fullUrl);
-        console.log('[WHIP-DEBUG] Headers:', { ...authHeaders, Authorization: authHeaders.Authorization ? 'Bearer ***' : 'NENHUM' });
-        console.log('[WHIP-DEBUG] Token presente:', !!token);
-        console.log('[WHIP-DEBUG] SDP length:', sdp?.length || 0);
         const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
             customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
         });
-        console.log('[WHIP-DEBUG] Status resposta:', result.status);
         return {
             ok: result.ok,
             status: result.status,
@@ -1908,7 +1996,7 @@ export const api = {
     },
 
     whipStop: async (resourceUrl: string): Promise<void> => {
-        const token = getAuthToken();
+    const token = getAuthToken();
         const authHeaders: Record<string, string> = {};
         if (token) {
             authHeaders['Authorization'] = `Bearer ${token}`;

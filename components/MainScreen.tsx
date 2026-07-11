@@ -314,19 +314,26 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 px-1 pb-24 max-w-7xl mx-auto">
-                        {streamers.filter(streamer => 
-                            streamer && 
-                            streamer.id && 
-                            streamer.name && 
-                            streamer.name.trim() !== '' &&
-                            streamer.avatar && 
-                            streamer.avatar.trim() !== '' &&
-                            streamer.hostId &&
-                            streamer.hostId.trim() !== '' &&
-                            streamer.isLive === true
-                        ).map(streamer => (
-                            <StreamerCard key={streamer.id} streamer={streamer} onSelect={onSelectStream} />
-                        ))}
+                        {(() => {
+                            // Deduplicar streamers por ID para evitar chaves duplicadas no React
+                            const seen = new Set<string>();
+                            const unique = streamers.filter(streamer => {
+                                if (!streamer || !streamer.id || !streamer.name || streamer.name.trim() === '' ||
+                                    !streamer.avatar || streamer.avatar.trim() === '' ||
+                                    !streamer.hostId || streamer.hostId.trim() === '' ||
+                                    streamer.isLive !== true) {
+                                    return false;
+                                }
+                                if (seen.has(streamer.id)) {
+                                    return false; // Já vimos esse ID, ignorar duplicata
+                                }
+                                seen.add(streamer.id);
+                                return true;
+                            });
+                            return unique.map(streamer => (
+                                <StreamerCard key={streamer.id} streamer={streamer} onSelect={onSelectStream} />
+                            ));
+                        })()}
                     </div>
                 )}
             </>

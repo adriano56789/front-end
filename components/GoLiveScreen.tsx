@@ -190,6 +190,16 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     };
 
     const handleInitiateStream = async () => {
+        // Garantir que o draftStream existe ANTES de iniciar a transmissão
+        // Evita que o initiateStream precise chamar api.createStream() novamente
+        let stream = streamManager.draftStream;
+        if (!stream) {
+            stream = await streamManager.createDraftStream();
+            if (!stream) {
+                addToast(ToastType.Error, "Falha ao preparar transmissão. Tente novamente.");
+                return;
+            }
+        }
         await streamManager.initiateStream(onStartStream, onJoinStream, inviteData);
     };
 

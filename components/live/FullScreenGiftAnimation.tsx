@@ -248,8 +248,8 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
 
         const { gift } = payload;
         const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
-        const videoUrl = assetConfig.videoSrc;
-        const audioUrl = assetConfig.audioSrc || getSoundUrl(gift.name);
+        const videoUrl = gift.videoUrl || assetConfig.videoSrc;
+        const audioUrl = gift.audioUrl || assetConfig.audioSrc || getSoundUrl(gift.name);
 
         let active = true;
         const t0 = performance.now();
@@ -321,7 +321,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
         }
 
         // Determinar a duração total da reprodução audiovisual
-        const duration = assetConfig.duration || 5000;
+        const duration = Number(gift.duration || assetConfig.duration || 5000);
 
         animationTimeoutRef.current = window.setTimeout(() => {
             onEndRef.current();
@@ -354,14 +354,14 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                 />
 
                 {/* Reprodutor de vídeo com canal de mesclagem ou renderização direta elegante para vídeos reais */}
-                <div className={`relative flex items-center justify-center ${assetConfig.noBlend ? 'w-[480px] h-[270px] aspect-video border-[4px] border-[#FFD700] rounded-[24px] overflow-hidden bg-black/95 shadow-[0_0_60px_rgba(255,215,0,0.45)]' : 'w-[450px] h-[450px]'} transform animate-gift-pop-impact`}>
+                <div className={`relative flex items-center justify-center ${gift.noBlend || (gift.noBlend === undefined && assetConfig.noBlend) ? 'w-[480px] h-[270px] aspect-video border-[4px] border-[#FFD700] rounded-[24px] overflow-hidden bg-black/95 shadow-[0_0_60px_rgba(255,215,0,0.45)]' : 'w-[450px] h-[450px]'} transform animate-gift-pop-impact`}>
                     <video 
                         src={resolvedVideo}
                         autoPlay 
                         loop={false}
                         muted 
                         playsInline 
-                        className={`w-full h-full ${assetConfig.noBlend ? 'object-cover' : 'object-contain mix-blend-screen'} filter drop-shadow-[0_0_25px_rgba(234,179,8,0.7)]`}
+                        className={`w-full h-full ${gift.noBlend || (gift.noBlend === undefined && assetConfig.noBlend) ? 'object-cover' : 'object-contain mix-blend-screen'} filter drop-shadow-[0_0_25px_rgba(234,179,8,0.7)]`}
                         style={{ transform: 'none' }}
                         onPlay={(e) => {
                             // Garantir que roda a 1x de velocidade
@@ -370,7 +370,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                     />
 
                     {/* Ícone ou componente SVG flutuando centralizado no coração do espetáculo de partículas - Ocultado se houver vídeo nativo exclusivo */}
-                    {!LUXURY_ASSETS_MAP[gift.name] && (
+                    {!(LUXURY_ASSETS_MAP[gift.name] || gift.videoUrl) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none transform animate-gift-bounce-subtle">
                             {gift.component ? (
                                 React.cloneElement(gift.component as React.ReactElement<any>, { 

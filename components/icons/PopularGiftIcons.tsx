@@ -585,7 +585,7 @@ export const PirulitoGiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props)
     </defs>
 
     {/* Brilho mágico de fundo do pirulito */}
-    <circle cx="60" cy="46" r="44" fill="url(#lollipopGlow)" blur="8px" />
+    <circle cx="60" cy="46" r="44" fill="url(#lollipopGlow)" style={{ filter: 'blur(8px)' }} />
 
     {/* Bastão/Palito do pirulito */}
     <rect x="56" y="80" width="8" height="40" rx="4" fill="url(#popStick)" />

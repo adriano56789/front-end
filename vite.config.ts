@@ -18,24 +18,24 @@ export default defineConfig({
     // Proxy para evitar erros de CORS em desenvolvimento local
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:3000',
+        target: 'https://livego.store',
         changeOrigin: true,
         secure: false,
         ws: true,
       },
       '/socket.io': {
-        target: 'http://127.0.0.1:3001',
+        target: 'https://livego.store',
         changeOrigin: true,
         secure: false,
         ws: true,
       },
       '/uploads': {
-        target: 'http://127.0.0.1:3000',
+        target: 'https://livego.store',
         changeOrigin: true,
         secure: false,
       },
       '/rtc': {
-        target: 'http://livego.store:1985',
+        target: `https://${process.env.VITE_SRS_HOST || '2.25.192.154'}`,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rtc/, '/rtc')

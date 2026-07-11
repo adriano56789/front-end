@@ -200,6 +200,7 @@ import PrivateInviteModal from './components/PrivateInviteModal';
 import VideoScreen from './components/VideoScreen';
 
 import FullScreenPhotoViewer from './components/FullScreenPhotoViewer';
+import FloatingPlayer from './components/FloatingPlayer';
 
 import LiveHistoryScreen from './components/LiveHistoryScreen';
 
@@ -549,6 +550,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [liveNotification, setLiveNotification] = useState<ExtendedLiveNotification | null>(null);
 
   const [privateInviteData, setPrivateInviteData] = useState<InviteData | null>(null);
+  const [isPiPMode, setIsPiPMode] = useState(false);
+  const [pipStreamer, setPipStreamer] = useState<Streamer | null>(null);
 
 
 
@@ -1007,6 +1010,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   // Refs para evitar loops no useEffect dos sockets
   const currentUserRef = useRef(currentUser);
   useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
+  const pipStreamerRef = useRef(pipStreamer);
+  useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
 
   const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
 
@@ -1122,21 +1127,38 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-  const handleLeaveStreamView = useCallback(() => {
-
+  const handleLeaveStreamView = useCallback((forceClose = false) => {
+    // Se PiP estiver ativado (e não for fechamento forçado), minimizar para janela flutuante
+    const isHost = activeStream?.hostId === currentUser?.id;
+    if (!forceClose && currentUser?.pipEnabled && activeStream && !isHost) {
+      setPipStreamer(activeStream);
+      setIsPiPMode(true);
+      setActiveStream(null);
+      setIsPKBattleActive(false);
+      setPkOpponent(null);
+      setLiveSession(null);
+      setStreamRoomData(null);
+      navigate('/');
+      return;
+    }
+    // Comportamento normal: fechar tudo (incluindo limpar estado PiP)
+    setPipStreamer(null);
+    setIsPiPMode(false);
     setActiveStream(null);
-
     setIsPKBattleActive(false);
-
     setPkOpponent(null);
-
     setLiveSession(null);
-
     setStreamRoomData(null);
-
     navigate('/');
+  }, [activeStream, navigate, currentUser]);
 
-  }, [activeStream, navigate]);
+  const handleRestoreFromPiP = useCallback(() => {
+    if (pipStreamer) {
+      handleSelectStream(pipStreamer);
+      setIsPiPMode(false);
+      setPipStreamer(null);
+    }
+  }, [pipStreamer, handleSelectStream]);
 
 
 
@@ -1209,7 +1231,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       if (activeStream?.id === payload.roomId) {
 
-        handleLeaveStreamView();
+        handleLeaveStreamView(true);
 
         addToast(ToastType.Error, "Você foi expulso desta sala e não pode mais entrar.");
 
@@ -1568,6 +1590,20 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         }
 
+
+
+        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
+
+        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
+
+          setPipStreamer(null);
+
+          setIsPiPMode(false);
+
+          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
+
+        }
+
       });
 
 
@@ -1597,6 +1633,20 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           addToast(ToastType.Info, data.message);
 
           navigate('/');
+
+        }
+
+
+
+        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
+
+        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
+
+          setPipStreamer(null);
+
+          setIsPiPMode(false);
+
+          addToast(ToastType.Info, data.message);
 
         }
 
@@ -1677,6 +1727,18 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         }
 
+
+
+        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
+
+        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
+
+          setPipStreamer(null);
+
+          setIsPiPMode(false);
+
+        }
+
       });
 
 
@@ -1712,6 +1774,18 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           addToast(ToastType.Info, 'Esta transmissão foi encerrada');
 
           navigate('/');
+
+        }
+
+
+
+        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
+
+        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
+
+          setPipStreamer(null);
+
+          setIsPiPMode(false);
 
         }
 
@@ -4039,6 +4113,18 @@ const logLiveEvent = (type: string, data: any) => {
       )}
 
 
+
+      {/* Floating Player - Picture-in-Picture */}
+      {isPiPMode && pipStreamer && (
+        <FloatingPlayer
+          streamer={pipStreamer}
+          onClose={() => {
+            setPipStreamer(null);
+            setIsPiPMode(false);
+          }}
+          onRestore={handleRestoreFromPiP}
+        />
+      )}
 
       <ReminderModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)} onSelectStream={handleSelectStream} streamers={reminderStreamers} onOpenLiveHistory={() => setIsLiveHistoryOpen(true)} />
 
