@@ -56,7 +56,14 @@ const LockIconCustom = ({ className = "w-5 h-5" }) => (
 const filterImages: Record<string, string> = {
   'Musa': 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&h=150&q=80',
   'Bonito': 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&h=150&q=80',
-  'Vitalidade': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&h=150&q=80'
+  'Vitalidade': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&h=150&q=80',
+  'Natural': 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&h=150&q=80',
+  'Doce': 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&w=150&h=150&q=80',
+  'Frio': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&h=150&q=80',
+  'Retrô': 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&h=150&q=80',
+  'Película': 'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?auto=format&fit=crop&w=150&h=150&q=80',
+  'Suave': 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=150&h=150&q=80',
+  'Noite': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80'
 };
 
 const renderEffectIcon = (effectName: string, isSelected: boolean) => {
@@ -283,7 +290,14 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             'Fechar': 'none',
             'Musa': 'brightness(1.1) saturate(1.15) contrast(1.05)',
             'Bonito': 'brightness(1.12) saturate(1.1) contrast(1.08)',
-            'Vitalidade': 'brightness(1.15) saturate(1.22) contrast(1.1)'
+            'Vitalidade': 'brightness(1.15) saturate(1.22) contrast(1.1)',
+            'Natural': 'brightness(1.05) saturate(1.05) contrast(1.02)',
+            'Doce': 'brightness(1.08) saturate(1.18) contrast(1.0) hue-rotate(10deg)',
+            'Frio': 'brightness(1.05) saturate(0.88) contrast(1.12) sepia(0.04) hue-rotate(15deg)',
+            'Retrô': 'brightness(1.0) saturate(0.75) contrast(1.15) sepia(0.25)',
+            'Película': 'brightness(1.08) saturate(1.05) contrast(1.25) sepia(0.12)',
+            'Suave': 'brightness(1.12) saturate(0.85) contrast(0.92) blur(0.3px)',
+            'Noite': 'brightness(1.2) saturate(1.1) contrast(1.15)'
         };
 
         const filterString = filterMap[filterName] || 'none';
@@ -353,7 +367,14 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             'Fechar': { whitening: 0, smoothing: 0, saturation: 0, contrast: 0 },
             'Musa': { whitening: 10, smoothing: 15, saturation: 20, contrast: 5 },
             'Bonito': { whitening: 15, smoothing: 20, saturation: 10, contrast: 10 },
-            'Vitalidade': { whitening: 20, smoothing: 10, saturation: 30, contrast: 15 }
+            'Vitalidade': { whitening: 20, smoothing: 10, saturation: 30, contrast: 15 },
+            'Natural': { whitening: 5, smoothing: 8, saturation: 5, contrast: 3 },
+            'Doce': { whitening: 12, smoothing: 25, saturation: 25, contrast: 2 },
+            'Frio': { whitening: 0, smoothing: 10, saturation: -10, contrast: 12 },
+            'Retrô': { whitening: 0, smoothing: 5, saturation: -15, contrast: 20 },
+            'Película': { whitening: 8, smoothing: 12, saturation: 8, contrast: 25 },
+            'Suave': { whitening: 15, smoothing: 30, saturation: -5, contrast: -5 },
+            'Noite': { whitening: 25, smoothing: 5, saturation: 15, contrast: 20 }
         };
         
         const selectedSettings = filterSettings[filterName] || filterSettings['Fechar'];
@@ -471,35 +492,37 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                 </div>
             </div>
 
-            {/* Filter Presets Row (Only visible when Recomendar is active) */}
+            {/* Filter Presets Row — scrollable horizontal carousel */}
             {activeTab === 'Recomendar' && (
-                <div className="flex justify-around items-center text-center mb-6 pt-1">
-                    {effectsData.filters.map(f => {
-                        const isSelected = selectedFilter === f.name;
-                        const isFechar = f.name === 'Fechar';
-                        return (
-                            <button 
-                                key={f.name} 
-                                onClick={() => handleFilterSelect(f.name)} 
-                                className="flex flex-col items-center space-y-2.5 focus:outline-none group"
-                            >
-                                {isFechar ? (
-                                    <div className={`w-14 h-14 rounded-full flex items-center justify-center bg-[#242428] border border-white/5 transition-all duration-300 ${isSelected ? 'ring-[3px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'hover:border-white/10'}`}>
-                                        <LockIconCustom className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-                                    </div>
-                                ) : (
-                                    <img 
-                                        src={filterImages[f.name] || f.img || `https://picsum.photos/seed/${f.name}/150/150`} 
-                                        alt={f.name} 
-                                        className={`w-14 h-14 rounded-full object-cover transition-all duration-300 ${isSelected ? 'ring-[3px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'opacity-85 group-hover:opacity-100'}`} 
-                                    />
-                                )}
-                                <span className={`text-[11px] transition-colors ${isSelected ? 'text-white font-extrabold' : 'text-[#a1a1aa] group-hover:text-white'}`} translate="no">
-                                    {f.name}
-                                </span>
-                            </button>
-                        );
-                    })}
+                <div className="overflow-x-auto no-scrollbar mb-5 pt-1 pb-2 -mx-1 px-1">
+                    <div className="flex gap-3 min-w-max px-0.5">
+                        {effectsData.filters.map(f => {
+                            const isSelected = selectedFilter === f.name;
+                            const isFechar = f.name === 'Fechar';
+                            return (
+                                <button 
+                                    key={f.name} 
+                                    onClick={() => handleFilterSelect(f.name)} 
+                                    className="flex flex-col items-center space-y-2 focus:outline-none group shrink-0"
+                                >
+                                    {isFechar ? (
+                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-[#242428] border border-white/5 transition-all duration-300 ${isSelected ? 'ring-[2.5px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'hover:border-white/10'}`}>
+                                            <LockIconCustom className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+                                        </div>
+                                    ) : (
+                                        <img 
+                                            src={filterImages[f.name] || f.img || `https://picsum.photos/seed/${f.name}/150/150`} 
+                                            alt={f.name} 
+                                            className={`w-12 h-12 rounded-full object-cover transition-all duration-300 ${isSelected ? 'ring-[2.5px] ring-[#a855f7] ring-offset-2 ring-offset-[#0c0c0f] scale-105 shadow-[0_0_15px_rgba(168,85,247,0.4)]' : 'opacity-80 group-hover:opacity-100'}`} 
+                                        />
+                                    )}
+                                    <span className={`text-[10px] transition-colors whitespace-nowrap ${isSelected ? 'text-white font-extrabold' : 'text-[#a1a1aa] group-hover:text-white'}`} translate="no">
+                                        {f.name}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
