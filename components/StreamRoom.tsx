@@ -29,6 +29,7 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useLiveKit } from '../hooks/useLiveKit';
+import { useNativePiP } from '../hooks/useNativePiP';
 
 interface ChatMessageType {
     id: number;
@@ -187,6 +188,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // State to track if video is actually playing to hide the cover image
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
+
+    // Native PiP (out-of-app) hook
+    const [nativePiPActive, setNativePiPActive] = useState(false);
+    const { setVideoRef, requestPiP, exitPiP, isPiPSupported } = useNativePiP({
+      onEnterNativePiP: () => {
+        setNativePiPActive(true);
+        addToast(ToastType.Info, 'Picture-in-Picture ativado. O vídeo continuará mesmo fora do app.');
+      },
+      onLeaveNativePiP: () => {
+        setNativePiPActive(false);
+      },
+      autoPiPOnBackground: true, // enableWhenBackground = true (ZEGO default)
+    });
 
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const nextGiftId = useRef(0);
@@ -1119,7 +1133,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 )}
 
                 {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
-                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} room={lkRoom} />
+                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} room={lkRoom} onVideoRef={setVideoRef} />
 
 
 
@@ -1211,7 +1225,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             ))}
                         </div>
 
-                        {/* Notification bell, Minimize button & Close button */}
+                        {/* Notification bell, PiP button, Minimize button & Close button */}
                         <div className="flex items-center gap-2">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setOnlineUsersOpen(true); }}
@@ -1220,6 +1234,27 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
                                 <span className="text-white font-bold select-none">{Math.max(1, onlineUsers.length)}</span>
                             </button>
+                            {/* PiP button (viewers only) - OUT-OF-APP native Picture-in-Picture, like ZEGO's pipButton */}
+                            {!isBroadcaster && isPiPSupported && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (nativePiPActive) {
+                                            exitPiP();
+                                        } else {
+                                            requestPiP();
+                                        }
+                                    }}
+                                    className={`focus:outline-none cursor-pointer transition-all hover:scale-110 active:scale-90 ${
+                                        nativePiPActive ? 'text-purple-400' : 'text-white/70 hover:text-white'
+                                    }`}
+                                    title={nativePiPActive ? 'Sair do Picture-in-Picture' : 'Picture-in-Picture (fora do app)'}
+                                >
+                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
+                                    </svg>
+                                </button>
+                            )}
                             {/* Minimize button (viewers only) - always PiP, like ZEGO's minimizingButton */}
                             {!isBroadcaster && (
                                 <button
@@ -1413,6 +1448,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     </div>
                 </footer>
             </div>
+
+            {/* Native PiP Active Indicator */}
+            {nativePiPActive && (
+                <div className="absolute top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
+                    <div className="bg-purple-600/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-purple-400/30 shadow-lg animate-in fade-in zoom-in-95">
+                        🎬 Picture-in-Picture ativo — vídeo continua fora do app
+                    </div>
+                </div>
+            )}
 
             {/* 5. Modals & Overlays */}
             {/* FIX: Corrected typo for state setter from 'setIsOnlineUsersOpen' to 'setOnlineUsersOpen'. */}

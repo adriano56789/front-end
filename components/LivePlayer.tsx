@@ -11,6 +11,7 @@ interface LivePlayerProps {
   onError?: () => void;
   muted?: boolean;
   room?: any; // kept for compatibility, though we don't need it for streaming now
+  onVideoRef?: (el: HTMLVideoElement | null) => void; // expose video element for native PiP
 }
 
 export default function LivePlayer({
@@ -19,8 +20,15 @@ export default function LivePlayer({
   onPlaying,
   onError,
   muted = false,
+  onVideoRef,
 }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Expose video element to parent
+  useEffect(() => {
+    onVideoRef?.(videoRef.current);
+    return () => onVideoRef?.(null);
+  }, [onVideoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
