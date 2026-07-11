@@ -993,13 +993,6 @@ export const api = {
 
     // --- Live Stream & Online Users ---
 
-    // Iniciar live - Backend controla status e gera streamKey
-    startLive: async (title: string, description?: string, category?: string) => {
-        return callApi<any>('POST', '/api/live/start', { title, description, category });
-    },
-
-    // REMOVIDO: oryxStartLive - Oryx não é mais utilizado
-
     // Encerrar live - Backend controla status
     endLive: () => callApi<{ success: boolean }>('POST', '/api/live/end'),
 
@@ -1351,8 +1344,6 @@ export const api = {
 
 
     // --- Live Notifications ---
-
-    startLiveStream: (streamId: string) => callApi<{ success: boolean }>('POST', '/api/lives/start', { streamId }),
 
     getNotifications: () => callApi<LiveNotification[]>('GET', '/api/notifications'),
 

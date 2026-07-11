@@ -37,7 +37,6 @@ const DEFAULT_CONFIG: Required<Pick<PublishEngineConfig, 'videoCodec' | 'maxVide
 
 const PC_CONFIG: any = {
   iceServers: [],
-  sdpSemantics: 'unified-plan',
   bundlePolicy: 'max-bundle',
 };
 
@@ -150,9 +149,8 @@ export class PublishEngine {
     const pc = new RTCPeerConnection({
       iceServers,
       iceTransportPolicy: 'all' as RTCIceTransportPolicy,
-      sdpSemantics: 'unified-plan',
       bundlePolicy: 'max-bundle',
-    });
+    } as RTCConfiguration);
     this._pc = pc;
 
     pc.addEventListener('iceconnectionstatechange', () => {

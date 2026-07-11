@@ -19,9 +19,8 @@ export class WhepClient {
     const pc = new RTCPeerConnection({
       iceServers,
       iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
-      sdpSemantics: 'unified-plan',
       bundlePolicy: 'max-bundle',
-    });
+    } as RTCConfiguration);
     const stream = new MediaStream();
 
     pc.addTransceiver('video', { direction: 'recvonly' });
