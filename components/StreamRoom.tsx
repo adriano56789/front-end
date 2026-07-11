@@ -1223,7 +1223,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                             {/* Minimize button (viewers only) - always PiP, like ZEGO's minimizingButton */}
                             {!isBroadcaster && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); onMinimizeStreamView(); }}
+                                    onClick={(e) => { e.stopPropagation(); onMinimizeStreamView?.(); }}
                                     className="focus:outline-none cursor-pointer text-white/70 hover:text-white transition-all hover:scale-110 active:scale-90"
                                     title="Minimizar para janela flutuante"
                                 >
