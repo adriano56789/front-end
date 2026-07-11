@@ -139,6 +139,7 @@ export default function PKBattleScreen({
 
     // Real-time LiveKit SFU hook for PK Battle
     const {
+        room: lkRoom,
         connect: connectLiveKit,
         disconnect: disconnectLiveKit,
         connectionState: lkState,
@@ -597,8 +598,38 @@ export default function PKBattleScreen({
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
         if (chatInput.trim() === '' || !currentUser) return;
-        // Simplificado - sem WebSocket para navegação isolada
-        // webSocketManager.sendStreamMessage(streamer.id, chatInput.trim());
+        
+        // Construir payload da mensagem
+        const messagePayload: ChatMessageType = {
+            id: Date.now() + Math.random(),
+            type: 'chat',
+            user: currentUser.name,
+            level: currentUser.level,
+            message: chatInput.trim(),
+            avatar: currentUser.avatarUrl || '',
+            gender: currentUser.gender,
+            age: currentUser.age,
+            activeFrameId: currentUser.activeFrameId,
+            frameExpiration: currentUser.frameExpiration,
+            fullUser: currentUser,
+        };
+        
+        const safePayload = {
+            ...messagePayload,
+            avatar: messagePayload.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=random`,
+        };
+        
+        // Otimista: adicionar mensagem localmente
+        setMessages(prev => [...prev, safePayload]);
+        
+        // Enviar via LiveKit data channel
+        if (lkRoom && lkRoom.state === 'connected') {
+            lkRoom.sendChatMessage(safePayload);
+        }
+        
+        // Fallback via Socket.IO (garante entrega mesmo se LiveKit falhar)
+        socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, safePayload.avatar, chatInput.trim());
+        
         setChatInput('');
     };
 
