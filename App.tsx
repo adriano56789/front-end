@@ -2223,6 +2223,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     setSelectedCountry(countryCode);
 
+    // Salvar país no backend imediatamente
+    if (currentUser && countryCode !== 'ICON_GLOBE') {
+      try {
+        await api.updateProfile(currentUser.id, { country: countryCode.toLowerCase() });
+        updateUserEverywhere({ ...currentUser, country: countryCode.toLowerCase() });
+      } catch (err) {
+        console.error('[REGION] Failed to save country to backend:', err);
+      }
+    }
+
     setIsRegionModalOpen(false);
 
 
