@@ -50,11 +50,36 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     try {
       const res = await api.getLiveBattleUsers(streamId);
       console.log(`[CoHostModal] LiveUsers atualizados: ${res?.users?.length || 0}`);
-      setLiveUsers(res?.users || []);
+      
+      let users = res?.users || [];
+      
+      // Se API retornou zero, buscar fallback da lista de streamers ativos
+      if (users.length === 0) {
+        try {
+          const streams = await api.getLiveStreamers('popular');
+          const activeStreamers = (Array.isArray(streams) ? streams : [])
+            .filter(s => s.isLive && s.hostId !== currentUser?.id)
+            .map(s => ({
+              userId: s.hostId,
+              username: s.name,
+              name: s.name,
+              avatarUrl: s.avatar || '',
+              status: s.streamStatus || 'broadcasting'
+            }));
+          if (activeStreamers.length > 0) {
+            console.log(`[CoHostModal] Fallback: ${activeStreamers.length} streamers ativos encontrados na lista`);
+            users = activeStreamers;
+          }
+        } catch (fallbackErr) {
+          console.warn('[CoHostModal] Fallback fetchStreamers falhou:', fallbackErr);
+        }
+      }
+      
+      setLiveUsers(users);
     } catch (err) {
       console.error('[CoHostModal] Erro ao atualizar live users:', err);
     }
-  }, [streamId]);
+  }, [streamId, currentUser?.id]);
 
   useEffect(() => {
     if (isOpen && currentUser) {

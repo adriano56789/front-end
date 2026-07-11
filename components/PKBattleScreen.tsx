@@ -146,6 +146,7 @@ export default function PKBattleScreen({
         remoteParticipants: lkRemotes
     } = useLiveKit();
 
+    const [isOpponentConnected, setIsOpponentConnected] = useState(false);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const selfPreviewRef = useRef<HTMLVideoElement>(null);
 
@@ -217,18 +218,30 @@ export default function PKBattleScreen({
         const video = remoteVideoRef.current;
         if (!video) return;
 
-        // Find opponent from remotes
-        const oppParticipant = lkRemotes.find(p => p.identity === opponent.id);
+        // Find opponent from remotes — identity pode ser 'streamer_{id}' ou apenas '{id}'
+        const opponentIdentity = opponent.id;
+        const opponentStreamerIdentity = `streamer_${opponent.id}`;
+        
+        const oppParticipant = lkRemotes.find(p => 
+            p.identity === opponentIdentity || 
+            p.identity === opponentStreamerIdentity ||
+            p.identity === `viewer_${opponent.id}`
+        );
+        
         if (oppParticipant && oppParticipant.tracks) {
-            const videoPub = Array.from(oppParticipant.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
+            const videoPub = Array.from(oppParticipant.tracks.values()).find((pub: any) => 
+                pub.source === 'camera' || pub.trackName === 'camera'
+            ) as any;
             if (videoPub && videoPub.track) {
                 video.srcObject = new MediaStream([videoPub.track]);
                 video.style.transform = 'scaleX(1)';
+                setIsOpponentConnected(true);
                 return;
             }
         }
 
         video.srcObject = null;
+        setIsOpponentConnected(false);
     }, [lkRemotes, opponent.id]);
     
     // Build SRS stream URL for the LivePlayer (left column — public stream via SRS)
@@ -660,13 +673,21 @@ export default function PKBattleScreen({
                             ref={remoteVideoRef}
                             autoPlay
                             playsInline
-                            className="absolute inset-0 w-full h-full object-cover z-0"
+                            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-500 ${isOpponentConnected ? 'opacity-100' : 'opacity-0'}`}
                         />
                         <img 
                             src={opponent.coverUrl} 
                             alt={opponent.name} 
                             className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-20 z-10" 
                         />
+                        {/* Placeholder enquanto oponente não conecta */}
+                        {!isOpponentConnected && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-zinc-950/90">
+                                <div className="w-12 h-12 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mb-3" />
+                                <p className="text-zinc-400 text-xs font-medium tracking-wide">Aguardando oponente...</p>
+                                <p className="text-zinc-600 text-[10px] mt-1">{opponent.name} está sendo convidado</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 

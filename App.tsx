@@ -791,20 +791,20 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     if (!match || activeStream) return;
     const streamId = decodeURIComponent(match[1]);
     const found = streamers.find(s => s.id === streamId);
-    if (found) {
-      handleSelectStream(found);
+    if (found && handleSelectStreamRef.current) {
+      handleSelectStreamRef.current(found);
       return;
     }
     // If not in local list, fetch from API
     (async () => {
       try {
         const data = await api.getLiveDetails(streamId);
-        if (data) handleSelectStream(data);
+        if (data && handleSelectStreamRef.current) handleSelectStreamRef.current(data);
       } catch {
         // Stream not found, stay on page
       }
     })();
-  }, [location.pathname, isAuthenticated]);
+  }, [location.pathname, isAuthenticated, activeStream]);
 
 
 

@@ -330,14 +330,17 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         if (!streamer.id) return;
 
         const handleNewChatMessage = (message: any) => {
-            if (!message || !message.text) return;
+            if (!message) return;
+            
+            const text = message.text || message.message || '';
+            if (!text) return;
             
             // Extrair dados do formato Socket.IO
             const chatMsg: ChatMessageType = {
                 id: message.id || Date.now() + Math.random(),
                 type: 'chat',
                 user: message.userName || message.user || 'Usuário',
-                message: message.text || message.message,
+                message: text,
                 avatar: message.avatarUrl || message.avatar || '',
                 level: message.level || 1,
             };
@@ -352,6 +355,25 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         // Escutar evento 'new_chat_message' do Socket.IO
         socketService.onNewChatMessage(handleNewChatMessage);
 
+        // Escutar 'receive_message' (evento disparado pelo handler Protobuf em socket.ts)
+        // Isso garante que mensagens via Protobuf binário também cheguem
+        const handleReceiveMessage = (msgPayload: any) => {
+            const text = msgPayload.message || msgPayload.text || '';
+            if (!text) return;
+            setMessages(prev => {
+                if (prev.some(m => m.id === msgPayload.id)) return prev;
+                return [...prev, {
+                    id: msgPayload.id || Date.now() + Math.random(),
+                    type: 'chat',
+                    user: msgPayload.user || 'Usuário',
+                    message: text,
+                    avatar: msgPayload.avatar || '',
+                    level: msgPayload.level || 1,
+                }];
+            });
+        };
+        socketService.on('receive_message', handleReceiveMessage);
+
         // Também escutar evento global window (caso socket.ts dispare via CustomEvent)
         const handleWindowChat = (e: Event) => {
             const detail = (e as CustomEvent).detail;
@@ -363,6 +385,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
         return () => {
             socketService.off('new_chat_message', handleNewChatMessage);
+            socketService.off('receive_message', handleReceiveMessage);
             window.removeEventListener('livego:chat_message', handleWindowChat);
         };
     }, [streamer.id]);
