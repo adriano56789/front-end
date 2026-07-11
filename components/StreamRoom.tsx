@@ -172,6 +172,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
     const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
@@ -829,6 +830,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, []); // Sem dependências para evitar re-execução
 
+    // Keyboard offset for mobile chat (prevents video from scrolling with keyboard)
+    useEffect(() => {
+        const vv = window.visualViewport;
+        if (!vv) return;
+        const handler = () => {
+            const diff = window.innerHeight - vv.height;
+            setKeyboardOffset(diff > 0 ? diff : 0);
+        };
+        vv.addEventListener('resize', handler);
+        handler();
+        return () => vv.removeEventListener('resize', handler);
+    }, []);
+
     // activeScreen é controlado pela prop setActiveScreen do componente pai
 
 
@@ -1379,7 +1393,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`absolute bottom-0 left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`absolute left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardOffset + 'px' }}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
