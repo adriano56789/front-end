@@ -1012,6 +1012,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   useEffect(() => { currentUserRef.current = currentUser; }, [currentUser]);
   const pipStreamerRef = useRef(pipStreamer);
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
+  const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
 
   const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
 
@@ -1153,12 +1154,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   }, [activeStream, navigate, currentUser]);
 
   const handleRestoreFromPiP = useCallback(() => {
-    if (pipStreamer) {
-      handleSelectStream(pipStreamer);
+    if (pipStreamer && handleSelectStreamRef.current) {
+      handleSelectStreamRef.current(pipStreamer);
       setIsPiPMode(false);
       setPipStreamer(null);
     }
-  }, [pipStreamer, handleSelectStream]);
+  }, [pipStreamer]);
 
 
 
@@ -2797,6 +2798,7 @@ const logLiveEvent = (type: string, data: any) => {
     }
 
   };
+  handleSelectStreamRef.current = handleSelectStream;
 
 
 
