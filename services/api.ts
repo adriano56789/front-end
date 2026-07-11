@@ -189,7 +189,8 @@ const callApiWithOptions = async <T = any>(
         };
 
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-            fetchOptions.body = JSON.stringify(data);
+            const ct = headers['Content-Type'] || '';
+            fetchOptions.body = ct.includes('application/sdp') || ct.includes('text/') ? data : JSON.stringify(data);
         }
 
         const response = await fetch(fullUrl, fetchOptions);
