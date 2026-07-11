@@ -24,6 +24,7 @@ import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import GiftQueueManager from './live/GiftQueueManager';
+import LivePlayer from './LivePlayer';
 
 interface ChatMessageType {
     id: number;
@@ -145,10 +146,10 @@ export default function PKBattleScreen({
         remoteParticipants: lkRemotes
     } = useLiveKit();
 
-    const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
+    const selfPreviewRef = useRef<HTMLVideoElement>(null);
 
-    // Fetch Token and Connect to LiveKit SFU Room
+    // Fetch Token and Connect to LiveKit SFU Room for PK interactive tracks
     useEffect(() => {
         let active = true;
         const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
@@ -173,16 +174,17 @@ export default function PKBattleScreen({
         };
     }, [streamer.id, currentUser.id, opponent]);
 
-    // Handle Local Camera Stream binding (Left Column)
+    // Handle Local Camera Stream for self-preview overlay (LiveKit tracks)
+    // NOTE: The main left column uses LivePlayer (SRS) for the public stream.
+    // This self-preview is just a small PIP overlay for the broadcaster.
     useEffect(() => {
-        const video = localVideoRef.current;
+        const video = selfPreviewRef.current;
         if (!video) return;
 
         let localTrack: MediaStreamTrack | null = null;
         const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
         
         if (lkLocal) {
-            // Retrieve local video track from LiveKit state
             const videoPub = Array.from(lkLocal.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
             if (videoPub && videoPub.track) {
                 localTrack = videoPub.track;
@@ -193,7 +195,7 @@ export default function PKBattleScreen({
 
         // Fallback to standard preview stream if LiveKit is not active yet
         if (!localTrack && isBroadcasterUser) {
-            navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 } }, audio: false })
+            navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 } }, audio: false })
                 .then(stream => {
                     if (video) {
                         video.srcObject = stream;
@@ -201,7 +203,7 @@ export default function PKBattleScreen({
                     }
                 })
                 .catch(err => {
-                    console.warn('[PKBattle] Fallback preview stream failed:', err);
+                    console.warn('[PKBattle] Self-preview fallback stream failed:', err);
                 });
         }
 
@@ -210,14 +212,14 @@ export default function PKBattleScreen({
         };
     }, [lkLocal, streamer?.hostId, currentUser?.id]);
 
-    // Handle Remote Opponent Video Track binding (Right Column)
+    // Handle Remote Opponent Video Track binding (Right Column) via LiveKit
     useEffect(() => {
         const video = remoteVideoRef.current;
         if (!video) return;
 
         // Find opponent from remotes
         const oppParticipant = lkRemotes.find(p => p.identity === opponent.id);
-        if (oppParticipant) {
+        if (oppParticipant && oppParticipant.tracks) {
             const videoPub = Array.from(oppParticipant.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
             if (videoPub && videoPub.track) {
                 video.srcObject = new MediaStream([videoPub.track]);
@@ -226,9 +228,19 @@ export default function PKBattleScreen({
             }
         }
 
-        // Clean if not found
         video.srcObject = null;
     }, [lkRemotes, opponent.id]);
+    
+    // Build SRS stream URL for the LivePlayer (left column — public stream via SRS)
+    const getStreamUrl = () => {
+        if (streamer.hlsUrl) return streamer.hlsUrl;
+        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (
+            typeof window !== 'undefined' && window.location && !window.location.hostname.includes('livego.store')
+            ? `${window.location.origin}/api/video/http`
+            : 'https://api.livego.store/api/video/http'
+        );
+        return `${httpBase}/live/${streamer.id}.m3u8`;
+    };
         
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
 
@@ -610,20 +622,37 @@ export default function PKBattleScreen({
             <div className="relative w-full h-[52vh] min-h-[380px] flex-shrink-0 bg-zinc-950 overflow-hidden" onClick={handleHeartClick}>
                 {/* Background Stream Columns */}
                 <div className="absolute inset-0 grid grid-cols-2 bg-black">
-                    {/* Host Camera Stream (Left Column) */}
+                    {/* Host Camera Stream (Left Column) — via SRS (public broadcast) */}
                     <div className="relative w-full h-full bg-zinc-900 overflow-hidden">
-                        <video
-                            ref={localVideoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="absolute inset-0 w-full h-full object-cover z-0"
+                        {/* SRS LivePlayer: public stream for ALL viewers */}
+                        <LivePlayer
+                            url={getStreamUrl()}
+                            streamId={streamer.streamKey || streamer.id}
+                            isBroadcaster={isBroadcaster}
+                            userId={currentUser.id}
+                            muted={!isBroadcaster && isLocalMuted}
                         />
+                        {/* Fallback cover image overlay while player connects */}
                         <img 
                             src={streamerUser.coverUrl} 
                             alt={streamerUser.name} 
-                            className="absolute inset-0 w-full h-full object-cover grayscale-[0.02] mix-blend-lighten pointer-events-none opacity-20 z-10" 
+                            className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-15 z-10" 
                         />
+                        {/* Self-preview overlay (LiveKit local camera) for the host only */}
+                        {isBroadcaster && (
+                            <div className="absolute bottom-2 left-2 w-[80px] h-[140px] rounded-lg overflow-hidden border-2 border-white/20 shadow-lg z-20 bg-black">
+                                <video
+                                    ref={selfPreviewRef}
+                                    autoPlay
+                                    playsInline
+                                    muted
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent py-1 px-1.5">
+                                    <span className="text-white text-[7px] font-bold">Seu vídeo</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     {/* Opponent Camera Stream (Right Column) */}
                     <div className="relative w-full h-full bg-zinc-950 overflow-hidden">
