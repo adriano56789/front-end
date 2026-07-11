@@ -2739,6 +2739,12 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
+    // Bloquear entrada em outra stream enquanto PiP estiver ativo
+    if (isPiPMode && pipStreamer) {
+      addToast(ToastType.Info, 'Feche a janela flutuante antes de entrar em outra transmissão.');
+      return;
+    }
+
     
 
     // Validate that streamer.id is a string
