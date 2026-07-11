@@ -40,7 +40,7 @@ export class WebGLBeautyFilters {
   }
 
   /**
-   * Shader de suavização de pele (skin smoothing)
+   * Shader de suavização de pele (skin smoothing) com detecção facial seletiva
    */
   private getSkinSmoothingShader(): ShaderConfig {
     return {
@@ -62,8 +62,95 @@ export class WebGLBeautyFilters {
         uniform vec2 u_resolution;
         uniform float u_smoothing;
         uniform float u_strength;
+        uniform float u_preserveEyes;
+        uniform float u_preserveLips;
         
         varying vec2 v_texCoord;
+        
+        // --- Funções auxiliares ---
+        vec3 rgb2hsv(vec3 c) {
+          vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+          vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+          vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+          float d = q.x - min(q.w, q.y);
+          float e = 1.0e-10;
+          return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+        }
+        
+        float luminance(vec3 rgb) {
+          return dot(rgb, vec3(0.299, 0.587, 0.114));
+        }
+        
+        float skinProbability(vec3 rgb, vec3 hsv) {
+          bool range1 = hsv.x >= 0.0 && hsv.x <= 0.12 && hsv.y >= 0.04 && hsv.y <= 0.72 && hsv.z >= 0.15 && hsv.z <= 0.96;
+          bool range2 = hsv.x >= 0.0 && hsv.x <= 0.16 && hsv.y >= 0.02 && hsv.y <= 0.55 && hsv.z >= 0.06 && hsv.z <= 0.82;
+          bool range3 = hsv.x >= 0.0 && hsv.x <= 0.10 && hsv.y >= 0.01 && hsv.y <= 0.25 && hsv.z >= 0.35 && hsv.z <= 0.99;
+          bool range4 = hsv.x >= 0.93 && hsv.x <= 1.0 && hsv.y >= 0.04 && hsv.y <= 0.55 && hsv.z >= 0.15 && hsv.z <= 0.85;
+          bool range5 = hsv.x >= 0.08 && hsv.x <= 0.18 && hsv.y >= 0.03 && hsv.y <= 0.50 && hsv.z >= 0.12 && hsv.z <= 0.90;
+          float prob = 0.0;
+          if (range1) prob = 1.0;
+          else if (range5) prob = 0.92;
+          else if (range2) prob = 0.85;
+          else if (range3) prob = 0.78;
+          else if (range4) prob = 0.70;
+          if (rgb.r > rgb.b * 1.08 && rgb.r > rgb.g * 0.82) prob = mix(prob, 1.0, 0.25);
+          else prob = prob * 0.5;
+          return clamp(prob, 0.0, 1.0);
+        }
+        
+        float isEyeOrBrow(vec3 hsv) {
+          if (u_preserveEyes < 0.5) return 0.0;
+          if (hsv.z < 0.14 && hsv.y < 0.25) return 1.0;
+          if (hsv.z < 0.08 && hsv.y < 0.15) return 1.0;
+          return 0.0;
+        }
+        
+        float isLip(vec3 hsv) {
+          if (u_preserveLips < 0.5) return 0.0;
+          bool reddish = (hsv.x >= 0.90 || hsv.x <= 0.06);
+          if (reddish && hsv.y >= 0.30 && hsv.y <= 0.85 && hsv.z >= 0.20 && hsv.z <= 0.80) return 1.0;
+          if (reddish && hsv.y >= 0.15 && hsv.y <= 0.85 && hsv.z >= 0.35 && hsv.z <= 0.80) return 0.6;
+          return 0.0;
+        }
+        
+        float edgeDetection(vec2 uv, vec2 texelSize) {
+          float lum[9];
+          int idx = 0;
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              vec2 offset = vec2(float(x), float(y)) * texelSize;
+              lum[idx++] = luminance(texture2D(u_texture, uv + offset).rgb);
+            }
+          }
+          float gx = lum[6] + 2.0 * lum[7] + lum[8] - (lum[0] + 2.0 * lum[1] + lum[2]);
+          float gy = lum[2] + 2.0 * lum[5] + lum[8] - (lum[0] + 2.0 * lum[3] + lum[6]);
+          return clamp(length(vec2(gx, gy)) * 1.5, 0.0, 1.0);
+        }
+        
+        vec3 bilateralBlur(vec2 uv, vec2 texelSize, float radius, vec3 center) {
+          vec3 result = vec3(0.0);
+          float totalWeight = 0.0;
+          float sigmaSpatial = max(radius * 0.5, 1.0);
+          float sigmaColor = 0.08;
+          float maxDist2 = radius * radius * 4.0;
+          for (int x = -3; x <= 3; x++) {
+            for (int y = -3; y <= 3; y++) {
+              float dx = float(x);
+              float dy = float(y);
+              float dist2 = dx * dx + dy * dy;
+              if (dist2 > maxDist2) continue;
+              vec2 offset = vec2(dx, dy) * texelSize;
+              vec3 sample = texture2D(u_texture, uv + offset).rgb;
+              float spatialW = exp(-dist2 / (2.0 * sigmaSpatial * sigmaSpatial));
+              float colorD = length(sample - center);
+              float colorW = exp(-(colorD * colorD) / (2.0 * sigmaColor * sigmaColor));
+              float w = spatialW * colorW;
+              result += sample * w;
+              totalWeight += w;
+            }
+          }
+          return result / max(totalWeight, 0.001);
+        }
         
         void main() {
           vec2 uv = v_texCoord;
@@ -72,50 +159,29 @@ export class WebGLBeautyFilters {
           vec4 color = texture2D(u_texture, uv);
           
           if (u_smoothing > 0.0) {
-            vec2 texelSize = 1.0 / u_resolution;
-            float radius = u_smoothing * 3.0;
-            vec3 blurred = vec3(0.0);
-            float totalWeight = 0.0;
-            
-            // Kernel gaussiano para blur mais natural
-            for (float x = -radius; x <= radius; x += 1.0) {
-              for (float y = -radius; y <= radius; y += 1.0) {
-                vec2 offset = vec2(x, y) * texelSize;
-                float dist = length(vec2(x, y));
-                float weight = exp(-(dist * dist) / (2.0 * u_smoothing * u_smoothing));
-                
-                vec3 sample = texture2D(u_texture, uv + offset).rgb;
-                blurred += sample * weight;
-                totalWeight += weight;
-              }
-            }
-            
-            blurred /= totalWeight;
-            
-            // Detecção de pele simplificada
             vec3 hsv = rgb2hsv(color.rgb);
-            bool isSkin = hsv.x > 0.0 && hsv.x < 0.15 && hsv.y > 0.1 && hsv.y < 0.7 && hsv.z > 0.2;
+            vec2 texelSize = 1.0 / u_resolution;
             
-            if (isSkin) {
-              color.rgb = mix(color.rgb, blurred, u_strength);
+            // Mapa de detecção facial seletiva
+            float skinProb = skinProbability(color.rgb, hsv);
+            float eyeScore = isEyeOrBrow(hsv);
+            float lipScore = isLip(hsv);
+            float edgeScore = edgeDetection(uv, texelSize);
+            float preserveMask = max(max(eyeScore, lipScore), edgeScore * 0.7);
+            float skinMask = skinProb * (1.0 - preserveMask);
+            
+            if (skinMask > 0.01) {
+              float radius = u_smoothing * 2.5;
+              vec3 blurred = bilateralBlur(uv, texelSize, radius, color.rgb);
+              float blend = skinMask * u_strength * 0.85;
+              color.rgb = mix(color.rgb, blurred, blend);
             }
           }
           
           gl_FragColor = color;
         }
-        
-        // Funções auxiliares
-        vec3 rgb2hsv(vec3 c) {
-          vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-          vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-          vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-          
-          float d = q.x - min(q.w, q.y);
-          float e = 1.0e-10;
-          return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-        }
       `,
-      uniforms: ['u_texture', 'u_resolution', 'u_smoothing', 'u_strength']
+      uniforms: ['u_texture', 'u_resolution', 'u_smoothing', 'u_strength', 'u_preserveEyes', 'u_preserveLips']
     };
   }
 
@@ -179,7 +245,7 @@ export class WebGLBeautyFilters {
   }
 
   /**
-   * Shader de detecção facial (face detection)
+   * Shader de detecção facial (face detection) — output aprimorado com máscaras
    */
   private getFaceDetectionShader(): ShaderConfig {
     return {
@@ -203,41 +269,83 @@ export class WebGLBeautyFilters {
         
         varying vec2 v_texCoord;
         
+        // --- Funções auxiliares ---
+        vec3 rgb2hsv(vec3 c) {
+          vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+          vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+          vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+          float d = q.x - min(q.w, q.y);
+          float e = 1.0e-10;
+          return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+        }
+        
+        float luminance(vec3 rgb) {
+          return dot(rgb, vec3(0.299, 0.587, 0.114));
+        }
+        
+        float skinProbability(vec3 rgb, vec3 hsv) {
+          bool range1 = hsv.x >= 0.0 && hsv.x <= 0.12 && hsv.y >= 0.04 && hsv.y <= 0.72 && hsv.z >= 0.15 && hsv.z <= 0.96;
+          bool range2 = hsv.x >= 0.0 && hsv.x <= 0.16 && hsv.y >= 0.02 && hsv.y <= 0.55 && hsv.z >= 0.06 && hsv.z <= 0.82;
+          bool range3 = hsv.x >= 0.0 && hsv.x <= 0.10 && hsv.y >= 0.01 && hsv.y <= 0.25 && hsv.z >= 0.35 && hsv.z <= 0.99;
+          bool range4 = hsv.x >= 0.93 && hsv.x <= 1.0 && hsv.y >= 0.04 && hsv.y <= 0.55 && hsv.z >= 0.15 && hsv.z <= 0.85;
+          bool range5 = hsv.x >= 0.08 && hsv.x <= 0.18 && hsv.y >= 0.03 && hsv.y <= 0.50 && hsv.z >= 0.12 && hsv.z <= 0.90;
+          float prob = 0.0;
+          if (range1) prob = 1.0;
+          else if (range5) prob = 0.92;
+          else if (range2) prob = 0.85;
+          else if (range3) prob = 0.78;
+          else if (range4) prob = 0.70;
+          if (rgb.r > rgb.b * 1.08 && rgb.r > rgb.g * 0.82) prob = mix(prob, 1.0, 0.25);
+          else prob = prob * 0.5;
+          return clamp(prob, 0.0, 1.0);
+        }
+        
+        float edgeDetection(vec2 uv, vec2 texelSize) {
+          float lum[9];
+          int idx = 0;
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              vec2 offset = vec2(float(x), float(y)) * texelSize;
+              lum[idx++] = luminance(texture2D(u_texture, uv + offset).rgb);
+            }
+          }
+          float gx = lum[6] + 2.0 * lum[7] + lum[8] - (lum[0] + 2.0 * lum[1] + lum[2]);
+          float gy = lum[2] + 2.0 * lum[5] + lum[8] - (lum[0] + 2.0 * lum[3] + lum[6]);
+          return clamp(length(vec2(gx, gy)) * 1.5, 0.0, 1.0);
+        }
+        
         void main() {
           vec2 uv = v_texCoord;
           uv.y = 1.0 - uv.y;
           
           vec4 color = texture2D(u_texture, uv);
+          vec3 hsv = rgb2hsv(color.rgb);
+          vec2 texelSize = 1.0 / u_resolution;
           
-          // Detecção de tons de pele (simplificada)
-          vec3 rgb = color.rgb;
-          float maxVal = max(max(rgb.r, rgb.g), rgb.b);
-          float minVal = min(min(rgb.r, rgb.g), rgb.b);
-          float delta = maxVal - minVal;
+          // Mapa completo de detecção
+          float skinProb = skinProbability(color.rgb, hsv);
+          float edgeScore = edgeDetection(uv, texelSize);
           
-          bool isSkin = false;
+          // Olhos/sobrancelhas (escuro, dessaturado)
+          float eyeScore = (hsv.z < 0.14 && hsv.y < 0.25) ? 1.0 : 0.0;
+          // Lábios
+          float lipScore = 0.0;
+          bool reddish = (hsv.x >= 0.90 || hsv.x <= 0.06);
+          if (reddish && hsv.y >= 0.30 && hsv.y <= 0.85 && hsv.z >= 0.20 && hsv.z <= 0.80) lipScore = 1.0;
+          // Cabelo
+          float hairScore = (hsv.z < 0.06 && hsv.y < 0.12) ? 1.0 : 0.0;
           
-          if (delta > 0.001) {
-            float h = 0.0;
-            if (maxVal == rgb.r) {
-              h = 60.0 * ((rgb.g - rgb.b) / delta + (rgb.g < rgb.b ? 6.0 : 0.0));
-            } else if (maxVal == rgb.g) {
-              h = 60.0 * ((rgb.b - rgb.r) / delta + 2.0);
-            } else {
-              h = 60.0 * ((rgb.r - rgb.g) / delta + 4.0);
-            }
-            
-            float s = delta / maxVal;
-            float v = maxVal;
-            
-            // Faixa de tons de pele (HSV)
-            isSkin = (h >= 0.0 && h <= 25.0) || (h >= 335.0 && h <= 360.0);
-            isSkin = isSkin && s >= 0.1 && s <= 0.7;
-            isSkin = isSkin && v >= 0.2 && v <= 0.95;
-          }
+          // Máscara combinada
+          float preserveMask = max(max(eyeScore, lipScore), hairScore);
+          preserveMask = max(preserveMask, edgeScore * 0.7);
+          float skinMask = skinProb * (1.0 - preserveMask);
           
-          // Output: skin mask
-          gl_FragColor = vec4(isSkin ? 1.0 : 0.0, 0.0, 0.0, 1.0);
+          // Output RGBA:
+          // R: skinMask (probabilidade de pele sem features)
+          // G: featureMask (olhos + lábios + cabelo + bordas)
+          // B: edgeScore (bordas detectadas)
+          // A: 1.0
+          gl_FragColor = vec4(skinMask, preserveMask, edgeScore, 1.0);
         }
       `,
       uniforms: ['u_texture', 'u_resolution', 'u_threshold']
@@ -270,95 +378,135 @@ export class WebGLBeautyFilters {
         
         varying vec2 v_texCoord;
         
+        // --- Funções auxiliares ---
+        vec3 rgb2hsv(vec3 c) {
+          vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+          vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+          vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+          float d = q.x - min(q.w, q.y);
+          float e = 1.0e-10;
+          return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+        }
+        
+        float luminance(vec3 rgb) {
+          return dot(rgb, vec3(0.299, 0.587, 0.114));
+        }
+        
+        float skinProbability(vec3 rgb, vec3 hsv) {
+          bool range1 = hsv.x >= 0.0 && hsv.x <= 0.12 && hsv.y >= 0.04 && hsv.y <= 0.72 && hsv.z >= 0.15 && hsv.z <= 0.96;
+          bool range2 = hsv.x >= 0.0 && hsv.x <= 0.16 && hsv.y >= 0.02 && hsv.y <= 0.55 && hsv.z >= 0.06 && hsv.z <= 0.82;
+          bool range3 = hsv.x >= 0.0 && hsv.x <= 0.10 && hsv.y >= 0.01 && hsv.y <= 0.25 && hsv.z >= 0.35 && hsv.z <= 0.99;
+          bool range4 = hsv.x >= 0.93 && hsv.x <= 1.0 && hsv.y >= 0.04 && hsv.y <= 0.55 && hsv.z >= 0.15 && hsv.z <= 0.85;
+          bool range5 = hsv.x >= 0.08 && hsv.x <= 0.18 && hsv.y >= 0.03 && hsv.y <= 0.50 && hsv.z >= 0.12 && hsv.z <= 0.90;
+          float prob = 0.0;
+          if (range1) prob = 1.0;
+          else if (range5) prob = 0.92;
+          else if (range2) prob = 0.85;
+          else if (range3) prob = 0.78;
+          else if (range4) prob = 0.70;
+          if (rgb.r > rgb.b * 1.08 && rgb.r > rgb.g * 0.82) prob = mix(prob, 1.0, 0.25);
+          else prob = prob * 0.5;
+          return clamp(prob, 0.0, 1.0);
+        }
+        
+        float isEyeOrBrow(vec3 hsv) {
+          if (hsv.z < 0.14 && hsv.y < 0.25) return 1.0;
+          if (hsv.z < 0.08 && hsv.y < 0.15) return 1.0;
+          return 0.0;
+        }
+        
+        float isLip(vec3 hsv) {
+          bool reddish = (hsv.x >= 0.90 || hsv.x <= 0.06);
+          if (reddish && hsv.y >= 0.30 && hsv.y <= 0.85 && hsv.z >= 0.20 && hsv.z <= 0.80) return 1.0;
+          if (reddish && hsv.y >= 0.15 && hsv.y <= 0.85 && hsv.z >= 0.35 && hsv.z <= 0.80) return 0.6;
+          return 0.0;
+        }
+        
+        float edgeDetection(vec2 uv, vec2 texelSize) {
+          float lum[9];
+          int idx = 0;
+          for (int y = -1; y <= 1; y++) {
+            for (int x = -1; x <= 1; x++) {
+              vec2 offset = vec2(float(x), float(y)) * texelSize;
+              lum[idx++] = luminance(texture2D(u_texture, uv + offset).rgb);
+            }
+          }
+          float gx = lum[6] + 2.0 * lum[7] + lum[8] - (lum[0] + 2.0 * lum[1] + lum[2]);
+          float gy = lum[2] + 2.0 * lum[5] + lum[8] - (lum[0] + 2.0 * lum[3] + lum[6]);
+          return clamp(length(vec2(gx, gy)) * 1.5, 0.0, 1.0);
+        }
+        
+        vec3 bilateralBlur(vec2 uv, vec2 texelSize, float radius, vec3 center) {
+          vec3 result = vec3(0.0);
+          float totalWeight = 0.0;
+          float sigmaSpatial = max(radius * 0.5, 1.0);
+          float sigmaColor = 0.08;
+          float maxDist2 = radius * radius * 4.0;
+          for (int x = -3; x <= 3; x++) {
+            for (int y = -3; y <= 3; y++) {
+              float dx = float(x);
+              float dy = float(y);
+              float dist2 = dx * dx + dy * dy;
+              if (dist2 > maxDist2) continue;
+              vec2 offset = vec2(dx, dy) * texelSize;
+              vec3 sample = texture2D(u_texture, uv + offset).rgb;
+              float spatialW = exp(-dist2 / (2.0 * sigmaSpatial * sigmaSpatial));
+              float colorD = length(sample - center);
+              float colorW = exp(-(colorD * colorD) / (2.0 * sigmaColor * sigmaColor));
+              float w = spatialW * colorW;
+              result += sample * w;
+              totalWeight += w;
+            }
+          }
+          return result / max(totalWeight, 0.001);
+        }
+        
         void main() {
           vec2 uv = v_texCoord;
           uv.y = 1.0 - uv.y;
           
           vec4 original = texture2D(u_texture, uv);
-          vec3 color = original.rgb;
+          vec3 rgb = original.rgb;
+          vec3 hsv = rgb2hsv(rgb);
+          vec2 texelSize = 1.0 / u_resolution;
           
-          // 1. Whitening (branqueamento)
+          // Mapa de detecção facial seletiva
+          float skinProb = skinProbability(rgb, hsv);
+          float eyeScore = isEyeOrBrow(hsv);
+          float lipScore = isLip(hsv);
+          float edgeScore = edgeDetection(uv, texelSize);
+          float preserveMask = max(max(eyeScore, lipScore), edgeScore * 0.7);
+          float skinMask = skinProb * (1.0 - preserveMask);
+          
+          // 1. Whitening (branqueamento) — mais forte na pele
           if (u_beautyParams.x > 0.0) {
-            float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-            vec3 gray = vec3(luminance);
-            color = mix(color, gray, u_beautyParams.x * 0.3);
+            float skinFactor = mix(0.2, 1.0, skinMask);
+            rgb = rgb + (1.0 - rgb) * (u_beautyParams.x / 100.0) * 0.45 * skinFactor;
           }
           
-          // 2. Smoothing (suavização)
-          if (u_beautyParams.y > 0.0) {
-            vec2 texelSize = 1.0 / u_resolution;
-            float radius = u_beautyParams.y * 2.0;
-            vec3 blurred = vec3(0.0);
-            float total = 0.0;
-            
-            // Bilateral filter simplificado
-            for (float x = -radius; x <= radius; x += 1.0) {
-              for (float y = -radius; y <= radius; y += 1.0) {
-                vec2 offset = vec2(x, y) * texelSize;
-                vec3 sample = texture2D(u_texture, uv + offset).rgb;
-                float dist = length(vec2(x, y));
-                float weight = exp(-(dist * dist) / (2.0 * u_beautyParams.y));
-                
-                // Preservar bordas
-                float edgeFactor = 1.0 / (1.0 + abs(dot(color - sample, vec3(1.0))));
-                weight *= edgeFactor;
-                
-                blurred += sample * weight;
-                total += weight;
-              }
-            }
-            
-            blurred /= total;
-            
-            // Detectar pele para aplicar smoothing seletivo
-            float skinFactor = detectSkin(color);
-            color = mix(color, blurred, skinFactor * u_beautyParams.y * 0.5);
+          // 2. Smoothing (suavização) — APENAS na pele preservando features
+          if (u_beautyParams.y > 0.0 && skinMask > 0.01) {
+            float radius = (u_beautyParams.y / 100.0) * 2.5;
+            vec3 blurred = bilateralBlur(uv, texelSize, radius, rgb);
+            float blend = skinMask * (u_beautyParams.y / 100.0) * 0.85;
+            rgb = mix(rgb, blurred, blend);
           }
           
           // 3. Saturation (saturação/rubor)
           if (u_beautyParams.z > 0.0) {
-            float gray = dot(color, vec3(0.299, 0.587, 0.114));
-            color = mix(vec3(gray), color, 1.0 + u_beautyParams.z * 0.5);
+            float gray = luminance(rgb);
+            float satStrength = 1.0 + (u_beautyParams.z / 100.0) * 0.5;
+            float satMask = mix(satStrength, 1.0, preserveMask * 0.75);
+            rgb = mix(vec3(gray), rgb, satMask);
           }
           
-          // 4. Contrast (contraste)
+          // 4. Contrast
           if (u_beautyParams.w > 0.0) {
-            color = (color - 0.5) * (1.0 + u_beautyParams.w * 0.5) + 0.5;
+            rgb = (rgb - 0.5) * (1.0 + u_beautyParams.w / 200.0) + 0.5;
+            rgb = clamp(rgb, 0.0, 1.0);
           }
           
-          // 5. Subtle glow effect
-          if (u_beautyParams.x > 0.3) {
-            float glow = u_beautyParams.x * 0.1;
-            color += vec3(glow * 0.1, glow * 0.05, glow * 0.02);
-          }
-          
-          gl_FragColor = vec4(color, original.a);
-        }
-        
-        // Função auxiliar de detecção de pele
-        float detectSkin(vec3 color) {
-          vec3 hsv = rgb2hsv(color);
-          float h = hsv.x;
-          float s = hsv.y;
-          float v = hsv.z;
-          
-          // Faixa de tons de pele em HSV
-          bool skinHue = (h >= 0.0 && h <= 0.15) || (h >= 0.95);
-          bool skinSat = s >= 0.1 && s <= 0.7;
-          bool skinVal = v >= 0.2 && v <= 0.95;
-          
-          return skinHue && skinSat && skinVal ? 1.0 : 0.0;
-        }
-        
-        // Conversão RGB para HSV
-        vec3 rgb2hsv(vec3 c) {
-          vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-          vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-          vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-          
-          float d = q.x - min(q.w, q.y);
-          float e = 1.0e-10;
-          return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+          gl_FragColor = vec4(rgb, original.a);
         }
       `,
       uniforms: ['u_texture', 'u_resolution', 'u_beautyParams', 'u_time']
