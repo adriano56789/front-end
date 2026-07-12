@@ -241,18 +241,18 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         disconnect: disconnectLiveKit,
     } = useLiveKit();
 
-    // Conectar ao LiveKit para chat e participantes em tempo real
+    // LiveKit: apenas o broadcaster conecta automaticamente para gerenciar sala.
+    // Espectadores NÃO conectam no LiveKit — usam apenas SRS (HLS/WHEP) para assistir.
+    // LiveKit só deve ser conectado para interações específicas (PK, sala privada, vídeo).
     useEffect(() => {
-        if (!streamer.id || !currentUser.id) return;
+        if (!streamer.id || !currentUser.id || !isBroadcaster) return;
 
         let active = true;
-        const identity = isBroadcaster
-            ? `streamer_${currentUser.id}`
-            : `viewer_${currentUser.id || 'user_' + Math.random().toString(36).slice(2, 6)}`;
+        const identity = `streamer_${currentUser.id}`;
 
         const startConnection = async () => {
             try {
-                const res = await api.getLiveKitToken(streamer.id, identity, isBroadcaster);
+                const res = await api.getLiveKitToken(streamer.id, identity, true);
                 if (res.success && active) {
                     await connectLiveKit(res.serverUrl, res.token);
                 }
@@ -1166,7 +1166,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 )}
 
                 {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
-                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} room={lkRoom} onVideoRef={setVideoRef} />
+                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} onVideoRef={setVideoRef} />
 
 
 

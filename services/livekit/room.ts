@@ -125,26 +125,20 @@ export class LiveKitRoom {
     }
 
     this.state = 'connecting';
-    try {
-      const payload = token.split('.')[1];
-      if (payload) {
-        const decoded = JSON.parse(atob(payload));
-        this.roomId = decoded.video?.room || decoded.room || '';
-      }
-    } catch {
-      this.roomId = '';
-    }
-
-    const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
 
     let canPublish = false;
     try {
       const payload = token.split('.')[1];
       if (payload) {
         const decoded = JSON.parse(atob(payload));
+        this.roomId = decoded.video?.room || decoded.room || '';
         canPublish = decoded.video?.canPublish || false;
       }
-    } catch (_) {}
+    } catch {
+      this.roomId = '';
+    }
+
+    const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
 
     try {
       // Reduzir verbosidade do SDK LiveKit para exibir apenas avisos e erros
@@ -503,6 +497,7 @@ export class LiveKitRoom {
    */
   public async disconnect(): Promise<void> {
     if (this.state === 'disconnected' && !this.isReconnecting) return;
+    if (this.state === 'connecting') return;
 
     this.intentionalDisconnect = true;
 

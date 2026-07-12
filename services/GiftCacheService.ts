@@ -7,6 +7,15 @@
 
 import { api } from './api';
 
+const FETCH_TIMEOUT = 15000;
+
+function timeout<T>(ms: number, promise: Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const id = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+        promise.then(resolve, reject).finally(() => clearTimeout(id));
+    });
+}
+
 interface CacheTelemetry {
     preloadCount: number;
     hitCount: number;
@@ -94,6 +103,10 @@ class GiftCacheService {
                 const cache = await window.caches.open(this.cacheName);
                 const cachedResponse = await cache.match(url);
                 if (cachedResponse) {
+                    if (!cachedResponse.ok) {
+                        await cache.delete(url);
+                        throw new Error(`Cached response ${cachedResponse.status}`);
+                    }
                     const blob = await cachedResponse.blob();
                     const bUrl = URL.createObjectURL(blob);
                     this.inMemoryCache.set(url, bUrl);
@@ -105,8 +118,9 @@ class GiftCacheService {
             console.warn('[GiftCacheService] Cache Storage error:', e);
         }
 
-        // 2. Fetch from network and store via central API service
-        const blob = await api.fetchAssetBlob(url);
+        // 2. Fetch from network with timeout
+        const result = await timeout(FETCH_TIMEOUT, api.fetchAssetBlob(url));
+        const blob = result as Blob;
         const blobUrl = URL.createObjectURL(blob);
 
         // Put in Browser Cache in background

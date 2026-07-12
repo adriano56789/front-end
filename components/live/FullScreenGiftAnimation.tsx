@@ -40,17 +40,8 @@ const getAnimationClass = (gift: Gift): string => {
     return 'gift-anim-pop-shake-glow';
 };
 
-const getSoundUrl = (giftName: string): string => {
-    const defaultSound = "https://cdn.pixabay.com/audio/2022/10/28/audio_83a2162234.mp3";
-    const soundMap: Record<string, string> = {
-        'Coração': 'https://cdn.pixabay.com/audio/2022/02/07/audio_a857ac3263.mp3',
-        'Café': 'https://cdn.pixabay.com/audio/2022/03/15/audio_2b4b521f7c.mp3',
-        'Diamante VIP': 'https://cdn.pixabay.com/audio/2022/03/22/audio_1f289d02b8.mp3',
-        'Foguete': 'https://cdn.pixabay.com/audio/2022/08/03/audio_a54b33c375.mp3',
-        'Carro Esportivo': 'https://cdn.pixabay.com/audio/2023/05/27/audio_a1a0a5b8a5.mp3',
-        'Leão': 'https://cdn.pixabay.com/audio/2024/02/09/audio_269c3a32f6.mp3',
-    };
-    return soundMap[giftName] || defaultSound;
+const getSoundUrl = (_giftName: string): string => {
+    return '';
 };
 
 // Alta fidelidade de efeitos audiovisuais premium (TikTok Live Gifts Style)
@@ -64,159 +55,35 @@ interface LuxuryAsset {
 }
 
 const LUXURY_ASSETS_MAP: Record<string, LuxuryAsset> = {
-    // ---- VIP GIFTS ----
-    'Foguete': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-magical-gold-particle-stream-42407-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/08/03/audio_a54b33c375.mp3', // Som de foguete/propulsor
-        duration: 5500,
-        glowColor: 'rgba(234, 179, 8, 0.85)'
-    },
-    'Jato Privado': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-neon-light-trails-on-a-highway-at-night-42171-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/03/10/audio_5027588b50.mp3', // Passagem de jato comercial/militar
-        duration: 5000,
-        glowColor: 'rgba(56, 189, 248, 0.8)'
-    },
-    'Anel': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-golden-dust-particles-42861-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2021/08/09/audio_b2f9f1b9f6.mp3', // Brilho mágico de sinos
-        duration: 4500,
-        glowColor: 'rgba(167, 139, 250, 0.85)'
-    },
-    'Carro': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-fast-sports-car-driving-through-the-city-at-night-41315-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2023/05/27/audio_a1a0a5b8a5.mp3', // Ronco de esportivo acelerando
-        duration: 5000,
-        glowColor: 'rgba(239, 68, 68, 0.85)',
-        noBlend: true
-    },
-    'Carro Esportivo': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-fast-sports-car-driving-through-the-city-at-night-41315-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2023/05/27/audio_a1a0a5b8a5.mp3', // Ronco de esportivo acelerando
-        duration: 5000,
-        glowColor: 'rgba(239, 68, 68, 0.85)',
-        noBlend: true
-    },
-
-    // ---- LUXO GIFTS ----
-    'Fênix': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-embers-and-fire-particles-floating-42157-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2021/11/23/audio_fdf4b11f26.mp3', // Whoosh de chamas da fênix de fogo
-        duration: 6000,
-        glowColor: 'rgba(249, 115, 22, 0.9)'
-    },
-    'Leão': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-gold-dust-particles-in-slow-motion-42525-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/18/audio_27a92fb086.mp3', // Rugido de leão majestoso
-        duration: 5500,
-        glowColor: 'rgba(234, 179, 8, 0.9)'
-    },
-    'Supercarro': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-fast-sports-car-driving-through-the-city-at-night-41315-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2023/05/27/audio_a1a0a5b8a5.mp3',
-        duration: 5000,
-        glowColor: 'rgba(168, 85, 247, 0.85)',
-        noBlend: true
-    },
-    'Dragão': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-green-sci-fi-grid-loop-42866-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/24/audio_034a78ad01.mp3', // Rugido profundo de dragão
-        duration: 6000,
-        glowColor: 'rgba(34, 197, 94, 0.85)'
-    },
-    'Castelo': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-background-with-golden-dots-shining-31835-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/18/audio_82e70e175d.mp3', // Fanfarra real com sinos místicos
-        duration: 6000,
-        glowColor: 'rgba(250, 204, 21, 0.85)'
-    },
-    'Iate': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-blue-spheres-moving-randomly-on-a-black-background-40078-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/03/24/audio_346b049e77.mp3', // Buzina de Cruzeiro / Som de oceano
-        duration: 6000,
-        glowColor: 'rgba(14, 165, 233, 0.85)'
-    },
-    'Galáxia': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-warp-speed-stars-loop-42848-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/18/audio_73e72153b6.mp3', // Varreduras cósmicas / Synth wave
-        duration: 6500,
-        glowColor: 'rgba(236, 72, 153, 0.85)'
-    },
-    'Coroa Real': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-background-with-golden-dots-shining-31835-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/18/audio_82e70e175d.mp3',
-        duration: 5500,
-        glowColor: 'rgba(234, 179, 8, 0.85)'
-    },
-
-    // ---- EFEITOS AND ENTRADAS VISUAIS ----
-    'Explosão de Confete': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-glowing-gold-particles-on-black-background-40082-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/03/09/audio_6506f0e386.mp3', // Pop cracker crowd
-        duration: 5000,
-        glowColor: 'rgba(234, 179, 8, 0.85)'
-    },
-    'Portal Galáctico': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-warp-speed-stars-loop-42848-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/18/audio_73e72153b6.mp3',
-        duration: 6000,
-        glowColor: 'rgba(139, 92, 246, 0.9)'
-    },
-    'Invocação de Dragão': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-green-sci-fi-grid-loop-42866-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/01/24/audio_034a78ad01.mp3',
-        duration: 6500,
-        glowColor: 'rgba(16, 185, 129, 0.85)'
-    },
-    'Coração Gigante': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-glowing-pink-hearts-on-a-dark-background-41716-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/02/07/audio_a857ac3263.mp3', // Romantic deep pads
-        duration: 5000,
-        glowColor: 'rgba(244, 63, 94, 0.85)'
-    },
-    'Beijo de Anjo': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-glowing-pink-hearts-on-a-dark-background-41716-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/02/07/audio_a857ac3263.mp3',
-        duration: 4800,
-        glowColor: 'rgba(251, 113, 133, 0.85)'
-    },
-    'Show de Luzes': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-neon-light-trails-on-a-highway-at-night-42171-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/10/28/audio_83a2162234.mp3',
-        duration: 5200,
-        glowColor: 'rgba(34, 211, 238, 0.85)'
-    },
-    'Chuva de Rosas': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-glowing-pink-hearts-on-a-dark-background-41716-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/02/07/audio_a857ac3263.mp3',
-        duration: 5500,
-        glowColor: 'rgba(239, 68, 68, 0.85)'
-    },
-
-    // ---- ENTRADAS ----
-    'Entrada de Carro de Luxo': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-fast-sports-car-driving-through-the-city-at-night-41315-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2023/05/27/audio_a1a0a5b8a5.mp3',
-        duration: 5000,
-        glowColor: 'rgba(234, 179, 8, 0.85)',
-        noBlend: true
-    },
-    'Entrada Fênix de Fogo': {
-        videoSrc: 'https://assets.mixkit.co/videos/preview/mixkit-abstract-embers-and-fire-particles-floating-42157-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2021/11/23/audio_fdf4b11f26.mp3',
-        duration: 6000,
-        glowColor: 'rgba(249, 115, 22, 0.9)'
-    }
+    'Foguete': { videoSrc: '', audioSrc: '', duration: 5500, glowColor: 'rgba(234, 179, 8, 0.85)' },
+    'Jato Privado': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(56, 189, 248, 0.8)' },
+    'Anel': { videoSrc: '', audioSrc: '', duration: 4500, glowColor: 'rgba(167, 139, 250, 0.85)' },
+    'Carro': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(239, 68, 68, 0.85)', noBlend: true },
+    'Carro Esportivo': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(239, 68, 68, 0.85)', noBlend: true },
+    'Fênix': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(249, 115, 22, 0.9)' },
+    'Leão': { videoSrc: '', audioSrc: '', duration: 5500, glowColor: 'rgba(234, 179, 8, 0.9)' },
+    'Supercarro': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(168, 85, 247, 0.85)', noBlend: true },
+    'Dragão': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(34, 197, 94, 0.85)' },
+    'Castelo': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(250, 204, 21, 0.85)' },
+    'Iate': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(14, 165, 233, 0.85)' },
+    'Galáxia': { videoSrc: '', audioSrc: '', duration: 6500, glowColor: 'rgba(236, 72, 153, 0.85)' },
+    'Coroa Real': { videoSrc: '', audioSrc: '', duration: 5500, glowColor: 'rgba(234, 179, 8, 0.85)' },
+    'Explosão de Confete': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(234, 179, 8, 0.85)' },
+    'Portal Galáctico': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(139, 92, 246, 0.9)' },
+    'Invocação de Dragão': { videoSrc: '', audioSrc: '', duration: 6500, glowColor: 'rgba(16, 185, 129, 0.85)' },
+    'Coração Gigante': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(244, 63, 94, 0.85)' },
+    'Beijo de Anjo': { videoSrc: '', audioSrc: '', duration: 4800, glowColor: 'rgba(251, 113, 133, 0.85)' },
+    'Show de Luzes': { videoSrc: '', audioSrc: '', duration: 5200, glowColor: 'rgba(34, 211, 238, 0.85)' },
+    'Chuva de Rosas': { videoSrc: '', audioSrc: '', duration: 5500, glowColor: 'rgba(239, 68, 68, 0.85)' },
+    'Entrada de Carro de Luxo': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(234, 179, 8, 0.85)', noBlend: true },
+    'Entrada Fênix de Fogo': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(249, 115, 22, 0.9)' }
 };
 
 const getFallbackAsset = (gift: Gift): LuxuryAsset => {
-    // Retornar um fallback dependendo da categoria caso não mapeado
     const isGold = gift.category === 'VIP' || gift.category === 'Luxo';
     return {
-        videoSrc: isGold 
-            ? 'https://assets.mixkit.co/videos/preview/mixkit-magical-gold-particle-stream-42407-large.mp4'
-            : 'https://assets.mixkit.co/videos/preview/mixkit-glowing-gold-particles-on-black-background-40082-large.mp4',
-        audioSrc: 'https://cdn.pixabay.com/audio/2022/10/28/audio_83a2162234.mp3',
+        videoSrc: '',
+        audioSrc: '',
         duration: 4500,
         glowColor: isGold ? 'rgba(234, 179, 8, 0.8)' : 'rgba(168, 85, 247, 0.75)'
     };
@@ -248,7 +115,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
 
         const { gift } = payload;
         const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
-        const videoUrl = gift.videoUrl || assetConfig.videoSrc;
+        const videoUrl = gift.animationUrl || gift.videoUrl || assetConfig.videoSrc;
         const audioUrl = gift.audioUrl || assetConfig.audioSrc || getSoundUrl(gift.name);
 
         let active = true;
@@ -370,7 +237,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                     />
 
                     {/* Ícone ou componente SVG flutuando centralizado no coração do espetáculo de partículas - Ocultado se houver vídeo nativo exclusivo */}
-                    {!(LUXURY_ASSETS_MAP[gift.name] || gift.videoUrl) && (
+                    {!(gift.animationUrl || LUXURY_ASSETS_MAP[gift.name] || gift.videoUrl) && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none transform animate-gift-bounce-subtle">
                             {gift.component ? (
                                 React.cloneElement(gift.component as React.ReactElement<any>, { 

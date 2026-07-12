@@ -18,18 +18,19 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
   
   const roomRef = useRef<LiveKitRoom | null>(null);
   const optionsRef = useRef(options);
+  const connectingRef = useRef(false);
+  const destroyedRef = useRef(false);
+  const connectionGenRef = useRef(0);
   
   useEffect(() => {
     optionsRef.current = options;
   }, [options]);
 
   useEffect(() => {
-    // Instantiate LiveKit Room
     const activeRoom = livekitService.createRoom();
     roomRef.current = activeRoom;
     setRoom(activeRoom);
 
-    // Event handlers
     const handleParticipantConnected = (p: LiveKitParticipant) => {
       setRemoteParticipants(Array.from(activeRoom.remoteParticipants.values()));
       optionsRef.current.onParticipantConnected?.(p);
@@ -49,12 +50,14 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
     };
 
     const handleRoomMetadataChanged = () => {
+      if (destroyedRef.current) return;
       setConnectionState(activeRoom.state);
       setLocalParticipant(activeRoom.localParticipant);
       setRemoteParticipants(Array.from(activeRoom.remoteParticipants.values()));
     };
 
     const handleDisconnected = () => {
+      if (destroyedRef.current) return;
       setConnectionState('disconnected');
       setLocalParticipant(null);
       setRemoteParticipants([]);
@@ -62,18 +65,19 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
     };
 
     const handleReconnecting = () => {
+      if (destroyedRef.current) return;
       setConnectionState('reconnecting');
       optionsRef.current.onReconnecting?.();
     };
 
     const handleReconnected = () => {
+      if (destroyedRef.current) return;
       setConnectionState('connected');
       setLocalParticipant(activeRoom.localParticipant);
       setRemoteParticipants(Array.from(activeRoom.remoteParticipants.values()));
       optionsRef.current.onReconnected?.();
     };
 
-    // Listen to Room events
     activeRoom.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
     activeRoom.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
     activeRoom.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
@@ -84,6 +88,7 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
     activeRoom.on(RoomEvent.Reconnected, handleReconnected);
 
     return () => {
+      destroyedRef.current = true;
       activeRoom.disconnect();
       roomRef.current = null;
     };
@@ -92,20 +97,34 @@ export function useLiveKit(options: UseLiveKitOptions = {}) {
   const connect = async (url: string, token: string) => {
     if (!roomRef.current) return;
     if (connectionState === 'connected') return;
+    if (connectingRef.current) return;
+    const gen = ++connectionGenRef.current;
+    connectingRef.current = true;
     setConnectionState('connecting');
     try {
       await roomRef.current.connect(url, token);
+      if (destroyedRef.current || gen !== connectionGenRef.current) return;
       setConnectionState('connected');
       setLocalParticipant(roomRef.current.localParticipant);
     } catch (e) {
-      setConnectionState('disconnected');
+      if (!destroyedRef.current && gen === connectionGenRef.current) {
+        setConnectionState('disconnected');
+      }
       console.error('[useLiveKit] Connect failed:', e);
       throw e;
+    } finally {
+      if (gen === connectionGenRef.current) {
+        connectingRef.current = false;
+      }
     }
   };
 
   const disconnect = async () => {
     if (!roomRef.current) return;
+    connectionGenRef.current++;
+    if (roomRef.current.state === 'connecting') {
+      return;
+    }
     await roomRef.current.disconnect();
   };
 

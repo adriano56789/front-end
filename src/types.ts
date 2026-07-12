@@ -90,6 +90,7 @@ export interface Gift {
   audioUrl?: string;
   duration?: number; // em milissegundos
   noBlend?: boolean; // se true, não remove o fundo preto (mix-blend-screen)
+  animationUrl?: string;
 }
 
 export interface Obra {

@@ -860,6 +860,9 @@ export const api = {
 
     getReceivedGifts: (userId: string) => callApi<Gift[]>('GET', `/api/gifts/received/${userId}`),
 
+    updateGift: (giftId: string, data: Partial<Gift>) =>
+        callApi<{ success: boolean }>('PUT', `/api/gifts/${giftId}`, data),
+
     getRegions: () => callApi<Country[]>('GET', '/api/regions'),
 
     getReminders: () => callApi<Streamer[]>('GET', '/api/reminders'),

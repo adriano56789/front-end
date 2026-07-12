@@ -17,7 +17,7 @@ export class WhepPlaybackService {
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
       ],
-      iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
+      iceTransportPolicy: 'all' as RTCIceTransportPolicy,
     });
     this.pc = pc;
     this.mediaMids = [];

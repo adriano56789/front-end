@@ -211,6 +211,7 @@ import VIPCenterScreen from './components/VIPCenterScreen';
 import PaymentSuccessScreen from './components/PaymentSuccessScreen';
 
 import LiveNotificationModal from './components/live/LiveNotificationModal';
+import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
 
@@ -448,6 +449,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [permissionStep, setPermissionStep] = useState<'idle' | 'camera' | 'microphone'>('idle');
 
   const [isLocationPermissionModalOpen, setIsLocationPermissionModalOpen] = useState(false);
+
+  const [isGiftAdminOpen, setIsGiftAdminOpen] = useState(false);
 
   const [locationPermissionStatus, setLocationPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
@@ -4257,6 +4260,8 @@ const logLiveEvent = (type: string, data: any) => {
       {isFAQScreenOpen && <FAQScreen onClose={() => setIsFAQScreenOpen(false)} />}
 
       {isSettingsScreenOpen && <SettingsScreen onClose={() => setIsSettingsScreenOpen(false)} currentUser={currentUser} gifts={allGifts} updateUser={updateUserEverywhere} addToast={addToast} onOpenPipModal={() => setIsPipSettingsModalOpen(true)} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} onOpenLanguageModal={() => setIsLanguageModalOpen(true)} />}
+
+      {isGiftAdminOpen && <GiftAdminPanel onClose={() => setIsGiftAdminOpen(false)} />}
 
       <PipSettingsModal isOpen={isPipSettingsModalOpen} onClose={() => setIsPipSettingsModalOpen(false)} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />
 

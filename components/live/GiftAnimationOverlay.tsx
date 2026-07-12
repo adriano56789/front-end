@@ -31,11 +31,11 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
     useEffect(() => {
         try {
             // Um som suave de recompensa/chime curto para presentes na fila lateral
-            const audio = new Audio("https://cdn.pixabay.com/audio/2021/08/09/audio_b2f9f1b9f6.mp3");
-            audio.volume = 0.25; // Volume sutil para não concorrer com o presente de tela cheia
-            audio.play().catch(e => {
-                // Ignorar erro se o navegador bloquear autoplay
-            });
+            const audio = new Audio(giftPayload.gift.audioUrl || '');
+            if (audio.src) {
+                audio.volume = 0.25;
+                audio.play().catch(() => {});
+            }
         } catch (error) {
             // Ignorar
         }
@@ -96,10 +96,9 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
 
             {/* Conteúdo de Animação de Vídeo ou Loop de Mídia */}
             <div className="w-12 h-12 flex items-center justify-center relative z-10 shrink-0 transform group-hover:scale-110 transition-transform duration-200">
-                {gift.videoUrl ? (
-                    // Reproduzir vídeo de forma limpa com suporte a translucidez e auto-configurações
+                {gift.animationUrl || gift.videoUrl ? (
                     <video 
-                        src={gift.videoUrl} 
+                        src={gift.animationUrl || gift.videoUrl} 
                         autoPlay 
                         loop 
                         muted 

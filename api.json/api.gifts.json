@@ -116,7 +116,9 @@
   "name": "Pirulito",
   "price": 600,
   "icon": "🍭",
-  "category": "Popular"
+  "category": "Popular",
+  "animationUrl": "/uploads/animations/pirulito.webm",
+  "duration": 4000
 },
 {
   "_id": {
@@ -488,7 +490,9 @@
   "name": "Explosão de Confete",
   "price": 19000,
   "icon": "🎉",
-  "category": "Efeito"
+  "category": "Efeito",
+  "animationUrl": "/uploads/animations/explosao_confete.webm",
+  "duration": 5000
 },
 {
   "_id": {
@@ -508,7 +512,9 @@
   "name": "Coração Gigante",
   "price": 28000,
   "icon": "❤️‍🔥",
-  "category": "Efeito"
+  "category": "Efeito",
+  "animationUrl": "/uploads/animations/coracao_gigante.webm",
+  "duration": 5000
 },
 {
   "_id": {
@@ -538,7 +544,9 @@
   "name": "Portal Galáctico",
   "price": 42000,
   "icon": "🌀",
-  "category": "Efeito"
+  "category": "Efeito",
+  "animationUrl": "/uploads/animations/portal_galactico.webm",
+  "duration": 5000
 },
 {
   "_id": {
@@ -578,7 +586,9 @@
   "name": "Show de Luzes",
   "price": 34000,
   "icon": "🎆",
-  "category": "Efeito"
+  "category": "Efeito",
+  "animationUrl": "/uploads/animations/show_de_luzes.webm",
+  "duration": 5000
 },
 {
   "_id": {
@@ -588,7 +598,9 @@
   "name": "Chuva de Rosas",
   "price": 26000,
   "icon": "🌹",
-  "category": "Efeito"
+  "category": "Efeito",
+  "animationUrl": "/uploads/animations/chuva_de_rosas.webm",
+  "duration": 5000
 },
 {
   "_id": {

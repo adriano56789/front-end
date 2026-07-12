@@ -210,7 +210,7 @@ export class WebRTCService {
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
         ],
-        iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
+        iceTransportPolicy: 'all' as RTCIceTransportPolicy,
         bundlePolicy: 'max-bundle',
         rtcpMuxPolicy: 'require',
       } as RTCConfiguration;
@@ -326,7 +326,7 @@ export class WebRTCService {
           { urls: 'stun:stun.l.google.com:19302' },
           { urls: 'stun:stun1.l.google.com:19302' },
         ],
-        iceTransportPolicy: 'relay' as RTCIceTransportPolicy,
+        iceTransportPolicy: 'all' as RTCIceTransportPolicy,
         bundlePolicy: 'max-bundle',
       } as RTCConfiguration);
 

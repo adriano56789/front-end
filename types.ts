@@ -166,6 +166,7 @@ export interface Gift {
   audioUrl?: string;
   duration?: number;
   noBlend?: boolean;
+  animationUrl?: string;
 }
 
 export interface Obra {
