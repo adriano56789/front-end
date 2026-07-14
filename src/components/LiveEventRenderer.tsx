@@ -2,7 +2,6 @@
 // Escuta eventos globais do BinaryDecoder e renderiza na UI sem delay
 
 import React, { useEffect, useState, useRef } from 'react';
-import { EventType } from '../services/BinaryProtocol';
 
 interface LiveEvent {
   id: string;

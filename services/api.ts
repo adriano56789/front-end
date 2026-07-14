@@ -217,128 +217,163 @@ const callApiWithOptions = async <T = any>(
             ...(token && !external ? { Authorization: `Bearer ${token}` } : {})
         };
 
-        const fetchInit: RequestInit = {
-            method,
-            headers,
-            signal: options?.signal,
-        };
-
-        // Adicionar body para métodos que suportam
+        // Body serialization for XHR
+        let body: string | FormData | null = null;
         if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
-            // Se for FormData, usar como está (não serializar)
             if (data instanceof FormData) {
-                fetchInit.body = data;
-                // Deixar o browser definir o Content-Type para FormData (com boundary)
+                body = data;
                 delete headers['Content-Type'];
             } else if (typeof data === 'string') {
-                // String crua (ex: SDP) - enviar como está
-                fetchInit.body = data;
+                body = data;
             } else {
-                // Objeto - serializar como JSON
-                fetchInit.body = JSON.stringify(data);
+                body = JSON.stringify(data);
             }
         }
 
-        const response = await fetch(fullUrl, fetchInit);
+        const xhrResponseType = options?.responseType === 'blob' ? 'blob'
+            : options?.responseType === 'arraybuffer' ? 'arraybuffer'
+            : 'text';
 
-        // Extrair headers de resposta
-        const responseHeaders: Record<string, string> = {};
-        response.headers.forEach((value, key) => {
-            responseHeaders[key] = value;
+        const responseData: any = await new Promise<T>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(method, fullUrl, true);
+            xhr.responseType = xhrResponseType;
+
+            Object.keys(headers).forEach(key => {
+                xhr.setRequestHeader(key, headers[key]);
+            });
+
+            if (options?.signal) {
+                if (options.signal.aborted) {
+                    xhr.abort();
+                    reject(new DOMException('Aborted', 'AbortError'));
+                    return;
+                }
+                options.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+            }
+
+            xhr.onload = () => {
+                const responseHeaders: Record<string, string> = {};
+                const headerLines = xhr.getAllResponseHeaders().split('\r\n');
+                headerLines.forEach(line => {
+                    const colonIdx = line.indexOf(':');
+                    if (colonIdx > 0) {
+                        const key = line.substring(0, colonIdx).trim().toLowerCase();
+                        const value = line.substring(colonIdx + 1).trim();
+                        responseHeaders[key] = value;
+                    }
+                });
+
+                const contentType = responseHeaders['content-type'] || '';
+
+                if (options?.returnFullResponse) {
+                    let parsedData: any = null;
+                    if (xhrResponseType === 'blob') {
+                        parsedData = xhr.response;
+                    } else if (options?.responseType === 'text') {
+                        parsedData = xhr.responseText;
+                    } else {
+                        const raw = xhr.responseText;
+                        if (contentType.includes('application/json')) {
+                            try { parsedData = JSON.parse(raw); } catch { parsedData = raw; }
+                        } else {
+                            parsedData = raw;
+                        }
+                    }
+                    resolve({
+                        ok: xhr.status >= 200 && xhr.status < 300,
+                        status: xhr.status,
+                        data: parsedData,
+                        headers: responseHeaders,
+                    } as T);
+                    return;
+                }
+
+                if (xhr.status < 200 || xhr.status >= 300) {
+                    let errorBody: any = null;
+                    if (contentType.includes('application/json')) {
+                        try { errorBody = JSON.parse(xhr.responseText); } catch { errorBody = null; }
+                    } else {
+                        errorBody = xhr.responseText || '';
+                    }
+
+                    if (xhr.status === 400) {
+                        console.error('🚨 [API-ERROR] Erro 400 - Bad Request');
+                        console.error('🔍 [API-ERROR] URL:', fullUrl);
+                        console.error('🔍 [API-ERROR] Method:', method);
+                        console.error('🔍 [API-ERROR] Data sent:', maskSensitiveData(data));
+                        console.error('🔍 [API-ERROR] Response:', errorBody);
+
+                        if (errorBody) {
+                            if (errorBody.errors && Array.isArray(errorBody.errors)) {
+                                console.error('❌ [VALIDATION-ERROR] Erros de validação:');
+                                errorBody.errors.forEach((err: any, index: number) => {
+                                    console.error(`  ${index + 1}. Campo: ${err.field}, Erro: ${err.message}`);
+                                });
+                                const firstError = errorBody.errors[0];
+                                reject(new Error(`Erro no campo "${firstError.field}": ${firstError.message}`));
+                                return;
+                            }
+                            if (errorBody.error) {
+                                console.error('❌ [VALIDATION-ERROR] Erro:', errorBody.error);
+                                if (errorBody.currentStream) {
+                                    reject(new Error(`${errorBody.error}. Stream atual: ${errorBody.currentStream.id} - ${errorBody.currentStream.name}`));
+                                    return;
+                                }
+                                reject(new Error(errorBody.error));
+                                return;
+                            }
+                            if (errorBody.message) {
+                                reject(new Error(errorBody.message));
+                                return;
+                            }
+                        }
+                        reject(new Error('Dados inválidos na requisição. Verifique os campos obrigatórios.'));
+                        return;
+                    }
+
+                    if (xhr.status === 401) {
+                        console.warn('[API] 401 recebido - deixando o caller tratar o erro');
+                    }
+
+                    const httpError = new Error(`Request failed with status code ${xhr.status}`) as any;
+                    httpError.status = xhr.status;
+                    httpError.response = {
+                        status: xhr.status,
+                        data: errorBody,
+                        headers: responseHeaders,
+                    };
+                    reject(httpError);
+                    return;
+                }
+
+                if (options?.responseType === 'text') {
+                    resolve(xhr.responseText as T);
+                    return;
+                }
+                if (options?.responseType === 'blob') {
+                    resolve(xhr.response as T);
+                    return;
+                }
+                if (options?.responseType === 'arraybuffer') {
+                    resolve(xhr.response as T);
+                    return;
+                }
+                if (contentType.includes('application/json')) {
+                    try { resolve(JSON.parse(xhr.responseText) as T); } catch { resolve(xhr.responseText as T); }
+                    return;
+                }
+                resolve(xhr.responseText as T);
+            };
+
+            xhr.onerror = () => {
+                reject(new Error('Network error'));
+            };
+
+            xhr.send(body);
         });
 
-        if (options?.returnFullResponse) {
-            let responseData: any = null;
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                responseData = await response.json();
-            } else {
-                responseData = await response.text();
-            }
-
-            return {
-                ok: response.ok,
-                status: response.status,
-                data: responseData,
-                headers: responseHeaders,
-            } as T;
-        }
-
-        // Tratar erros HTTP
-        if (!response.ok) {
-            const contentType = response.headers.get('content-type') || '';
-            let errorBody: any = null;
-            if (contentType.includes('application/json')) {
-                errorBody = await response.json().catch(() => null);
-            } else {
-                errorBody = await response.text().catch(() => '');
-            }
-
-            if (response.status === 400) {
-                console.error('🚨 [API-ERROR] Erro 400 - Bad Request');
-                console.error('🔍 [API-ERROR] URL:', fullUrl);
-                console.error('🔍 [API-ERROR] Method:', method);
-                console.error('🔍 [API-ERROR] Data sent:', maskSensitiveData(data));
-                console.error('🔍 [API-ERROR] Response:', errorBody);
-
-                if (errorBody) {
-                    if (errorBody.errors && Array.isArray(errorBody.errors)) {
-                        console.error('❌ [VALIDATION-ERROR] Erros de validação:');
-                        errorBody.errors.forEach((err: any, index: number) => {
-                            console.error(`  ${index + 1}. Campo: ${err.field}, Erro: ${err.message}`);
-                        });
-                        const firstError = errorBody.errors[0];
-                        throw new Error(`Erro no campo "${firstError.field}": ${firstError.message}`);
-                    }
-                    if (errorBody.error) {
-                        console.error('❌ [VALIDATION-ERROR] Erro:', errorBody.error);
-                        if (errorBody.currentStream) {
-                            throw new Error(`${errorBody.error}. Stream atual: ${errorBody.currentStream.id} - ${errorBody.currentStream.name}`);
-                        }
-                        throw new Error(errorBody.error);
-                    }
-                    if (errorBody.message) {
-                        throw new Error(errorBody.message);
-                    }
-                }
-                throw new Error('Dados inválidos na requisição. Verifique os campos obrigatórios.');
-            }
-
-            if (response.status === 401) {
-                // NÃO limpar token nem disparar auth:logout aqui!
-                // Cada caller (restoreSession, createDraftStream, etc.) já trata
-                // seus próprios erros. Disparar auth:logout aqui causa redirect
-                // ao login durante criação de stream, que é indesejado.
-                console.warn('[API] 401 recebido - deixando o caller tratar o erro');
-            }
-
-            // Criar erro similar ao axios para compatibilidade
-            const httpError = new Error(`Request failed with status code ${response.status}`) as any;
-            httpError.status = response.status;
-            httpError.response = {
-                status: response.status,
-                data: errorBody,
-                headers: responseHeaders,
-            };
-            throw httpError;
-        }
-
-        // Resposta OK - processar conforme responseType
-        const contentType = response.headers.get('content-type') || '';
-        if (options?.responseType === 'text') {
-            return await response.text() as T;
-        }
-        if (options?.responseType === 'blob') {
-            return await response.blob() as T;
-        }
-        if (options?.responseType === 'arraybuffer') {
-            return await response.arrayBuffer() as T;
-        }
-        // Default: JSON
-        if (contentType.includes('application/json')) {
-            return await response.json() as T;
-        }
-        return await response.text() as T;
+        return responseData;
     } catch (error: any) {
         if (error.message &&
             (error.message.includes('useCache') ||

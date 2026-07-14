@@ -29,6 +29,7 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useLiveKit } from '../hooks/useLiveKit';
+import { useLiveKitChat } from '../hooks/useLiveKitChat';
 import { useNativePiP } from '../hooks/useNativePiP';
 
 interface ChatMessageType {
@@ -241,6 +242,51 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         disconnect: disconnectLiveKit,
     } = useLiveKit();
 
+  const {
+    connected: lkChatConnected,
+    sendMessage: lkChatSendMessage,
+    disconnect: disconnectLkChat,
+  } = useLiveKitChat({
+    streamId: streamer.id,
+    userId: currentUser.id,
+    onMessage: (data: any) => {
+      if (data.type === 'chat_message' || data.type === 'chat') {
+        setMessages(prev => {
+          if (prev.some(m => m.id === data.id)) return prev;
+          return [...prev, { ...data, type: 'chat' }];
+        });
+      }
+    },
+    onParticipantConnected: (participant) => {
+      console.log('[CHAT] Participante conectado via LiveKit:', participant.identity, 'name:', participant.name);
+      setOnlineUsers(prev => {
+        if (prev.some(u => u.id === participant.identity)) return prev;
+        const newUser = {
+          id: participant.identity,
+          name: participant.name || participant.identity,
+          avatar: '',
+          value: 0,
+        };
+        console.log('[CHAT] Adicionando à lista de onlineUsers:', newUser.name);
+        return [...prev, newUser];
+      });
+    },
+    onParticipantDisconnected: (participant) => {
+      console.log('[CHAT] Participante desconectado via LiveKit:', participant.identity);
+      setOnlineUsers(prev => {
+        const filtered = prev.filter(u => u.id !== participant.identity);
+        console.log('[CHAT] Removendo da lista de onlineUsers. Antes:', prev.length, 'Depois:', filtered.length);
+        return filtered;
+      });
+    },
+    onConnected: () => {
+      console.log('[CHAT] LiveKitChat conectado!');
+    },
+    onDisconnected: () => {
+      console.log('[CHAT] LiveKitChat desconectado!');
+    },
+  });
+
     // LiveKit: apenas o broadcaster conecta automaticamente para gerenciar sala.
     // Espectadores NÃO conectam no LiveKit — usam apenas SRS (HLS/WHEP) para assistir.
     // LiveKit só deve ser conectado para interações específicas (PK, sala privada, vídeo).
@@ -266,6 +312,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         return () => {
             active = false;
             disconnectLiveKit();
+            disconnectLkChat();
         };
     }, [streamer.id, currentUser.id, isBroadcaster]);
 
@@ -275,6 +322,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         if (!lkRoom) return;
 
         const handleDataReceived = (data: any) => {
+            // Decodificar Uint8Array do LiveKit (data_received sempre entrega Uint8Array)
+            if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
+                try {
+                    data = JSON.parse(new TextDecoder().decode(data));
+                } catch (_e) {
+                    console.warn('[LIVEKIT] Erro ao decodificar dados recebidos:', _e);
+                    return;
+                }
+            }
             if (!data || !data.type) return;
 
             if (data.type === 'chat_message' || data.type === 'chat') {
@@ -352,27 +408,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             });
         };
 
-        // Escutar evento 'new_chat_message' do Socket.IO
-        socketService.onNewChatMessage(handleNewChatMessage);
-
-        // Escutar 'receive_message' (evento disparado pelo handler Protobuf em socket.ts)
-        // Isso garante que mensagens via Protobuf binário também cheguem
-        const handleReceiveMessage = (msgPayload: any) => {
-            const text = msgPayload.message || msgPayload.text || '';
-            if (!text) return;
-            setMessages(prev => {
-                if (prev.some(m => m.id === msgPayload.id)) return prev;
-                return [...prev, {
-                    id: msgPayload.id || Date.now() + Math.random(),
-                    type: 'chat',
-                    user: msgPayload.user || 'Usuário',
-                    message: text,
-                    avatar: msgPayload.avatar || '',
-                    level: msgPayload.level || 1,
-                }];
-            });
-        };
-        socketService.on('receive_message', handleReceiveMessage);
 
         // Também escutar evento global window (caso socket.ts dispare via CustomEvent)
         const handleWindowChat = (e: Event) => {
@@ -384,9 +419,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         window.addEventListener('livego:chat_message', handleWindowChat);
 
         return () => {
-            socketService.off('new_chat_message', handleNewChatMessage);
-            socketService.off('receive_message', handleReceiveMessage);
-            window.removeEventListener('livego:chat_message', handleWindowChat);
+window.removeEventListener('livego:chat_message', handleWindowChat);
         };
     }, [streamer.id]);
 
@@ -585,7 +618,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
-        if (chatInput.trim() === '' || !currentUser) return;
+        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id);
+        if (chatInput.trim() === '' || !currentUser) { console.log('[CHAT] handleSendMessage ignorado - input vazio ou sem user'); return; }
         const messagePayload: ChatMessageType = {
             id: Date.now(),
             type: 'chat',
@@ -609,12 +643,36 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         
         // Transmitir mensagem via LiveKit + Socket.IO simultaneamente
         // LiveKit: data channel em tempo real (principal)
+        console.log('[CHAT] lkRoom state:', lkRoom?.state, 'lkChatConnected:', lkChatConnected);
         if (lkRoom && lkRoom.state === 'connected') {
-            lkRoom.sendChatMessage(safePayload);
+            console.log('[CHAT] Enviando via lkRoom.sendChatMessage');
+            try {
+                const _enc = new TextEncoder();
+                lkRoom.localParticipant.publishData(_enc.encode(JSON.stringify(safePayload)), { reliable: true });
+            } catch (_e) {
+                console.warn('[CHAT] Erro ao enviar via LiveKit publishData:', _e);
+            }
+        } else {
+            console.warn('[CHAT] lkRoom n\u00e3o dispon\u00edvel ou n\u00e3o conectado');
         }
-        // Socket.IO: redundância para garantir distribuição a TODOS os participantes
-        // (LiveKit SFU pode não estar roteando data channel entre participantes)
-        socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, safePayload.avatar, chatInput.trim());
+        // LiveKit Chat Channel (live_{streamId}) — canal adicional do backend
+        if (lkChatConnected) {
+            console.log('[CHAT] Enviando via lkChatSendMessage (LiveKit Chat Channel)');
+            lkChatSendMessage(safePayload);
+        } else {
+            console.warn('[CHAT] lkChatSendMessage ignorado - n\u00e3o conectado');
+        }
+
+        const apiUrl = '/api/streams/' + streamer.id + '/live-message';
+        console.log('[CHAT] Persistindo no MongoDB via REST API:', apiUrl, 'streamer:', streamer.id);
+        // Persistir no MongoDB via REST API (sem distribuir em tempo real)
+        api.post(apiUrl, {
+            text: safePayload.message || chatInput.trim(),
+            userId: currentUser.id,
+            userName: currentUser.name,
+            userAvatar: safePayload.avatar,
+            userLevel: currentUser.level,
+        }).then(() => console.log('[CHAT] REST API sucesso')).catch((err: any) => console.warn('[CHAT] REST API erro:', err));
         
         setChatInput('');
     };
@@ -650,7 +708,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     setIsLiked(false);
                     // Transmitir like via LiveKit data channel
                     if (lkRoom && lkRoom.state === 'connected') {
-                        lkRoom.sendData({ type: 'stream_unliked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id });
+                        try { const _e = new TextEncoder(); lkRoom.localParticipant.publishData(_e.encode(JSON.stringify({ type: 'stream_unliked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id })), { reliable: true }); } catch (_) { console.warn('[LIKE] Erro LiveKit unlike:', _); }
                     }
                 }
             } else {
@@ -661,7 +719,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                     setIsLiked(true);
                     // Transmitir like via LiveKit data channel
                     if (lkRoom && lkRoom.state === 'connected') {
-                        lkRoom.sendData({ type: 'stream_liked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id });
+                        try { const _e = new TextEncoder(); lkRoom.localParticipant.publishData(_e.encode(JSON.stringify({ type: 'stream_liked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id })), { reliable: true }); } catch (_) { console.warn('[LIKE] Erro LiveKit like:', _); }
                     }
                 }
             }
@@ -941,13 +999,18 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
             // Transmitir presente via LiveKit data channel
             if (lkRoom && lkRoom.state === 'connected') {
-                lkRoom.sendData({
+                try {
+                const _enc = new TextEncoder();
+                lkRoom.localParticipant.publishData(_enc.encode(JSON.stringify({
                     type: 'live_gift_received',
                     from: { id: currentUser.id, identification: currentUser.identification || currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level || 1 },
                     toUser: { id: streamer.hostId || streamer.id, name: streamer.name || 'Streamer' },
                     gift: { id: gift.name, name: gift.name, price: gift.price, icon: gift.icon, category: gift.category },
                     quantity, roomId: streamer.id, id: giftPayload.id
-                });
+                })), { reliable: true });
+            } catch (_ge) {
+                console.warn('[GIFT] Erro ao enviar presente via LiveKit:', _ge);
+            }
             }
 
             // Now, call the API in the background
@@ -1429,14 +1492,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                 placeholder={t('streamRoom.sayHi')}
                                 value={chatInput}
                                 onChange={(e) => setChatInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                onKeyDown={(e) => { if (e.key === "Enter") { console.log("[CHAT] onKeyDown Enter disparado"); handleSendMessage(e); } }}
                                 className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                             />
                         </div>
                         <div className="flex items-center gap-3">
                             {/* Share/Send Action */}
                             <button 
-                                onClick={handleSendMessage} 
+                                onClick={(e) => { console.log('[CHAT] onClick botão Enviar disparado'); handleSendMessage(e); }} 
                                 className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
                                 style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
                             >

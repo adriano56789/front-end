@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client';
 import { env } from '../src/config/environment';
-import { ProtobufService } from '../src/services/protobuf/ProtobufService';
 import { LiveGoParamsParser, ParsedLiveGoParams } from '../src/services/LiveGoParamsParser';
 import { getCurrentUserId, api, getAuthToken } from './api';
 
@@ -32,8 +31,7 @@ class SocketService {
 
     private async _doConnect() {
         // Inicializar Protobuf antes de conectar
-        await ProtobufService.init();
-
+        // Protobuf init removed
         // Add cache-busting timestamp to avoid browser caching
         const cacheBust = Date.now();
         const wsUrlWithCache = `${WS_URL}?_cb=${cacheBust}`;
@@ -121,33 +119,7 @@ class SocketService {
         this.socket.on('pong', (data) => {
         });
         
-        // Processar eventos Protobuf (serialização binária real)
-        this.socket.on('binary_data', (data) => {
-            let uint8Array: Uint8Array | null = null;
-            if (data instanceof ArrayBuffer) {
-                uint8Array = new Uint8Array(data);
-            } else if (data instanceof Uint8Array) {
-                uint8Array = data;
-            } else if (data && typeof data === 'object') {
-                if (data.type === 'Buffer' && Array.isArray(data.data)) {
-                    uint8Array = new Uint8Array(data.data);
-                } else if ('buffer' in data && data.buffer instanceof ArrayBuffer) {
-                    uint8Array = new Uint8Array(data.buffer, data.byteOffset || 0, data.byteLength || data.buffer.byteLength);
-                } else if (Array.isArray(data)) {
-                    uint8Array = new Uint8Array(data);
-                }
-            } else if (typeof data === 'string') {
-                uint8Array = new TextEncoder().encode(data);
-            }
-
-            if (uint8Array) {
-                const decodedEvent = ProtobufService.decodeEvent(uint8Array);
-                if (decodedEvent) {
-                    this.dispatchProtobufEvent(decodedEvent);
-                }
-            }
-        });
-        
+                
         // Eventos processados apenas via transporte binário (binary_data)
         // Removidos eventos JSON redundantes para garantir transporte binário exclusivo
 
@@ -680,8 +652,7 @@ class SocketService {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
-        const buffer = ProtobufService.encodeChatEvent(streamId, userId, userName, userAvatar, message);
-        
+        const buffer = null; // Protobuf removed
         if (buffer) {
             // Enviar via WebSocket como binário real fatiado de forma precisa
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
@@ -699,12 +670,7 @@ class SocketService {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
-        const buffer = ProtobufService.encodeGiftEvent(
-            streamId, fromUserId, fromUserName, fromUserAvatar,
-            toUserId, toUserName, toUserAvatar,
-            giftId, giftName, giftIcon, giftPrice, quantity
-        );
-        
+        const buffer = null; // Protobuf removed
         if (buffer) {
             // Enviar via WebSocket como binário real fatiado de forma precisa
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
@@ -716,8 +682,7 @@ class SocketService {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
-        const buffer = ProtobufService.encodeUserJoinedEvent(streamId, userId, userName, userAvatar, userLevel);
-        
+        const buffer = null; // Protobuf removed
         if (buffer) {
             // Enviar via WebSocket como binário real fatiado de forma precisa
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
@@ -729,8 +694,7 @@ class SocketService {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
-        const buffer = ProtobufService.encodeStreamStatusEvent(streamId, status, viewers, hostId, hostName);
-        
+        const buffer = null; // Protobuf removed
         if (buffer) {
             // Enviar via WebSocket como binário real fatiado de forma precisa
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
@@ -742,8 +706,7 @@ class SocketService {
         if (!this.socket?.connected) return;
         
         // Codificar usando Protobuf
-        const buffer = ProtobufService.encodeJoinStreamEvent(streamId, userId);
-        
+        const buffer = null; // Protobuf removed
         if (buffer) {
             // Enviar via WebSocket como binário real fatiado de forma precisa
             const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);

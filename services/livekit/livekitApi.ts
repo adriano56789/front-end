@@ -4,7 +4,7 @@ export const livekitApi = {
   getLiveKitToken: async (roomId: string, identity: string, isPublisher: boolean): Promise<{ success: boolean; token: string; serverUrl: string }> => {
     console.log(`[LiveKit] Obtendo token...`);
     console.log(`[LiveKit] ID da sala: ${roomId}`);
-    console.log(`[LiveKit] Usuário conectado: ${identity}`);
+    console.log(`[LiveKit] Usu\u00e1rio conectado: ${identity}`);
     
     const result = await api.getLiveKitToken(identity, roomId, isPublisher ? 'publisher' : 'subscriber');
     
@@ -28,5 +28,13 @@ export const livekitApi = {
     console.log(`[LiveKit] ID da sala: ${roomId}`);
     const res = await api.deleteLiveKitRoom(roomId);
     return { success: res.success };
-  }
+  },
+
+  getChatToken: async (streamId: string): Promise<{ token: string; serverUrl: string }> => {
+    console.log('[LIVEKIT-API] getChatToken chamado com streamId:', streamId);
+    const res = await api.post('/api/livekit/chat-token', { streamId });
+    console.log('[LIVEKIT-API] Resposta RAW do getChatToken:', JSON.stringify(res).substring(0, 500));
+    console.log('[LIVEKIT-API] res.token existe:', !!res.token, 'res.serverUrl existe:', !!res.serverUrl);
+    return { token: res.token, serverUrl: res.serverUrl };
+  },
 };

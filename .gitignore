@@ -9,9 +9,11 @@ backend/dist/
 android/.gradle/
 android/app/build/
 
-# Ambiente Local (Bloquear apenas estes)
+# Ambiente Local
+.env
 .env.local
 .env.development
+.env.production
 backend/.env.local
 backend/.env.development
 
@@ -48,5 +50,24 @@ desktop.ini
 # Android (Configurações Locais)
 android/local.properties
 android/.kotlin/
+
+# Arquivos de distribuição empacotados
+dist-frontend.*
+dist_to_deploy.*
+*.tar
+*.tar.gz
+*.zip
+
+# Arquivos de cobertura de testes
+coverage/
+
+# Arquivos de tipo compilados (TypeScript)
+*.tsbuildinfo
+
+# Arquivos de configuração do nginx (backup)
+nginx.conf.bak*
+
+# Arquivos de ambiente sensíveis
+docker/livekit.yaml
 
 nul

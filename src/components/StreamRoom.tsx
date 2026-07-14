@@ -26,6 +26,7 @@ import { RankedAvatar } from '../../components/live/RankedAvatar';
 import FullScreenGiftAnimation from '../../components/live/FullScreenGiftAnimation';
 import { streamPublishService } from '../../services/streamPublishService';
 import { socketService } from '../../services/socket';
+import { useLiveKitChat } from '../../hooks/useLiveKitChat';
 import AvatarWithFrame from '../../components/ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../../services/BeautyWebRTCIntegration';
 import LivePlayer from '../../components/LivePlayer';
@@ -124,6 +125,30 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isOnlineUsersOpen, setOnlineUsersOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
+    const processedMsgIds = useRef(new Set());
+    const streamId = streamer.streamKey || streamer.id;
+    const { connected: lkConnected, sendMessage: lkSendMessage } = useLiveKitChat({
+        streamId,
+        userId: String(currentUser.id),
+        onMessage: (data) => {
+            if (data.type === 'chat_message' || !data.type) {
+                const msgId = data.id || Date.now();
+                if (processedMsgIds.current.has(msgId)) return;
+                processedMsgIds.current.add(msgId);
+                setMessages(prev => [...prev, {
+                    id: msgId, type: 'chat',
+                    user: data.user || data.username || data.name,
+                    level: data.level, message: data.text || data.message,
+                    avatar: data.avatar, gender: data.gender, age: data.age,
+                    activeFrameId: data.activeFrameId,
+                    frameExpiration: data.frameExpiration,
+                    fullUser: data.fullUser,
+                }]);
+            }
+        },
+        onConnected: () => console.log('[SR] LK Conectado'),
+        onDisconnected: () => console.log('[SR] LK Desconectado'),
+    });
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const getStreamUrl = () => {
         // 👥 Para viewers: mostrar transmissão via URL do SRS
@@ -253,17 +278,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         let hasFetchedInitialUsers = false;
 
         // Marcar usuário como online na stream (apenas uma vez)
-        const joinStreamOnce = async () => {
-            if (!hasJoined) {
-                hasJoined = true;
-                const success = await api.joinStream(streamer.id, currentUser.id);
-                if (success) {
-                } else {
-                }
-            }
-        };
-
-        // Initial fetch para definir baseline
+                // Initial fetch para definir baseline
         const fetchInitialUsers = async () => {
             const controlKey = `${streamer.id}_${currentUser.id}`;
 
@@ -288,8 +303,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
 
         // Executar uma vez no início
-        joinStreamOnce();
-        fetchInitialUsers();
+                fetchInitialUsers();
         fetchInitialLikes();
 
         // REMOVIDO: Polling automático de usuários online
@@ -442,6 +456,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     useEffect(() => {
         const handleNewMessage = (message: any) => {
+            if (message.id && processedMsgIds.current.has(message.id)) return;
+            if (message.id) processedMsgIds.current.add(message.id);
             setMessages(prev => [...prev, message]);
         };
         socketService.on('receive_message', handleNewMessage);
@@ -548,7 +564,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, [streamer.id, updateLiveSession, currentUser.id, t, onOpenFriendRequests, liveSession, refreshStreamRoomData]);
 
-    const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
+    const handleSendMessage = async (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
         if (chatInput.trim() === '' || !currentUser) return;
         const messagePayload: ChatMessageType = {
@@ -564,8 +580,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             frameExpiration: currentUser.frameExpiration,
             fullUser: currentUser,
         };
-        setMessages(prev => [...prev, messagePayload]);
-        socketService.sendMessage(streamer.id, messagePayload);
+        if (lkConnected) {
+            const sent = await lkSendMessage(messagePayload);
+            if (sent) {
+                setMessages(prev => [...prev, messagePayload]);
+            }
+        } else {
+            setMessages(prev => [...prev, messagePayload]);
+            socketService.sendMessage(streamer.id, messagePayload);
+        }
         setChatInput('');
     };
 
@@ -1276,10 +1299,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                                 placeholder={t('streamRoom.sayHi')}
                                 value={chatInput}
                                 onChange={(e) => setChatInput(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                onKeyDown={(e) => { if (e.key === "Enter") { console.log("[CHAT] onKeyDown Enter disparado"); handleSendMessage(e); } }}
                                 className="flex-grow bg-transparent px-4 py-2.5 text-white placeholder-gray-400 focus:outline-none"
                             />
-                            <button onClick={handleSendMessage} className="bg-gray-500/50 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-gray-400/50 transition-colors"><SendIcon className="w-5 h-5 text-white" /></button>
+                            <button onClick={(e) => { console.log("[CHAT] onClick botao Enviar disparado"); handleSendMessage(e); }} className="bg-gray-500/50 w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-gray-400/50 transition-colors"><SendIcon className="w-5 h-5 text-white" /></button>
                         </div>
                         <button onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} className="bg-black/40 w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-colors"><GiftIcon className="w-6 h-6 text-yellow-400" /></button>
                         {!isBroadcaster && (
