@@ -1,0 +1,80 @@
+# =============================================================================
+# LiveKit Server Configuration — Local Development (Docker)
+# Docs: https://docs.livekit.io/home/self-hosting/deployment/
+# =============================================================================
+
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+# In local Docker, LiveKit auto-detects the container IP.
+# Do NOT set use_external_ip: true (that's for cloud/VPS with public IPs).
+use_external_ip: false
+
+development: true
+
+keys:
+  dfd8670dd9bc2f158eb5da850fcb47778f19fc9c88ed8f76f2d1d34cd0d29c66: 8529e52ace6e923af0a1b72dffe29fc59372faa96b302c398c9142e197f7636d
+
+logging:
+  level: info
+  sample: true
+  report_stats: false
+
+# =============================================================================
+# RTC — WebRTC media configuration
+# =============================================================================
+rtc:
+  # TCP port for TURN-over-TLS fallback
+  tcp_port: 7881
+
+  # UDP port range for media (must match docker-compose port mapping)
+  port_range_start: 50000
+  port_range_end: 60000
+
+  # In Docker bridge network, LiveKit needs to know the IP reachable by clients.
+  # Do NOT set candidates to 127.0.0.1 (that's the container's own loopback).
+  # LiveKit will auto-detect via STUN. If auto-detect fails, set to host.docker.internal IP.
+  # For local dev with Docker Desktop, UDP port mapping handles it — leave candidates empty.
+
+# =============================================================================
+# ROOM — Default room settings
+# =============================================================================
+room:
+  max_participants: 100
+  empty_timeout: 300
+  max_session_length: 0
+  auto_create: true
+
+# =============================================================================
+# REDIS — Required for multi-instance coordination
+# =============================================================================
+redis:
+  address: "redis:6379"
+  db: 0
+  password: "redis_password_change_me"
+
+# =============================================================================
+# TURN — Embedded TURN server for NAT traversal
+# For local Docker dev, the embedded TURN is sufficient.
+# External coturn is only needed for production with restrictive firewalls.
+# =============================================================================
+turn:
+  enabled: false
+
+# =============================================================================
+# WEBHOOK — Optional event notifications
+# =============================================================================
+webhook:
+  enabled: false
+  api_key: ""
+  urls: []
+
+# =============================================================================
+# INGRESS / EGRESS — Not needed for local dev
+# =============================================================================
+ingress:
+  enabled: false
+
+egress:
+  enabled: false

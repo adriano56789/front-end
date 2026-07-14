@@ -1,0 +1,15 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: livego-frontend-dev
+    restart: unless-stopped
+    ports:
+      # ── Acessar em http://localhost:8080 ──
+      - "8080:80"
+    volumes:
+      # ── Sobrescreve o nginx.conf de produção pelo de dev (sem SSL) ──
+      - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
