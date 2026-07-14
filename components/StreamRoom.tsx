@@ -665,26 +665,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
         setMessages(prev => [...prev, safePayload]);
         
-        // Transmitir mensagem via LiveKit + Socket.IO simultaneamente
-        // LiveKit: data channel em tempo real (principal)
-        console.log('[CHAT] lkRoom state:', lkRoom?.state, 'lkChatConnected:', lkChatConnected);
-        if (lkRoom && lkRoom.state === 'connected') {
-            console.log('[CHAT] Enviando via lkRoom.sendChatMessage');
-            try {
-                const _enc = new TextEncoder();
-                lkRoom.localParticipant.publishData(_enc.encode(JSON.stringify(safePayload)), { reliable: true });
-            } catch (_e) {
-                console.warn('[CHAT] Erro ao enviar via LiveKit publishData:', _e);
-            }
-        } else {
-            console.warn('[CHAT] lkRoom n\u00e3o dispon\u00edvel ou n\u00e3o conectado');
-        }
-        // LiveKit Chat Channel (live_{streamId}) — canal adicional do backend
+        // Apenas LiveKit Chat Channel — canal exclusivo para chat
+        // REMOVIDO: lkRoom.publishData causava DataChannel "User-Initiated Abort" no LiveKit SFU
         if (lkChatConnected) {
             console.log('[CHAT] Enviando via lkChatSendMessage (LiveKit Chat Channel)');
             lkChatSendMessage(safePayload);
         } else {
-            console.warn('[CHAT] lkChatSendMessage ignorado - n\u00e3o conectado');
+            console.warn('[CHAT] LiveKit Chat Channel não disponível. Mensagem persistida via REST API.');
         }
 
         const apiUrl = '/api/streams/' + streamer.id + '/live-message';

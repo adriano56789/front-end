@@ -62,12 +62,35 @@ const PushSettingsScreen: React.FC<PushSettingsScreenProps> = ({ onBack, current
         const users = await api.getFollowingUsers(currentUser.id);
         setFollowedUsers(users || []);
         
-        // Load toggle states from localStorage
+        // Migrar dados do localStorage para API (única vez)
         const stored = localStorage.getItem(`push_settings_${currentUser.id}`);
         if (stored) {
-          setPushToggles(JSON.parse(stored));
-        } else {
-          // Default all to true (enabled)
+          try {
+            const legacy = JSON.parse(stored);
+            if (Object.keys(legacy).length > 0) {
+              await api.updatePushSettings(currentUser.id, legacy);
+            }
+          } catch (_) {}
+          localStorage.removeItem(`push_settings_${currentUser.id}`);
+        }
+
+        // Load toggle states from API (persistido no MongoDB)
+        try {
+          const response = await api.getPushSettings(currentUser.id);
+          const saved = response?.settings || {};
+          if (Object.keys(saved).length > 0) {
+            setPushToggles(saved);
+          } else {
+            // Default all to true (enabled)
+            const initialToggles: Record<string, boolean> = {};
+            (users || []).forEach(u => {
+              initialToggles[u.id] = true;
+            });
+            setPushToggles(initialToggles);
+          }
+        } catch (err) {
+          console.error('Failed to load push settings from API:', err);
+          // Fallback: default all to true
           const initialToggles: Record<string, boolean> = {};
           (users || []).forEach(u => {
             initialToggles[u.id] = true;
@@ -89,7 +112,10 @@ const PushSettingsScreen: React.FC<PushSettingsScreenProps> = ({ onBack, current
   const handleToggle = (userId: string) => {
     const updated = { ...pushToggles, [userId]: !pushToggles[userId] };
     setPushToggles(updated);
-    localStorage.setItem(`push_settings_${currentUser.id}`, JSON.stringify(updated));
+    // Persistir no MongoDB via API
+    api.updatePushSettings(currentUser.id, updated).catch(err => {
+      console.error('Failed to save push settings:', err);
+    });
   };
 
   return (

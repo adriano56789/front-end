@@ -924,10 +924,6 @@ export const api = {
 
     getPrivateStreamSettings: (userId: string) => callApi<{ settings: User['privateStreamSettings'] }>('GET', `/api/settings/private-stream/${userId}`),
 
-    getPushSettings: (userId: string) => callApi<{ settings: Record<string, boolean> }>('GET', `/api/settings/push/${userId}`),
-
-    updatePushSettings: (userId: string, settings: Record<string, boolean>) => callApi<{ success: boolean, settings: Record<string, boolean> }>('POST', `/api/settings/push/${userId}`, { settings }),
-
     updatePrivateStreamSettings: (userId: string, settings: Partial<User['privateStreamSettings']>) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/private-stream/${userId}`, { settings }),
 
     togglePip: (userId: string, enabled: boolean) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/pip/toggle/${userId}`, { enabled }),
@@ -2203,7 +2199,7 @@ export const api = {
       whep: (streamKey: string, sdp: string) => {
         const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
         const url = `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-        return api.rtcPlay(url, sdp, normalizedKey);
+        return api.whepPlay(url, sdp);
       },
       deleteWhip: (resourceUrl: string) => {
         return api.whipStop(resourceUrl);
@@ -2212,46 +2208,6 @@ export const api = {
         return api.whepSendIceCandidate(iceUrl, eTag, frag);
       }
     },
-
-    rtcPlay: async (endpoint: string, sdp: string, streamKey: string): Promise<{ ok: boolean; status: number; sdp: string; location: string | null; eTag: string | null }> => {
-      const token = getAuthToken();
-      const srsHost = env.srs?.host || '2.25.192.154';
-      const srsPort = env.srs?.rtcPort || 8000;
-      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (token) {
-        authHeaders['Authorization'] = `Bearer ${token}`;
-      }
-      const body = {
-        streamurl: `webrtc://${srsHost}:${srsPort}/live/${encodeURIComponent(streamKey)}`,
-        sdp: sdp,
-      };
-      const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-      let result: { ok: boolean; status: number; data: string; headers: any };
-      try {
-        result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', fullUrl, body, {
-          customHeaders: authHeaders,
-          returnFullResponse: true,
-        });
-      } catch (err: any) {
-        console.error('[RTC-PLAY] Erro na requisição:', err);
-        return { ok: false, status: err.status || 0, sdp: err.message || String(err), location: null, eTag: null };
-      }
-      let srsResponse: any;
-      try {
-        srsResponse = typeof result.data === 'string' ? JSON.parse(result.data) : result.data;
-      } catch {
-        return { ok: result.ok, status: result.status, sdp: result.data, location: result.headers?.location || null, eTag: result.headers?.etag || null };
-      }
-      const ok = result.ok && srsResponse.code === 0;
-      return {
-        ok: ok,
-        status: srsResponse.code || result.status,
-        sdp: srsResponse.sdp || result.data,
-        location: result.headers?.location || null,
-        eTag: result.headers?.etag || null,
-      };
-    },
-
 
     rtcPublish: async (endpoint: string, sdp: string, streamKey: string): Promise<{ ok: boolean; status: number; sdp: string; location: string | null }> => {
       const token = getAuthToken();

@@ -87,37 +87,39 @@ export class SrsPlayerEngine {
 
     this._setState('loading');
 
-    // Attempt to connect to WHEP in a retry loop until it succeeds or engine is destroyed
+    // Attempt to connect to WHEP with retry — log every error for diagnostics
     let attempts = 0;
-    const maxAttempts = 120; // Try for up to 6 minutes waiting for stream to start
+    const maxWhepAttempts = 10; // Try WHEP for ~30 seconds, then fall back to HLS
     
-    while (attempts < maxAttempts && !this._destroyed) {
+    while (attempts < maxWhepAttempts && !this._destroyed) {
       try {
         await this._startWhep();
         this._connecting = false;
         return; // Success!
-      } catch (err) {
+      } catch (err: any) {
         if (this._destroyed) return;
         attempts++;
-        // Wait 3 seconds before next retry
+        const errMsg = err?.message || err?.toString() || 'Unknown error';
+        console.warn(`[SRS-Engine] WHEP attempt ${attempts}/${maxWhepAttempts} falhou: ${errMsg}`);
+        // Aguarda 3s antes de tentar novamente
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
-    // Fallback if max attempts reached and not destroyed
-    if (!this._destroyed) {
-      if (this._config.hlsFallback) {
-        try {
-          await this._startHls();
-          this._connecting = false;
-          return;
-        } catch (hlsErr) {
-          // Fallback to error state
-        }
+    // HLS fallback if WHEP exhausted and not destroyed
+    if (!this._destroyed && this._config.hlsFallback) {
+      console.log('[SRS-Engine] WHEP esgotado, tentando HLS como fallback...');
+      try {
+        await this._startHls();
+        this._connecting = false;
+        return;
+      } catch (hlsErr: any) {
+        console.error('[SRS-Engine] HLS fallback também falhou:', hlsErr?.message || hlsErr);
       }
-      this._setState('error');
-      this._emit('error', 'PLAYBACK_FAILED', 'Failed to connect to WHEP or HLS after multiple attempts.');
     }
+
+    this._setState('error');
+    this._emit('error', 'PLAYBACK_FAILED', 'Failed to connect to WHEP or HLS after multiple attempts.');
     this._connecting = false;
   }
 

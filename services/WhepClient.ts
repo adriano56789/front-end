@@ -71,6 +71,11 @@ export class WhepClient {
       throw err;
     }
 
+    if (!result.ok) {
+      const srsMsg = result.sdp || `SRS returned code ${result.status}`;
+      throw new Error(`WHEP play failed: ${srsMsg}`);
+    }
+
     await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
 
     const iceUrl = result.location;

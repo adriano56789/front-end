@@ -150,7 +150,11 @@ class StreamPublishService {
   }
 
   onStats(cb: (stats: any) => void): () => void {
-    return webrtcService.onStats(cb);
+    if (this.useBackendProxy) {
+      return webrtcService.onStats(cb);
+    }
+    // whipPublishService não possui método onStats ainda
+    return () => {};
   }
 
   async startPublish(
