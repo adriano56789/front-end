@@ -218,6 +218,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
     const [giftQueue, setGiftQueue] = useState<GiftPayload[]>([]); // Nova fila para GiftQueueManager
+    const [activeLiveInvite, setActiveLiveInvite] = useState<{ inviteId: string; type: string; from: string; fromName: string; streamId: string } | null>(null);
 
     // Estado para monitoramento de publish SRS
     const [publishStatus, setPublishStatus] = useState<SrsPublishStatus>({
@@ -560,6 +561,29 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
+
+
+    useEffect(() => {
+        const handleLiveInvite = (e) => {
+            const d = e.detail; if (!d) return;
+            setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: d.type || "co-host", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || "" });
+        };
+        const handleCallInvite = (e) => {
+            const d = e.detail; if (!d) return;
+            setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: "call", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || streamer.id });
+        };
+        const clearInvite = () => setActiveLiveInvite(null);
+        window.addEventListener("livego:live_invite", handleLiveInvite);
+        window.addEventListener("livego:call_invitation", handleCallInvite);
+        window.addEventListener("livego:live_invite_timeout", clearInvite);
+        window.addEventListener("livego:live_invite_response", clearInvite);
+        return () => {
+            window.removeEventListener("livego:live_invite", handleLiveInvite);
+            window.removeEventListener("livego:call_invitation", handleCallInvite);
+            window.removeEventListener("livego:live_invite_timeout", clearInvite);
+            window.removeEventListener("livego:live_invite_response", clearInvite);
+        };
+    }, [streamer.id]);
 
     const postGiftChatMessage = (payload: GiftPayload) => {
         try {
@@ -1645,6 +1669,31 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 onKick={handleKickUser}
                 isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
             />
+
+
+            {activeLiveInvite && (
+                <div className="absolute inset-0 z-[99999998] flex items-center justify-center pointer-events-none">
+                    <div className="pointer-events-auto bg-gray-900/95 border border-purple-500/60 rounded-2xl p-5 mx-4 max-w-xs w-full shadow-2xl">
+                        <p className="text-white text-sm font-semibold text-center mb-1">
+                            {activeLiveInvite.type === "call" ? "📞 Chamada de vídeo" : "🎬 Convite para live"}
+                        </p>
+                        <p className="text-gray-300 text-xs text-center mb-4">
+                            <span className="font-bold text-purple-300">{activeLiveInvite.fromName}</span>{" "}
+                            te convidou para {activeLiveInvite.type === "call" ? "uma chamada" : "entrar na live"}
+                        </p>
+                        <div className="flex gap-3">
+                            <button className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                                onClick={() => { api.respondToLiveInvite(activeLiveInvite.inviteId, "declined").catch(() => {}); setActiveLiveInvite(null); }}>
+                                Recusar
+                            </button>
+                            <button className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                                onClick={() => { api.respondToLiveInvite(activeLiveInvite.inviteId, "accepted").catch(() => {}); setActiveLiveInvite(null); }}>
+                                Aceitar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
                                             </div>
     );
