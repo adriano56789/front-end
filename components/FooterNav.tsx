@@ -82,7 +82,7 @@ const FooterNav: React.FC<FooterNavProps> = ({ currentUser, onOpenGoLive, active
         >
           <div className={`relative w-6 h-6 mb-1 rounded-full p-[1px] border ${activeTab === 'profile' ? 'border-white' : 'border-gray-500'}`}>
             {currentUser.avatarUrl ? (
-              <img src={currentUser.avatarUrl} alt="User" className="w-full h-full rounded-full object-cover" />
+              <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="User" className="w-full h-full rounded-full object-cover" />
             ) : (
               <div className="w-full h-full rounded-full bg-gray-600 flex items-center justify-center">
                 <span className="text-white text-[9px] font-bold">

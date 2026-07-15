@@ -239,6 +239,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const {
         room: lkRoom,
+        connectionState: lkConnectionState,
         connect: connectLiveKit,
         disconnect: disconnectLiveKit,
     } = useLiveKit();
@@ -250,6 +251,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
+    disabled: isBroadcaster,
     onMessage: (data: any) => {
       if (data.type === 'chat_message' || data.type === 'chat') {
         setMessages(prev => {
@@ -291,20 +293,24 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // LiveKit: apenas o broadcaster conecta automaticamente para gerenciar sala.
     // Espectadores NÃO conectam no LiveKit — usam apenas SRS (HLS/WHEP) para assistir.
     // LiveKit só deve ser conectado para interações específicas (PK, sala privada, vídeo).
+    // O broadcaster usa ESTA única instância de Room para TUDO: publicar mídia, chat e eventos.
     useEffect(() => {
         if (!streamer.id || !currentUser.id || !isBroadcaster) return;
 
         let active = true;
         const identity = `streamer_${currentUser.id}`;
+        console.log('[HOST-LK] Iniciando conexão do HOST como:', identity, 'room:', streamer.id);
 
         const startConnection = async () => {
             try {
                 const res = await api.getLiveKitToken(streamer.id, identity, true);
                 if (res.success && active) {
+                    console.log('[HOST-LK] Token obtido, conectando ao LiveKit... serverUrl:', res.serverUrl);
                     await connectLiveKit(res.serverUrl, res.token);
+                    console.log('[HOST-LK] ✅ Host conectado ao LiveKit com sucesso! Identity:', identity);
                 }
             } catch (err) {
-                console.warn('[LiveKit] Falha ao conectar (chat funcionará via Socket.IO):', err);
+                console.warn('[HOST-LK] Falha ao conectar (chat funcionará via Socket.IO):', err);
             }
         };
 
@@ -313,34 +319,40 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         return () => {
             active = false;
             disconnectLiveKit();
-            disconnectLkChat();
+            console.log('[HOST-LK] Room desconectado no cleanup');
         };
     }, [streamer.id, currentUser.id, isBroadcaster]);
 
     // Escutar mensagens e eventos vindos do data channel do LiveKit
     // (chat, gifts, likes de outros participantes)
+    // Para o HOST: usa lkRoom (useLiveKit) — única instância Room
+    // Para VIEWERS: usa useLiveKitChat Room
     useEffect(() => {
         if (!lkRoom) return;
 
-        const handleDataReceived = (data: any) => {
+        console.log('[HOST-LK] Registrando listeners no lkRoom para eventos...');
+
+        const handleDataReceived = (data: any, participantIdentity?: string) => {
+            console.log('[HOST-LK] 📩 data_received no lkRoom! de:', participantIdentity, 'tipo:', data?.type, 'data:', JSON.stringify(data).substring(0, 200));
             // Decodificar Uint8Array do LiveKit (data_received sempre entrega Uint8Array)
             if (data instanceof Uint8Array || data instanceof ArrayBuffer) {
                 try {
                     data = JSON.parse(new TextDecoder().decode(data));
                 } catch (_e) {
-                    console.warn('[LIVEKIT] Erro ao decodificar dados recebidos:', _e);
+                    console.warn('[HOST-LK] Erro ao decodificar dados recebidos:', _e);
                     return;
                 }
             }
             if (!data || !data.type) return;
 
             if (data.type === 'chat_message' || data.type === 'chat') {
+                console.log('[HOST-LK] 💬 Mensagem de chat recebida:', data.user || data.username, ':', data.text || data.message);
                 setMessages(prev => {
                     if (prev.some(m => m.id === data.id)) return prev;
-                    // Normalizar type: LiveKit envia como 'chat_message', render espera 'chat'
                     return [...prev, { ...data, type: 'chat' }];
                 });
             } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
+                console.log('[HOST-LK] 🎁 Presente recebido:', data.from?.name);
                 const payload: GiftPayload = {
                     fromUser: {
                         id: data.from?.id || data.fromUser?.id,
@@ -375,10 +387,55 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             }
         };
 
+        const handleChatMessage = (data: any, participantIdentity?: string) => {
+            console.log('[HOST-LK] 💬 chat_message event no lkRoom! de:', participantIdentity, 'dados:', JSON.stringify(data).substring(0, 200));
+            if (!data) return;
+            setMessages(prev => {
+                if (prev.some(m => m.id === data.id)) return prev;
+                return [...prev, { ...data, type: 'chat' }];
+            });
+        };
+
+        const handleParticipantConnected = (participant: any) => {
+            console.log('[HOST-LK] 👤 Participante CONECTADO no lkRoom:', participant?.identity, 'nome:', participant?.name);
+            setOnlineUsers(prev => {
+                const identity = participant?.identity;
+                if (!identity) return prev;
+                if (prev.some(u => u.id === identity)) return prev;
+                const newUser = {
+                    id: identity,
+                    name: participant?.name || identity,
+                    avatar: '',
+                    value: 0,
+                };
+                console.log('[HOST-LK] Adicionando participant à lista online:', newUser.name, 'total antes:', prev.length, 'depois:', prev.length + 1);
+                return [...prev, newUser];
+            });
+        };
+
+        const handleParticipantDisconnected = (participant: any) => {
+            console.log('[HOST-LK] 👤 Participante DESCONECTADO no lkRoom:', participant?.identity, 'nome:', participant?.name);
+            setOnlineUsers(prev => {
+                const identity = participant?.identity;
+                if (!identity) return prev;
+                const filtered = prev.filter(u => u.id !== identity);
+                console.log('[HOST-LK] Removendo participant da lista online. Antes:', prev.length, 'Depois:', filtered.length);
+                return filtered;
+            });
+        };
+
         lkRoom.on('data_received', handleDataReceived);
+        lkRoom.on('chat_message', handleChatMessage);
+        lkRoom.on('participantConnected' as any, handleParticipantConnected);
+        lkRoom.on('participantDisconnected' as any, handleParticipantDisconnected);
+
+        console.log('[HOST-LK] ✅ Listeners registrados: data_received, chat_message, participantConnected, participantDisconnected');
 
         return () => {
             lkRoom.off('data_received', handleDataReceived);
+            lkRoom.off('chat_message', handleChatMessage);
+            lkRoom.off('participantConnected' as any, handleParticipantConnected);
+            lkRoom.off('participantDisconnected' as any, handleParticipantDisconnected);
         };
     }, [lkRoom, streamer.id, currentUser.id]);
 
@@ -642,7 +699,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
-        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id);
+        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id, 'isBroadcaster:', isBroadcaster, 'lkConnected:', lkConnectionState);
         if (chatInput.trim() === '' || !currentUser) { console.log('[CHAT] handleSendMessage ignorado - input vazio ou sem user'); return; }
         const messagePayload: ChatMessageType = {
             id: Date.now(),
@@ -665,13 +722,16 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
         setMessages(prev => [...prev, safePayload]);
         
-        // Apenas LiveKit Chat Channel — canal exclusivo para chat
-        // REMOVIDO: lkRoom.publishData causava DataChannel "User-Initiated Abort" no LiveKit SFU
-        if (lkChatConnected) {
+        // HOST: usa lkRoom (useLiveKit) — única instância Room para tudo
+        // VIEWER: usa lkChatSendMessage (useLiveKitChat)
+        if (isBroadcaster && lkRoom && lkConnectionState === 'connected') {
+            console.log('[CHAT] [HOST] Enviando via lkRoom.sendChatMessage (LiveKit Room principal)');
+            (lkRoom as any).sendChatMessage(safePayload);
+        } else if (lkChatConnected) {
             console.log('[CHAT] Enviando via lkChatSendMessage (LiveKit Chat Channel)');
             lkChatSendMessage(safePayload);
         } else {
-            console.warn('[CHAT] LiveKit Chat Channel não disponível. Mensagem persistida via REST API.');
+            console.warn('[CHAT] Nenhum canal LiveKit disponível. Mensagem persistida via REST API.');
         }
 
         const apiUrl = '/api/streams/' + streamer.id + '/live-message';
@@ -718,7 +778,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     setLikes(response.totalLikes);
                     setIsLiked(false);
                     // Transmitir like via LiveKit data channel
-                    if (lkRoom && lkRoom.state === 'connected') {
+                    if (lkRoom && lkConnectionState === 'connected') {
                         try { const _e = new TextEncoder(); lkRoom.localParticipant.publishData(_e.encode(JSON.stringify({ type: 'stream_unliked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id })), { reliable: true }); } catch (_) { console.warn('[LIKE] Erro LiveKit unlike:', _); }
                     }
                 }
@@ -729,7 +789,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     setLikes(response.totalLikes);
                     setIsLiked(true);
                     // Transmitir like via LiveKit data channel
-                    if (lkRoom && lkRoom.state === 'connected') {
+                    if (lkRoom && lkConnectionState === 'connected') {
                         try { const _e = new TextEncoder(); lkRoom.localParticipant.publishData(_e.encode(JSON.stringify({ type: 'stream_liked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id })), { reliable: true }); } catch (_) { console.warn('[LIKE] Erro LiveKit like:', _); }
                     }
                 }
@@ -1009,7 +1069,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             setFullscreenGiftQueue(prev => [...prev, giftPayload]);
 
             // Transmitir presente via LiveKit data channel
-            if (lkRoom && lkRoom.state === 'connected') {
+            if (lkRoom && lkConnectionState === 'connected') {
                 try {
                 const _enc = new TextEncoder();
                 lkRoom.localParticipant.publishData(_enc.encode(JSON.stringify({

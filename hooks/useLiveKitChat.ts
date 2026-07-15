@@ -9,6 +9,7 @@ const MAX_RETRIES = 3;
 interface LiveKitChatOptions {
   streamId: string;
   userId: string;
+  disabled?: boolean;
   onMessage?: (data: any) => void;
   onParticipantConnected?: (participant: RemoteParticipant) => void;
   onParticipantDisconnected?: (participant: RemoteParticipant) => void;
@@ -24,12 +25,13 @@ function getRetryDelay(attempt: number): number {
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
-  const { streamId, userId } = options;
+  const { streamId, userId, disabled } = options;
   const roomRef = useRef<Room | null>(null);
   const [connected, setConnected] = useState(false);
   const optionsRef = useRef(options);
   const destroyedRef = useRef(false);
   const onMessageRef = useRef(options.onMessage);
+  const reconnectTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -37,6 +39,11 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
   }, [options]);
 
   useEffect(() => {
+    if (disabled) {
+      console.log('[LiveKitChat] Desabilitado (disabled=true), pulando conexão separada. Host usará Room principal.');
+      return;
+    }
+
     let destroyed = false;
     let retryCount = 0;
 
@@ -101,6 +108,18 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
             if (destroyed) return;
             setConnected(false);
             optionsRef.current.onDisconnected?.();
+            if (retryCount < MAX_RETRIES) {
+              const delay = getRetryDelay(retryCount + 1);
+              console.warn(`[LiveKitChat] Room desconectado inesperadamente. Tentando reconectar em ${delay}ms...`);
+              if (reconnectTimerRef.current !== null) {
+                window.clearTimeout(reconnectTimerRef.current);
+              }
+              reconnectTimerRef.current = window.setTimeout(() => {
+                if (!destroyed) {
+                  connectWithRetry();
+                }
+              }, delay);
+            }
           });
 
           room.on(RoomEvent.Reconnecting, () => {
@@ -161,15 +180,26 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     return () => {
       destroyed = true;
       destroyedRef.current = true;
+      if (reconnectTimerRef.current !== null) {
+        window.clearTimeout(reconnectTimerRef.current);
+      }
       if (roomRef.current) {
-        roomRef.current.disconnect();
+        try {
+          roomRef.current.disconnect();
+        } catch (e) {
+          console.warn('[LiveKitChat] Erro ao desconectar room no cleanup:', e);
+        }
         roomRef.current = null;
       }
     };
-  }, [streamId, userId]);
+  }, [streamId, userId, disabled]);
 
   const sendMessage = useCallback(async (payload: any): Promise<boolean> => {
-    console.log('[LiveKitChat] sendMessage chamado, room:', roomRef.current?.name || roomRef.current?.roomId, 'state:', roomRef.current?.state, 'mensagem:', payload.text || payload.message);
+    console.log('[LiveKitChat] sendMessage chamado, disabled:', disabled, 'room:', roomRef.current?.name || (roomRef.current as any)?.roomId, 'state:', roomRef.current?.state, 'mensagem:', payload.text || payload.message);
+    if (disabled) {
+      console.warn('[LiveKitChat] sendMessage ignorado - hook desabilitado (host usa Room principal)');
+      return false;
+    }
     if (!roomRef.current || roomRef.current.state !== 'connected') {
       console.warn('[LiveKitChat] sendMessage ignorado - room não conectada (state:', roomRef.current?.state, ')');
       return;

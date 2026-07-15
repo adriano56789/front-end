@@ -54,7 +54,7 @@ const AVATAR_PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent('<svg 
 
 const avatarSrc = (avatarUrl: string | undefined, _name: string): string => {
   if (!avatarUrl || avatarUrl.trim() === '') return AVATAR_PLACEHOLDER_SVG;
-  return avatarUrl; // ✅ Retorna URL pura sem cache
+  return avatarUrl;
 };
 
 // Função para obter o componente do frame
@@ -146,6 +146,7 @@ const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({
         onClick={onClick}
       >
         <img
+          key={user.avatarUrl || 'empty'}
           src={avatarSrc(user.avatarUrl || (user as any).avatar, user.name)}
           alt={user.name || 'User'}
           className="perfect-avatar-image"

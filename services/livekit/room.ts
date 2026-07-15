@@ -171,7 +171,9 @@ export class LiveKitRoom {
           return;
         }
         console.log('[LiveKit] Conexão perdida. Tentando reconectar...');
+        this.state = 'reconnecting';
         this.isReconnecting = true;
+        this.emit(RoomEvent.Reconnecting);
       });
 
       // Event: Reconnecting

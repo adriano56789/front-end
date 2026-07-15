@@ -2295,7 +2295,7 @@ export const api = {
       callApi<{ iceServers: any[] }>('GET', '/api/rtc/ice-servers'),
 
     getIPLocation: () =>
-      callApi<any>('GET', '/api/location/ip-lookup'),
+      callApi<any>('GET', '/api/location/ip'),
 
     addDiamonds: (userId: string, amount: number) =>
       callApi<{ success: boolean; diamonds: number }>('POST', '/api/users/add-diamonds', { userId, amount }),

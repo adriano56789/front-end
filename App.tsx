@@ -452,7 +452,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [isGiftAdminOpen, setIsGiftAdminOpen] = useState(false);
 
-  const [locationPermissionStatus, setLocationPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  // REMOVED: locationPermissionStatus local state - now syncs with currentUser.locationPermission from MongoDB
+  // const [locationPermissionStatus, setLocationPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
   const [showLocationBanner, setShowLocationBanner] = useState(false);
 
@@ -556,7 +557,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [isPiPMode, setIsPiPMode] = useState(false);
   const [pipStreamer, setPipStreamer] = useState<Streamer | null>(null);
 
-
+  // REMOVED: local arrays for streamHistory, visitors, purchaseHistory - now fetched from API
+  // const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>([]);
+  // const [visitors, setVisitors] = useState<Visitor[]>([]);
+  // const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
 
   // Dados críticos devem vir sempre da API - não usar estado estático
 
@@ -576,11 +580,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [fans, setFans] = useState<User[]>([]);
 
+  // These arrays are now fetched from API when needed
+  const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>([]);
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>([]);
+
   const [allGifts, setAllGifts] = useState<Gift[]>([]);
 
   const [reminderStreamers, setReminderStreamers] = useState<Streamer[]>([]);
 
-  const [selectedCountry, setSelectedCountry] = useState<string>('ICON_GLOBE');
+  // REMOVED: selectedCountry state - now always uses currentUser.country from MongoDB
+  // const [selectedCountry, setSelectedCountry] = useState<string>('ICON_GLOBE');
 
   const [activeCategory, setActiveCategory] = useState('popular');
 
@@ -837,6 +847,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
+  // Sync locationPermissionStatus with currentUser.locationPermission from MongoDB
+  const [locationPermissionStatus, setLocationPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+
+  useEffect(() => {
+    if (currentUser?.locationPermission) {
+      setLocationPermissionStatus(currentUser.locationPermission as any);
+    }
+  }, [currentUser?.locationPermission]);
+
+
+
   // Carregar dados do usuário logado (conversas, amigos, fãs, seguindo)
 
   useEffect(() => {
@@ -871,8 +892,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         }
 
+        // TODO: Add following, fans, visitors, streamHistory, purchaseHistory when API methods are available
+        // For now, these arrays remain empty and will be populated when needed
         
       } catch (error) {
+
+        console.error('❌ [App] Erro ao carregar dados do usuário:', error);
 
       }
 
@@ -969,7 +994,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           addToast(ToastType.Success, `Desafio aceito por ${opponentUser.name}! Iniciando PK...`);
           try {
             await api.startPKBattle(currentUser.id, currentStreamId, opponentUser.id);
-            setPkOpponent(opponentUser);
+            setPkOpponent(opponentUser as unknown as User);
             setIsPKBattleActive(true);
           } catch (err) {
             console.error("Error starting battle:", err);
@@ -990,7 +1015,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       if (detail && detail.opponentId) {
         const opponentUser = streamers.find((s: any) => s.id === detail.opponentId || s.hostId === detail.opponentId);
         if (opponentUser) {
-          setPkOpponent(opponentUser);
+          setPkOpponent(opponentUser as unknown as User);
         } else {
           // Fallback: criar perfil mínimo do oponente
           setPkOpponent({
@@ -1080,11 +1105,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
   const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
 
-  const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
-
-  const [visitors, setVisitors] = useState<Visitor[]>(INITIAL_DATA.visitors);
-
-  const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>(INITIAL_DATA.purchaseHistory);
+  // REMOVED: duplicate declarations - these are now fetched from API and declared earlier
+  // const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
+  // const [visitors, setVisitors] = useState<Visitor[]>(INITIAL_DATA.visitors);
+  // const [purchaseHistory, setPurchaseHistory] = useState<PurchaseRecord[]>(INITIAL_DATA.purchaseHistory);
 
 
 
@@ -1129,7 +1153,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       }
 
       // Só persiste no backend se campos de perfil mudaram (não runtime: diamonds, earnings, isOnline etc.)
-      const profileFields: (keyof User)[] = ['name', 'displayName', 'avatarUrl', 'coverUrl', 'bio', 'gender', 'birthday', 'residence', 'profession', 'emotional_status', 'tags', 'city', 'state', 'country', 'age', 'isAvatarProtected', 'chatPermission', 'pipEnabled', 'locationPermission', 'showActivityStatus', 'showLocation', 'privateStreamSettings', 'activeFrameId', 'obras'];
+      const profileFields: (keyof User)[] = ['name', 'avatarUrl', 'coverUrl', 'bio', 'gender', 'birthday', 'residence', 'profession', 'emotional_status', 'tags', 'city', 'state', 'country', 'age', 'isAvatarProtected', 'chatPermission', 'pipEnabled', 'locationPermission', 'showActivityStatus', 'showLocation', 'privateStreamSettings', 'activeFrameId', 'obras'];
       const hasProfileChange = profileFields.some(f => cur[f] !== updatedUser[f]);
       if (hasProfileChange) {
         api.updateProfile(updatedUser.id, updatedUser).then(res => {
@@ -1746,9 +1770,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         setStreamers(prev => {
           const list = Array.isArray(prev) ? prev : [];
           if (list.some(s => s.id === data.id)) {
-            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } : s);
+            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } as Streamer : s);
           }
-          return [data, ...list];
+          return [{ ...data, location: '', time: '', message: '', tags: [] } as Streamer, ...list];
         });
       });
 
@@ -2377,7 +2401,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const handleSelectRegion = async (countryCode: string) => {
 
-    setSelectedCountry(countryCode);
+    // REMOVED: setSelectedCountry(countryCode); - country now stored in MongoDB via currentUser.country
 
     // Salvar país no backend imediatamente
     if (currentUser && countryCode !== 'ICON_GLOBE') {
@@ -3784,7 +3808,7 @@ const logLiveEvent = (type: string, data: any) => {
                                          listScreenUsers.find((u: any) => u.id === activePKInvite.inviterId || u.id === activePKInvite.inviter_id);
                                          
                     if (opponentUser) {
-                      setPkOpponent(opponentUser);
+                      setPkOpponent(opponentUser as unknown as User);
                       setIsPKBattleActive(true);
                       if (!activeStream) {
                         handleSelectStream(opponentUser as Streamer);
@@ -3808,7 +3832,9 @@ const logLiveEvent = (type: string, data: any) => {
                         earnings_withdrawn: 0,
                         isVIP: true,
                         location: 'São Paulo, SP',
-                        ownedFrames: []
+                        ownedFrames: [],
+                        avatar: 'https://picsum.photos/seed/pkdef/400/600',
+                        streamStatus: ''
                       };
                       setPkOpponent(mockOpponent);
                       setIsPKBattleActive(true);
@@ -4021,6 +4047,8 @@ const logLiveEvent = (type: string, data: any) => {
 
             onOpenFollowing={() => handleOpenListScreen('following')}
 
+            onOpenFriendRequests={() => setIsFriendRequestsScreenOpen(true)}
+
             followingUsers={followingUsers}
 
             streamers={streamers}
@@ -4102,6 +4130,10 @@ const logLiveEvent = (type: string, data: any) => {
                   onOpenMarket={() => setIsMarketScreenOpen(true)}
                   onOpenWallet={(initialTab?: 'Diamante' | 'Ganhos') => {
                     setWalletInitialTab(initialTab || 'Diamante');
+                    setIsWalletScreenOpen(true);
+                  }}
+                  onOpenAdminWallet={() => {
+                    setWalletInitialTab('Ganhos');
                     setIsWalletScreenOpen(true);
                   }}
                   onEnterMyStream={() => {
@@ -4219,7 +4251,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       <ReminderModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)} onSelectStream={handleSelectStream} streamers={reminderStreamers} onOpenLiveHistory={() => setIsLiveHistoryOpen(true)} />
 
-      <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={selectedCountry} />
+      <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={currentUser?.country || 'ICON_GLOBE'} />
 
       {/* Updated GoLiveScreen usage to accept inviteData */}
 
@@ -4229,7 +4261,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {isEndStreamConfirmOpen && <EndStreamConfirmationModal onCancel={() => setIsEndStreamConfirmOpen(false)} onConfirm={handleConfirmEndStream} isPK={isPKBattleActive} />}
 
-      {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} currentUser={currentUser} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); navigate('/'); }} />}
+      {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); navigate('/'); }} />}
 
       {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={handleStartChat} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} />}
 
@@ -4426,6 +4458,10 @@ const ProfileRoutes: React.FC = () => {
           onOpenMarket={() => setIsMarketScreenOpen(true)}
           onOpenWallet={(initialTab?: 'Diamante' | 'Ganhos') => {
             setWalletInitialTab(initialTab || 'Diamante');
+            setIsWalletScreenOpen(true);
+          }}
+          onOpenAdminWallet={() => {
+            setWalletInitialTab('Ganhos');
             setIsWalletScreenOpen(true);
           }}
           onEnterMyStream={() => {

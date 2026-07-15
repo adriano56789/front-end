@@ -170,7 +170,7 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
          
          <div className="relative w-[70px] h-[70px] flex-shrink-0 z-10 mt-2">
            {user.avatarUrl && user.avatarUrl.trim() ? (
-             <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#4B5563"/></svg>'); }} />
+              <img key={user.avatarUrl} src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover rounded-full" onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" fill="#4B5563"/></svg>'); }} />
            ) : (
              <div className="w-full h-full rounded-full bg-[#1c1c1e] flex items-center justify-center text-white text-2xl font-bold">{user.name?.[0] || '?'}</div>
            )}

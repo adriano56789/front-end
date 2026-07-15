@@ -53,7 +53,7 @@ export async function getApproximateLocationByIP(): Promise<IPLocationResult> {
             } catch (e) {}
         }
 
-        // Try proxying IP geolocation through backend to ensure no direct external fetch
+        // Usar a implementação oficial de geolocalização por IP no backend.
         const response = await api.getIPLocation();
         if (response && response.success && response.data) {
             const data = response.data;
@@ -68,7 +68,16 @@ export async function getApproximateLocationByIP(): Promise<IPLocationResult> {
             localStorage.setItem('buzzcast_ip_location', JSON.stringify(result));
             return result;
         }
-        throw new Error('IP lookup returned failure status');
+
+        console.warn('[LOCATION] /api/location/ip retornou falha. Usando localização padrão de fallback.');
+        return {
+            latitude: -23.5505,
+            longitude: -46.6333,
+            city: 'São Paulo',
+            state: 'SP',
+            country: 'Brasil',
+            locationName: 'São Paulo, SP'
+        };
     } catch (error) {
         console.warn('IP Geolocation failed, using default São Paulo location', error);
         // Fallback to São Paulo
