@@ -103,8 +103,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
     };
 
     const handleItemClick = (user: User) => {
-        setSelectedUser(user);
-        setIsSheetOpen(true);
+        onViewProfile(user);
     };
 
     return (
@@ -130,7 +129,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                                 key={user.id} 
                                 user={user} 
                                 onRowClick={() => handleItemClick(user)} 
-                                onFollowClick={() => handleItemClick(user)} 
+                                onFollowClick={() => handleUnfollowUser(user)} 
                             />
                         ))}
                     </div>

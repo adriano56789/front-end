@@ -117,8 +117,7 @@ const FansScreen: React.FC<FansScreenProps> = ({ onBack, onViewProfile, users, o
     };
 
     const handleItemClick = (user: User) => {
-        setSelectedUser(user);
-        setIsSheetOpen(true);
+        onViewProfile(user);
     };
 
     return (
