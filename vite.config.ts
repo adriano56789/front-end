@@ -23,12 +23,7 @@ export default defineConfig({
         secure: false,
         ws: true,
       },
-      '/socket.io': {
-        target: 'https://livego.store',
-        changeOrigin: true,
-        secure: false,
-        ws: true,
-      },
+      /* socket.io proxy removido */
       '/uploads': {
         target: 'https://livego.store',
         changeOrigin: true,

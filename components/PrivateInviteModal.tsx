@@ -3,7 +3,7 @@ import { CloseIcon, PlusIcon, GiftIcon } from './icons';
 import { User, ToastType, EligibleUser, Gift } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
-import { io } from 'socket.io-client';
+// Socket.IO removido — convites gerenciados via REST API
 
 interface PrivateInviteModalProps {
   isOpen: boolean;
@@ -67,44 +67,7 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
     }
   }, [isOpen, streamId, addToast]);
 
-  // WebSocket para atualização em tempo real de presentes
-  useEffect(() => {
-    if (!isOpen || !streamId) return;
-
-    const socket = io();
-    
-    const handleGiftUpdate = (data: any) => {
-      if (data.streamId === streamId) {
-        // Recarregar lista de elegíveis
-        api.getGiftSendersForStream(streamId)
-          .then(response => {
-            if (response && response.gifts) {
-              const convertedData = (response.gifts || []).map((user: any) => ({
-                id: user.userId,
-                name: user.userName || 'Usuário',
-                avatarUrl: user.userAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.userName || 'User')}&background=random`,
-                giftsSent: (user.gifts || []).map((gift: any) => ({
-                  name: gift.giftName || 'Presente',
-                  icon: gift.giftIcon || '🎁',
-                  quantity: gift.quantity || 1,
-                  price: gift.giftPrice || 0
-                }))
-              }));
-              setEligibleUsers(convertedData);
-            }
-          })
-          .catch(err => {
-          });
-      }
-    };
-
-    socket.on('gift_sent_to_stream', handleGiftUpdate);
-    
-    return () => {
-      socket.off('gift_sent_to_stream', handleGiftUpdate);
-      socket.disconnect();
-    };
-  }, [isOpen, streamId]);
+  // Socket.IO removido — atualização em tempo real via API polling
   
   const hasUnfollowedUsers = useMemo(() => {
     if (isLoading) return false;

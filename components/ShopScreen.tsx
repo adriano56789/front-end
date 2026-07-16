@@ -64,7 +64,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
       setUserInventory(inventory);
       
     } catch (error) {
-      addToast('error', 'Erro ao carregar itens da loja');
+      addToast(ToastType.Error, 'Erro ao carregar itens da loja');
     } finally {
       setLoading(false);
     }
@@ -73,7 +73,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
   const handlePurchase = async (itemId: string, price: number) => {
     try {
       if (user.diamonds < price) {
-        addToast('error', 'Diamonds insuficientes');
+        addToast(ToastType.Error, 'Diamonds insuficientes');
         onOpenWallet('Diamante');
         return;
       }
@@ -108,11 +108,11 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         // Recarregar inventário
         await loadShopData();
         
-        addToast('success', 'Item comprado com sucesso!');
+        addToast(ToastType.Success, 'Item comprado com sucesso!');
       }
       
     } catch (error: any) {
-      addToast('error', error.message || 'Erro ao comprar item');
+      addToast(ToastType.Error, error.message || 'Erro ao comprar item');
     }
   };
 
@@ -124,10 +124,10 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         const updatedUser = { ...user, avatarUrl: result.currentAvatar.imageUrl };
         updateUser(updatedUser);
         
-        addToast('success', 'Avatar equipado com sucesso!');
+        addToast(ToastType.Success, 'Avatar equipado com sucesso!');
       }
     } catch (error: any) {
-      addToast('error', error.message || 'Erro ao equipar avatar');
+      addToast(ToastType.Error, error.message || 'Erro ao equipar avatar');
     }
   };
 

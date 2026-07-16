@@ -47,7 +47,7 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
       setCurrentFrame(currentFrameData);
       
     } catch (error) {
-      addToast('error', 'Erro ao carregar frames');
+      addToast(ToastType.Error, 'Erro ao carregar frames');
     } finally {
       setLoading(false);
     }
@@ -56,7 +56,7 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
   const handlePurchase = async (frameId: string, price: number) => {
     try {
       if (user.diamonds < price) {
-        addToast('error', 'Diamonds insuficientes');
+        addToast(ToastType.Error, 'Diamonds insuficientes');
         onOpenWallet('Diamante');
         return;
       }
@@ -70,11 +70,11 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
         // Recarregar frames do usuário
         await loadFrames();
         
-        addToast('success', 'Frame comprado com sucesso!');
+        addToast(ToastType.Success, 'Frame comprado com sucesso!');
       }
       
     } catch (error: any) {
-      addToast('error', error.message || 'Erro ao comprar frame');
+      addToast(ToastType.Error, error.message || 'Erro ao comprar frame');
     }
   };
 
@@ -85,10 +85,10 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
         // Recarregar frames do usuário
         await loadFrames();
         
-        addToast('success', 'Frame equipado com sucesso!');
+        addToast(ToastType.Success, 'Frame equipado com sucesso!');
       }
     } catch (error: any) {
-      addToast('error', error.message || 'Erro ao equipar frame');
+      addToast(ToastType.Error, error.message || 'Erro ao equipar frame');
     }
   };
 

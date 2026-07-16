@@ -1,7 +1,7 @@
 import React from 'react';
 import { CopyIcon } from '../icons';
 import { Streamer } from '../../types';
-import { getWhipEndpointUrl } from '../../services/mediaConfig';
+import { getVideoHttpBaseUrl } from '../../services/mediaConfig';
 import { env } from '../../src/config/environment';
 
 type StreamUrlConfigField = 'editRtmpUrl' | 'editStreamKey' | 'editSrtUrl' | 'editPlaybackUrl' | 'editWhipUrl';
@@ -192,14 +192,14 @@ export const StreamUrlConfig: React.FC<StreamUrlConfigProps> = ({
           <input 
             type="text" 
             readOnly={!isEditingUrls} 
-            value={isEditingUrls ? editWhipUrl : (draftStream?.streamKey || draftStream?.id ? getWhipEndpointUrl(draftStream?.streamKey || draftStream?.id || '') : 'Aguardando stream...')} 
+            value={isEditingUrls ? editWhipUrl : (draftStream?.streamKey || draftStream?.id ? getVideoHttpBaseUrl() + '/whip/' + (draftStream?.streamKey || draftStream?.id || '') : 'Aguardando stream...')} 
             onChange={e => onUrlChange('editWhipUrl', e.target.value)}
             className={`flex-1 p-2 rounded-md text-white font-mono text-[10px] transition-colors ${
               isEditingUrls ? 'bg-[#1a1a2e] border border-blue-500/50 focus:outline-none' : 'bg-[#111] border border-white/10 select-all'
             }`} 
           />
           <button 
-            onClick={() => onCopyToClipboard(isEditingUrls ? editWhipUrl : (draftStream?.streamKey || draftStream?.id ? getWhipEndpointUrl(draftStream?.streamKey || draftStream?.id || '') : undefined))} 
+            onClick={() => onCopyToClipboard(isEditingUrls ? editWhipUrl : (draftStream?.streamKey || draftStream?.id ? getVideoHttpBaseUrl() + '/whip/' + (draftStream?.streamKey || draftStream?.id || '') : undefined))} 
             className="bg-[#333] hover:bg-[#444] text-white p-2 rounded-md"
           >
             <CopyIcon className="w-4 h-4" />

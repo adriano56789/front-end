@@ -30,11 +30,19 @@ export const livekitApi = {
     return { success: res.success };
   },
 
-  getChatToken: async (streamId: string): Promise<{ token: string; serverUrl: string }> => {
-    console.log('[LIVEKIT-API] getChatToken chamado com streamId:', streamId);
+  getChatToken: async (streamId: string, userId: string, isHost: boolean): Promise<{ token: string; serverUrl: string }> => {
+    console.log('[LIVEKIT-API] getChatToken chamado streamId:', streamId, 'userId:', userId, 'isHost:', isHost);
+    
+    if (isHost) {
+      // Host precisa de canPublish: true — usar endpoint publisher-aware
+      console.log('[LIVEKIT-API] Usando getLiveKitToken com publisher=true para o Host');
+      const result = await api.getLiveKitToken(streamId, userId, true);
+      console.log('[LIVEKIT-API] Token de host gerado via getLiveKitToken');
+      return { token: result.token, serverUrl: result.livekitUrl || result.serverUrl };
+    }
+    
+    // Espectador: token com canPublish: false (padrão)
     const res = await api.post('/api/livekit/chat-token', { streamId });
-    console.log('[LIVEKIT-API] Resposta RAW do getChatToken:', JSON.stringify(res).substring(0, 500));
-    console.log('[LIVEKIT-API] res.token existe:', !!res.token, 'res.serverUrl existe:', !!res.serverUrl);
     return { token: res.token, serverUrl: res.serverUrl };
   },
 };

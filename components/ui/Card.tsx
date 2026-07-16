@@ -6,6 +6,10 @@ interface CardProps {
   padding?: 'none' | 'sm' | 'md' | 'lg';
   shadow?: 'none' | 'sm' | 'md' | 'lg';
   rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full';
+  onClick?: (e: React.MouseEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragLeave?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent) => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -13,7 +17,11 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   padding = 'md',
   shadow = 'md',
-  rounded = 'lg'
+  rounded = 'lg',
+  onClick,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }) => {
   const baseClasses = 'bg-gray-900 border border-gray-800';
   
@@ -42,7 +50,7 @@ export const Card: React.FC<CardProps> = ({
   const classes = `${baseClasses} ${paddingClasses[padding]} ${shadowClasses[shadow]} ${roundedClasses[rounded]} ${className}`;
   
   return (
-    <div className={classes}>
+    <div className={classes} onClick={onClick} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
       {children}
     </div>
   );

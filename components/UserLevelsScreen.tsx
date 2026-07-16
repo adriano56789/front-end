@@ -119,7 +119,7 @@ const UserLevelsScreen: React.FC<UserLevelsScreenProps> = ({ onClose, currentUse
             privileges: [],
             nextRewards: [],
             totalExp: response.totalExp,
-            rank: response.rank,
+            rank: Number(response.rank) || 0,
             lastGain: response.lastGain,
           });
         })

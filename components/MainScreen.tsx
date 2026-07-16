@@ -5,9 +5,7 @@ import { Streamer } from '../types';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from './Loading';
 import { ViewerIcon, LockIcon, LiveIndicatorIcon, ChevronRightIcon, LocationPinIcon } from './icons';
-import { calculateDistanceInKm, formatDistance } from '../utils/location';
-
-interface MainScreenProps {
+import { calculateDistanceInKm, formatDistance } from '../utils/location';interface MainScreenProps {
   onOpenReminderModal: () => void;
   onOpenRegionModal: () => void;
   onSelectStream: (streamer: Streamer) => void;
@@ -18,6 +16,7 @@ interface MainScreenProps {
   onTabChange: (tabKey: string) => void;
   showLocationBanner: boolean;
   unreadCount?: number;
+
 }
 
 const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void}> = ({ streamer, onSelect }) => {
@@ -273,9 +272,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                 <ChevronRightIcon className="w-4 h-4 text-zinc-500" />
             </button>
         </div>
-      )}
-
-      <main ref={mainRef} className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar">
+      )}      <main ref={mainRef} className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar">
         {isLoading ? (
             <div className="h-full flex items-center justify-center">
                 <LoadingSpinner />

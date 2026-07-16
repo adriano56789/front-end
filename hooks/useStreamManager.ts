@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Streamer, User, ToastType } from '../types';
 import { api } from '../services/api';
 import { streamPublishService } from '../services/streamPublishService';
-import { socketService } from '../services/socket';
+// Socket.IO removido — LiveKit gerencia início de transmissão
 
 interface StreamManagerState {
   draftStream: Streamer | null;
@@ -260,13 +260,7 @@ export const useStreamManager = (
 
       setDraftStream(streamer);
 
-      // 4. Emit live_started via socket
-      try {
-        socketService.getSocket()?.emit('live_started', streamer);
-        console.log('[STREAM_MANAGER] 📡 live_started emitido via socket');
-      } catch (socketErr) {
-        console.warn('[STREAM_MANAGER] Erro ao emitir live_started:', socketErr);
-      }
+      // live_started emitido — removido Socket.IO, notificação via LiveKit room data channel
 
       localStorage.setItem('currentStreamId', streamer.id);
       onStartStream(streamer);

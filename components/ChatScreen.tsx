@@ -5,7 +5,7 @@ import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
-import { socketService } from '../services/socket';
+// Socket.IO removido — chat gerenciado via REST API + LiveKit DataChannel
 
 interface ChatScreenProps {
     user: User;
@@ -201,15 +201,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         return `chat_private_${cId < fId ? cId + '_' + fId : fId + '_' + cId}`;
     }, [currentUser?.id, user?.id]);
 
-    // Entrar na sala do socket e atualizar status online ao abrir o chat
-    useEffect(() => {
-        if (!chatKey || !currentUser?.id) return;
-        socketService.joinRoom(chatKey);
-        socketService.updateUserStatus(currentUser.id, true);
-        return () => {
-            socketService.leaveRoom(chatKey);
-        };
-    }, [chatKey, currentUser?.id]);
+    // Sala de chat: Socket.IO removido — mensagens via REST API + LiveKit DataChannel
     const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
     
     // Cache local para evitar requisições duplicadas
@@ -354,8 +346,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     const handleSendMessage = async () => {
         const hasText = newMessage.trim() !== '';
-        const hasImage = !!selectedImageFile;
-        const sendingMessage = effectiveMessages.some(m => m.status === 'sending');
+        const hasImage = !!selectedImageFile;            const sendingMessage = effectiveMessages.some((m: any) => m.status === 'sending');
 
         if ((!hasText && !hasImage) || sendingMessage) return;
 
@@ -390,7 +381,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             let finalImageUrl: string | undefined = undefined;
             if (imageFile) {
                 // Usar nova API de upload com FormData
-                const uploadResponse = await api.uploadChatImage(imageFile) as { success: boolean; imageUrl: string };
+                const uploadResponse = await api.uploadChatImage(imageFile) as unknown as { success: boolean; imageUrl: string };
                 if (uploadResponse?.success && uploadResponse?.imageUrl) {
                     finalImageUrl = uploadResponse.imageUrl;
                 } else {
@@ -553,7 +544,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             <p className="text-[18px] font-bold text-white mb-1 tracking-tight">Nenhuma mensagem ainda</p>
                             <p className="text-[13px] text-[#888691] font-medium mb-6">Comece a conversar com pessoas!</p>
                             <button 
-                                onClick={() => setNewMessage('👋 Oi!') || handleSendMessage()}
+                                onClick={() => { setNewMessage('👋 Oi!'); handleSendMessage(); }}
                                 className="bg-[#2a1334] hover:bg-[#34173d] text-[#d21fff] font-bold py-[12px] px-7 rounded-full flex items-center space-x-2 transition-colors active:scale-95 border border-[#3b194a]/30"
                             >
                                 <span className="text-[14px] tracking-wide">Mandar um salve</span>

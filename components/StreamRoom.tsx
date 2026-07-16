@@ -24,7 +24,7 @@ import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import { streamPublishService } from '../services/streamPublishService';
-import { socketService } from '../services/socket';
+// Socket.IO removido — comunicação via LiveKit DataChannel
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
@@ -243,6 +243,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
+    isHost: isBroadcaster,
     disabled: false, // host e viewers conectam na mesma sala live_${streamId}
     onMessage: (data: any) => {
       if (!data || !data.type) return;
@@ -284,11 +285,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       setOnlineUsers(prev => {
         if (prev.some(u => u.id === participant.identity)) return prev;
         const newUser = {
-          id: participant.identity,
-          name: participant.name || participant.identity,
           avatar: '',
+          id: participant.identity,
+          identification: participant.identity,
+          name: participant.name || participant.identity,
+          avatarUrl: '',
           value: 0,
-        };
+          level: 1,
+          fans: 0,
+          following: 0,
+          receptores: 0,
+          enviados: 0,
+          diamonds: 0,
+          earnings: 0,
+          earnings_withdrawn: 0,
+          ownedFrames: [],
+        } as User & { value: number };
         console.log('[CHAT] Adicionando à lista de onlineUsers:', newUser.name);
         return [...prev, newUser];
       });
@@ -525,7 +537,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         joinStreamOnce();
         fetchInitialUsers();
         fetchInitialLikes();
-        socketService.joinRoom(streamer.id);
+        // Socket.IO joinRoom removido — room gerenciado via LiveKit
 
         // Buscar histórico de mensagens do banco
         api.get("/api/streams/" + streamer.id + "/live-messages?limit=50").then((res: any) => {
@@ -550,7 +562,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     if (success) { console.log('✅ Desconectado do stream com sucesso.'); }
                 });
             }
-            socketService.leaveRoom(streamer.id);
+            // Socket.IO leaveRoom removido
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
 
@@ -817,7 +829,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 // Fallback para WebRTC state
                 const publishState = streamPublishService.getState();
                 setPublishStatus({
-                    state: publishState === 'failed' ? SrsPublishState.NETWORK_ERROR : SrsPublishState.CONNECTING,
+                    state: (publishState as string) === 'failed' ? SrsPublishState.NETWORK_ERROR : SrsPublishState.CONNECTING,
                     streamId: streamer.streamKey,
                     streamUrl: streamer.playbackUrl,
                     lastUpdate: new Date(),
@@ -918,6 +930,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         const userLocation = user.fullUser?.location || streamerUser?.location || (userCountry === 'br' ? 'Brasil' : userCountry.toUpperCase());
         
         return {
+            avatar: user.avatar || '',
             id: userId.toString(),
             identification: user.fullUser?.identification || userId.toString(),
             name: userName,
@@ -953,11 +966,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         if (user.user === 'Sistema') return;
         const userProfile = constructUserFromMessage(user);
         
-        // Se for o próprio usuário logado, exibe Perfil. Caso contrário, abre o modal de ações
         if (userProfile.id === currentUser.id) {
             onViewProfile(userProfile);
-        } else {
+        } else if (isBroadcaster) {
             setUserActionModalState({ isOpen: true, user: userProfile });
+        } else {
+            onViewProfile(userProfile);
         }
     };
 
@@ -1559,9 +1573,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     userId={currentUser.id} 
                     currentUser={currentUser} 
                     onSelectUser={(selectedUser: any) => {
-                        if (!isBroadcaster) return;
                         setOnlineUsersOpen(false);
-                        setUserActionModalState({ isOpen: true, user: selectedUser });
+                        if (isBroadcaster) {
+                            setUserActionModalState({ isOpen: true, user: selectedUser });
+                        } else {
+                            onViewProfile(selectedUser);
+                        }
                     }}
                     moderatorIds={moderatorIds}
                 />

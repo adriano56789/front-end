@@ -156,6 +156,7 @@ export interface Like {
 }
 
 export interface Gift {
+  id?: string;
   name: string;
   price?: number;
   icon: string;
@@ -253,6 +254,9 @@ export interface User {
 export interface LevelInfo {
   level: number;
   xp: number;
+  totalExp?: number;
+  rank?: number;
+  lastGain?: number | { amount: number; reason: string; timestamp: string };
   xpForCurrentLevel: number;
   xpForNextLevel: number;
   progress: number;
@@ -311,6 +315,7 @@ export interface StreamSummaryData {
   user: {
     name: string;
     avatarUrl: string;
+    country?: string;
   };
 }
 
@@ -395,6 +400,7 @@ export interface PurchaseRecord {
 export interface FeedPhoto {
   id: string;
   photoUrl: string;
+  mediaUrl?: string;
   user: User;
   likes: number;
   isLiked: boolean;

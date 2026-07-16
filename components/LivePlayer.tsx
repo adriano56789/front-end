@@ -72,10 +72,9 @@ export default function LivePlayer({
       console.log('📡 [SRS] Conectando ao SRS...');
 
       const engine = new SrsPlayerEngine({
-        hlsFallback: true,
         autoMuteRetry: true,
         reconnectRetries: 3
-      });
+      } as any);
 
       const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
         console.log(`[LivePlayer] [SRS] Estado mudou: ${prev} -> ${next}`);

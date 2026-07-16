@@ -4,7 +4,7 @@ import { User, ToastType } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
 import { useTranslation } from '../i18n';
-import { socketService } from '../services/socket';
+// Socket.IO removido — convites gerenciados via REST API
 
 interface LiveUserEntry {
   userId: string;
@@ -119,30 +119,7 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     }
   }, [isOpen, currentUser, streamId, mode, fetchLiveUsers]);
 
-  // Socket listeners para atualização em tempo real
-  useEffect(() => {
-    if (!isOpen || mode !== 'battle') return;
-
-    const handleNewLive = () => {
-      console.log('[CoHostModal] Socket: new_live — atualizando lista');
-      fetchLiveUsers();
-    };
-
-    const socket = socketService.getSocket();
-    if (socket) {
-      socket.on('new_live', handleNewLive);
-      socket.on('stream_started', handleNewLive);
-      socket.on('stream_ended', handleNewLive);
-    }
-
-    return () => {
-      if (socket) {
-        socket.off('new_live', handleNewLive);
-        socket.off('stream_started', handleNewLive);
-        socket.off('stream_ended', handleNewLive);
-      }
-    };
-  }, [isOpen, mode, fetchLiveUsers]);
+  // Socket.IO listeners removidos — fetchLiveUsers() é chamado manualmente ou via polling
 
   // Merge live users into a User-like format, deduplicating with friends
   const allUsers: User[] = React.useMemo(() => {
@@ -153,12 +130,23 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     liveUsers.forEach(lu => {
       if (!friendMap.has(lu.userId)) {
         merged.push({
+          avatar: '',
           id: lu.userId,
+          identification: lu.userId,
           name: lu.name,
           avatarUrl: lu.avatarUrl,
           username: lu.username,
           isLive: lu.status === 'broadcasting',
           isOnline: true,
+          level: 1,
+          fans: 0,
+          following: 0,
+          receptores: 0,
+          enviados: 0,
+          diamonds: 0,
+          earnings: 0,
+          earnings_withdrawn: 0,
+          ownedFrames: [],
         } as User);
       }
     });

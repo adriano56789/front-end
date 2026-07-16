@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CloseIcon, ActionIcon, YellowDiamondIcon, CrownIcon, UserIcon, RankIcon } from '../icons';
 import { User } from '../../types';
 import { api } from '../../services/api';
-import { socketService } from '../../services/socket';
+// Socket.IO removido — eventos via API + LiveKit
 import { LoadingSpinner } from '../Loading';
 
 interface OnlineUsersModalProps {
@@ -116,7 +116,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
 
     useEffect(() => {
         // Conectar à sala da stream para receber atualizações em tempo real
-        socketService.joinRoom(streamId);
+        // Socket.IO joinRoom removido — presença via API
 
         // Handler para quando presente é enviado para a stream
         const handleGiftSent = async (data: { streamId: string; gift: { fromUserId: string; totalValue: number } }) => {
@@ -149,10 +149,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
             }
         };
 
-        // Registrar listeners
-        socketService.onGiftSentToStream(handleGiftSent);
-        socketService.onStreamEnded(handleStreamEnded);
-        socketService.onLiveStreamEnded(handleLiveStreamEnded);
+        // Socket.IO listeners removidos — eventos via API + LiveKit DataChannel
 
         // Initial fetch - APENAS UMA CHAMADA
         const fetchUsers = async () => {
@@ -184,11 +181,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
         fetchUsers();
         
         return () => {
-            // Cleanup: remover listeners e sair da sala
-            socketService.off('gift_sent_to_stream', handleGiftSent);
-            socketService.off('stream_ended', handleStreamEnded);
-            socketService.off('live_stream_ended', handleLiveStreamEnded);
-            socketService.leaveRoom(streamId);
+            // Cleanup: Socket.IO removido
         };
     }, [streamId]);
 

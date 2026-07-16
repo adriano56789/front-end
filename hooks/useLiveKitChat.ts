@@ -14,6 +14,7 @@ const MAX_MESSAGE_SIZE = 16384;
 interface LiveKitChatOptions {
   streamId: string;
   userId: string;
+  isHost?: boolean;
   disabled?: boolean;
   onMessage?: (data: any) => void;
   onParticipantConnected?: (participant: RemoteParticipant) => void;
@@ -25,7 +26,7 @@ interface LiveKitChatOptions {
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
-  const { streamId, userId, disabled } = options;
+  const { streamId, userId, isHost, disabled } = options;
   const [connected, setConnected] = useState(false);
   const optionsRef = useRef(options);
   const listenersRegistered = useRef(false);
@@ -120,7 +121,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
 
       (async () => {
         try {
-          const { token, serverUrl } = await livekitApi.getChatToken(streamId);
+          const { token, serverUrl } = await livekitApi.getChatToken(streamId, userId, isHost || false);
           if (destroyedRef.current) return;
 
           try {

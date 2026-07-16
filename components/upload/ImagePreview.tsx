@@ -375,8 +375,8 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={(e) => {
-                          const input = e.currentTarget.parentElement?.querySelector('input');
+                        onClick={() => {
+                          const input = document.querySelector('input[placeholder="Adicionar tag"]') as HTMLInputElement;
                           if (input?.value) {
                             handleAddTag(input.value);
                             input.value = '';

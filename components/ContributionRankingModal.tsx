@@ -47,7 +47,7 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        const periodMap: Record<Period, PeriodKey | 'live'> = {
+        const periodMap: Record<Period, string> = {
             'Live': 'live',
             'Diária': 'daily',
             'Semanal': 'weekly',

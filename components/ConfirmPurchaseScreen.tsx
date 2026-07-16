@@ -237,7 +237,7 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
             const paymentResult = await api.processCreditCardPayment({
                 orderId,
                 cardToken: tokenResult.id, // Apenas o token seguro
-                payerEmail: currentUser.email || 'user@livego.store',
+                payerEmail: (currentUser as any).email || 'user@livego.store',
                 payerName: cardName,
                 installments: 1
             });

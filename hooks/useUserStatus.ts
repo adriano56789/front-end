@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
-import { socketService } from '../services/socket';
+// Socket.IO removido — status gerenciado via REST API + LiveKit participantes
 
 export interface UserStatus {
     user_id: string;
@@ -21,7 +21,7 @@ export const useUserStatus = (userId?: string) => {
             setIsLoading(true);
             const userStatus = await api.getUserStatus(userId);
             if (userStatus) {
-                setStatus(userStatus);
+                setStatus(userStatus as unknown as UserStatus);
             }
         } catch (error) {
             console.error('Erro ao carregar status do usuário:', error);
@@ -29,9 +29,10 @@ export const useUserStatus = (userId?: string) => {
             setStatus({
                 user_id: userId,
                 is_online: false,
+                isOnline: false,
                 last_seen: new Date().toISOString(),
                 updated_at: new Date().toISOString()
-            });
+            } as any);
         } finally {
             setIsLoading(false);
         }
@@ -43,11 +44,6 @@ export const useUserStatus = (userId?: string) => {
         
         try {
             await api.setUserOnline(userId);
-            const socket = socketService.getSocket();
-            if (socket?.connected) {
-                socket.emit('user_online', { userId });
-            }
-            // ⚠️ REMOVIDO: loadUserStatus() já é chamado no useEffect principal
         } catch (error) {
             console.error('Erro ao marcar usuário como online:', error);
         }
@@ -59,11 +55,6 @@ export const useUserStatus = (userId?: string) => {
         
         try {
             await api.setUserOffline(userId);
-            const socket = socketService.getSocket();
-            if (socket?.connected) {
-                socket.emit('user_offline', { userId });
-            }
-            // ⚠️ REMOVIDO: loadUserStatus() já é chamado no useEffect principal
         } catch (error) {
             console.error('Erro ao marcar usuário como offline:', error);
         }
@@ -75,11 +66,6 @@ export const useUserStatus = (userId?: string) => {
         
         try {
             await api.updateUserStatus(userId, isOnline);
-            const socket = socketService.getSocket();
-            if (socket?.connected) {
-                socket.emit(isOnline ? 'user_online' : 'user_offline', { userId });
-            }
-            // ⚠️ REMOVIDO: loadUserStatus() já é chamado no useEffect principal
         } catch (error) {
             console.error('Erro ao atualizar status do usuário:', error);
         }
@@ -101,56 +87,7 @@ export const useUserStatus = (userId?: string) => {
         }
     }, [userId, loadUserStatus]);
 
-    // Configurar listeners de WebSocket para atualizações em tempo real
-    useEffect(() => {
-        if (!userId) return;
-
-        const socket = socketService.getSocket();
-        if (!socket?.connected) return;
-
-        // Escutar mudanças de status de usuários
-        const handleStatusChanged = (data: { user_id: string; is_online: boolean; last_seen?: string; timestamp: string }) => {
-            if (data.user_id === userId) {
-                setStatus(prev => prev ? {
-                    ...prev,
-                    is_online: data.is_online,
-                    last_seen: data.last_seen || prev.last_seen,
-                    updated_at: data.timestamp
-                } : null);
-            }
-        };
-
-        // Escuar solicitações de heartbeat
-        const handleHeartbeatRequest = (data: { userId: string; timestamp: number }) => {
-            if (data.userId === userId) {
-                // Enviar resposta de heartbeat
-                socket.emit('user_heartbeat', { userId });
-            }
-        };
-
-        // Escutar confirmações de heartbeat
-        const handleHeartbeatAck = (data: { userId: string; timestamp: number; nextHeartbeat: number }) => {
-            if (data.userId === userId) {
-                // Agendar próximo heartbeat
-                setTimeout(() => {
-                    const currentSocket = socketService.getSocket();
-                    if (currentSocket?.connected) {
-                        currentSocket.emit('user_heartbeat', { userId });
-                    }
-                }, data.nextHeartbeat - Date.now());
-            }
-        };
-
-        socketService.on('user_status_changed', handleStatusChanged);
-        socketService.on('heartbeat_request', handleHeartbeatRequest);
-        socketService.on('heartbeat_ack', handleHeartbeatAck);
-
-        return () => {
-            socketService.off('user_status_changed', handleStatusChanged);
-            socketService.off('heartbeat_request', handleHeartbeatRequest);
-            socketService.off('heartbeat_ack', handleHeartbeatAck);
-        };
-    }, [userId]);
+    // Socket.IO listeners removidos — status gerenciado via REST API
 
     return {
         status,
@@ -205,38 +142,7 @@ export const useBatchUserStatus = (userIds: string[]) => {
         }
     }, [userIds, loadBatchStatus]);
 
-    // Configurar listeners para atualizações em tempo real
-    useEffect(() => {
-        const socket = socketService.getSocket();
-        if (!socket?.connected) return;
-
-        const handleStatusChanged = (data: { user_id: string; is_online: boolean; last_seen?: string; timestamp: string }) => {
-            if (userIds.includes(data.user_id)) {
-                setStatuses(prev => {
-                    const newMap = new Map(prev);
-                    const currentStatus = newMap.get(data.user_id);
-                    newMap.set(data.user_id, currentStatus ? {
-                        ...(currentStatus as UserStatus),
-                        is_online: data.is_online,
-                        last_seen: data.last_seen || (currentStatus as UserStatus).last_seen,
-                        updated_at: data.timestamp
-                    } : {
-                        user_id: data.user_id,
-                        is_online: data.is_online,
-                        last_seen: (data.last_seen || new Date().toISOString()) as string,
-                        updated_at: data.timestamp
-                    });
-                    return newMap;
-                });
-            }
-        };
-
-        socketService.on('user_status_changed', handleStatusChanged);
-
-        return () => {
-            socketService.off('user_status_changed', handleStatusChanged);
-        };
-    }, [userIds]);
+    // Socket.IO listeners removidos — use loadBatchStatus() para atualizações
 
     return {
         statuses,

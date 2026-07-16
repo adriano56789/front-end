@@ -133,7 +133,7 @@ import Toast from './components/Toast';
 
 import MessageNotification from './components/MessageNotification';
 
-import { socketService } from './services/socket';
+// Socket.IO removido — comunicação via LiveKit + API polling
 
 import UserProfileScreen from './components/BroadcasterProfileScreen';
 
@@ -180,7 +180,6 @@ import CameraPermissionModal from './components/CameraPermissionModal';
 import LocationPermissionModal from './components/LocationPermissionModal';
 
 import EndStreamConfirmationModal from './components/live/EndStreamConfirmationModal';
-import DownloadAppBanner from './components/DownloadAppBanner';
 
 import EndStreamSummaryScreen from './components/EndStreamSummaryScreen';
 
@@ -215,6 +214,7 @@ import LiveNotificationModal from './components/live/LiveNotificationModal';
 import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
+import { useCurrentUserPolling, useStreamsPolling } from './hooks/useApiPolling';
 
 
 
@@ -706,6 +706,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
+
+
+
   // Marcar usuário como online quando autenticado
 
   useEffect(() => {
@@ -822,9 +825,13 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     (async () => {
       try {
         const data = await api.getLiveDetails(streamId);
-        if (data && handleSelectStreamRef.current) handleSelectStreamRef.current(data);
+        if (data && handleSelectStreamRef.current) {
+          handleSelectStreamRef.current(data);
+        } else {
+          navigate('/');
+        }
       } catch {
-        // Stream not found, stay on page
+        navigate('/');
       }
     })();
   }, [location.pathname, isAuthenticated, activeStream]);
@@ -1114,6 +1121,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const pipStreamerRef = useRef(pipStreamer);
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
   const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
+  const fcmInitializedRef = useRef(false);
 
   // REMOVED: duplicate declarations - these are now fetched from API and declared earlier
   // const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
@@ -1453,17 +1461,13 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     if (currentUserRef.current) {
 
-      // Socket conectado globalmente para receber atualizações de presença e novos eventos de transmissão em tempo real
-      socketService.connect();
-
-      if (currentUserRef.current?.id) {
-        socketService.joinRoom(currentUserRef.current.id);
-      }
-
-      // Inicializar Firebase Cloud Messaging para notificações push
-      if ('serviceWorker' in navigator && 'Notification' in window) {
+      // Socket.IO removido — comunicação via LiveKit + API polling
+      
+      // Inicializar Firebase Cloud Messaging para notificações push (APENAS UMA VEZ)
+      if ('serviceWorker' in navigator && 'Notification' in window && !fcmInitializedRef.current) {
+        fcmInitializedRef.current = true;
         navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => {
-          console.log('[FCM] Service Worker registrado');
+          console.log('[FCM] Service Worker registrado (única vez)');
         }).catch((err) => {
           console.warn('[FCM] Erro ao registrar Service Worker:', err);
         });
@@ -1488,478 +1492,95 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-      // Escutar atualizações de presença
-
-      socketService.on('user_status_updated', (data: { userId: string; isOnline: boolean }) => {
-
-        if (data.userId === currentUserRef.current.id) {
-
-          const updatedUser = { ...currentUserRef.current, isOnline: data.isOnline };
-
-          updateUserEverywhere(updatedUser);
-
-        }
-
-      });
-
-
-
-      // Avatar atualizado - sincronizar em tempo real em todo o app
-      socketService.on('avatar_updated', (data: { userId: string; avatarUrl: string }) => {
-        // Atualizar o próprio usuário (dados completos do banco)
-        if (data.userId === currentUserRef.current.id) {
-          api.getCurrentUser().then(freshUser => {
-            if (freshUser) updateUserEverywhere(freshUser);
-          }).catch(() => {
-            const updatedUser = { ...currentUserRef.current, avatarUrl: data.avatarUrl };
-            updateUserEverywhere(updatedUser);
-          });
-        } else {
-          // Atualizar avatar de OUTRO usuário nas listas (allUsers, fans, following, etc.)
-          const updateAvatarInList = (users: User[] | undefined) => {
-            if (!users || !Array.isArray(users)) return users || [];
-            return users.map(u => u.id === data.userId ? { ...u, avatarUrl: data.avatarUrl } : u);
-          };
-          setAllUsers(updateAvatarInList);
-          setFollowingUsers(updateAvatarInList);
-          setFans(updateAvatarInList);
-          setFriends(updateAvatarInList);
-          setStreamers(prev => (Array.isArray(prev) ? prev.map(s => s.hostId === data.userId ? { ...s, avatar: data.avatarUrl } : s) : []));
-          setReminderStreamers(prev => (Array.isArray(prev) ? prev.map(s => s.hostId === data.userId ? { ...s, avatar: data.avatarUrl } : s) : []));
-          setConversations(prev => prev.map(c => c.friend.id === data.userId ? { ...c, friend: { ...c.friend, avatarUrl: data.avatarUrl } } : c));
-          if (viewingProfile?.id === data.userId) {
-            setViewingProfile(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
-          }
-          if (activeStream?.hostId === data.userId) {
-            setActiveStream(prev => prev ? { ...prev, avatar: data.avatarUrl } : prev);
-          }
-        }
-      });
-
-
-
-      // Escutar atualizações de diamantes em tempo real (remetente de presente)
-
-      socketService.on('diamonds_updated', (data: { userId: string; diamonds: number; enviados?: number; change: number; timestamp: string; source?: string }) => {
-
-        
-
-        if (data.userId === currentUserRef.current.id) {
-
-          // 🔧 SINCRONIZAÇÃO: Atualiza diamonds E enviados do remetente com dados reais da API
-
-          const updatedUser: any = { ...currentUserRef.current, diamonds: data.diamonds };
-
-          if (data.enviados !== undefined) {
-
-            updatedUser.enviados = data.enviados;
-
-          }
-
-          updateUserEverywhere(updatedUser);
-
-          
-
-          // Atualizar contador da live se estiver em transmissão como host
-
-          if (liveSession && activeStream && activeStream.hostId === data.userId) {
-
-            updateLiveSession({ coins: data.diamonds });
-
-          }
-
-        }
-
-      });
-
-
-
-      // Escutar atualizações de earnings em tempo real (receptor de presente)
-
-      socketService.on('earnings_updated', (data: { userId: string; diamonds: number; totalEarnings: number; totalReceptores?: number; timestamp: string; source: string }) => {
-
-        
-
-        if (data.userId === currentUserRef.current.id) {
-
-          // 🔧 SINCRONIZAÇÃO: Atualiza earnings e receptores com dados reais do banco de dados
-
-          const updatedUser: any = { 
-
-            ...currentUser, 
-
-            earnings: data.totalEarnings
-
-          };
-
-          // totalReceptores vem do banco de dados real (campo receptores do usuário)
-
-          if (data.totalReceptores !== undefined) {
-
-            updatedUser.receptores = data.totalReceptores;
-
-          }
-
-          
-
-          updateUserEverywhere(updatedUser);
-
-        }
-
-      });
-
-
-
-      // 🔧 SINCRONIZAÇÃO: Escutar atualizações de saque em tempo real
-
-      // Quando um saque é realizado, diamonds, receptores e streamDiamonds devem ser zerados
-
-      socketService.on('earnings_withdrawn', (data: { userId: string; amount: number; newEarnings: number; diamonds?: number; receptores?: number; streamDiamonds?: number; timestamp: string }) => {
-
-        
-
-        if (data.userId === currentUserRef.current.id) {
-
-          // Atualizar usuário com dados completos do saque
-
-          const updatedUser = { 
-
-            ...currentUser, 
-
-            earnings: data.newEarnings,
-
-            diamonds: data.diamonds || 0, // Zerar carteira
-
-            receptores: data.receptores || 0 // Zerar receptores
-
-          };
-
-          updateUserEverywhere(updatedUser);
-
-          
-
-          // Atualizar contador da live se estiver em transmissão como host
-
-          if (liveSession && activeStream && activeStream.hostId === data.userId) {
-
-            updateLiveSession({ coins: data.streamDiamonds || 0 });
-
-          }
-
-        }
-
-      });
-
-
-
-      // 🔧 SINCRONIZAÇÃO: Escutar atualizações da carteira ADM em tempo real
-
-      // Quando um saque é feito, a taxa de 20% vai para a carteira ADM
-
-      socketService.on('platform_earnings_updated', (data: { userId: string; added_fee: number; total_platform_earnings: number; from_user?: string; timestamp: string }) => {
-
-        if (data.userId === currentUserRef.current.id) {
-
-          // Atualizar platformEarnings do usuário ADM com dados reais do banco
-
-          const updatedUser = { ...currentUserRef.current, platformEarnings: data.total_platform_earnings };
-
-          updateUserEverywhere(updatedUser);
-
-        }
-
-      });
-
-
-
-      // 🔧 SINCRONIZAÇÃO: Escutar atualizações de moedas da live em tempo real
-
-      // O contador de moedas deve refletir o banco de dados real (Streamer.diamonds)
-
-      socketService.on('live_coins_updated', (data: { streamId: string; coins: number; totalCoins: number; timestamp: string; fromUser?: string; giftName?: string }) => {
-
-        if (activeStream && activeStream.id === data.streamId && liveSession) {
-
-          // Usar totalCoins (valor real do banco) para garantir sincronização
-
-          updateLiveSession({ coins: data.totalCoins });
-
-        }
-
-      });
-
-
-
-      // 🚀 Escutar quando lives são encerradas para remover cards em tempo real
-
-      socketService.onStreamEnded((data: { streamId: string; hostId: string; timestamp: string }) => {
-
-
-
-        // Remover o card da lista de streamers
-
-        setStreamers(prev => (Array.isArray(prev) ? prev.filter(streamer => streamer.id !== data.streamId) : []));
-
-
-
-        // Se o usuário está assistindo esta live, redirecionar para tela principal
-
-        if (activeStream && activeStream.id === data.streamId) {
-
-          setActiveStream(null);
-
-          setLiveSession(null);
-
-          setStreamRoomData(null);
-
-          setIsPKBattleActive(false);
-
-          setPkOpponent(null);
-
-
-
-          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
-
-          navigate('/');
-
-        }
-
-
-
-        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
-
-        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
-
-          setPipStreamer(null);
-
-          setIsPiPMode(false);
-
-          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
-
-        }
-
-      });
-
-
-
-      // Escutar se o usuário atual precisa sair de uma live encerrada
-
-      socketService.onLiveStreamEnded((data: { streamId: string; message: string; timestamp: string }) => {
-
-
-
-        // Se o usuário está assistindo esta live, redirecionar
-
-        if (activeStream && activeStream.id === data.streamId) {
-
-          setActiveStream(null);
-
-          setLiveSession(null);
-
-          setStreamRoomData(null);
-
-          setIsPKBattleActive(false);
-
-          setPkOpponent(null);
-
-
-
-          addToast(ToastType.Info, data.message);
-
-          navigate('/');
-
-        }
-
-
-
-        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
-
-        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
-
-          setPipStreamer(null);
-
-          setIsPiPMode(false);
-
-          addToast(ToastType.Info, data.message);
-
-        }
-
-      });
-
-
-
-      // Escutar novas lives em tempo real
-
-      socketService.on('new_live', (data: { id: string; hostId: string; name: string; avatar: string; isLive: boolean; streamStatus: string; country: string; viewers: number; }) => {
-        if (!data || !data.id) return;
-
-        console.log('[new_live] Nova live recebida:', data.id, data.name);
-
-        setStreamers(prev => {
-          const list = Array.isArray(prev) ? prev : [];
-          if (list.some(s => s.id === data.id)) {
-            return list.map(s => s.id === data.id ? { ...s, ...data, isLive: true } as Streamer : s);
-          }
-          return [{ ...data, location: '', time: '', message: '', tags: [] } as Streamer, ...list];
-        });
-      });
-
-
-
-      // Escutar novas lives via evento stream_started em tempo real
-
-      socketService.onStreamStarted((data: any) => {
-        const streamId = data.streamId || data.id;
-        if (!streamId) return;
-
-        const safeData = { ...data, id: streamId };
-
-        console.log('[stream_started] Nova live recebida:', safeData.id, safeData.name);
-
-        setStreamers(prev => {
-          const list = Array.isArray(prev) ? prev : [];
-          if (list.some(s => s.id === safeData.id)) {
-            return list.map(s => s.id === safeData.id ? { ...s, ...safeData, isLive: true } : s);
-          }
-          return [safeData, ...list];
-        });
-      });
-
-
-
-      // Escutar quando cards são removidos
-
-      socketService.on('card_removed', (data: { streamId: string; hostId: string; timestamp: string }) => {
-
-
-
-        // Remover o card da lista de streamers
-
-        setStreamers(prev => (Array.isArray(prev) ? prev.filter(streamer => streamer.id !== data.streamId) : []));
-
-
-
-        // Se o usuário está assistindo esta live, redirecionar para tela principal
-
-        if (activeStream && activeStream.id === data.streamId) {
-
-          setActiveStream(null);
-
-          setLiveSession(null);
-
-          setStreamRoomData(null);
-
-          setIsPKBattleActive(false);
-
-          setPkOpponent(null);
-
-
-
-          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
-
-          navigate('/');
-
-        }
-
-
-
-        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
-
-        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
-
-          setPipStreamer(null);
-
-          setIsPiPMode(false);
-
-        }
-
-      });
-
-
-
-      // Escutar quando cards são removidos via evento stream_stopped em tempo real
-
-      socketService.onStreamStopped((data: { streamId: string; hostId?: string; timestamp?: string }) => {
-
-
-
-        // Remover o card da lista de streamers
-
-        setStreamers(prev => (Array.isArray(prev) ? prev.filter(streamer => streamer.id !== data.streamId) : []));
-
-
-
-        // Se o usuário está assistindo esta live, redirecionar para tela principal
-
-        if (activeStream && activeStream.id === data.streamId) {
-
-          setActiveStream(null);
-
-          setLiveSession(null);
-
-          setStreamRoomData(null);
-
-          setIsPKBattleActive(false);
-
-          setPkOpponent(null);
-
-
-
-          addToast(ToastType.Info, 'Esta transmissão foi encerrada');
-
-          navigate('/');
-
-        }
-
-
-
-        // Fechar PiP se a stream encerrada estiver sendo exibida no floating player
-
-        if (pipStreamerRef.current && pipStreamerRef.current.id === data.streamId) {
-
-          setPipStreamer(null);
-
-          setIsPiPMode(false);
-
-        }
-
-      });
-
+      // 📡 Socket.IO removido — toda comunicação em tempo real via LiveKit + API polling
+      // 
+      // Eventos substituídos:
+      // - user_status_updated → API polling (useCurrentUserPolling)
+      // - avatar_updated → API polling (useCurrentUserPolling)
+      // - diamonds_updated → API polling (useCurrentUserPolling)
+      // - earnings_updated → API polling (useCurrentUserPolling)
+      // - earnings_withdrawn → API polling (useCurrentUserPolling)
+      // - platform_earnings_updated → API polling (useCurrentUserPolling)
+      // - live_coins_updated → LiveKit DataChannel + API polling
+      // - stream_ended / live_stream_ended → API polling (useStreamsPolling)
+      // - new_live / stream_started → API polling (useStreamsPolling)
+      // - card_removed / stream_stopped → API polling (useStreamsPolling)
+      
     }
 
-
-
     return () => {
-
-      socketService.off('user_status_updated');
-
-      socketService.off('avatar_updated');
-
-      socketService.off('diamonds_updated');
-
-      socketService.off('earnings_updated');
-
-      socketService.off('platform_earnings_updated');
-
-      socketService.off('live_coins_updated');
-
-      socketService.off('new_live');
-
-      socketService.off('stream_started');
-
-      socketService.off('stream_stopped');
-
-      socketService.off('stream_ended');
-
-      socketService.off('live_stream_ended');
-
-      socketService.off('stream_ended');
-
-      socketService.off('card_removed');
-
+      // Socket.IO cleanup removido
     };
 
   }, [activeStream]);
+
+  // 📡 Hooks de polling substituem eventos Socket.IO
+  // Chamados no top-level do componente (regra dos hooks)
+  useCurrentUserPolling(currentUserRef.current?.id, (freshUser: any) => {
+    if (freshUser && freshUser.id === currentUserRef.current?.id) {
+      updateUserEverywhere(freshUser);
+    }
+  }, { interval: 15000 });
+
+  useStreamsPolling((freshStreams: any[]) => {
+    setStreamers(Array.isArray(freshStreams) ? freshStreams : []);
+  }, { interval: 15000 });
+
+  // 🚀 Detectar quando a live atual encerra e reagir com navegação + toast
+  const previousStreamIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (!activeStream) {
+      previousStreamIdsRef.current = streamers.map(s => s.id);
+      return;
+    }
+
+    const currentIds = streamers.map(s => s.id);
+    const prevIds = previousStreamIdsRef.current;
+    previousStreamIdsRef.current = currentIds;
+
+    // Se a stream que estamos assistindo sumiu da lista
+    if (prevIds.includes(activeStream.id) && !currentIds.includes(activeStream.id)) {
+      console.log('[StreamEnded] Live encerrada detectada via polling:', activeStream.name);
+
+      // Limpar estado da live
+      setActiveStream(null);
+      setLiveSession(null);
+      setStreamRoomData(null);
+      setIsPKBattleActive(false);
+      setPkOpponent(null);
+
+      addToast(ToastType.Info, 'Esta transmissão foi encerrada');
+
+      // Fechar PiP se a stream encerrada estiver no floating player
+      if (pipStreamerRef.current && pipStreamerRef.current.id === activeStream.id) {
+        setPipStreamer(null);
+        setIsPiPMode(false);
+      }
+
+      navigate('/');
+    }
+  }, [streamers, activeStream, navigate, addToast]);
+
+  // 💰 Polling para moedas da live ao vivo (substitui live_coins_updated do Socket.IO)
+  useEffect(() => {
+    if (!activeStream || !liveSession) return;
+
+    const pollCoins = async () => {
+      try {
+        const details = await api.getLiveDetails(activeStream.id);
+        if (details && (details as any).diamonds !== undefined) {
+          updateLiveSession({ coins: (details as any).diamonds });
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+
+    pollCoins();
+    const interval = setInterval(pollCoins, 10000);
+    return () => clearInterval(interval);
+  }, [activeStream?.id, liveSession !== null]);
 
 
 
@@ -3794,9 +3415,6 @@ const logLiveEvent = (type: string, data: any) => {
   return (
     <div className="app-container bg-black text-white font-sans">
 
-      {/* Banner de download do app - aparece apenas na primeira visita */}
-      <DownloadAppBanner />
-
 
       {/* PK Invite Pop-up Modal */}
       {activePKInvite && (
@@ -4106,26 +3724,20 @@ const logLiveEvent = (type: string, data: any) => {
             <div className="h-full w-full">
 
               {/* Navegação isolada por seção */}
-              {location.pathname === '/' || location.pathname === '/live' ? (
-                <MainScreen 
-                  onOpenReminderModal={() => setIsReminderModalOpen(true)}
-                  onOpenRegionModal={() => setIsRegionModalOpen(true)}
-                  onSelectStream={handleSelectStream}
-                  onOpenSearch={() => setIsSearchScreenOpen(true)}
-                  streamers={streamers}
-                  isLoading={isLoadingStreamers}
-                  activeTab={activeCategory}
-                  onTabChange={handleTabChange}
-                  showLocationBanner={showLocationBanner}
-                  unreadCount={totalUnreadMessages}
+              {location.pathname === '/' || location.pathname === '/live' ? (                  <MainScreen 
+                    onOpenReminderModal={() => setIsReminderModalOpen(true)}
+                    onOpenRegionModal={() => setIsRegionModalOpen(true)}
+                    onSelectStream={handleSelectStream}
+                    onOpenSearch={() => setIsSearchScreenOpen(true)}
+                    streamers={streamers}
+                    isLoading={isLoadingStreamers}
+                    activeTab={activeCategory}
+                    onTabChange={handleTabChange}
+                    showLocationBanner={showLocationBanner}
+                    unreadCount={totalUnreadMessages}
                 />
               ) : location.pathname.startsWith('/live/') && location.pathname !== '/live' ? (
-                <div className="h-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <div className="w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    <p>Carregando transmissão...</p>
-                  </div>
-                </div>
+                <LiveLoadingRedirect />
               ) : location.pathname === '/video' ? (
                 <VideoScreen
                   onViewProfile={handleViewProfile}
@@ -4579,6 +4191,22 @@ const ProfileRoutes: React.FC = () => {
         />
       } />
     </Routes>
+  );
+};
+
+const LiveLoadingRedirect: React.FC = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const timer = setTimeout(() => navigate('/'), 3000);
+    return () => clearTimeout(timer);
+  }, [navigate]);
+  return (
+    <div className="h-full flex items-center justify-center text-gray-500">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+        <p>Transmissão não encontrada</p>
+      </div>
+    </div>
   );
 };
 

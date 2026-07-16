@@ -600,7 +600,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 </div>
               )}
 
-              {displayUser.isLive && (displayUser.streamStatus === 'active' || displayUser.currentStreamId) ? (
+              {displayUser.isLive && ((displayUser as any).streamStatus === 'active' || displayUser.currentStreamId) ? (
                   <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/60 rounded-md px-2 py-1 flex items-center space-x-1.5 backdrop-blur-sm z-20 pointer-events-none">
                     <LiveIndicatorIcon className="w-4 h-4 text-green-400" />
                     <span className="text-xs font-bold text-white uppercase tracking-wider">{t('footer.live')}</span>

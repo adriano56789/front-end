@@ -170,7 +170,7 @@ const MyLevelScreen: React.FC<MyLevelScreenProps> = ({
             privileges: [],
             nextRewards: [],
             totalExp: response.totalExp,
-            rank: response.rank,
+            rank: Number(response.rank) || 0,
             lastGain: response.lastGain,
           });
         })

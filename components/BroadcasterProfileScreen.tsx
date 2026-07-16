@@ -5,7 +5,7 @@ import { BackIcon, MaleIcon, FemaleIcon, RankIcon, MoreVerticalIcon, PencilIcon,
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-import { socketService } from '../services/socket';
+// Socket.IO removido — eventos de presente via API
 import { LoadingSpinner } from './Loading';
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { useUserStatus, formatLastSeen } from '../hooks/useUserStatus';
@@ -233,31 +233,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
         };
     }, [user.id, lastUserUpdate]);
 
-    // 🎁 WEBSOCKET: Atualizar contadores em tempo real quando receber presentes
-    useEffect(() => {
-        const handleGiftReceived = (data: any) => {
-            // Verificar se o presente é para este usuário
-            if (data.toUser?.id === user.id) {
-                console.log(`🎁 [PROFILE] Presente recebido em tempo real: ${data.fromUser?.name} -> ${data.gift?.name} x${data.quantity}`);
-                
-                // Atualizar freshUser com novos valores
-                setFreshUser((prev: any) => ({
-                    ...prev,
-                    receptores: (prev?.receptores || 0) + (data.gift?.price * data.quantity),
-                    diamonds: (prev?.diamonds || 0) + (data.gift?.price * data.quantity)
-                }));
-            }
-        };
-
-        // Escutar eventos de presentes
-        socketService.on('live_gift_received', handleGiftReceived);
-        socketService.on('gift_received', handleGiftReceived);
-
-        return () => {
-            socketService.off('live_gift_received', handleGiftReceived);
-            socketService.off('gift_received', handleGiftReceived);
-        };
-    }, [user.id]);
+    // 🎁 EVENTOS DE PRESENTE: Socket.IO removido — presentes sincronizados via API polling + LiveKit DataChannel
 
     // Obras - Fonte de verdade: freshUser.obras || user.obras
     useEffect(() => {

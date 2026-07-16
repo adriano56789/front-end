@@ -2,7 +2,7 @@ import { User } from '../../types';
 import { decodeTokenIdentity } from './token';
 import { createParticipantFromUser, LiveKitParticipant } from './participants';
 import { api, getCurrentUserId } from '../api';
-import { socketService } from '../socket';
+// Socket.IO removido — LiveKit é a única fonte de comunicação em tempo real
 import {
   Room as RealRoom,
   RoomEvent as RealRoomEvent,
@@ -65,17 +65,6 @@ export class LiveKitRoom {
     }
     this.intentionalDisconnect = false;
     this.isReconnecting = false;
-    // Clean up fallback socket listeners
-    try {
-      const socket = socketService.getSocket();
-      if (socket) {
-        socket.off('livekit_participant_joined');
-        socket.off('livekit_track_published');
-        socket.off('livekit_track_muted');
-        socket.off('livekit_participant_kicked');
-        socket.off('livekit_room_deleted');
-      }
-    } catch {}
   }
 
   private cleanupReconnection() {
@@ -457,25 +446,13 @@ export class LiveKitRoom {
         this.realRoom.localParticipant.publishData(data, {
           reliable: true,
           topic: 'livechat',
-        })
-          .catch((err) => {
-            console.warn('[LiveKit] sendChatMessage erro, fallback Socket.IO:', err);
-            this.fallbackSendChatMessage(payload);
-          });
+        });
       } catch (e) {
         console.error('[LiveKit] Erro ao serializar mensagem:', e);
-        this.fallbackSendChatMessage(payload);
       }
     } else {
-      this.fallbackSendChatMessage(payload);
+      console.warn('[LiveKit] sendChatMessage ignorado — Room não conectada');
     }
-  }
-
-  private fallbackSendChatMessage(payload: any): void {
-    const userId = this.localParticipant?.identity || getCurrentUserId();
-    const userName = this.localParticipant?.name || 'User';
-    const userAvatar = '';
-    socketService.sendChatMessage(this.roomId, userId, userName, userAvatar, payload.message || payload.text || '');
   }
 
   /**
@@ -516,10 +493,6 @@ export class LiveKitRoom {
     if (this.realRoom) {
       try {
         this.realRoom.disconnect();
-      } catch {}
-    } else {
-      try {
-        socketService.leaveRoom(this.roomId);
       } catch {}
     }
 

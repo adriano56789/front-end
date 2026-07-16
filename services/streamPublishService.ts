@@ -294,10 +294,10 @@ class StreamPublishService {
         const room = getLiveKitRoom();
         if (room.state === 'connected' && room.localParticipant) {
           try {
-            const existingPub = Array.from(room.localParticipant.publications.values())
+            const existingPub = Array.from((room.localParticipant as any).publications?.values?.() || [])
               .find((p: any) => p.trackName === 'camera' || p.source === 'camera');
             if (existingPub) {
-              await (room.localParticipant as any).unpublishTrack(existingPub.trackSid);
+              await (room.localParticipant as any).unpublishTrack((existingPub as any).trackSid);
             }
             await room.localParticipant.publishTrack(newVideoTrack, { name: 'camera' });
           } catch (e) {

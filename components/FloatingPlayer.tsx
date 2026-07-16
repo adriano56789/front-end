@@ -32,10 +32,9 @@ const FloatingPlayer: React.FC<FloatingPlayerProps> = ({ streamer, onClose, onRe
     console.log(`[FloatingPlayer] Iniciando player PiP para stream: ${streamId}`);
 
     const engine = new SrsPlayerEngine({
-      hlsFallback: true,
       autoMuteRetry: true,
       reconnectRetries: 2
-    });
+    } as any);
 
     const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
       if (next === 'playing') {

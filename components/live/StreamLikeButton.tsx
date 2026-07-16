@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { HeartIcon } from '../icons';
 import { api } from '../../services/api';
-import { socketService } from '../../services/socket';
+// Socket.IO removido — likes gerenciados via REST API
 
 interface StreamLikeButtonProps {
   streamId: string;
@@ -21,50 +21,8 @@ const StreamLikeButton: React.FC<StreamLikeButtonProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
 
-  // Efeito para WebSocket em tempo real
-  useEffect(() => {
-    // Entrar na sala da stream para receber atualizações
-    socketService.joinRoom(`stream_${streamId}`);
 
-    // Listener para likes em tempo real
-    const handleStreamLiked = (data: {
-      streamId: string;
-      userId: string;
-      totalLikes: number;
-      timestamp: string;
-    }) => {
-      if (data.streamId === streamId) {
-        setLikes(data.totalLikes);
-        
-        // Animar coração se não for o próprio usuário
-        if (data.userId !== userId) {
-          triggerHeartAnimation();
-        }
-      }
-    };
-
-    const handleStreamUnliked = (data: {
-      streamId: string;
-      userId: string;
-      totalLikes: number;
-      timestamp: string;
-    }) => {
-      if (data.streamId === streamId) {
-        setLikes(data.totalLikes);
-      }
-    };
-
-    // Registrar listeners
-    socketService.on('stream_liked', handleStreamLiked);
-    socketService.on('stream_unliked', handleStreamUnliked);
-
-    // Cleanup
-    return () => {
-      socketService.off('stream_liked', handleStreamLiked);
-      socketService.off('stream_unliked', handleStreamUnliked);
-    };
-  }, [streamId, userId]);
-
+  // Socket.IO removido — likes via REST API
   const triggerHeartAnimation = () => {
     setIsAnimating(true);
     setTimeout(() => setIsAnimating(false), 600);

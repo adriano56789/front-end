@@ -17,7 +17,7 @@ import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { livekitApi } from '../services/livekit/livekitApi';
-import { socketService } from '../services/socket';
+// Socket.IO removido — comunicação PK via LiveKit DataChannel + REST API
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
@@ -368,21 +368,17 @@ export default function PKBattleScreen({
             const newBanner = { ...giftPayload, id: nextGiftId.current++ };
             setBannerGifts(prev => [...prev, newBanner].slice(-5));
 
-            // Sincronizar via socket unificado
-            (socketService as any).sendGift(
-                streamer.id,
-                currentUser.id as any,
-                currentUser.name,
-                currentUser.avatarUrl || 'https://placehold.co/40',
-                (streamer.hostId || streamer.id) as any,
-                streamer.name || 'Streamer',
-                streamer.avatar || 'https://placehold.co/40',
-                gift.name,
-                gift.name,
-                gift.icon || '🎁',
-                gift.price || 0,
-                quantity
-            );
+            // Sincronizar via LiveKit data channel
+            if (lkRoom && lkRoom.state === 'connected') {
+                lkRoom.sendChatMessage({
+                    type: 'gift_sent',
+                    fromUser: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level },
+                    toUser: { id: streamer.hostId || streamer.id, name: streamer.name },
+                    gift: { name: gift.name, icon: gift.icon || '🎁', price: gift.price || 0 },
+                    quantity,
+                    roomId: streamer.id
+                });
+            }
 
             if (isSimulation) {
                 // Simplesmente termina aqui na simulação
@@ -420,6 +416,7 @@ export default function PKBattleScreen({
     };
 
     const constructUserFromMessage = (user: ChatMessageType): User => ({ 
+        avatar: user.avatar || '',
         id: `user-${user.id}`, identification: `user-${user.id}`, name: user.user!, avatarUrl: user.avatar!, 
         coverUrl: `https://picsum.photos/seed/${user.id}/400/600`, country: 'br', 
         gender: user.gender || 'not_specified', level: user.level || 1, xp: 0, age: user.age || 18, 
@@ -497,14 +494,7 @@ export default function PKBattleScreen({
                 previousOnlineUsersRef.current = newUsers;
             }
         };
-        // Receber mensagens vindas do Socket.IO (via Protobuf) — sem filtro roomId pois não é enviado
-        const handleNewMessage = (message: any) => {
-            // Evitar duplicatas: não adicionar mensagem já existente
-            setMessages(prev => {
-                if (prev.some(m => m.id === message.id)) return prev;
-                return [...prev, { ...message, type: 'chat' }];
-            });
-        };
+        // Socket.IO removido — eventos PK via LiveKit DataChannel + CustomEvents
         const handleHeartUpdate = (data: { roomId: string, heartsA: number, heartsB: number }) => {
              if (data.roomId === streamer.id) {
                 setMyHearts(data.heartsA);
@@ -512,24 +502,7 @@ export default function PKBattleScreen({
             }
         };
 
-        const handleNewGift = (payload: GiftPayload) => {
-            if (payload.roomId !== streamer.id) return;
-        
-            // 1. Add to Chat
-            postGiftChatMessage(payload);
-
-            // 2. Only queue effects if NOT from current user (sender logic handled in handleSendGift)
-            if (payload.fromUser.id !== currentUser.id) {
-                const securePayload = { ...payload, id: payload.id || (Date.now() + Math.random()) };
-                // Add to Fullscreen Effect Queue
-                setEffectsQueue(prev => [...prev, securePayload]);
-                
-                // Add to Banner Notification
-                const newBanner = { ...securePayload, id: nextGiftId.current++ };
-                setBannerGifts(prev => [...prev, newBanner].slice(-5));
-            }
-        };
-
+        // Socket.IO removido — gifts via LiveKit DataChannel
         const handleFollowUpdate = (payload: { follower: User, followed: User, isUnfollow: boolean }) => {
             if (payload.isUnfollow) return; 
 
@@ -543,15 +516,9 @@ export default function PKBattleScreen({
         };
 
 
-        // Real-time socket subscriptions for the PK Battle Screen
-        socketService.on('receive_message', handleNewMessage);
-        socketService.on('gift_received', handleNewGift);
-        socketService.on('live_gift_received', handleNewGift);
+        // Socket.IO removido — mensagens/gifts/recebimento via LiveKit DataChannel
     
         return () => {
-            socketService.off('receive_message', handleNewMessage);
-            socketService.off('gift_received', handleNewGift);
-            socketService.off('live_gift_received', handleNewGift);
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
 
@@ -780,10 +747,9 @@ export default function PKBattleScreen({
         // Enviar via LiveKit data channel
         if (lkRoom && lkRoom.state === 'connected') {
             lkRoom.sendChatMessage(safePayload);
+        } else {
+            console.warn('[PKBattle] Chat não enviado — LiveKit não conectado');
         }
-        
-        // Fallback via Socket.IO (garante entrega mesmo se LiveKit falhar)
-        socketService.sendChatMessage(streamer.id, currentUser.id, currentUser.name, safePayload.avatar, chatInput.trim());
         
         setChatInput('');
     };
@@ -1181,7 +1147,11 @@ export default function PKBattleScreen({
                     currentUser={currentUser} 
                     onSelectUser={(selectedUser: any) => {
                         setIsOnlineUsersOpen(false);
-                        setUserActionModalState({ isOpen: true, user: selectedUser });
+                        if (isBroadcaster) {
+                            setUserActionModalState({ isOpen: true, user: selectedUser });
+                        } else {
+                            onViewProfile(selectedUser);
+                        }
                     }}
                 />
             )}
