@@ -210,21 +210,11 @@ export const useStreamManager = (
     }
 
     try {
-      console.log('[STREAM_MANAGER] 🚀 Iniciando fluxo WebRTC WHIP diretamente para o SRS...');
-
       const streamId = `stream_${currentUser.id}`;
 
-      // 1. Start WHIP Publish (WebRTC publication flow to SRS) first
-      if (!isAndroidApp()) {
-        console.log('[STREAM_MANAGER] 📡 1. Publicando transmissão via WebRTC WHIP diretamente no SRS:', streamId);
-        try {
-          await streamPublishService.startPublish(streamId, { videoRef });
-          console.log('[STREAM_MANAGER] ✅ 2. Publicação WebRTC WHIP estabelecida com sucesso no SRS!');
-        } catch (whipErr) {
-          console.error('[STREAM_MANAGER] ❌ Erro ao iniciar publicação WebRTC WHIP no SRS:', whipErr);
-          throw whipErr;
-        }
-      } else {
+      // WHIP/SRS removido — LiveKit é a única fonte de mídia e data channels.
+      // A publicação de mídia (câmera/microfone) ocorre via LiveKit em StreamRoom.
+      if (isAndroidApp()) {
         startNativePublish(streamId);
       }
 

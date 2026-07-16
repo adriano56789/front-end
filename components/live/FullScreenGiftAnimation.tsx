@@ -223,7 +223,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                 {/* Reprodutor de vídeo com canal de mesclagem ou renderização direta elegante para vídeos reais */}
                 <div className={`relative flex items-center justify-center ${gift.noBlend || (gift.noBlend === undefined && assetConfig.noBlend) ? 'w-[480px] h-[270px] aspect-video border-[4px] border-[#FFD700] rounded-[24px] overflow-hidden bg-black/95 shadow-[0_0_60px_rgba(255,215,0,0.45)]' : 'w-[450px] h-[450px]'} transform animate-gift-pop-impact`}>
                     <video 
-                        src={resolvedVideo}
+                        src={resolvedVideo || undefined}
                         autoPlay 
                         loop={false}
                         muted 

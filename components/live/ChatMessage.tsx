@@ -104,6 +104,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             >
                 {user}:
             </span>
+
+            {/* ADM/Moderator badge - positioned above level */}
+            {isModerator && (
+                <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0 scale-[0.95]">
+                    Adm
+                </span>
+            )}
             
             {/* Glossy Silver metal level badge matching the screenshot */}
             <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[16px]">
@@ -122,13 +129,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
                 {message}
             </span>
 
-            {/* Support original moderators indicators and flow tools */}
-            {isModerator && (
-                <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0 scale-[0.95]">
-                    Adm
-                </span>
-            )}
-            
             {onModerationClick && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onModerationClick(); }} 

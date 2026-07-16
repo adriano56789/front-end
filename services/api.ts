@@ -1233,6 +1233,9 @@ export const api = {
 
     respondToPKInvite: (inviteId: string, status: 'accepted' | 'declined') => callApi<{ success: boolean, invite: any }>('POST', `/api/pk/invites/${inviteId}/respond`, { status }),
 
+    respondToLiveInvite: (inviteId: string, status: 'accepted' | 'declined') =>
+        callApi<{ success: boolean }>('POST', '/api/live/invite/respond', { inviteId, status }),
+
 
     getGiftSendersForStream: (streamId: string) => callApi<any>('GET', `/api/interactions/presents/live/${streamId}`),
 

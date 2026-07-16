@@ -9,7 +9,7 @@ export type PublishStateT = PublishState | WebRTCState | 'native';
 const SRS_CANDIDATE = env.srs.host;
 
 class StreamPublishService {
-  private useBackendProxy = false;
+  private useBackendProxy = true; // Use SRS legacy JSON API (WHIP not supported by SRS v5)
   private currentFacingMode: 'user' | 'environment' = 'user';
   private currentStream: MediaStream | null = null;
   private currentVideoRef: { current: HTMLVideoElement | null } | null = null;

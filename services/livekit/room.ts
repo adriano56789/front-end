@@ -136,6 +136,7 @@ export class LiveKitRoom {
       }
     } catch {
       this.roomId = '';
+      canPublish = false;
     }
 
     const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
@@ -285,41 +286,42 @@ export class LiveKitRoom {
         this._addRemoteParticipant(participant);
       });
 
-      // Only auto-publish if the token grants publishing permission
+      // LiveKit é a ÚNICA fonte de tudo: mídia, data channels, presença
+      // O host publica câmera/microfone aqui para distribuição via LiveKit Egress
       if (canPublish) {
-        try {
-          console.log('[LiveKit] Capturando mídia real...');
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 360 } },
-            audio: true
+      try {
+        console.log('[LiveKit] Capturando mídia real...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 360 } },
+          audio: true
+        });
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const pub = await realRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
+          tracksMap.set(pub.trackSid, {
+            trackSid: pub.trackSid,
+            trackName: 'camera',
+            source: 'camera',
+            isMuted: false,
+            track: videoTrack
           });
-          const videoTrack = stream.getVideoTracks()[0];
-          if (videoTrack) {
-            const pub = await realRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-            tracksMap.set(pub.trackSid, {
-              trackSid: pub.trackSid,
-              trackName: 'camera',
-              source: 'camera',
-              isMuted: false,
-              track: videoTrack
-            });
-            console.log('✅ Stream publicada.');
-          }
-          const audioTrack = stream.getAudioTracks()[0];
-          if (audioTrack) {
-            const pub = await realRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-            tracksMap.set(pub.trackSid, {
-              trackSid: pub.trackSid,
-              trackName: 'microphone',
-              source: 'microphone',
-              isMuted: false,
-              track: audioTrack
-            });
-          }
-        } catch (e) {
-          console.warn('[LiveKit] Falha ao capturar mídias locais (microfone/câmera):', e);
+          console.log('✅ Stream publicada.');
         }
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          const pub = await realRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
+          tracksMap.set(pub.trackSid, {
+            trackSid: pub.trackSid,
+            trackName: 'microphone',
+            source: 'microphone',
+            isMuted: false,
+            track: audioTrack
+          });
+        }
+      } catch (e) {
+        console.warn('[LiveKit] Falha ao capturar mídias locais (microfone/câmera):', e);
       }
+      } // end if (canPublish)
 
       this.emit(RoomEvent.RoomMetadataChanged, this);
 
@@ -440,8 +442,11 @@ export class LiveKitRoom {
   /**
    * Send a chat message via LiveKit data channel
    */
+  /**
+   * Envia mensagem de chat via LiveKit Data Channel com topic padronizado 'livechat'.
+   * Documentação: https://docs.livekit.io/client-sdk-js/#data
+   */
   public sendChatMessage(payload: any): void {
-    // Só tenta DataChannel se estiver conectado e não estiver reconectando
     if (this.realRoom && this.state === 'connected' && !this.isReconnecting) {
       try {
         const encoder = new TextEncoder();
@@ -449,10 +454,12 @@ export class LiveKitRoom {
           type: 'chat_message',
           ...payload
         }));
-        this.realRoom.localParticipant.publishData(data, { reliable: true })
-          // noop — confirmação silenciosa (log removido para reduzir ruído)
+        this.realRoom.localParticipant.publishData(data, {
+          reliable: true,
+          topic: 'livechat',
+        })
           .catch((err) => {
-            console.warn('[LiveKit] Falha ao transmitir mensagem, usando fallback Socket.IO:', err);
+            console.warn('[LiveKit] sendChatMessage erro, fallback Socket.IO:', err);
             this.fallbackSendChatMessage(payload);
           });
       } catch (e) {
@@ -472,19 +479,22 @@ export class LiveKitRoom {
   }
 
   /**
-   * Send arbitrary data via LiveKit data channel
+   * Send arbitrary data via LiveKit data channel with topic 'livechat'.
    */
   public sendData(payload: any): void {
     if (this.realRoom && this.state === 'connected' && !this.isReconnecting) {
       try {
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(payload));
-        this.realRoom.localParticipant.publishData(data, { reliable: true })
+        this.realRoom.localParticipant.publishData(data, {
+          reliable: true,
+          topic: 'livechat',
+        })
           .then(() => {
-            console.log('[LiveKit] Dados enviados com sucesso via data channel:', payload.type || 'unknown');
+            console.log('[LiveKit] sendData OK:', payload.type || 'unknown');
           })
           .catch((err) => {
-            console.warn('[LiveKit] Falha ao transmitir dados:', err);
+            console.warn('[LiveKit] sendData erro:', err);
           });
       } catch (e) {
         console.error('[LiveKit] Erro ao serializar dados:', e);

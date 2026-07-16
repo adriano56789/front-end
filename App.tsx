@@ -180,6 +180,7 @@ import CameraPermissionModal from './components/CameraPermissionModal';
 import LocationPermissionModal from './components/LocationPermissionModal';
 
 import EndStreamConfirmationModal from './components/live/EndStreamConfirmationModal';
+import DownloadAppBanner from './components/DownloadAppBanner';
 
 import EndStreamSummaryScreen from './components/EndStreamSummaryScreen';
 
@@ -3765,6 +3766,10 @@ const logLiveEvent = (type: string, data: any) => {
 
   return (
     <div className="app-container bg-black text-white font-sans">
+
+      {/* Banner de download do app - aparece apenas na primeira visita */}
+      <DownloadAppBanner />
+
 
       {/* PK Invite Pop-up Modal */}
       {activePKInvite && (

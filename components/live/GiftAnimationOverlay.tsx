@@ -15,12 +15,12 @@ export interface GiftPayload {
     gift: Gift;
     quantity: number;
     roomId: string;
-    id: number; // Forçar ID obrigatório para controle de remoção
+    id: string | number; // Forçar ID obrigatório para controle de remoção
 }
 
 interface GiftAnimationOverlayProps {
     giftPayload: GiftPayload;
-    onAnimationEnd: (id: number) => void;
+    onAnimationEnd: (id: string | number) => void;
 }
 
 const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload, onAnimationEnd }) => {
