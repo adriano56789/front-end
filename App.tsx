@@ -736,11 +736,20 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    const handleVisibilityChange = () => {
-      // Não fazer nada quando aba fica oculta - usuário ainda está online
-      // Apenas atualizar quando volta para online
+    const handleVisibilityChange = async () => {
+      // Quando volta para foreground: atualizar status + buscar dados frescos do servidor
+      // Isso garante que avatares, nomes e outros dados alterados em outro dispositivo apareçam imediatamente
       if (!document.hidden && isAuthenticated && currentUser?.id) {
         setUserOnline();
+        try {
+          const freshUser = await api.getCurrentUser();
+          if (freshUser && freshUser.id === currentUserRef.current?.id) {
+            const cur = currentUserRef.current;
+            if (cur && (cur.avatarUrl !== freshUser.avatarUrl || cur.name !== freshUser.name || JSON.stringify(cur.obras) !== JSON.stringify(freshUser.obras))) {
+              updateUserEverywhere(freshUser);
+            }
+          }
+        } catch (_) {}
       }
     };
 
@@ -1496,17 +1505,35 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
       // Avatar atualizado - sincronizar em tempo real em todo o app
-
       socketService.on('avatar_updated', (data: { userId: string; avatarUrl: string }) => {
-
+        // Atualizar o próprio usuário (dados completos do banco)
         if (data.userId === currentUserRef.current.id) {
-
-          const updatedUser = { ...currentUserRef.current, avatarUrl: data.avatarUrl };
-
-          updateUserEverywhere(updatedUser);
-
+          api.getCurrentUser().then(freshUser => {
+            if (freshUser) updateUserEverywhere(freshUser);
+          }).catch(() => {
+            const updatedUser = { ...currentUserRef.current, avatarUrl: data.avatarUrl };
+            updateUserEverywhere(updatedUser);
+          });
+        } else {
+          // Atualizar avatar de OUTRO usuário nas listas (allUsers, fans, following, etc.)
+          const updateAvatarInList = (users: User[] | undefined) => {
+            if (!users || !Array.isArray(users)) return users || [];
+            return users.map(u => u.id === data.userId ? { ...u, avatarUrl: data.avatarUrl } : u);
+          };
+          setAllUsers(updateAvatarInList);
+          setFollowingUsers(updateAvatarInList);
+          setFans(updateAvatarInList);
+          setFriends(updateAvatarInList);
+          setStreamers(prev => (Array.isArray(prev) ? prev.map(s => s.hostId === data.userId ? { ...s, avatar: data.avatarUrl } : s) : []));
+          setReminderStreamers(prev => (Array.isArray(prev) ? prev.map(s => s.hostId === data.userId ? { ...s, avatar: data.avatarUrl } : s) : []));
+          setConversations(prev => prev.map(c => c.friend.id === data.userId ? { ...c, friend: { ...c.friend, avatarUrl: data.avatarUrl } } : c));
+          if (viewingProfile?.id === data.userId) {
+            setViewingProfile(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : prev);
+          }
+          if (activeStream?.hostId === data.userId) {
+            setActiveStream(prev => prev ? { ...prev, avatar: data.avatarUrl } : prev);
+          }
         }
-
       });
 
 
