@@ -1,6 +1,6 @@
 import { api } from './api';
 import { Streamer, User } from '../types';
-import { getRtmpPublishUrl, getSrtPublishUrl, getHlsPlayUrl, getWebrtcPublishUrl } from './mediaConfig';
+import { getHlsPlayUrl } from './mediaConfig';
 
 export class StreamService {
   static async createStream(userId: string, streamData: {
@@ -79,10 +79,10 @@ export class StreamService {
     hlsUrl: string;
   } {
     return {
-      rtmpIngestUrl: getRtmpPublishUrl(streamId),
-      srtIngestUrl: getSrtPublishUrl(streamId),
+      rtmpIngestUrl: '',
+      srtIngestUrl: '',
       playbackUrl: getHlsPlayUrl(streamId),
-      webrtcUrl: getWebrtcPublishUrl(streamId),
+      webrtcUrl: '',
       hlsUrl: getHlsPlayUrl(streamId)
     };
   }

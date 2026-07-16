@@ -5,7 +5,6 @@ import { CloseIcon, ExpandIcon, SwitchCameraIcon } from './icons';
 import { Streamer, ToastType, User, BeautySettings } from '../types';
 
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
-import FfmpegSettingsPanel from './live/FfmpegSettingsPanel';
 
 import LiveStreamManualModal from './live/LiveStreamManualModal';
 import RegionModal from './RegionModal';
@@ -94,21 +93,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
     const [countries, setCountries] = useState<any[]>([]);
     const [isBeautyPanelOpen, setIsBeautyPanelOpen] = useState(false);
-    const [isFfmpegPanelOpen, setIsFfmpegPanelOpen] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
     const [categories] = useState<Category[]>(CATEGORIES);
-
-    const handleOpenFfmpegPanel = async () => {
-        let stream = streamManager.draftStream;
-        if (!stream) {
-            stream = await streamManager.createDraftStream();
-            if (!stream) {
-                addToast(ToastType.Error, "Falha ao inicializar rascunho da live para FFmpeg.");
-                return;
-            }
-        }
-        setIsFfmpegPanelOpen(true);
-    };
 
     const isInviteMode = Boolean(inviteData);
 
@@ -303,7 +289,6 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                     <StreamToolsPanel
                         onOpenManual={() => setIsManualOpen(true)}
                         onOpenBeautyPanel={() => setIsBeautyPanelOpen(true)}
-                        onOpenFfmpegPanel={handleOpenFfmpegPanel}
                         isPrivate={streamManager.isPrivate}
                         onTogglePrivate={handleTogglePrivate}
                         isInviteMode={isInviteMode}
@@ -358,13 +343,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 selectedCountryCode={streamManager.selectedRegion} 
             />
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
-            {isFfmpegPanelOpen && streamManager.draftStream && (
-                <FfmpegSettingsPanel 
-                    streamId={streamManager.draftStream.id} 
-                    onClose={() => setIsFfmpegPanelOpen(false)} 
-                    addToast={addToast} 
-                />
-            )}
+
             {isManualOpen && <LiveStreamManualModal onClose={() => setIsManualOpen(false)} />}
         </div>
     );

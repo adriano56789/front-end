@@ -28,9 +28,8 @@ import { socketService } from '../services/socket';
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
-import { useLiveKit } from '../hooks/useLiveKit';
 import { useLiveKitChat } from '../hooks/useLiveKitChat';
-import { livekitApi } from '../services/livekit/livekitApi';
+import { getLiveKitRoom } from '../services/livekit/livekitRoomService';
 import { useNativePiP } from '../hooks/useNativePiP';
 
 interface ChatMessageType {
@@ -231,19 +230,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     // ═══════════════════════════════════════════════════════════════════
     // ARQUITETURA:
-    // - SRS: TRANSMISSÃO da live (WHIP publish) + entrega aos
-    //   espectadores (HLS/WHEP via SrsPlayerEngine)
-    // - LiveKit: TEMPO REAL da sala (chat, participantes online,
-    //   likes, gifts, PK Battle, chamada de vídeo, convite privado)
+    // - LiveKit: ÚNICA conexão — host publica câmera/microfone,
+    //   chat, participantes online, likes, gifts, tudo via Room singleton.
+    // - SRS: player HLS para espectadores (recebe RTMP via LiveKit Egress)
     // - Socket.IO: fallback para chat quando LiveKit não disponível
     // ═══════════════════════════════════════════════════════════════════
-
-    const {
-        room: lkRoom,
-        connectionState: lkConnectionState,
-        connect: connectLiveKit,
-        disconnect: disconnectLiveKit,
-    } = useLiveKit();
 
   const {
     connected: lkChatConnected,
@@ -318,33 +309,53 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     },
   });
 
-    // useLiveKit (room.ts) — Host publica mídia (câmera/microfone) no LiveKit
-    // Chat: useLiveKitChat conecta TODOS (host e viewers) na sala live_${streamId}.
-    // Chat e eventos: gerenciados pelo onMessage do useLiveKitChat.
-    // SRS/WHIP removido — LiveKit é a única fonte de mídia e data channels.
+    // useLiveKit (room.ts) REMOVIDO — tudo unificado via useLiveKitChat.
+    // A sala live_${streamId} é a única conexão: mídia (host), chat, eventos.
+    // Host publica câmera/microfone pelo Room singleton após useLiveKitChat conectar.
+    // Viewers recebem as tracks automaticamente via SFU (canSubscribe: true).
 
-    // HOST-LK: Conectar useLiveKit para publicar mídia no LiveKit
+    // HOST-MEDIA: Após useLiveKitChat conectar, host publica câmera/microfone
+    // pelo Room singleton (mesmo usado para chat/eventos).
     useEffect(() => {
-        if (!isBroadcaster) return;
-        let destroyed = false;
-        const connectHost = async () => {
+        if (!isBroadcaster || !lkChatConnected) return;
+        let mediaStream: MediaStream | null = null;
+        let cancelled = false;
+
+        const publishMedia = async () => {
             try {
-                const roomName = `live_${streamer.id}`;
-                const identity = `streamer_${currentUser.id}`;
-                const res = await livekitApi.getLiveKitToken(roomName, identity, true);
-                if (destroyed) return;
-                await connectLiveKit(res.serverUrl, res.token);
-                console.log('[HOST-LK] ✅ Host conectado ao LiveKit com mídia. room:', roomName);
+                const room = getLiveKitRoom();
+                if (room.state !== 'connected') return;
+
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 360 } },
+                    audio: true,
+                });
+                if (cancelled) { mediaStream.getTracks().forEach(t => t.stop()); return; }
+
+                const videoTrack = mediaStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    await room.localParticipant.publishTrack(videoTrack, { name: 'camera' });
+                    console.log('[HOST-LK] ✅ Câmera publicada via Room singleton');
+                }
+                const audioTrack = mediaStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    await room.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
+                    console.log('[HOST-LK] ✅ Microfone publicado via Room singleton');
+                }
             } catch (err) {
-                console.warn('[HOST-LK] Falha ao conectar host ao LiveKit:', err);
+                console.warn('[HOST-LK] Falha ao publicar mídia:', err);
             }
         };
-        connectHost();
+
+        publishMedia();
+
         return () => {
-            destroyed = true;
-            disconnectLiveKit();
+            cancelled = true;
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(t => t.stop());
+            }
         };
-    }, [isBroadcaster, streamer.id, currentUser.id]);
+    }, [isBroadcaster, lkChatConnected]);
 
     // Escutar mensagens de chat via Socket.IO (redundância quando LiveKit não roteia)
     useEffect(() => {
@@ -623,7 +634,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
-        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id, 'isBroadcaster:', isBroadcaster, 'lkConnected:', lkConnectionState);
+        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id, 'isBroadcaster:', isBroadcaster, 'lkChatConnected:', lkChatConnected);
         if (chatInput.trim() === '' || !currentUser) { console.log('[CHAT] handleSendMessage ignorado - input vazio ou sem user'); return; }
         const messagePayload: ChatMessageType = {
             id: String(Date.now()),

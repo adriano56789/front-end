@@ -4,9 +4,6 @@ const trimSlash = (value: string) => value.replace(/\/+$/, '');
 
 const SRS_HOST = env.srs.host;
 const SRS_HTTP_PORT = env.srs.httpPort; // 8080
-const SRS_RTMP_PORT = env.srs.rtmpPort;
-const SRS_RTC_PORT = env.srs.rtcPort;
-const SRS_API_PORT = env.srs.apiPort; // 1985
 
 /** Base da API — nunca usar localhost em produção (VITE_API_BASE_URL em .env.prod). */
 export const getApiBaseUrl = (): string => trimSlash(env.apiBaseUrl);
@@ -35,50 +32,7 @@ export const getFlvPlayUrl = (streamId: string): string => {
   return `/api/video/http/live/${normalizedId}.flv`;
 };
 
-/** RTMP publish (SRS) */
-export const getRtmpPublishUrl = (streamKey: string): string => {
-  const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
-  const base =
-    (import.meta.env.VITE_SRS_RTMP_URL as string | undefined) ||
-    `rtmp://${SRS_HOST}:${SRS_RTMP_PORT}/live`;
-  return `${trimSlash(base)}/${normalizedKey}`;
-};
-
-/** SRT publish URL */
-export const getSrtPublishUrl = (streamKey: string): string => {
-  const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
-  const base =
-    (import.meta.env.VITE_SRS_SRT_URL as string | undefined) ||
-    `srt://${SRS_HOST}:9999`;
-  return `${trimSlash(base)}?streamid=${encodeURIComponent(normalizedKey)}`;
-};
-
-/** WebRTC publish URL (webrtc://) */
-export const getWebrtcPublishUrl = (streamKey: string): string => {
-  const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
-  const base =
-    (import.meta.env.VITE_SRS_WEBRTC_URL as string | undefined) ||
-    `webrtc://${SRS_HOST}:${SRS_RTC_PORT}/live`;
-  return `${trimSlash(base)}/${normalizedKey}`;
-};
-
 export const isNativeRtmpBridge = (): boolean =>
   typeof window !== 'undefined' &&
   'Android' in window &&
   typeof (window as Window & { Android?: { startRTMP?: (k: string) => void } }).Android?.startRTMP === 'function';
-
-/** WHIP endpoint — via backend proxy */
-export const getWhipEndpointUrl = (streamKey: string): string => {
-  const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
-  const fromEnv = import.meta.env.VITE_SRS_WHIP_URL as string | undefined;
-  if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  return `/api/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-};
-
-/** WHEP endpoint — via backend proxy */
-export const getWhepEndpointUrl = (streamKey: string): string => {
-  const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
-  const fromEnv = import.meta.env.VITE_SRS_WHEP_URL as string | undefined;
-  if (fromEnv) return `${trimSlash(fromEnv)}/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-  return `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-};

@@ -1,8 +1,8 @@
 import { Room } from 'livekit-client';
 
 // ── Singleton Room — única instância por aplicação ──
-// Todas as camadas (useLiveKit, useLiveKitChat, etc.) compartilham esta Room.
-// Isso garante: 1 conexão, 1 estado de presença, 1 data channel.
+// Única conexão LiveKit: mídia (host publica câmera/microfone),
+// chat, eventos, presença — tudo pela mesma Room.
 // Documentação: https://docs.livekit.io/client-sdk-js/
 
 let roomInstance: Room | null = null;

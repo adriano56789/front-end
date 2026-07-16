@@ -126,6 +126,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
           try {
             const payload = JSON.parse(atob(token.split('.')[1]));
             console.log('[LiveKitChat] Token room:', payload.video?.room || payload.room,
+              '| canPublish:', payload.video?.canPublish,
               '| canPublishData:', payload.video?.canPublishData,
               '| canSubscribe:', payload.video?.canSubscribe,
               '| identity:', payload.sub);

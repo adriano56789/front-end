@@ -1,11 +1,10 @@
 import React from 'react';
-import { BookOpenIcon, SparklesIcon, PKIcon, LockIcon, ChevronRightIcon, VideoIcon } from '../icons';
+import { BookOpenIcon, SparklesIcon, PKIcon, LockIcon, ChevronRightIcon } from '../icons';
 import { useTranslation } from '../../i18n';
 
 interface StreamToolsPanelProps {
   onOpenManual: () => void;
   onOpenBeautyPanel: () => void;
-  onOpenFfmpegPanel: () => void;
   isPrivate: boolean;
   onTogglePrivate: () => void;
   isInviteMode?: boolean;
@@ -14,7 +13,6 @@ interface StreamToolsPanelProps {
 export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
   onOpenManual,
   onOpenBeautyPanel,
-  onOpenFfmpegPanel,
   isPrivate,
   onTogglePrivate,
   isInviteMode = false
@@ -48,16 +46,7 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
           <ChevronRightIcon className="w-4 h-4 text-gray-500" />
         </button>
 
-        <button 
-          onClick={onOpenFfmpegPanel} 
-          className="flex items-center justify-between py-3.5 border-t border-[#ffffff10] w-full transition-colors active:bg-white/5"
-        >
-          <div className="flex items-center space-x-3">
-            <VideoIcon className="w-5 h-5 text-gray-400" />
-            <span className="text-[14px] font-medium text-[#e2e2e2]">Processamento FFmpeg (SRS)</span>
-          </div>
-          <ChevronRightIcon className="w-4 h-4 text-gray-500" />
-        </button>
+
 
         {!isInviteMode && (
           <>
