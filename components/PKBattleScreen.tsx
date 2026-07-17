@@ -458,7 +458,7 @@ export default function PKBattleScreen({
 
     useEffect(() => {
         const currentUserEntryMessage: ChatMessageType = {
-            id: Date.now(),
+            id: Date.now() + Math.random(),
             type: 'entry',
             fullUser: currentUser,
         };
@@ -509,8 +509,8 @@ export default function PKBattleScreen({
             const { follower, followed } = payload;
             
             const newMessage: ChatMessageType = (followed.id === currentUser.id)
-                ? { id: Date.now(), type: 'friend_request', follower: follower }
-                : { id: Date.now(), type: 'follow', user: follower.name, followedUser: followed.name, avatar: follower.avatarUrl };
+                ? { id: Date.now() + Math.random(), type: 'friend_request', follower: follower }
+                : { id: Date.now() + Math.random(), type: 'follow', user: follower.name, followedUser: followed.name, avatar: follower.avatarUrl };
 
             setMessages(prev => [...prev, newMessage]);
         };
@@ -530,9 +530,9 @@ export default function PKBattleScreen({
             if (!data || !data.type) return;
             // Mensagens de chat
             if (data.type === 'chat_message' || data.type === 'chat') {
+                const stableId = Date.now() + Math.random();
                 setMessages(prev => {
-                    if (prev.some(m => m.id === data.id)) return prev;
-                    return [...prev, { ...data, type: 'chat' }];
+                    return [...prev, { ...data, type: 'chat', id: stableId }];
                 });
             }
             // Sync de estado PK
