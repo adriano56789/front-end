@@ -22,23 +22,18 @@ import { calculateDistanceInKm, formatDistance } from '../utils/location';interf
 const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void}> = ({ streamer, onSelect }) => {
     const loggedInUser = (window as any).currentUser;
     
-    // Construct dynamic geographic location using real database variables
-    let locationDisplay = 'Brasil';
-    const loc = typeof streamer.location === 'string' ? streamer.location : '';
-    const st = typeof streamer.state === 'string' ? streamer.state : '';
-    if (loc && st) {
-        if (loc.toLowerCase() === 'brasil' || loc.toLowerCase() === 'brazil') {
-            locationDisplay = `Brasil - ${st}`;
-        } else {
-            locationDisplay = `${loc} - ${st}`;
-        }
-    } else if (streamer.city && st) {
-        locationDisplay = `${streamer.city} - ${st}`;
-    } else if (loc) {
-        locationDisplay = loc;
-    } else if (st) {
-        locationDisplay = `Brasil - ${st}`;
-    }
+    // Get country code from streamer profile (always lowercase for flagcdn)
+    const countryCode = streamer.country ? streamer.country.toLowerCase() : '';
+    
+    // Map common country codes to display names
+    const countryNames: Record<string, string> = {
+        br: 'Brasil', us: 'Estados Unidos', pt: 'Portugal', ar: 'Argentina',
+        mx: 'México', co: 'Colômbia', cl: 'Chile', pe: 'Peru', ve: 'Venezuela',
+        es: 'Espanha', it: 'Itália', fr: 'França', de: 'Alemanha', gb: 'Reino Unido',
+        ca: 'Canadá', jp: 'Japão', kr: 'Coreia do Sul', in: 'Índia',
+        ao: 'Angola', mz: 'Moçambique', cv: 'Cabo Verde',
+    };
+    const countryName = countryCode ? (countryNames[countryCode] || countryCode.toUpperCase()) : '';
 
     // Capture standard title message or fallback gracefully
     const streamTitle = streamer.message && streamer.message.trim() !== '' 
@@ -87,14 +82,24 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 
                 {/* Subinfo Row */}
                 <div className="flex items-center justify-between text-[11px] sm:text-[12px] text-zinc-300 font-medium">
-                    {/* Location label */}
+                    {/* Country flag label */}
                     <div className="flex items-center min-w-0 flex-1 pr-1">
-                        {/* Map point marker */}
-                        <svg className="w-3.5 h-3.5 text-white mr-1 flex-shrink-0 fill-current opacity-90" viewBox="0 0 24 24">
-                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                        </svg>
+                        {countryCode ? (
+                            <img
+                                src={`https://flagcdn.com/w20/${countryCode}.png`}
+                                alt={countryName}
+                                className="w-3.5 h-3.5 rounded-sm object-cover mr-1 flex-shrink-0"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                            />
+                        ) : (
+                            <svg className="w-3.5 h-3.5 text-white mr-1 flex-shrink-0 fill-current opacity-90" viewBox="0 0 24 24">
+                                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                            </svg>
+                        )}
                         <span className="truncate font-medium text-[11px] sm:text-[12px] text-[#f2d7a2]">
-                            {locationDisplay}
+                            {countryName || 'Global'}
                         </span>
                     </div>
 
@@ -108,7 +113,7 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
                             <span className="w-[1.5px] h-[7.5px] bg-zinc-600 rounded-[0.3px]"></span>
                         </div>
                         <span className="font-sans text-[11px] sm:text-[12px] text-zinc-200 font-semibold">
-                            {streamer.viewers?.toLocaleString('pt-BR') || '0'}
+                            {(streamer.onlineTotal ?? streamer.viewers)?.toLocaleString('pt-BR') || '0'}
                         </span>
                     </div>
                 </div>
@@ -217,7 +222,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
   
   return (
     <div className="flex flex-col w-full min-w-0 h-full bg-[#000000] select-none overflow-hidden">
-      <Header onOpenReminderModal={onOpenReminderModal} onOpenRegionModal={onOpenRegionModal} onOpenSearch={onOpenSearch} unreadCount={unreadCount} />
+      <Header onOpenReminderModal={onOpenReminderModal} onOpenRegionModal={onOpenRegionModal} onOpenSearch={onOpenSearch} unreadCount={unreadCount} currentCountry={(window as any).currentUser?.country} />
       
       <nav className="flex-shrink-0 w-full relative z-10 border-b border-white/[0.02]">
         <div 

@@ -2169,6 +2169,16 @@ export const api = {
         'GET', '/api/livekit/egress/list'
       ),
 
+    getEgressStatus: (egressId: string) =>
+      callApi<{ success: boolean; egressId: string; roomId: string; status: string; startedAt?: number; endedAt?: number; error?: string; details?: { error?: string } }>(
+        'GET', `/api/livekit/egress/status/${egressId}`
+      ),
+
+    validateHlsStream: (streamId: string) =>
+      callApi<{ success: boolean; streamId: string; manifestOk: boolean; segmentsOk: boolean; segmentCount: number; manifestUrl: string; statusCode: number | null; firstSegmentUrl: string | null; message: string; segments?: string[] }>(
+        'GET', `/api/hls/validate/${streamId}`
+      ),
+
     // --- LiveKit namespace (aliases for compat with room.ts) ---
 
     livekit: {

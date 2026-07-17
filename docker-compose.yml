@@ -15,6 +15,5 @@ services:
       - /etc/letsencrypt/live/api.livego.store/privkey.pem:/etc/nginx/ssl/api-privkey.pem:ro
       - /app/backend/uploads/:/app/uploads/
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./dist:/usr/share/nginx/html:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"

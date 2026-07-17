@@ -33,18 +33,14 @@ export const livekitApi = {
   getChatToken: async (streamId: string, userId: string, isHost: boolean): Promise<{ token: string; serverUrl: string }> => {
     console.log('[LIVEKIT-API] getChatToken chamado streamId:', streamId, 'userId:', userId, 'isHost:', isHost);
     
-    if (isHost) {
-      // Host precisa de canPublish: true — usar endpoint publisher-aware
-      // A sala LiveKit é criada com prefixo 'live_' pelo backend (LiveKitTokenService.getLiveRoomName)
-      const roomName = `live_${streamId}`;
-      console.log('[LIVEKIT-API] Usando getLiveKitToken com publisher=true para o Host, room:', roomName);
-      const result = await api.getLiveKitToken(roomName, userId, true);
-      console.log('[LIVEKIT-API] Token de host gerado via getLiveKitToken');
-      return { token: result.token, serverUrl: result.livekitUrl || result.serverUrl };
-    }
-    
-    // Espectador: token com canPublish: false (padrão)
+    // UNIFICADO: host e viewers usam o mesmo endpoint POST /api/livekit/chat-token.
+    // O backend detecta automaticamente se é host via userId === streamId
+    // e concede canPublish: true (host) ou false (viewer) conforme necessário.
+    //
+    // Isso elimina a duplicidade de lógica entre dois endpoints diferentes
+    // e garante que as permissões do token estejam sempre corretas.
     const res = await api.post('/api/livekit/chat-token', { streamId });
+    console.log('[LIVEKIT-API] Token obtido via POST /chat-token (unificado)');
     return { token: res.token, serverUrl: res.serverUrl };
   },
 };

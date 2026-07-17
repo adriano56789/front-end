@@ -20,16 +20,14 @@ export const getVideoHttpBaseUrl = (): string => {
   return `http://${SRS_HOST}:${SRS_HTTP_PORT}`;
 };
 
-/** SRS HLS Playback URL (Native port 8080) */
+/** SRS HLS Playback URL */
 export const getHlsPlayUrl = (streamId: string): string => {
-  const normalizedId = streamId.startsWith('stream_') ? streamId : `stream_${streamId}`;
-  return `/api/video/http/live/${normalizedId}.m3u8`;
+  return `/api/video/http/live/${streamId}.m3u8`;
 };
 
-/** SRS FLV Playback URL (Native port 8080) */
+/** SRS FLV Playback URL */
 export const getFlvPlayUrl = (streamId: string): string => {
-  const normalizedId = streamId.startsWith('stream_') ? streamId : `stream_${streamId}`;
-  return `/api/video/http/live/${normalizedId}.flv`;
+  return `/api/video/http/live/${streamId}.flv`;
 };
 
 export const isNativeRtmpBridge = (): boolean =>

@@ -44,6 +44,7 @@ export interface Streamer {
   city?: string;
   state?: string;
   distance?: string;
+  onlineTotal?: number;
 }
 
 export interface LiveSetup {

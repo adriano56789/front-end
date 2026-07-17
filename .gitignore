@@ -44,6 +44,7 @@ desktop.ini
 *.cache
 *.tmp
 *.temp
+tmp_*
 *.bak
 *.old
 

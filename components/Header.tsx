@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { GlobeIcon, SearchIcon } from './icons';
 
 interface HeaderProps {
@@ -7,9 +7,14 @@ interface HeaderProps {
     onOpenRegionModal: () => void;
     onOpenSearch: () => void;
     unreadCount?: number;
+    /** Código do país do usuário (ex: 'br', 'es', 'us') para exibir a bandeira */
+    currentCountry?: string | null;
 }
 
-const Header: React.FC<HeaderProps> = ({ onOpenReminderModal, onOpenRegionModal, onOpenSearch, unreadCount = 0 }) => {
+const Header: React.FC<HeaderProps> = ({ onOpenReminderModal, onOpenRegionModal, onOpenSearch, unreadCount = 0, currentCountry }) => {
+  const [flagError, setFlagError] = useState(false);
+  const hasCountry = currentCountry && currentCountry !== 'global' && currentCountry !== 'ICON_GLOBE' && !flagError;
+
   return (
     <header className="flex items-center justify-between p-4 pb-2 h-16 flex-shrink-0 bg-transparent select-none z-10">
       {/* Brand logo in premium gold gradient */}
@@ -39,12 +44,22 @@ const Header: React.FC<HeaderProps> = ({ onOpenReminderModal, onOpenRegionModal,
           )}
         </button>
 
-        {/* Region/Language Button */}
+        {/* Region/Language Button — mostra a bandeira do país selecionado ou o ícone globo */}
         <button 
           onClick={onOpenRegionModal} 
-          className="flex items-center justify-center text-white/90 hover:text-white transition-all active:scale-90 cursor-pointer focus:outline-none border-none bg-transparent"
+          className="flex items-center justify-center text-white/90 hover:text-white transition-all active:scale-90 cursor-pointer focus:outline-none border-none bg-transparent relative"
+          title={currentCountry ? `País: ${currentCountry.toUpperCase()}` : 'Selecionar região'}
         >
-          <GlobeIcon className="w-6 h-6" />
+          {hasCountry ? (
+            <img
+              src={`https://flagcdn.com/w40/${currentCountry!.toLowerCase()}.png`}
+              alt={`Bandeira ${currentCountry!.toUpperCase()}`}
+              className="w-6 h-6 rounded-sm object-cover shadow-sm ring-1 ring-white/10"
+              onError={() => setFlagError(true)}
+            />
+          ) : (
+            <GlobeIcon className="w-6 h-6" />
+          )}
         </button>
 
         {/* Search Button */}

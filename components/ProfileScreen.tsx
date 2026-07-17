@@ -430,6 +430,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const { t } = useTranslation();
 
     const [freshUserData, setFreshUserData] = useState<User | null>(null);
+    const [flagError, setFlagError] = useState(false);
 
     
 
@@ -611,7 +612,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               <div className="absolute -bottom-1 -right-1 bg-gray-800 rounded-full p-0.5 z-20">
                   <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
+                    {!flagError && displayUser.country && displayUser.country !== 'global' ? (
+                      <img
+                        src={`https://flagcdn.com/${displayUser.country.toLowerCase()}.svg`}
+                        alt={displayUser.country}
+                        className="w-full h-full object-cover"
+                        onError={() => setFlagError(true)}
+                      />
+                    ) : (
                       <BrazilFlagIcon />
+                    )}
                   </div>
               </div>
             </div>

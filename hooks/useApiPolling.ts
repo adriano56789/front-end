@@ -46,10 +46,13 @@ export function useCurrentUserPolling(
 /**
  * Polls api.getLiveStreamers() at a regular interval to keep the stream listing fresh.
  * This replaces socket.io events for new_live, stream_started, stream_stopped, etc.
+ * 
+ * @param country - Optional country filter (e.g., 'br', 'us'). If omitted, fetches all streams.
  */
 export function useStreamsPolling(
   onUpdate?: (streams: any[]) => void,
-  config: PollingConfig = {}
+  config: PollingConfig = {},
+  country?: string
 ) {
   const { interval = 15000, enabled = true } = config;
   const onUpdateRef = useRef(onUpdate);
@@ -60,7 +63,8 @@ export function useStreamsPolling(
 
     const poll = async () => {
       try {
-        const streams = await api.getLiveStreamers('popular');
+        const filterCountry = country && country !== 'ICON_GLOBE' ? country : undefined;
+        const streams = await api.getLiveStreamers('popular', filterCountry);
         if (Array.isArray(streams)) {
           onUpdateRef.current?.(streams);
         }
@@ -72,5 +76,5 @@ export function useStreamsPolling(
     poll();
     const timerId = setInterval(poll, interval);
     return () => clearInterval(timerId);
-  }, [interval, enabled]);
+  }, [interval, enabled, country]);
 }

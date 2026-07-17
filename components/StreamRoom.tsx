@@ -213,6 +213,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       },
     });
 
+    // Estado para monitoramento do Egress RTMP
+    const [egressId, setEgressId] = useState<string | null>(null);
+    const [egressStatus, setEgressStatus] = useState<string>('idle');
+
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const nextGiftId = useRef(0);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
@@ -361,7 +365,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 console.log('[HOST-LK] Reutilizando MediaStream existente');
             }
 
-            const videoTrack = mediaStreamRef.current.getVideoTracks()[0];
+            // Salvar em variável local para evitar race condition com cleanup
+            // (o cleanup pode nullificar mediaStreamRef.current durante um await)
+            const streamToPublish = mediaStreamRef.current;
+            if (!streamToPublish) {
+                console.warn('[HOST-LK] MediaStream é null após getMediaStream');
+                isConnectingRef.current = false;
+                return;
+            }
+
+            const videoTrack = streamToPublish.getVideoTracks()[0];
             if (videoTrack && !videoTrack.enabled) {
                 videoTrack.enabled = true;
             }
@@ -371,7 +384,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 console.log('[HOST-LK] ✅ Câmera publicada via Room singleton');
             }
             
-            const audioTrack = mediaStreamRef.current.getAudioTracks()[0];
+            const audioTrack = streamToPublish.getAudioTracks()[0];
             if (audioTrack && !audioTrack.enabled) {
                 audioTrack.enabled = true;
             }
@@ -388,15 +401,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             const roomId = `live_${streamer.id}`;
             try {
                 console.log('[EGRESS] Iniciando RTMP Egress para SRS...');
-                const egressResult = await api.startRTMPEgress(roomId, streamer.id);
+                const egressResult = await api.startRTMPEgress(roomId, streamer.streamKey || streamer.id);
                 if (egressResult.success && egressResult.egressId) {
                     egressIdRef.current = egressResult.egressId;
+                    setEgressId(egressResult.egressId);
+                    setEgressStatus('starting');
                     console.log('[EGRESS] ✅ RTMP Egress iniciado:', egressIdRef.current);
                 } else {
                     console.warn('[EGRESS] ⚠️ Falha ao iniciar Egress:', egressResult);
+                    setEgressStatus('failed');
                 }
             } catch (egressErr) {
                 console.error('[EGRESS] ❌ Erro ao iniciar Egress:', egressErr);
+                setEgressStatus('failed');
             }
         } catch (err) {
             console.warn('[HOST-LK] Falha ao publicar mídia:', err);
@@ -1317,7 +1334,21 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 )}
 
                 {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
-                <LivePlayer url={getStreamUrl()} streamId={streamer.streamKey || streamer.id} isBroadcaster={isBroadcaster} userId={currentUser.id} onPlaying={() => setIsVideoPlaying(true)} onError={() => setIsVideoPlaying(false)} muted={!isBroadcaster && isLocalMuted} onVideoRef={setVideoRef} />
+                <LivePlayer
+                    url={getStreamUrl()}
+                    streamId={streamer.streamKey || streamer.id}
+                    isBroadcaster={isBroadcaster}
+                    userId={currentUser.id}
+                    egressId={egressId ?? undefined}
+                    onPlaying={() => setIsVideoPlaying(true)}
+                    onError={() => setIsVideoPlaying(false)}
+                    onEgressActive={() => {
+                        console.log('[StreamRoom] Egress ativo, HLS disponível');
+                        setEgressStatus('active');
+                    }}
+                    muted={!isBroadcaster && isLocalMuted}
+                    onVideoRef={setVideoRef}
+                />
 
 
 
@@ -1532,7 +1563,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 {!isBroadcaster && (
                     <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 relative z-10">
                         <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
-                            {messages.map((msg) => {
+                            {messages.map((msg, index) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
                                     const entryProps: any = {
                                         user: msg.fullUser,
@@ -1543,14 +1574,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                         isBroadcaster: isBroadcaster,
                                         isModerator: msg.fullUser.id ? moderatorIds.includes(msg.fullUser.id) : false
                                     };
-                                    return <EntryChatMessage key={msg.id} {...entryProps} />;
+                                    return <EntryChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} {...entryProps} />;
                                 }
                                 if (msg.type === 'chat' && msg.user && msg.avatar) {
                                     const chatUser = constructUserFromMessage(msg);
                                     const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
 
-                                    return <ChatMessage
-                                        key={msg.id}
+                                    return<ChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`}
                                         userObject={chatUser}
                                         message={msg.message}
                                         onAvatarClick={() => handleViewChatUserProfile(msg)}
@@ -1561,10 +1591,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     />;
                                 }
                                 if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                                    return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
+                                    return <FollowChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} follower={msg.user} followed={msg.followedUser} level={msg.level} />;
                                 }
                                 if (msg.type === 'friend_request' && msg.follower) {
-                                    return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                                    return <FriendRequestNotification key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
                                 }
                                 return null;
                             })}

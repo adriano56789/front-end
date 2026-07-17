@@ -542,6 +542,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [activeCategory, setActiveCategory] = useState('popular');
 
+  // Filtro de país para a listagem de lives (sincronizado com currentUser.country)
+  const [selectedCountry, setSelectedCountry] = useState<string>('ICON_GLOBE');
+
+  // Inicializar selectedCountry quando o usuário é carregado
+  useEffect(() => {
+    if (currentUser?.country && currentUser.country !== 'global') {
+      setSelectedCountry(currentUser.country);
+    }
+  }, [currentUser?.country]);
+
   // Função global para atualizar streams a partir do GoLiveScreen
   useEffect(() => {
     // Expor função globalmente para o GoLiveScreen poder atualizar streams
@@ -735,8 +745,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         console.log('📦 [App] Carregando dados iniciais...');
 
         // Carregar dados em paralelo para maior performance
+        const filterCountry = selectedCountry !== 'ICON_GLOBE' ? selectedCountry : undefined;
         const [streams, countries, gifts] = await Promise.all([
-          api.getLiveStreamers('popular'),
+          api.getLiveStreamers('popular', filterCountry),
           api.getRegions(),
           api.getGifts()
         ]);
@@ -1466,7 +1477,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   useStreamsPolling((freshStreams: any[]) => {
     setStreamers(Array.isArray(freshStreams) ? freshStreams : []);
-  }, { interval: 15000 });
+  }, { interval: 15000 }, selectedCountry);
 
   // 🚀 Detectar quando a live atual encerra e reagir com navegação + toast
   const previousStreamIdsRef = useRef<string[]>([]);
@@ -1870,7 +1881,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       let streamDiamonds = streamer.diamonds || 0;
 
-      let streamViewers = streamer.viewers || 1;
+      let streamViewers = streamer.onlineTotal ?? (streamer.viewers || 1);
 
       try {
 
@@ -1880,15 +1891,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           streamDiamonds = (streamDetails as any).diamonds || 0;
 
-          streamViewers = (streamDetails as any).viewers || 1;
+          streamViewers = (streamDetails as any).onlineTotal ?? ((streamDetails as any).viewers || 1);
 
-        }
-
-      } catch {
-
+        }    } catch {
         // Fallback: usar dados do objeto streamer passado
-
-      }
+    }
 
       
 
@@ -1930,9 +1937,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         startTime: Date.now(),
 
-        viewers: streamer.viewers || 1,
+        viewers: streamer.onlineTotal ?? (streamer.viewers || 1),
 
-        peakViewers: streamer.viewers || 1,
+        peakViewers: streamer.onlineTotal ?? (streamer.viewers || 1),
 
         coins: streamer.diamonds || 0, // Fallback para dados originais
 
@@ -1970,20 +1977,25 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     // REMOVED: setSelectedCountry(countryCode); - country now stored in MongoDB via currentUser.country
 
-    // Salvar país no backend imediatamente
+    // Salvar país no backend imediatamente (API + estado local)
     if (currentUser && countryCode !== 'ICON_GLOBE') {
       try {
-        updateUserEverywhere({ ...currentUser, country: countryCode.toLowerCase() });
+        const newCountry = countryCode.toLowerCase();
+        // 🔧 CORREÇÃO: Persistir no MongoDB via API para evitar que GeoIP sobrescreva
+        await api.updateProfile(currentUser.id, { country: newCountry });
+        updateUserEverywhere({ ...currentUser, country: newCountry });
+        console.log('[REGION] ✅ País salvo no backend:', newCountry);
       } catch (err) {
         console.error('[REGION] Failed to save country to backend:', err);
+        // Fallback: atualizar apenas localmente
+        updateUserEverywhere({ ...currentUser, country: countryCode.toLowerCase() });
       }
     }
 
     setIsRegionModalOpen(false);
 
-
-
-    // Se não for Global, buscar streams da região
+    // Atualizar o filtro de país selecionado
+    setSelectedCountry(countryCode);
 
     if (countryCode !== 'ICON_GLOBE') {
 
@@ -2249,7 +2261,11 @@ const logLiveEvent = (type: string, data: any) => {
       let finalLng = ipLoc.longitude;
       let finalCity = ipLoc.city;
       let finalState = ipLoc.state;
-      let finalCountry = ipLoc.country;
+      // 🔧 CORREÇÃO: Preservar o país escolhido manualmente pelo usuário
+      // Se o usuário já tem um country definido (que não seja vazio/global), não sobrescrever
+      let finalCountry = currentUser.country && currentUser.country !== 'global'
+        ? currentUser.country  // Preservar escolha manual do usuário
+        : ipLoc.country;        // Usar detecção automática apenas se não foi escolhido manualmente
       let finalLocationName = ipLoc.locationName;
 
       if (locationPermissionStatus === 'granted' || currentUser.locationPermission === 'granted') {
@@ -2263,7 +2279,7 @@ const logLiveEvent = (type: string, data: any) => {
         }
       }
 
-      console.log('🌍 [LOCATION] Salvando localização na API:', finalLat, finalLng, finalCity, finalState);
+      console.log('🌍 [LOCATION] Salvando localização na API:', finalLat, finalLng, finalCity, finalState, 'country:', finalCountry);
       const res = await api.updateLocation(finalLat, finalLng, finalCity, finalState, finalCountry, finalLocationName);
       
       if (res && res.success && res.user) {

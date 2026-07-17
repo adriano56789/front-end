@@ -161,7 +161,9 @@ export default function PKBattleScreen({
         const initLiveKit = async () => {
             try {
                 console.log(`[PK-LiveKit] Requesting credentials for live room: ${streamer.id}`);
-                const res = await livekitApi.getLiveKitToken(streamer.id, currentUser.id, isBroadcasterUser);
+                const pkRoomName = `live_${streamer.id}`;
+                console.log('[PK-LiveKit] Room name (alinhado com chat):', pkRoomName);
+                const res = await livekitApi.getLiveKitToken(pkRoomName, currentUser.id, isBroadcasterUser);
                 if (res.success && active) {
                     await connectLiveKit(res.serverUrl, res.token);
                 }
