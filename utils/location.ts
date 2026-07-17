@@ -45,13 +45,13 @@ export interface IPLocationResult {
 // Fetch approximate location by IP using free ip-api.com (handles fallback automatically)
 export async function getApproximateLocationByIP(): Promise<IPLocationResult> {
     try {
-        // Try localStorage cached result first to avoid hitting rate limits
-        const cached = localStorage.getItem('buzzcast_ip_location');
-        if (cached) {
-            try {
-                return JSON.parse(cached);
-            } catch (e) {}
-        }
+        // REMOVIDO: localStorage cache - usar sempre API para dados frescos
+        // const cached = localStorage.getItem('buzzcast_ip_location');
+        // if (cached) {
+        //     try {
+        //         return JSON.parse(cached);
+        //     } catch (e) {}
+        // }
 
         // Usar a implementação oficial de geolocalização por IP no backend.
         const response = await api.getIPLocation();
@@ -65,7 +65,7 @@ export async function getApproximateLocationByIP(): Promise<IPLocationResult> {
                 country: data.country || 'Brasil',
                 locationName: data.city && data.region ? `${data.city}, ${data.region}` : 'São Paulo, SP'
             };
-            localStorage.setItem('buzzcast_ip_location', JSON.stringify(result));
+            // REMOVIDO: localStorage.setItem('buzzcast_ip_location', JSON.stringify(result));
             return result;
         }
 

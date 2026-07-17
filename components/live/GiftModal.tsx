@@ -145,16 +145,6 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
         }
     };
 
-    const handleSimulate = () => {
-        if (isEditMode || !selectedGift || isSendingGift) {
-            return;
-        }
-        onSendGift(selectedGift, quantity, true);
-        setSelectedGift(null);
-        setQuantity(1);
-        onClose();
-    };
-
     const handleSelectGift = (gift: Gift) => {
         if (gift.category === 'VIP' && !isVIP) {
             onOpenVIPCenter();
@@ -349,14 +339,6 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                                 {isSendingGift ? "..." : "Enviar"}
                             </button>
                         </div>
-                        {selectedGift && (
-                            <button
-                                onClick={handleSimulate}
-                                className="w-full h-10 rounded-xl bg-gradient-to-r from-red-600 via-purple-600 to-indigo-600 hover:from-red-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold text-xs tracking-wider uppercase transition-all active:scale-[0.98] flex items-center justify-center space-x-1 shadow-md shadow-purple-900/40 border border-white/10"
-                            >
-                                <span>⚡ Simular Envio (Grátis para Testar)</span>
-                            </button>
-                        )}
                     </footer>
                 )}
             </div>

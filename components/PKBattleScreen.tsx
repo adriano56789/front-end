@@ -304,7 +304,7 @@ export default function PKBattleScreen({
 
     const streamerUser = useMemo(() => ({
         id: streamer.hostId, identification: streamer.hostId, name: streamer.name, avatarUrl: streamer.avatar,
-        coverUrl: `https://picsum.photos/seed/${streamer.hostId}/400/800`, country: streamer.country || 'br',
+        coverUrl: `https://picsum.photos/seed/${streamer.hostId}/400/800`, country: streamer.country || 'global',
         age: 23, gender: 'female' as 'female', level: 1, location: streamer.location, distance: 'desconhecida',
         fans: 0, following: 0, receptores: 0, enviados: 0, topFansAvatars: [], isLive: true,
         diamonds: 0, earnings: 0, 
@@ -418,9 +418,9 @@ export default function PKBattleScreen({
     const constructUserFromMessage = (user: ChatMessageType): User => ({ 
         avatar: user.avatar || '',
         id: `user-${user.id}`, identification: `user-${user.id}`, name: user.user!, avatarUrl: user.avatar!, 
-        coverUrl: `https://picsum.photos/seed/${user.id}/400/600`, country: 'br', 
+        coverUrl: `https://picsum.photos/seed/${user.id}/400/600`, country: streamerUser?.country || 'global', 
         gender: user.gender || 'not_specified', level: user.level || 1, xp: 0, age: user.age || 18, 
-        location: 'Brasil', distance: 'desconhecida', fans: 0, following: 0, receptores: 0, enviados: 0,
+        location: streamerUser?.location || 'Global', distance: 'desconhecida', fans: 0, following: 0, receptores: 0, enviados: 0,
         topFansAvatars: [], isLive: false, diamonds: 0, earnings: 0, 
         earnings_withdrawn: 0, bio: 'Usuário da plataforma', obras: [], curtidas: [], 
         ownedFrames: [], activeFrameId: user.activeFrameId || null, frameExpiration: user.frameExpiration || null,

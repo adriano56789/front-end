@@ -328,46 +328,124 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     // HOST-MEDIA: Após useLiveKitChat conectar, host publica câmera/microfone
     // pelo Room singleton (mesmo usado para chat/eventos).
-    useEffect(() => {
-        if (!isBroadcaster || !lkChatConnected) return;
-        let mediaStream: MediaStream | null = null;
-        let cancelled = false;
+    // Melhorias: usar refs para evitar recriação de MediaStream em rerenders
+    const mediaStreamRef = useRef<MediaStream | null>(null);
+    const egressIdRef = useRef<string | null>(null);
+    const isPublishingRef = useRef(false);
+    const isConnectingRef = useRef(false);
 
-        const publishMedia = async () => {
-            try {
-                const room = getLiveKitRoom();
-                if (room.state !== 'connected') return;
+    const publishMedia = useCallback(async () => {
+        if (isPublishingRef.current || isConnectingRef.current) {
+            console.log('[HOST-LK] Já publicando ou conectando, ignorando...');
+            return;
+        }
 
-                mediaStream = await navigator.mediaDevices.getUserMedia({
+        isConnectingRef.current = true;
+        
+        try {
+            const room = getLiveKitRoom();
+            if (room.state !== 'connected') {
+                console.log('[HOST-LK] Room não conectado, aguardando...');
+                isConnectingRef.current = false;
+                return;
+            }
+
+            // Reutilizar MediaStream se já existir
+            if (!mediaStreamRef.current) {
+                console.log('[HOST-LK] Criando nova MediaStream...');
+                mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 640 }, height: { ideal: 360 } },
                     audio: true,
                 });
-                if (cancelled) { mediaStream.getTracks().forEach(t => t.stop()); return; }
-
-                const videoTrack = mediaStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    await room.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-                    console.log('[HOST-LK] ✅ Câmera publicada via Room singleton');
-                }
-                const audioTrack = mediaStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    await room.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-                    console.log('[HOST-LK] ✅ Microfone publicado via Room singleton');
-                }
-            } catch (err) {
-                console.warn('[HOST-LK] Falha ao publicar mídia:', err);
+            } else {
+                console.log('[HOST-LK] Reutilizando MediaStream existente');
             }
-        };
 
-        publishMedia();
+            const videoTrack = mediaStreamRef.current.getVideoTracks()[0];
+            if (videoTrack && !videoTrack.enabled) {
+                videoTrack.enabled = true;
+            }
+            
+            if (videoTrack) {
+                await room.localParticipant.publishTrack(videoTrack, { name: 'camera' });
+                console.log('[HOST-LK] ✅ Câmera publicada via Room singleton');
+            }
+            
+            const audioTrack = mediaStreamRef.current.getAudioTracks()[0];
+            if (audioTrack && !audioTrack.enabled) {
+                audioTrack.enabled = true;
+            }
+            
+            if (audioTrack) {
+                await room.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
+                console.log('[HOST-LK] ✅ Microfone publicado via Room singleton');
+            }
+
+            isPublishingRef.current = true;
+
+            // Iniciar Egress RTMP para enviar stream ao SRS
+            // Isso permite que espectadores assistam via HLS
+            const roomId = `live_${streamer.id}`;
+            try {
+                console.log('[EGRESS] Iniciando RTMP Egress para SRS...');
+                const egressResult = await api.startRTMPEgress(roomId, streamer.id);
+                if (egressResult.success && egressResult.egressId) {
+                    egressIdRef.current = egressResult.egressId;
+                    console.log('[EGRESS] ✅ RTMP Egress iniciado:', egressIdRef.current);
+                } else {
+                    console.warn('[EGRESS] ⚠️ Falha ao iniciar Egress:', egressResult);
+                }
+            } catch (egressErr) {
+                console.error('[EGRESS] ❌ Erro ao iniciar Egress:', egressErr);
+            }
+        } catch (err) {
+            console.warn('[HOST-LK] Falha ao publicar mídia:', err);
+        } finally {
+            isConnectingRef.current = false;
+        }
+    }, [streamer.id]);
+
+    useEffect(() => {
+        if (!isBroadcaster || !lkChatConnected) return;
+
+        // Pequeno delay para garantir que a Room esteja totalmente conectada
+        const timer = setTimeout(() => {
+            publishMedia();
+        }, 500);
 
         return () => {
-            cancelled = true;
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(t => t.stop());
-            }
+            clearTimeout(timer);
+            // Não desconectar no cleanup - isso é apenas rerenderização
+            // A desconexão real acontece quando o componente é desmontado
         };
-    }, [isBroadcaster, lkChatConnected]);
+    }, [isBroadcaster, lkChatConnected, publishMedia]);
+
+    // Cleanup real ao desmontar o componente (não em rerenders)
+    useEffect(() => {
+        return () => {
+            console.log('[HOST-LK] Cleanup: parando publicação e Egress');
+            
+            // Parar tracks
+            if (mediaStreamRef.current) {
+                mediaStreamRef.current.getTracks().forEach(t => {
+                    t.stop();
+                    t.enabled = false;
+                });
+                mediaStreamRef.current = null;
+            }
+            
+            // Parar Egress
+            if (egressIdRef.current) {
+                api.stopEgress(egressIdRef.current).catch(err => {
+                    console.warn('[EGRESS] Erro ao parar Egress:', err);
+                });
+                egressIdRef.current = null;
+            }
+            
+            isPublishingRef.current = false;
+            isConnectingRef.current = false;
+        };
+    }, []);
 
     // Escutar mensagens de chat via Socket.IO (redundância quando LiveKit não roteia)
     useEffect(() => {
@@ -925,9 +1003,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         const userId = user.fullUser?.id || user.id || Date.now();
         const userName = user.user || user.fullUser?.name || 'Usuário Anônimo';
         
-        // Usar país real do fullUser, ou do streamerUser, ou fallback br
-        const userCountry = user.fullUser?.country || streamerUser?.country || 'br';
-        const userLocation = user.fullUser?.location || streamerUser?.location || (userCountry === 'br' ? 'Brasil' : userCountry.toUpperCase());
+        // Usar país real do fullUser, ou do streamerUser, ou fallback global
+        const userCountry = user.fullUser?.country || streamerUser?.country || 'global';
+        const userLocation = user.fullUser?.location || streamerUser?.location || (userCountry === 'global' ? 'Global' : userCountry.toUpperCase());
         
         return {
             avatar: user.avatar || '',

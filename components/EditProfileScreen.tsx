@@ -513,7 +513,9 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
                   {index === 0 && (
                     <div className="absolute top-1 right-1 bg-black/40 rounded-full p-0.5 z-10">
                       <div className="w-4 h-4 rounded-full overflow-hidden flex items-center justify-center">
-                        <img src={`https://flagcdn.com/${(user.country || 'br').toLowerCase()}.svg`} alt={user.country || 'br'} className="w-full h-full object-cover" />
+                        {user.country && (
+                          <img src={`https://flagcdn.com/${user.country.toLowerCase()}.svg`} alt={user.country} className="w-full h-full object-cover" />
+                        )}
                       </div>
                     </div>
                   )}

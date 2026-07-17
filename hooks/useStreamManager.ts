@@ -42,6 +42,13 @@ export const useStreamManager = (
 
   const isStartingStream = useRef(false);
 
+  // Atualizar selectedRegion quando currentUser.country mudar
+  React.useEffect(() => {
+    if (currentUser.country) {
+      setSelectedRegion(currentUser.country);
+    }
+  }, [currentUser.country]);
+
   const updateState = useCallback((updates: Partial<StreamManagerState>) => {
     if (updates.draftStream !== undefined) setDraftStream(updates.draftStream);
     if (updates.streamTitle !== undefined) setStreamTitle(updates.streamTitle);
@@ -76,7 +83,7 @@ export const useStreamManager = (
       hostId: currentUser.id,
       name: streamTitle || `Live de ${currentUser.name}`,
       avatar: currentUser.avatarUrl || '',
-      location: currentUser.country || 'BR',
+      location: currentUser.country || 'Global',
       time: 'Preparando',
       message: streamDescription || '',
       tags: [selectedCategoryKey],
@@ -85,7 +92,7 @@ export const useStreamManager = (
       streamStatus: 'draft',
       streamKey: `stream_${currentUser.id}`,
       viewers: 0,
-      country: currentUser.country || 'br'
+      country: currentUser.country || 'global'
     };
     setDraftStream(localStream);
     return localStream;
@@ -100,7 +107,7 @@ export const useStreamManager = (
       hostId: currentUser.id,
       name: currentUser.name || 'Streamer',
       avatar: currentUser.avatarUrl || '',
-      location: currentUser.country || 'BR',
+      location: currentUser.country || 'Global',
       time: 'Preparando',
       message: streamDescription || '',
       tags: [selectedCategoryKey || 'popular'],
@@ -109,7 +116,7 @@ export const useStreamManager = (
       streamStatus: 'draft',
       streamKey: `stream_${currentUser.id || Date.now()}`,
       viewers: 0,
-      country: currentUser.country || 'br'
+      country: currentUser.country || 'global'
     } as Streamer;
 
     const localData: Partial<Streamer> = {
@@ -241,7 +248,7 @@ export const useStreamManager = (
         hostId: currentUser.id,
         name: streamTitle || registeredStream?.name || `Live de ${currentUser.name}`,
         avatar: currentUser.avatarUrl || registeredStream?.avatar || '',
-        location: currentUser.country || registeredStream?.location || 'BR',
+        location: currentUser.country || registeredStream?.location || 'Global',
         time: 'Ao Vivo',
         message: streamDescription || registeredStream?.message || '',
         tags: [selectedCategoryKey || 'popular'],
@@ -262,7 +269,9 @@ export const useStreamManager = (
 
       // live_started emitido — removido Socket.IO, notificação via LiveKit room data channel
 
-      localStorage.setItem('currentStreamId', streamer.id);
+      // REMOVIDO: localStorage.setItem('currentStreamId', streamer.id);
+      // O streamId deve ser persistido no backend via API de startLive, não em localStorage
+
       onStartStream(streamer);
     } catch (error) {
       console.warn('[STREAM_MANAGER] Erro ao iniciar live (continuando mesmo assim):', error);

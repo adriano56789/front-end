@@ -48,6 +48,7 @@ interface GoLiveScreenProps {
     onJoinStream?: (streamer: Streamer) => void;
     addToast: (type: ToastType, message: string) => void;
     currentUser: User;
+    updateUser?: (user: User) => void;
     inviteData?: InviteData | null;
 }
 
@@ -63,6 +64,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     onJoinStream, 
     addToast, 
     currentUser, 
+    updateUser,
     inviteData 
 }) => {
     const { t } = useTranslation();
@@ -195,10 +197,13 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             selectedCategoryKey: CATEGORIES[0]?.key || 'popular'
         });
         // Persistir região selecionada no backend (apenas códigos de país reais, não ICON_GLOBE)
-        if (currentUser?.id && region && region !== 'ICON_GLOBE') {
-            api.updateProfile(currentUser.id, { country: region }).catch(err =>
-                console.error('❌ [REGION] Erro ao salvar região:', err)
-            );
+        if (currentUser?.id && region && region !== 'ICON_GLOBE' && updateUser) {
+            api.updateProfile(currentUser.id, { country: region.toLowerCase() })
+                .then(() => {
+                    // Atualizar currentUser localmente para refletir a mudança imediatamente
+                    updateUser({ ...currentUser, country: region.toLowerCase() });
+                })
+                .catch(err => console.error('❌ [REGION] Erro ao salvar região:', err));
         }
     };
 

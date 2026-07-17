@@ -181,6 +181,7 @@ import LocationPermissionModal from './components/LocationPermissionModal';
 
 import EndStreamConfirmationModal from './components/live/EndStreamConfirmationModal';
 
+import PWAInstallBanner from './components/PWAInstallBanner';
 import EndStreamSummaryScreen from './components/EndStreamSummaryScreen';
 
 import PrivateChatModal from './components/PrivateChatModal';
@@ -256,63 +257,9 @@ const INITIAL_DATA = {
 
 
 
-// Event emitter simples para navegação
-
-class SimpleEventEmitter {
-
-  private events: Map<string, Function[]> = new Map();
-
-
-
-  on(event: string, listener: Function) {
-
-    if (!this.events.has(event)) {
-
-      this.events.set(event, []);
-
-    }
-
-    this.events.get(event)!.push(listener);
-
-  }
-
-
-
-  off(event: string, listener: Function) {
-
-    if (this.events.has(event)) {
-
-      const listeners = this.events.get(event)!.filter(l => l !== listener);
-
-      this.events.set(event, listeners);
-
-    }
-
-  }
-
-
-
-  emit(event: string, payload: any) {
-
-    if (this.events.has(event)) {
-
-      this.events.get(event)!.forEach(listener => listener(payload));
-
-    }
-
-  }
-
-
-
-  connect() { /* No-op */ }
-
-  disconnect() { /* No-op */ }
-
-}
-
-
-
-const simpleEventManager = new SimpleEventEmitter();
+// REMOVIDO: SimpleEventEmitter - era um event emitter simulado
+// Eventos em tempo real agora são gerenciados via LiveKit nos componentes filhos (StreamRoom, PKBattleScreen)
+// e API polling para atualizações de estado (useCurrentUserPolling, useStreamsPolling)
 
 
 
@@ -811,8 +758,14 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   }, []);
 
   // Auto-load stream from URL /live/:streamId
+  // Só carrega automaticamente se NÃO acabamos de sair de uma stream
   useEffect(() => {
     if (!isAuthenticated) return;
+    if (leftStreamRef.current) {
+      // Acabamos de sair de uma stream — não tentar re-entrar
+      leftStreamRef.current = false;
+      return;
+    }
     const match = location.pathname.match(/^\/live\/(.+)$/);
     if (!match || activeStream) return;
     const streamId = decodeURIComponent(match[1]);
@@ -887,11 +840,21 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       try {
 
-        const [convs, friendList] = await Promise.allSettled([
+        const [convs, friendList, following, fans, streamHistory, visitors, withdrawalHistory] = await Promise.allSettled([
 
           api.getConversations(currentUser.id),
 
           api.getFriends(currentUser.id),
+
+          api.getFollowingUsers(currentUser.id),
+
+          api.getFansUsers(currentUser.id),
+
+          api.getStreamHistory(),
+
+          api.getVisitors(currentUser.id),
+
+          api.getWithdrawalHistory(currentUser.id),
 
         ]);
 
@@ -908,9 +871,31 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           setFriends(friendList.value);
 
         }
+        if (following.status === 'fulfilled' && Array.isArray(following.value)) {
 
-        // TODO: Add following, fans, visitors, streamHistory, purchaseHistory when API methods are available
-        // For now, these arrays remain empty and will be populated when needed
+          setFollowingUsers(following.value);
+
+        }
+        if (fans.status === 'fulfilled' && Array.isArray(fans.value)) {
+
+          setFans(fans.value);
+
+        }
+        if (streamHistory.status === 'fulfilled' && Array.isArray(streamHistory.value)) {
+
+          setStreamHistory(streamHistory.value);
+
+        }
+        if (visitors.status === 'fulfilled' && Array.isArray(visitors.value)) {
+
+          setVisitors(visitors.value);
+
+        }
+        if (withdrawalHistory.status === 'fulfilled' && Array.isArray(withdrawalHistory.value)) {
+
+          setPurchaseHistory(withdrawalHistory.value);
+
+        }
         
       } catch (error) {
 
@@ -1033,18 +1018,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         const opponentUser = streamers.find((s: any) => s.id === detail.opponentId || s.hostId === detail.opponentId);
         if (opponentUser) {
           setPkOpponent(opponentUser as unknown as User);
+          setIsPKBattleActive(true);
+          addToast(ToastType.Success, '⚔️ Batalha PK iniciada!');
         } else {
-          // Fallback: criar perfil mínimo do oponente
-          setPkOpponent({
-            id: detail.opponentId,
-            identification: detail.inviterId || '',
-            name: detail.opponentName || 'Oponente',
-            avatarUrl: detail.opponentAvatar || 'https://picsum.photos/seed/pkdef/400/600',
-            level: 1
-          } as User);
+          console.warn('[PK] Oponente não encontrado nos dados da stream — batalha não iniciada');
+          addToast(ToastType.Error, 'Não foi possível iniciar a batalha PK: oponente não encontrado');
         }
-        setIsPKBattleActive(true);
-        addToast(ToastType.Success, '⚔️ Batalha PK iniciada!');
       }
     };
 
@@ -1122,6 +1101,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
   const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
   const fcmInitializedRef = useRef(false);
+  // Flag para evitar que o auto-load effect re-entre em uma stream que acabou de ser encerrada
+  const leftStreamRef = useRef(false);
 
   // REMOVED: duplicate declarations - these are now fetched from API and declared earlier
   // const [streamHistory, setStreamHistory] = useState<StreamHistoryEntry[]>(INITIAL_DATA.streamHistory);
@@ -1237,6 +1218,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
   const handleLeaveStreamView = useCallback((forceClose = false) => {
+    // Marcar que saímos deliberadamente — auto-load não deve tentar re-entrar
+    leftStreamRef.current = true;
     // Se PiP estiver ativado (e não for fechamento forçado), minimizar para janela flutuante
     const isHost = activeStream?.hostId === currentUser?.id;
     if (!forceClose && currentUser?.pipEnabled && activeStream && !isHost) {
@@ -1287,8 +1270,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
   const handleLogout = async () => {
-
-    simpleEventManager.disconnect();
 
     // Limpar token da API
 
@@ -1347,41 +1328,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-  // WebSocket events simplificados
-
-  useEffect(() => {
-
-    const handleKicked = (payload: { roomId: string }) => {
-
-      if (activeStream?.id === payload.roomId) {
-
-        handleLeaveStreamView(true);
-
-        addToast(ToastType.Error, "Você foi expulso desta sala e não pode mais entrar.");
-
-      }
-
-    };
-
-    const handleJoinDenied = (payload: { roomId: string }) => {
-
-      addToast(ToastType.Error, "Você foi expulso desta sala e não pode mais entrar.");
-
-    };
-
-    simpleEventManager.on('kicked', handleKicked);
-
-    simpleEventManager.on('joinDenied', handleJoinDenied);
-
-    return () => {
-
-      simpleEventManager.off('kicked', handleKicked);
-
-      simpleEventManager.off('joinDenied', handleJoinDenied);
-
-    };
-
-  }, [activeStream, addToast, handleLeaveStreamView]);
+  // REMOVIDO: WebSocket events simplificados (kicked, joinDenied)
+  // Esses eventos agora são gerenciados via LiveKit no componente StreamRoom
 
 
 
@@ -1425,18 +1373,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    simpleEventManager.on('streamerLive', handleStreamerLive);
-
-    simpleEventManager.on('privateStreamInvite', handlePrivateInvite);
+    // REMOVIDO: simpleEventManager - eventos gerenciados via LiveKit
 
 
 
     return () => {
-
-      simpleEventManager.off('streamerLive', handleStreamerLive);
-
-      simpleEventManager.off('privateStreamInvite', handlePrivateInvite);
-
+      // REMOVIDO: simpleEventManager cleanup
     };
 
   }, [addToast, notificationSettings, allUsers, updateUserEverywhere]);
@@ -1543,6 +1485,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     if (prevIds.includes(activeStream.id) && !currentIds.includes(activeStream.id)) {
       console.log('[StreamEnded] Live encerrada detectada via polling:', activeStream.name);
 
+      // Marcar que saímos deliberadamente — auto-load não deve tentar re-entrar
+      leftStreamRef.current = true;
       // Limpar estado da live
       setActiveStream(null);
       setLiveSession(null);
@@ -1904,38 +1848,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    simpleEventManager.on('followUpdate', handleFollowUpdate);
-
-    simpleEventManager.on('newFollower', handleNewFollower);
-
-    simpleEventManager.on('micStateUpdate', handleMicStateUpdate);
-
-    simpleEventManager.on('soundStateUpdate', handleSoundStateUpdate);
-
-    simpleEventManager.on('userUpdate', handleUserUpdate);
-
-    simpleEventManager.on('transactionUpdate', handleTransactionUpdate);
-
-    simpleEventManager.on('newMessage', handleNewMessage);
+    // REMOVIDO: simpleEventManager - eventos gerenciados via LiveKit e API polling
 
 
 
     return () => {
-
-      simpleEventManager.off('followUpdate', handleFollowUpdate);
-
-      simpleEventManager.off('newFollower', handleNewFollower);
-
-      simpleEventManager.off('micStateUpdate', handleMicStateUpdate);
-
-      simpleEventManager.off('soundStateUpdate', handleSoundStateUpdate);
-
-      simpleEventManager.off('userUpdate', handleUserUpdate);
-
-      simpleEventManager.off('transactionUpdate', handleTransactionUpdate);
-
-      simpleEventManager.off('newMessage', handleNewMessage);
-
+      // REMOVIDO: simpleEventManager cleanup
     };
 
   }, [currentUser, updateUserEverywhere, activeStream, updateLiveSession, addToast, chattingWith]);
@@ -2055,7 +1973,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     // Salvar país no backend imediatamente
     if (currentUser && countryCode !== 'ICON_GLOBE') {
       try {
-        await api.updateProfile(currentUser.id, { country: countryCode.toLowerCase() });
         updateUserEverywhere({ ...currentUser, country: countryCode.toLowerCase() });
       } catch (err) {
         console.error('[REGION] Failed to save country to backend:', err);
@@ -2543,7 +2460,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       startLiveSession(streamer);
 
-      simpleEventManager.connect();
+      // REMOVIDO: simpleEventManager.connect()
 
       navigate(`/live/${streamer.id}`);
 
@@ -2583,7 +2500,7 @@ const logLiveEvent = (type: string, data: any) => {
 
     startLiveSession(streamer);
 
-    simpleEventManager.connect();
+    // REMOVIDO: simpleEventManager.connect()
 
     
 
@@ -3107,32 +3024,30 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
+    try {
+      // Chamar API real para processar compra
+      const response = await api.confirmPurchase(String(pkg.diamonds));
+      
+      if (response && response.success && response.user) {
+        updateUserEverywhere(response.user);
+        
+        setPaymentSuccessData({
+          price: pkg.price,
+          diamonds: pkg.diamonds,
+          method: 'pix',
+          timestamp: new Date()
+        });
 
-
-    const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds + pkg.diamonds };
-
-    updateUserEverywhere(updatedUser);
-
-
-
-    setPaymentSuccessData({
-
-      price: pkg.price,
-
-      diamonds: pkg.diamonds,
-
-      method: 'pix',
-
-      timestamp: new Date()
-
-    });
-
-    setIsConfirmingPurchase(false);
-
-    setIsPaymentSuccessOpen(true);
-
-    setSelectedPackage(null);
-
+        setIsConfirmingPurchase(false);
+        setIsPaymentSuccessOpen(true);
+        setSelectedPackage(null);
+      } else {
+        addToast(ToastType.Error, 'Erro ao processar compra');
+      }
+    } catch (error) {
+      console.error('[PURCHASE] Erro ao confirmar compra:', error);
+      addToast(ToastType.Error, 'Erro ao processar compra');
+    }
   };
 
 
@@ -3141,24 +3056,19 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
-
-
-    if (currentUser.diamonds < 100) {
-
-      addToast(ToastType.Error, "Diamantes insuficientes.");
-
-      return;
-
+    try {
+      const response = await api.purchaseFrame(currentUser.id, frameId);
+      
+      if (response && response.success && response.user) {
+        updateUserEverywhere(response.user);
+        addToast(ToastType.Success, "Moldura comprada com sucesso!");
+      } else {
+        addToast(ToastType.Error, 'Erro ao comprar moldura');
+      }
+    } catch (error) {
+      console.error('[FRAME] Erro ao comprar moldura:', error);
+      addToast(ToastType.Error, 'Erro ao comprar moldura');
     }
-
-
-
-    const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds - 100 };
-
-    updateUserEverywhere(updatedUser);
-
-    addToast(ToastType.Success, "Moldura comprada com sucesso!");
-
   };
 
 
@@ -3325,14 +3235,20 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
-    const updatedUser = { ...currentUserRef.current, isVIP: true };
-
-    updateUserEverywhere(updatedUser);
-
-    addToast(ToastType.Success, t('toasts.vipSuccess'));
-
-    setIsVIPCenterOpen(false);
-
+    try {
+      const response = await api.subscribeToVIP(currentUser.id);
+      
+      if (response && response.success && response.user) {
+        updateUserEverywhere(response.user);
+        addToast(ToastType.Success, t('toasts.vipSuccess'));
+        setIsVIPCenterOpen(false);
+      } else {
+        addToast(ToastType.Error, 'Erro ao assinar VIP');
+      }
+    } catch (error) {
+      console.error('[VIP] Erro ao assinar VIP:', error);
+      addToast(ToastType.Error, 'Erro ao assinar VIP');
+    }
   };
 
 
@@ -3373,7 +3289,7 @@ const logLiveEvent = (type: string, data: any) => {
 
         isPrivate: !!liveNotification.isPrivate,
 
-        country: 'br',
+        country: 'global',
 
         viewers: 0
 
@@ -3464,32 +3380,29 @@ const logLiveEvent = (type: string, data: any) => {
                         handleSelectStream(opponentUser as Streamer);
                       }
                     } else {
-                      // Fallback: create mock opponent profile
-                      const mockOpponent: User = {
-                        id: activePKInvite.inviterId || activePKInvite.inviter_id || '98501724',
-                        identification: '100099',
-                        name: activePKInvite.inviterName || activePKInvite.inviter_name || 'Oponente',
-                        avatarUrl: activePKInvite.inviterAvatar || 'https://picsum.photos/seed/pkopp/400/600.jpg',
-                        age: 24,
-                        gender: 'female',
-                        level: 10,
-                        diamonds: 300,
-                        earnings: 150,
-                        fans: 120,
-                        following: 95,
-                        receptores: 80,
-                        enviados: 40,
-                        earnings_withdrawn: 0,
-                        isVIP: true,
-                        location: 'São Paulo, SP',
-                        ownedFrames: [],
-                        avatar: 'https://picsum.photos/seed/pkdef/400/600',
-                        streamStatus: ''
-                      };
-                      setPkOpponent(mockOpponent);
-                      setIsPKBattleActive(true);
-                      if (!activeStream) {
-                        handleSelectStream(mockOpponent as any);
+                      // Buscar usuário real da API
+                      const opponentId = activePKInvite.inviterId || activePKInvite.inviter_id;
+                      if (opponentId) {
+                        try {
+                          const realOpponent = await api.getUser(opponentId);
+                          if (realOpponent) {
+                            setPkOpponent(realOpponent);
+                            setIsPKBattleActive(true);
+                            if (!activeStream) {
+                              const opponentStream = streamers.find(s => s.hostId === realOpponent.id);
+                              if (opponentStream) {
+                                handleSelectStream(opponentStream);
+                              }
+                            }
+                          } else {
+                            addToast(ToastType.Error, 'Oponente não encontrado');
+                          }
+                        } catch (err) {
+                          console.error('[PK] Erro ao buscar oponente da API:', err);
+                          addToast(ToastType.Error, 'Erro ao carregar dados do oponente');
+                        }
+                      } else {
+                        addToast(ToastType.Error, 'ID do oponente inválido');
                       }
                     }
                     setActivePKInvite(null);
@@ -3863,6 +3776,7 @@ const logLiveEvent = (type: string, data: any) => {
                   onJoinStream={handleStartStream}
                   addToast={addToast}
                   currentUser={currentUser}
+                  updateUser={updateUserEverywhere}
                   inviteData={privateInviteData}
                 />
               ) : null}
@@ -3896,6 +3810,9 @@ const logLiveEvent = (type: string, data: any) => {
       <ReminderModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)} onSelectStream={handleSelectStream} streamers={reminderStreamers} onOpenLiveHistory={() => setIsLiveHistoryOpen(true)} />
 
       <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={currentUser?.country || 'ICON_GLOBE'} />
+
+      {/* Banner de instalação PWA para dispositivos móveis */}
+      <PWAInstallBanner />
 
       {/* Updated GoLiveScreen usage to accept inviteData */}
 
@@ -4196,18 +4113,11 @@ const ProfileRoutes: React.FC = () => {
 
 const LiveLoadingRedirect: React.FC = () => {
   const navigate = useNavigate();
+  // Navegar imediatamente — sem mostrar nenhuma UI intermediária
   useEffect(() => {
-    const timer = setTimeout(() => navigate('/'), 3000);
-    return () => clearTimeout(timer);
+    navigate('/');
   }, [navigate]);
-  return (
-    <div className="h-full flex items-center justify-center text-gray-500">
-      <div className="text-center">
-        <div className="w-8 h-8 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-        <p>Transmissão não encontrada</p>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 const App: React.FC = () => {

@@ -43,7 +43,9 @@ const EndStreamSummaryScreen: React.FC<EndStreamSummaryScreenProps> = ({ data, o
           />
           <div className="absolute -bottom-2 -right-2 bg-gray-800 rounded-full p-1 border-2 border-[#111111]">
             <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center">
-              <img src={`https://flagcdn.com/${(data.user.country || 'br').toLowerCase()}.svg`} alt={data.user.country || 'br'} className="w-full h-full object-cover" />
+              {data.user.country && (
+                <img src={`https://flagcdn.com/${data.user.country.toLowerCase()}.svg`} alt={data.user.country} className="w-full h-full object-cover" />
+              )}
             </div>
           </div>
         </div>

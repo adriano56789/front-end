@@ -123,7 +123,7 @@ export class StreamService {
       hostId: currentUser.id,
       name: stream.name,
       avatar: stream.avatar || currentUser.avatarUrl || '',
-      location: currentUser.country || 'BR',
+      location: currentUser.country || 'Global',
       time: 'Ao Vivo',
       message: streamData.message || '',
       tags: streamData.tags || [selectedCategoryKey],

@@ -35,8 +35,10 @@ export const livekitApi = {
     
     if (isHost) {
       // Host precisa de canPublish: true — usar endpoint publisher-aware
-      console.log('[LIVEKIT-API] Usando getLiveKitToken com publisher=true para o Host');
-      const result = await api.getLiveKitToken(streamId, userId, true);
+      // A sala LiveKit é criada com prefixo 'live_' pelo backend (LiveKitTokenService.getLiveRoomName)
+      const roomName = `live_${streamId}`;
+      console.log('[LIVEKIT-API] Usando getLiveKitToken com publisher=true para o Host, room:', roomName);
+      const result = await api.getLiveKitToken(roomName, userId, true);
       console.log('[LIVEKIT-API] Token de host gerado via getLiveKitToken');
       return { token: result.token, serverUrl: result.livekitUrl || result.serverUrl };
     }

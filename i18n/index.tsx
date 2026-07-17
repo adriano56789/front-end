@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useCallback, useState } from 'react';
+import React, { createContext, useContext, ReactNode, useCallback, useState, useEffect } from 'react';
 
 // Content from pt.json
 const ptTranslations = {
@@ -96,6 +96,56 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState('pt');
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // Carregar idioma do perfil do usuário
+  useEffect(() => {
+    const loadUserLanguage = async () => {
+      try {
+        const token = localStorage.getItem('livego_auth_token');
+        if (token) {
+          // Decodificar token para obter userId
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setUserId(payload.id);
+          
+          // Buscar dados do usuário para carregar idioma
+          const response = await fetch('/api/users/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const user = await response.json();
+            if (user.language) {
+              setLanguage(user.language);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[i18n] Erro ao carregar idioma do perfil:', e);
+      }
+    };
+    loadUserLanguage();
+  }, []);
+  
+  const setLanguageWithPersist = useCallback(async (newLanguage: string) => {
+    setLanguage(newLanguage);
+    
+    // Persistir no perfil do usuário
+    if (userId) {
+      try {
+        const token = localStorage.getItem('livego_auth_token');
+        await fetch(`/api/users/${userId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ language: newLanguage })
+        });
+      } catch (e) {
+        console.error('[i18n] Erro ao salvar idioma no perfil:', e);
+      }
+    }
+  }, [userId]);
   
   const t = useCallback((key: string, options?: { [key: string]: string | number }): string => {
     let text: any = getNestedValue(translations[language], key) ?? key;
@@ -123,7 +173,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
   }, [language]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage: setLanguageWithPersist, t }}>
       {children}
     </LanguageContext.Provider>
   );

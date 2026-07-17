@@ -2152,6 +2152,23 @@ export const api = {
         'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/kick`
       ),
 
+    // --- LiveKit Egress APIs ---
+
+    startRTMPEgress: (roomId: string, streamId: string, rtmpUrl?: string) =>
+      callApi<{ success: boolean; egressId: string; roomId: string; streamId: string; rtmpUrl: string; status: string }>(
+        'POST', '/api/livekit/egress/start-rtmp', { roomId, streamId, rtmpUrl }
+      ),
+
+    stopEgress: (egressId: string) =>
+      callApi<{ success: boolean; egressId: string; status: string }>(
+        'POST', '/api/livekit/egress/stop', { egressId }
+      ),
+
+    listEgress: () =>
+      callApi<{ success: boolean; egressList: Array<{ egressId: string; roomId: string; status: string; startedAt: number; endedAt: number }> }>(
+        'GET', '/api/livekit/egress/list'
+      ),
+
     // --- LiveKit namespace (aliases for compat with room.ts) ---
 
     livekit: {

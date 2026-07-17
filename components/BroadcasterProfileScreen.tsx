@@ -478,7 +478,9 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                             {/* Circular country flag details on the bottom right edge */}
                             <div className="absolute -bottom-1 -right-1 bg-black/60 rounded-full p-0.5 z-20 border border-yellow-500/20 shadow-md">
                                 <div className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center">
-                                    <img src={`https://flagcdn.com/${(freshUser.country || user.country || 'br').toLowerCase()}.svg`} alt="country flag" className="w-full h-full object-cover" />
+                                    {(freshUser.country || user.country) && (
+                                        <img src={`https://flagcdn.com/${(freshUser.country || user.country).toLowerCase()}.svg`} alt="country flag" className="w-full h-full object-cover" />
+                                    )}
                                 </div>
                             </div>
                         </div>
