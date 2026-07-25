@@ -75,7 +75,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
 
       // [DIAGNOSTIC] Log all remote participants and their tracks
       if (room.remoteParticipants.size > 0) {
-        console.log('[LiveKitChat] === Remote participants in room ===');
+        console.log('[LiveKitChat] === Remote participants in room (initial sync) ===');
         room.remoteParticipants.forEach((p) => {
           const videoTracks = Array.from(p.videoTrackPublications.values());
           const audioTracks = Array.from(p.audioTrackPublications.values());
@@ -92,6 +92,13 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
           });
         });
         console.log('[LiveKitChat] ====================================');
+
+        // 🔄 Sincronizar lista de participantes EXISTENTES para o callback onParticipantConnected
+        // Isso garante que, ao entrar na sala, o usuário veja todos que já estão nela,
+        // não apenas os que entrarem depois.
+        room.remoteParticipants.forEach(participant => {
+          optionsRef.current.onParticipantConnected?.(participant);
+        });
       } else {
         console.log('[LiveKitChat]   (no remote participants yet - waiting for host...)');
       }
