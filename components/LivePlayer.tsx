@@ -141,44 +141,11 @@ export default function LivePlayer({
         return unsubState;
       };
 
-      let unsubState: (() => void) | undefined;
-
-      // Polling direto do HLS (sem EgressMonitor)
-      const hlsUrl = getHlsPlayUrl(streamId);
-      let attempts = 0;
-      const maxAttempts = 15;
-      const retryDelay = 2000;
-
-      const tryStartWithValidation = async () => {
-        if (instanceKey !== destroyKeyRef.current) return;
-
-        try {
-          const response = await fetch(hlsUrl, { method: 'GET', signal: AbortSignal.timeout(8000) });
-
-          if (response.ok) {
-            const text = await response.text();
-            if (text.trim().startsWith('#EXTM3U')) {
-              console.log('[LivePlayer] URL HLS válida! Iniciando player...');
-              if (!engineRef.current) {
-                unsubState = startHlsPlayer();
-              }
-              return;
-            }
-          }
-        } catch {}
-
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(tryStartWithValidation, retryDelay);
-        } else {
-          console.warn('[LivePlayer] Esgotadas tentativas. Iniciando player mesmo assim...');
-          if (!engineRef.current) {
-            unsubState = startHlsPlayer();
-          }
-        }
-      };
-
-      tryStartWithValidation();
+      // Iniciar HLS player IMEDIATAMENTE — sem validação de URL.
+      // A validação prévia causava delay de até 30s mostrando a capa de fundo.
+      // O SrsPlayerEngine já trata erros de manifest/HLS internamente.
+      console.log('[LivePlayer] Iniciando HLS player imediatamente (sem validação)...');
+      const unsubState = startHlsPlayer();
 
       return () => {
         if (instanceKey !== destroyKeyRef.current) return;

@@ -601,12 +601,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         }).catch(() => {});
 
+        // ⚠️ REMOVIDO: api.leaveStream — essa chamada no backend pode encerrar a live inteira.
+        // A transmissão SÓ deve ser encerrada pelo dono ao clicar "Encerrar Transmissão".
+        // Sair da tela não pode derrubar a transmissão.
         return () => {
-            if (hasJoined) {
-                api.leaveStream(streamer.id, currentUser.id).then(success => {
-                    if (success) { console.log('✅ Desconectado do stream com sucesso.'); }
-                });
-            }
             // Socket.IO leaveRoom removido
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
@@ -1268,19 +1266,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
             {/* 1. Video Layer (Bottom) */}
             <div className="absolute inset-0 z-0 bg-black">
-                {/* Fallback Image - Visible only for viewers when video is NOT playing */}
+                {/* Loading state - mostra gradiente sutil + spinner enquanto vídeo não carrega */}
                 {!isBroadcaster && !isVideoPlaying && (
-                    <img
-                        src={streamerUser?.coverUrl || streamerUser?.avatarUrl || streamer.avatar}
-                        key={streamerUser?.coverUrl || streamerUser?.avatarUrl || streamer.avatar}
-                        className="absolute inset-0 w-full h-full object-cover z-10"
-                        alt="Stream background"
-                        onError={(e) => {
-                            // Fallback to placeholder image if main image fails
-                            const target = e.target as HTMLImageElement;
-                            target.src = `https://picsum.photos/seed/streamer-${streamer.id}/800/600.jpg`;
-                        }}
-                    />
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="w-10 h-10 border-2 border-white/20 border-t-purple-500 rounded-full animate-spin" />
+                            <span className="text-white/50 text-sm font-medium">Carregando transmissão...</span>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/70 pointer-events-none" />
+                    </div>
                 )}
 
                 {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
