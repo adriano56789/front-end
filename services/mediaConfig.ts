@@ -22,12 +22,12 @@ export const getVideoHttpBaseUrl = (): string => {
 
 /** SRS HLS Playback URL */
 export const getHlsPlayUrl = (streamId: string): string => {
-  return `/api/video/http/live/${streamId}.m3u8`;
+  return `${getVideoHttpBaseUrl()}/live/${streamId}.m3u8`;
 };
 
 /** SRS FLV Playback URL */
 export const getFlvPlayUrl = (streamId: string): string => {
-  return `/api/video/http/live/${streamId}.flv`;
+  return `${getVideoHttpBaseUrl()}/live/${streamId}.flv`;
 };
 
 export const isNativeRtmpBridge = (): boolean =>

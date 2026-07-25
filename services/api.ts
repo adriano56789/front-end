@@ -199,11 +199,15 @@ const isExternalUrl = (url: string): boolean => {
     }
 };
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+
 const callApiWithOptions = async <T = any>(
     method: Method,
     url: string,
     data?: any,
-    options?: CallApiOptions
+    options?: CallApiOptions,
+    retryCount: number = 0
 ): Promise<T> => {
     try {
         const isAbsolute = url.startsWith('http://') || url.startsWith('https://');
@@ -367,7 +371,13 @@ const callApiWithOptions = async <T = any>(
             };
 
             xhr.onerror = () => {
-                reject(new Error('Network error'));
+                // Incluir statusText se disponível (XHR pode capturar resposta mesmo com erro QUIC)
+                const errMsg = xhr.status && xhr.status >= 200 && xhr.status < 300
+                    ? `Network error (server may have processed request - status: ${xhr.status})`
+                    : 'Network error';
+                const error = new Error(errMsg);
+                (error as any).xhrStatus = xhr.status;
+                reject(error);
             };
 
             xhr.send(body);
@@ -388,7 +398,34 @@ const callApiWithOptions = async <T = any>(
             throw error;
         }
 
-        // Erro de rede ou parse
+        // 🔄 RETRY para erros de rede (incluindo QUIC protocol errors)
+        // Se o servidor retornou status 200+ mesmo com erro de rede (QUIC bug),
+        // a requisição foi processada — NÃO retentar para evitar duplicatas.
+        // Só retentar erros de rede genuínos onde o servidor não respondeu.
+        const serverRespondedOk = error.xhrStatus >= 200 && error.xhrStatus < 300;
+        const isNetworkError = !serverRespondedOk && (
+            error.message?.includes('Network error') ||
+            error.message?.includes('QUIC') ||
+            error.message?.includes('network') ||
+            error.message?.includes('ERR_CONNECTION') ||
+            error.message?.includes('timeout') ||
+            error.message?.includes('ECONNREFUSED'));
+
+        if (isNetworkError && retryCount < MAX_RETRIES) {
+            const delay = RETRY_DELAY_MS * (retryCount + 1);
+            console.warn(`[API] ⚡ Erro de rede (tentativa ${retryCount + 1}/${MAX_RETRIES}). Tentando novamente em ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return callApiWithOptions<T>(method, url, data, options, retryCount + 1);
+        }
+
+        // Se o servidor respondeu com sucesso (status 200+) mas o XHR deu erro (QUIC bug),
+        // não jogar erro para o caller — o servidor processou a requisição.
+        if (serverRespondedOk) {
+            console.warn('[API] ⚠️ Servidor respondeu com', error.xhrStatus, 'mas XHR reportou erro de rede (possível QUIC timeout). Ignorando.');
+            return {} as T;
+        }
+
+        // Erro de rede ou parse (após todas as tentativas)
         throw error;
     }
 };
@@ -1104,17 +1141,7 @@ export const api = {
     // Encerrar live - Backend controla status
     endLive: () => callApi<{ success: boolean }>('POST', '/api/live/end'),
 
-    joinStream: async (streamId: string, userId: string) => {
-        try {
-            const response = await callApi<{ success: boolean }>('POST', `/api/streams/${streamId}/join`);
-            return response?.success || false;
-        } catch (error: any) {
-            console.error('Error joining stream:', error);
-            // Propagar erro 404 para que o frontend possa tratar
-            throw error;
-        }
-    },
-
+    // REMOVIDO: joinStream — entrada na live agora via Socket.IO join_stream
 
 
     leaveStream: async (streamId: string, userId: string) => {
@@ -2027,7 +2054,7 @@ export const api = {
             authHeaders['Authorization'] = `Bearer ${token}`;
         }
         const fullUrl = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
-        const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', endpoint, sdp, {
+        const result = await callApiWithOptions<{ ok: boolean; status: number; data: string; headers: any }>('POST', fullUrl, sdp, {
             customHeaders: authHeaders,
             responseType: 'text',
             returnFullResponse: true,
@@ -2228,12 +2255,12 @@ export const api = {
       whip: (streamKey: string, sdp: string) => {
         const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
         const url = `/api/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-        return api.rtcPublish(url, sdp, normalizedKey);
+        return api.whipPublish(url, sdp);
       },
       whep: (streamKey: string, sdp: string) => {
         const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
         const url = `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-        return api.rtcPlay(url, sdp, normalizedKey);
+        return api.whepPlay(url, sdp);
       },
       deleteWhip: (resourceUrl: string) => {
         return api.whipStop(resourceUrl);

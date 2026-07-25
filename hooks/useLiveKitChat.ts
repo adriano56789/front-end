@@ -207,7 +207,19 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
           // Connected event will set connected = true
         } catch (err) {
           if (destroyedRef.current) return;
-          console.error('[LiveKitChat] Connection failed:', err instanceof Error ? err.message : err);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const isPcError = errMsg.toLowerCase().includes('pc') || errMsg.includes('peer connection') || errMsg.includes('ICE');
+          const isNetworkError = errMsg.toLowerCase().includes('network') || errMsg.includes('timed out') || errMsg.includes('fetch');
+          
+          if (isPcError) {
+            console.error('[LiveKitChat] ❌ Conexão WebRTC falhou. Server:', serverUrl, 'Erro:', errMsg,
+              '- Verificar proxy Nginx /livekit e config TURN/STUN');
+          } else if (isNetworkError) {
+            console.error('[LiveKitChat] ❌ Erro de rede. Server:', serverUrl, 'Erro:', errMsg,
+              '- Verificar se LiveKit está rodando e acessível');
+          } else {
+            console.error('[LiveKitChat] Connection failed:', errMsg);
+          }
         }
       })();
     } else if (room.state === 'connected') {

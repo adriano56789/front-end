@@ -1,6 +1,7 @@
 import { isNativeRtmpBridge } from './mediaConfig';
 import { cameraService } from './cameraService';
-import { getLiveKitRoom } from './livekit/livekitRoomService';
+
+type PublishEngineType = { replaceTrack: (kind: 'audio' | 'video', track: MediaStreamTrack | null) => Promise<void> };
 
 export type PublishStateT = 'idle' | 'connecting' | 'publishing' | 'connected' | 'native';
 
@@ -10,6 +11,15 @@ class StreamPublishService {
   private currentVideoRef: { current: HTMLVideoElement | null } | null = null;
   private beautyProcessedStream: MediaStream | null = null;
   private _publishing = false;
+  private _publishEngine: PublishEngineType | null = null;
+
+  setPublishEngine(engine: PublishEngineType | null): void {
+    this._publishEngine = engine;
+  }
+
+  getPublishEngine(): PublishEngineType | null {
+    return this._publishEngine;
+  }
 
   getCurrentStream(): MediaStream | null {
     return this.currentStream;
@@ -61,14 +71,11 @@ class StreamPublishService {
     });
     this.currentStream.addTrack(newVideoTrack);
 
-    if (this._publishing) {
-      const room = getLiveKitRoom();
-      if (room.state === 'connected' && room.localParticipant) {
-        try {
-          await room.localParticipant.publishTrack(newVideoTrack, { name: 'camera' });
-        } catch (e) {
-          console.warn('[PUBLISH_SERVICE] Falha ao atualizar track de beleza no LiveKit:', e);
-        }
+    if (this._publishing && this._publishEngine) {
+      try {
+        await this._publishEngine.replaceTrack('video', newVideoTrack);
+      } catch (e) {
+        console.warn('[PUBLISH_SERVICE] Falha ao atualizar track de beleza no SRS:', e);
       }
     }
 
@@ -104,10 +111,7 @@ class StreamPublishService {
       const streaming = (window as any).Android?.isStreaming?.();
       return streaming ? 'native' : 'idle';
     }
-    const room = getLiveKitRoom();
-    if (room.state === 'connected' && this._publishing) return 'publishing';
-    if (room.state === 'connected') return 'connected';
-    if (room.state === 'connecting') return 'connecting';
+    if (this._publishing) return 'publishing';
     return 'idle';
   }
 
@@ -290,19 +294,11 @@ class StreamPublishService {
         videoElement.style.transform = nextFacing === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
       }
 
-      if (this._publishing) {
-        const room = getLiveKitRoom();
-        if (room.state === 'connected' && room.localParticipant) {
-          try {
-            const existingPub = Array.from((room.localParticipant as any).publications?.values?.() || [])
-              .find((p: any) => p.trackName === 'camera' || p.source === 'camera');
-            if (existingPub) {
-              await (room.localParticipant as any).unpublishTrack((existingPub as any).trackSid);
-            }
-            await room.localParticipant.publishTrack(newVideoTrack, { name: 'camera' });
-          } catch (e) {
-            console.warn('[PUBLISH_SERVICE] Falha ao atualizar camera no LiveKit:', e);
-          }
+      if (this._publishing && this._publishEngine) {
+        try {
+          await this._publishEngine.replaceTrack('video', newVideoTrack);
+        } catch (e) {
+          console.warn('[PUBLISH_SERVICE] Falha ao atualizar camera no SRS:', e);
         }
       }
 
@@ -326,13 +322,10 @@ class StreamPublishService {
           videoElement.style.transform = this.currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
         }
 
-        if (this._publishing) {
-          const room = getLiveKitRoom();
-          if (room.state === 'connected' && room.localParticipant) {
-            try {
-              await room.localParticipant.publishTrack(recVideoTrack, { name: 'camera' });
-            } catch {}
-          }
+        if (this._publishing && this._publishEngine) {
+          try {
+            await this._publishEngine.replaceTrack('video', recVideoTrack);
+          } catch {}
         }
       } catch (recoveryErr) {
         console.error('[PUBLISH_SERVICE] Recuperacao de camera tambem falhou:', recoveryErr);

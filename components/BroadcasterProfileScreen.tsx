@@ -233,7 +233,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
         };
     }, [user.id, lastUserUpdate]);
 
-    // 🎁 EVENTOS DE PRESENTE: Socket.IO removido — presentes sincronizados via API polling + LiveKit DataChannel
+    // 🎁 EVENTOS DE PRESENTE: Socket.IO removido — presentes chegam em tempo real via LiveKit DataChannel
 
     // Obras - Fonte de verdade: freshUser.obras || user.obras
     useEffect(() => {

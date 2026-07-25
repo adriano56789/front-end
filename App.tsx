@@ -131,9 +131,7 @@ import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSess
 
 import Toast from './components/Toast';
 
-import MessageNotification from './components/MessageNotification';
-
-// Socket.IO removido — comunicação via LiveKit + API polling
+import MessageNotification from './components/MessageNotification';  // Socket.IO removido — comunicação via LiveKit DataChannel
 
 import UserProfileScreen from './components/BroadcasterProfileScreen';
 
@@ -215,9 +213,6 @@ import LiveNotificationModal from './components/live/LiveNotificationModal';
 import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
-import { useCurrentUserPolling, useStreamsPolling } from './hooks/useApiPolling';
-
-
 
 // Dados iniciais vazios - tudo será carregado da API
 
@@ -257,9 +252,7 @@ const INITIAL_DATA = {
 
 
 
-// REMOVIDO: SimpleEventEmitter - era um event emitter simulado
-// Eventos em tempo real agora são gerenciados via LiveKit nos componentes filhos (StreamRoom, PKBattleScreen)
-// e API polling para atualizações de estado (useCurrentUserPolling, useStreamsPolling)
+// 📡 Tudo via LiveKit DataChannel — sem polling, sem Socket.IO
 
 
 
@@ -1414,7 +1407,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     if (currentUserRef.current) {
 
-      // Socket.IO removido — comunicação via LiveKit + API polling
+
       
       // Inicializar Firebase Cloud Messaging para notificações push (APENAS UMA VEZ)
       if ('serviceWorker' in navigator && 'Notification' in window && !fcmInitializedRef.current) {
@@ -1445,97 +1438,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-      // 📡 Socket.IO removido — toda comunicação em tempo real via LiveKit + API polling
-      // 
-      // Eventos substituídos:
-      // - user_status_updated → API polling (useCurrentUserPolling)
-      // - avatar_updated → API polling (useCurrentUserPolling)
-      // - diamonds_updated → API polling (useCurrentUserPolling)
-      // - earnings_updated → API polling (useCurrentUserPolling)
-      // - earnings_withdrawn → API polling (useCurrentUserPolling)
-      // - platform_earnings_updated → API polling (useCurrentUserPolling)
-      // - live_coins_updated → LiveKit DataChannel + API polling
-      // - stream_ended / live_stream_ended → API polling (useStreamsPolling)
-      // - new_live / stream_started → API polling (useStreamsPolling)
-      // - card_removed / stream_stopped → API polling (useStreamsPolling)
-      
+          // 📡 Tudo via LiveKit DataChannel — sem polling, sem Socket.IO
     }
 
-    return () => {
-      // Socket.IO cleanup removido
-    };
+    return () => {};
 
   }, [activeStream]);
-
-  // 📡 Hooks de polling substituem eventos Socket.IO
-  // Chamados no top-level do componente (regra dos hooks)
-  useCurrentUserPolling(currentUserRef.current?.id, (freshUser: any) => {
-    if (freshUser && freshUser.id === currentUserRef.current?.id) {
-      updateUserEverywhere(freshUser);
-    }
-  }, { interval: 15000 });
-
-  useStreamsPolling((freshStreams: any[]) => {
-    setStreamers(Array.isArray(freshStreams) ? freshStreams : []);
-  }, { interval: 15000 }, selectedCountry);
-
-  // 🚀 Detectar quando a live atual encerra e reagir com navegação + toast
-  const previousStreamIdsRef = useRef<string[]>([]);
-
-  useEffect(() => {
-    if (!activeStream) {
-      previousStreamIdsRef.current = streamers.map(s => s.id);
-      return;
-    }
-
-    const currentIds = streamers.map(s => s.id);
-    const prevIds = previousStreamIdsRef.current;
-    previousStreamIdsRef.current = currentIds;
-
-    // Se a stream que estamos assistindo sumiu da lista
-    if (prevIds.includes(activeStream.id) && !currentIds.includes(activeStream.id)) {
-      console.log('[StreamEnded] Live encerrada detectada via polling:', activeStream.name);
-
-      // Marcar que saímos deliberadamente — auto-load não deve tentar re-entrar
-      leftStreamRef.current = true;
-      // Limpar estado da live
-      setActiveStream(null);
-      setLiveSession(null);
-      setStreamRoomData(null);
-      setIsPKBattleActive(false);
-      setPkOpponent(null);
-
-      addToast(ToastType.Info, 'Esta transmissão foi encerrada');
-
-      // Fechar PiP se a stream encerrada estiver no floating player
-      if (pipStreamerRef.current && pipStreamerRef.current.id === activeStream.id) {
-        setPipStreamer(null);
-        setIsPiPMode(false);
-      }
-
-      navigate('/');
-    }
-  }, [streamers, activeStream, navigate, addToast]);
-
-  // 💰 Polling para moedas da live ao vivo (substitui live_coins_updated do Socket.IO)
-  useEffect(() => {
-    if (!activeStream || !liveSession) return;
-
-    const pollCoins = async () => {
-      try {
-        const details = await api.getLiveDetails(activeStream.id);
-        if (details && (details as any).diamonds !== undefined) {
-          updateLiveSession({ coins: (details as any).diamonds });
-        }
-      } catch {
-        // Silently fail
-      }
-    };
-
-    pollCoins();
-    const interval = setInterval(pollCoins, 10000);
-    return () => clearInterval(interval);
-  }, [activeStream?.id, liveSession !== null]);
 
 
 
@@ -1859,7 +1767,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    // REMOVIDO: simpleEventManager - eventos gerenciados via LiveKit e API polling
+    // Eventos gerenciados via LiveKit DataChannel
 
 
 

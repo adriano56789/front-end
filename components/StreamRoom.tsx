@@ -29,8 +29,8 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useLiveKitChat } from '../hooks/useLiveKitChat';
-import { getLiveKitRoom } from '../services/livekit/livekitRoomService';
 import { useNativePiP } from '../hooks/useNativePiP';
+import { PublishEngine } from '../services/PublishEngine';
 
 interface ChatMessageType {
     id: string | number;
@@ -157,7 +157,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
         
         // Fallback para URL construída via proxy HTTPS (caso backend não retorne hlsUrl)
-        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (typeof window !== 'undefined' && window.location && !window.location.hostname.includes('livego.store') ? `${window.location.origin}/api/video/http` : 'https://api.livego.store/api/video/http');
+        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (typeof window !== 'undefined' && window.location ? `${window.location.origin}/srs` : '/srs');
         const fallbackUrl = `${httpBase}/live/${streamer.id}.m3u8`;
         if (lastLoggedUrlRef.current !== fallbackUrl) {
             console.log(`⚠️ [StreamRoom] Usando fallback HLS URL: ${fallbackUrl}`);
@@ -213,10 +213,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       },
     });
 
-    // Estado para monitoramento do Egress RTMP
-    const [egressId, setEgressId] = useState<string | null>(null);
-    const [egressStatus, setEgressStatus] = useState<string>('idle');
-
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const nextGiftId = useRef(0);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
@@ -234,10 +230,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     // ═══════════════════════════════════════════════════════════════════
     // ARQUITETURA:
-    // - LiveKit: ÚNICA conexão — host publica câmera/microfone,
-    //   chat, participantes online, likes, gifts, tudo via Room singleton.
-    // - SRS: player HLS para espectadores (recebe RTMP via LiveKit Egress)
-    // - Socket.IO: fallback para chat quando LiveKit não disponível
+    // - SRS: Publica mídia (câmera/microfone) via WHIP direto do browser
+    // - LiveKit: Gerencia sala, participantes, convites, data channels
+    // - Firebase (FCM): Notificações push
+    // - WebSocket: Chat e mensagens em tempo real
     // ═══════════════════════════════════════════════════════════════════
 
   const {
@@ -322,105 +318,79 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     },
     onDisconnected: () => {
       console.log('[CHAT] LiveKitChat desconectado!');
+      // A live SÓ encerra quando o dono da transmissão clicar em "Encerrar Transmissão".
+      // LiveKit pode desconectar por vários motivos (rede, reload, etc.) mas isso
+      // NÃO significa que a live acabou. O viewer pode reconectar.
+      // NÃO remover o usuário automaticamente.
     },
   });
 
-    // useLiveKit (room.ts) REMOVIDO — tudo unificado via useLiveKitChat.
-    // A sala live_${streamId} é a única conexão: mídia (host), chat, eventos.
-    // Host publica câmera/microfone pelo Room singleton após useLiveKitChat conectar.
-    // Viewers recebem as tracks automaticamente via SFU (canSubscribe: true).
+    // useLiveKit (room.ts) REMOVIDO — comunicação via useLiveKitChat + SRS WHIP.
+    // LiveKit: sala para participantes, eventos e data channels.
+    // SRS: mídia (câmera/microfone) via WHIP direto do browser.
+    // Host publica câmera/microfone pelo PublishEngine (WHIP ao SRS).
+    // Viewers recebem HLS do SRS.
 
     // HOST-MEDIA: Após useLiveKitChat conectar, host publica câmera/microfone
     // pelo Room singleton (mesmo usado para chat/eventos).
     // Melhorias: usar refs para evitar recriação de MediaStream em rerenders
     const mediaStreamRef = useRef<MediaStream | null>(null);
-    const egressIdRef = useRef<string | null>(null);
     const isPublishingRef = useRef(false);
     const isConnectingRef = useRef(false);
 
+    const publishEngineRef = useRef<PublishEngine | null>(null);
+
     const publishMedia = useCallback(async () => {
         if (isPublishingRef.current || isConnectingRef.current) {
-            console.log('[HOST-LK] Já publicando ou conectando, ignorando...');
+            console.log('[HOST] Já publicando ou conectando, ignorando...');
             return;
         }
 
         isConnectingRef.current = true;
         
         try {
-            const room = getLiveKitRoom();
-            if (room.state !== 'connected') {
-                console.log('[HOST-LK] Room não conectado, aguardando...');
-                isConnectingRef.current = false;
-                return;
-            }
-
             // Reutilizar MediaStream se já existir
             if (!mediaStreamRef.current) {
-                console.log('[HOST-LK] Criando nova MediaStream...');
+                console.log('[HOST] Criando nova MediaStream...');
                 mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
                     video: { width: { ideal: 640 }, height: { ideal: 360 } },
                     audio: true,
                 });
             } else {
-                console.log('[HOST-LK] Reutilizando MediaStream existente');
+                console.log('[HOST] Reutilizando MediaStream existente');
             }
 
-            // Salvar em variável local para evitar race condition com cleanup
-            // (o cleanup pode nullificar mediaStreamRef.current durante um await)
             const streamToPublish = mediaStreamRef.current;
             if (!streamToPublish) {
-                console.warn('[HOST-LK] MediaStream é null após getMediaStream');
+                console.warn('[HOST] MediaStream é null');
                 isConnectingRef.current = false;
                 return;
             }
 
-            const videoTrack = streamToPublish.getVideoTracks()[0];
-            if (videoTrack && !videoTrack.enabled) {
-                videoTrack.enabled = true;
-            }
-            
-            if (videoTrack) {
-                await room.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-                console.log('[HOST-LK] ✅ Câmera publicada via Room singleton');
-            }
-            
-            const audioTrack = streamToPublish.getAudioTracks()[0];
-            if (audioTrack && !audioTrack.enabled) {
-                audioTrack.enabled = true;
-            }
-            
-            if (audioTrack) {
-                await room.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-                console.log('[HOST-LK] ✅ Microfone publicado via Room singleton');
-            }
+            streamPublishService.setCurrentStream(streamToPublish);
+            streamPublishService.setPublishing(true);
 
+            // Publicar direto no SRS via WHIP (sem LiveKit Egress)
+            const engine = new PublishEngine({ videoCodec: 'H264', maxVideoBitrate: 2500 });
+            publishEngineRef.current = engine;
+            streamPublishService.setPublishEngine(engine);
+
+            engine.on('stateChanged', (prev: string, next: string) => {
+                console.log(`[HOST] WHIP state: ${prev} → ${next}`);
+            });
+            engine.on('error', (code: string, msg: string) => {
+                console.error(`[HOST] WHIP error ${code}:`, msg);
+            });
+
+            await engine.start(streamer.streamKey || streamer.id, streamToPublish);
             isPublishingRef.current = true;
-
-            // Iniciar Egress RTMP para enviar stream ao SRS
-            // Isso permite que espectadores assistam via HLS
-            const roomId = `live_${streamer.id}`;
-            try {
-                console.log('[EGRESS] Iniciando RTMP Egress para SRS...');
-                const egressResult = await api.startRTMPEgress(roomId, streamer.streamKey || streamer.id);
-                if (egressResult.success && egressResult.egressId) {
-                    egressIdRef.current = egressResult.egressId;
-                    setEgressId(egressResult.egressId);
-                    setEgressStatus('starting');
-                    console.log('[EGRESS] ✅ RTMP Egress iniciado:', egressIdRef.current);
-                } else {
-                    console.warn('[EGRESS] ⚠️ Falha ao iniciar Egress:', egressResult);
-                    setEgressStatus('failed');
-                }
-            } catch (egressErr) {
-                console.error('[EGRESS] ❌ Erro ao iniciar Egress:', egressErr);
-                setEgressStatus('failed');
-            }
+            console.log('[HOST] ✅ Stream publicada via WHIP ao SRS');
         } catch (err) {
-            console.warn('[HOST-LK] Falha ao publicar mídia:', err);
+            console.warn('[HOST] Falha ao publicar mídia:', err);
         } finally {
             isConnectingRef.current = false;
         }
-    }, [streamer.id]);
+    }, [streamer.id, streamer.streamKey]);
 
     useEffect(() => {
         if (!isBroadcaster || !lkChatConnected) return;
@@ -437,30 +407,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, [isBroadcaster, lkChatConnected, publishMedia]);
 
-    // Cleanup real ao desmontar o componente (não em rerenders)
+    // Cleanup ao desmontar: NÃO parar tracks nem WHIP publish.
+    // A transmissão SÓ deve ser encerrada pelo dono ao clicar "Encerrar Transmissão".
     useEffect(() => {
         return () => {
-            console.log('[HOST-LK] Cleanup: parando publicação e Egress');
-            
-            // Parar tracks
-            if (mediaStreamRef.current) {
-                mediaStreamRef.current.getTracks().forEach(t => {
-                    t.stop();
-                    t.enabled = false;
-                });
-                mediaStreamRef.current = null;
-            }
-            
-            // Parar Egress
-            if (egressIdRef.current) {
-                api.stopEgress(egressIdRef.current).catch(err => {
-                    console.warn('[EGRESS] Erro ao parar Egress:', err);
-                });
-                egressIdRef.current = null;
-            }
-            
-            isPublishingRef.current = false;
-            isConnectingRef.current = false;
+            console.log('[HOST] StreamRoom desmontado — publish NÃO interrompido (mantido ativo)');
         };
     }, []);
 
@@ -593,14 +544,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         let hasLeft = false;
         let hasFetchedInitialUsers = false;
 
-        // Marcar usuário como online na stream (apenas uma vez)
-        const joinStreamOnce = async () => {
+        // Marcar usuário como online na stream via Socket.IO join_stream (único caminho)
+        const joinStreamOnce = () => {
             if (!hasJoined) {
                 hasJoined = true;
-                const success = await api.joinStream(streamer.id, currentUser.id);
-                if (success) {
-                } else {
-                }
+                import('../services/socketService').then(({ emitJoinStream }) => {
+                    emitJoinStream(streamer.id);
+                });
             }
         };
 
@@ -1339,13 +1289,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     streamId={streamer.streamKey || streamer.id}
                     isBroadcaster={isBroadcaster}
                     userId={currentUser.id}
-                    egressId={egressId ?? undefined}
                     onPlaying={() => setIsVideoPlaying(true)}
                     onError={() => setIsVideoPlaying(false)}
-                    onEgressActive={() => {
-                        console.log('[StreamRoom] Egress ativo, HLS disponível');
-                        setEgressStatus('active');
-                    }}
                     muted={!isBroadcaster && isLocalMuted}
                     onVideoRef={setVideoRef}
                 />

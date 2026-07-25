@@ -253,9 +253,9 @@ export default function PKBattleScreen({
     const getStreamUrl = () => {
         if (streamer.hlsUrl) return streamer.hlsUrl;
         const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (
-            typeof window !== 'undefined' && window.location && !window.location.hostname.includes('livego.store')
-            ? `${window.location.origin}/api/video/http`
-            : 'https://api.livego.store/api/video/http'
+            typeof window !== 'undefined' && window.location
+            ? `${window.location.origin}/srs`
+            : '/srs'
         );
         return `${httpBase}/live/${streamer.id}.m3u8`;
     };

@@ -257,9 +257,9 @@ export const useStreamManager = (
         streamKey: streamId,
         startTime: new Date(),
         viewers: registeredStream?.viewers || 0,
-        hlsUrl: `/api/video/http/live/${streamId}.m3u8`,
+        hlsUrl: `/srs/live/${streamId}.m3u8`,
         webrtcUrl: `/api/rtc/v1/whep/?app=live&stream=${streamId}`,
-        playbackUrl: `/api/video/http/live/${streamId}.m3u8`,
+        playbackUrl: `/srs/live/${streamId}.m3u8`,
         vhost: '__defaultVhost__',
         app: 'live',
         stream: streamId

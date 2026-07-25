@@ -1,8 +1,8 @@
 import { Room } from 'livekit-client';
 
 // ── Singleton Room — única instância por aplicação ──
-// Única conexão LiveKit: mídia (host publica câmera/microfone),
-// chat, eventos, presença — tudo pela mesma Room.
+// LiveKit: conexão de sala, chat, eventos, presença via data channels.
+// Mídia (câmera/microfone) é publicada via WHIP diretamente ao SRS.
 // Documentação: https://docs.livekit.io/client-sdk-js/
 
 let roomInstance: Room | null = null;

@@ -266,6 +266,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     }, [user.id]); // Removido fetchInitialData das dependências para evitar loop infinito
 
     useEffect(() => {
+        if (effectiveMessages.length > 0) {
+            setTimeout(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }, 100);
+        }
+    }, [effectiveMessages.length]);
+
+    useEffect(() => {
         const handleNewMessage = (message: Message & { tempId?: string }) => {
             const msgChatId = message.chatId || `chat_private_${message.from < message.to ? message.from + '_' + message.to : message.to + '_' + message.from}`;
             if (msgChatId === chatKey || (message.from === user.id && message.to === currentUser.id) || (message.from === currentUser.id && message.to === user.id)) {
@@ -370,12 +378,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         setSelectedImage(null);
         setSelectedImageFile(null);
 
-        const isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-            setTimeout(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }, 100);
-        }
+        setTimeout(() => {
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }, 150);
 
         try {
             let finalImageUrl: string | undefined = undefined;
@@ -482,7 +487,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     const contentClasses = isModal
         ? "bg-[#131317] text-white flex flex-col w-full max-w-md h-[75%] rounded-t-2xl relative"
-        : "text-white flex flex-col w-full h-full relative";
+        : "text-white flex flex-col w-full h-full relative overflow-hidden";
 
     const backdropClick = isModal ? onBack : undefined;
 
@@ -526,13 +531,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         <ThreeDotsIcon className="w-5 h-5" />
                     </button>
                 </header>
-                <main className="flex-grow overflow-y-auto no-scrollbar flex flex-col min-h-0 pb-[68px]">
+                <main className="relative flex-1 min-h-0 overflow-hidden">
+                    <div className="absolute inset-0 overflow-y-auto no-scrollbar">
                     {isLoading ? (
-                        <div className="flex-grow flex items-center justify-center">
+                        <div className="flex items-center justify-center h-full">
                             <LoadingSpinner />
                         </div>
                     ) : effectiveMessages.length === 0 ? (
-                        <div className="flex-grow flex flex-col items-center justify-center text-center px-8 py-4 select-none">
+                        <div className="flex flex-col items-center justify-center text-center px-8 py-4 select-none h-full">
                             <div className="relative mb-6">
                                 <div className="w-[90px] h-[90px] bg-[#1a1721] rounded-[32px] flex items-center justify-center">
                                     <svg width="46" height="46" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -551,7 +557,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             </button>
                         </div>
                     ) : (
-                        <div className="space-y-3 px-4 pt-2 mt-auto">
+                        <div className="space-y-3 px-4 pt-2 pb-28">
                             {effectiveMessages.map((msg) => {
                                 if (msg.type === 'system-friend-notification') {
                                     return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
@@ -571,8 +577,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             <div ref={chatEndRef} />
                         </div>
                     )}
+                    </div>
                 </main>
-                <footer className="absolute bottom-0 left-0 right-0 z-10 bg-[#131317] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3">
+                <footer className="flex-shrink-0 z-10 bg-[#131317] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 border-t border-[#232128]">
                     {selectedImage && (
                         <div className="relative mb-2 w-fit">
                             <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />

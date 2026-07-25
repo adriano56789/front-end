@@ -2,7 +2,8 @@ import { User } from '../../types';
 import { decodeTokenIdentity } from './token';
 import { createParticipantFromUser, LiveKitParticipant } from './participants';
 import { api, getCurrentUserId } from '../api';
-// Socket.IO removido — LiveKit é a única fonte de comunicação em tempo real
+// LiveKit: sala, participantes, chat/data channels, video calls, PK.
+// Mídia (câmera/microfone) é publicada via WHIP diretamente ao SRS.
 import {
   Room as RealRoom,
   RoomEvent as RealRoomEvent,
@@ -115,18 +116,17 @@ export class LiveKitRoom {
 
     this.state = 'connecting';
 
-    let canPublish = false;
+    let roomId = '';
     try {
       const payload = token.split('.')[1];
       if (payload) {
         const decoded = JSON.parse(atob(payload));
-        this.roomId = decoded.video?.room || decoded.room || '';
-        canPublish = decoded.video?.canPublish || false;
+        roomId = decoded.video?.room || decoded.room || '';
       }
     } catch {
-      this.roomId = '';
-      canPublish = false;
+      roomId = '';
     }
+    this.roomId = roomId;
 
     const decodedIdentity = decodeTokenIdentity(token) || `user_${Math.random().toString(36).slice(2, 6)}`;
 
@@ -137,9 +137,6 @@ export class LiveKitRoom {
       const realRoom = new RealRoom({
         adaptiveStream: true,
         dynacast: true,
-        publishDefaults: {
-          simulcast: true,
-        }
       });
       this.realRoom = realRoom;
 
@@ -275,42 +272,8 @@ export class LiveKitRoom {
         this._addRemoteParticipant(participant);
       });
 
-      // LiveKit é a ÚNICA fonte de tudo: mídia, data channels, presença
-      // O host publica câmera/microfone aqui para distribuição via LiveKit Egress
-      if (canPublish) {
-      try {
-        console.log('[LiveKit] Capturando mídia real...');
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 360 } },
-          audio: true
-        });
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          const pub = await realRoom.localParticipant.publishTrack(videoTrack, { name: 'camera' });
-          tracksMap.set(pub.trackSid, {
-            trackSid: pub.trackSid,
-            trackName: 'camera',
-            source: 'camera',
-            isMuted: false,
-            track: videoTrack
-          });
-          console.log('✅ Stream publicada.');
-        }
-        const audioTrack = stream.getAudioTracks()[0];
-        if (audioTrack) {
-          const pub = await realRoom.localParticipant.publishTrack(audioTrack, { name: 'microphone' });
-          tracksMap.set(pub.trackSid, {
-            trackSid: pub.trackSid,
-            trackName: 'microphone',
-            source: 'microphone',
-            isMuted: false,
-            track: audioTrack
-          });
-        }
-      } catch (e) {
-        console.warn('[LiveKit] Falha ao capturar mídias locais (microfone/câmera):', e);
-      }
-      } // end if (canPublish)
+      // LiveKit: sala, participantes, data channels para eventos
+      // Mídia (câmera/microfone) é publicada via WHIP diretamente ao SRS
 
       this.emit(RoomEvent.RoomMetadataChanged, this);
 
@@ -357,75 +320,6 @@ export class LiveKitRoom {
     };
 
     this.remoteParticipants.set(participant.identity, p);
-  }
-
-  /**
-   * Publishes a local media track to the room
-   */
-  public publishTrack(track: MediaStreamTrack, source: 'camera' | 'microphone'): void {
-    if (!this.localParticipant) return;
-
-    const sid = `TR_${source === 'camera' ? 'V' : 'A'}_${this.localParticipant.identity.toUpperCase()}`;
-    const pub: TrackPublication = {
-      trackSid: sid,
-      trackName: source,
-      source,
-      isMuted: false,
-      track
-    };
-    
-    this.localParticipant.tracks.set(sid, pub);
-
-    if (this.realRoom) {
-      this.realRoom.localParticipant.publishTrack(track, { name: source })
-        .then((realPub) => {
-          pub.trackSid = realPub.trackSid;
-          console.log('✅ Stream publicada.');
-          this.emit(RoomEvent.LocalTrackPublished, realPub, this.localParticipant!);
-        })
-        .catch((e) => {
-          console.warn('[LiveKit] Falha ao publicar faixa:', e);
-        });
-    } else {
-      // In fallback mode, register via API
-      api.livekit.publishTrack(this.roomId, this.localParticipant.identity, sid, source === 'camera' ? 'camera' : 'microphone', false)
-        .then(() => {
-          console.log('✅ Stream publicada via API.');
-          this.emit(RoomEvent.LocalTrackPublished, pub, this.localParticipant!);
-        })
-        .catch((e) => {
-          console.warn('[LiveKit-Fallback] Falha ao publicar faixa via API:', e);
-        });
-    }
-  }
-
-  /**
-   * Unpublishes a local track
-   */
-  public unpublishTrack(track: MediaStreamTrack): void {
-    if (!this.localParticipant) return;
-
-    let foundSid = '';
-    let foundPub: any = null;
-    for (const [sid, pub] of this.localParticipant.tracks.entries()) {
-      if (pub.track === track) {
-        foundSid = sid;
-        foundPub = pub;
-        break;
-      }
-    }
-
-    if (foundSid) {
-      this.localParticipant.tracks.delete(foundSid);
-      if (this.realRoom) {
-        const localPublications = this.realRoom.localParticipant.trackPublications || (this.realRoom.localParticipant as any).tracks;
-        const realPub = localPublications ? localPublications.get(foundSid) : null;
-        if (realPub && realPub.track) {
-          this.realRoom.localParticipant.unpublishTrack(realPub.track);
-        }
-      }
-      this.emit(RoomEvent.LocalTrackUnpublished, foundPub, this.localParticipant);
-    }
   }
 
   /**

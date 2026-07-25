@@ -1,7 +1,7 @@
 import React from 'react';
 import { CopyIcon } from '../icons';
 import { Streamer } from '../../types';
-import { getVideoHttpBaseUrl } from '../../services/mediaConfig';
+import { getVideoHttpBaseUrl, getHlsPlayUrl } from '../../services/mediaConfig';
 import { env } from '../../src/config/environment';
 
 type StreamUrlConfigField = 'editRtmpUrl' | 'editStreamKey' | 'editSrtUrl' | 'editPlaybackUrl' | 'editWhipUrl';
@@ -246,7 +246,7 @@ export const StreamUrlConfig: React.FC<StreamUrlConfigProps> = ({
         <input 
           type="text" 
           readOnly={!isEditingUrls} 
-          value={isEditingUrls ? editPlaybackUrl : (draftStream?.playbackUrl || (draftStream?.id ? `https://livego.store:8080/live/${draftStream.id}.m3u8` : 'Aguardando stream...'))} 
+          value={isEditingUrls ? editPlaybackUrl : (draftStream?.playbackUrl || (draftStream?.id ? getHlsPlayUrl(draftStream.id) : 'Aguardando stream...'))} 
           onChange={e => onUrlChange('editPlaybackUrl', e.target.value)}
           className={`flex-1 p-2 rounded-md text-white font-mono text-[10px] transition-colors ${
             isEditingUrls ? 'bg-[#1a1a2e] border border-blue-500/50 focus:outline-none' : 'bg-[#111] border border-white/10 select-all'
