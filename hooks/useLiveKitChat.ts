@@ -28,6 +28,7 @@ interface LiveKitChatOptions {
 export function useLiveKitChat(options: LiveKitChatOptions) {
   const { streamId, userId, isHost, disabled } = options;
   const [connected, setConnected] = useState(false);
+  const [reconnectKey, setReconnectKey] = useState(0);
   const optionsRef = useRef(options);
   const listenersRegistered = useRef(false);
   const destroyedRef = useRef(false);
@@ -100,8 +101,10 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     const onDisconnected = () => {
       if (destroyedRef.current) return;
       setConnected(false);
+      connectAttempted.current = false; // 🔄 Permitir reconexão
+      setReconnectKey(k => k + 1); // Forçar re-avaliação do effect
       optionsRef.current.onDisconnected?.();
-      console.warn('[LiveKitChat] Disconnected');
+      console.warn('[LiveKitChat] Disconnected - reconnect permitido');
     };
     const onReconnecting = () => {
       if (!destroyedRef.current) {
@@ -244,7 +247,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
         room.off(RoomEvent.TrackUnsubscribed, onTrackUnsubscribedFn);
       }
     };
-  }, [streamId, userId, disabled]);
+  }, [streamId, userId, disabled, reconnectKey]);
 
   const sendMessage = useCallback(async (payload: any): Promise<boolean> => {
     if (disabled) {
@@ -265,10 +268,10 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
   }, [disabled]);
 
   const disconnect = useCallback(() => {
+    connectAttempted.current = false;
     disconnectLiveKitRoom().then(() => {
       setConnected(false);
     }).catch(() => {});
-    connectAttempted.current = false;
   }, []);
 
   return { connected, sendMessage, disconnect };
