@@ -115,9 +115,6 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
     );
 };
 
-// Controle global para evitar múltiplas chamadas simultâneas
-const globalFetchControl = new Map<string, boolean>();
-
 const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onMinimizeStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
     const { t } = useTranslation();
 
@@ -181,6 +178,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
+
+    // ═══ Sincronizar viewer count com a lista de onlineUsers (LiveKit) ═══
+    useEffect(() => {
+        updateLiveSession({ viewers: Math.max(1, onlineUsers.length) });
+    }, [onlineUsers.length]);
 
     // Estado para likes da transmissão
     const [likes, setLikes] = useState(0);
@@ -541,8 +543,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
         // Variável de controle para evitar chamadas duplicadas
         let hasJoined = false;
-        let hasLeft = false;
-        let hasFetchedInitialUsers = false;
 
         // Marcar usuário como online na stream via Socket.IO join_stream (único caminho)
         const joinStreamOnce = () => {
@@ -554,33 +554,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         };
 
-        // Initial fetch para definir baseline
-        const fetchInitialUsers = async () => {
-            const controlKey = `${streamer.id}_${currentUser.id}`;
-
-            if (!hasFetchedInitialUsers && !globalFetchControl.get(controlKey)) {
-                hasFetchedInitialUsers = true;
-                globalFetchControl.set(controlKey, true);
-
-                try {
-                    const users = await api.getStreamOnlineUsers(streamer.id);
-                    if (users) {
-                        setOnlineUsers(users);
-                        updateLiveSession({ viewers: users.length });
-                        previousOnlineUsersRef.current = users;
-                    }
-                } finally {
-                    // Limpar controle após um tempo para permitir novas chamadas em sessões futuras
-                    setTimeout(() => {
-                        globalFetchControl.delete(controlKey);
-                    }, 5000);
-                }
-            }
-        };
+        // ⚠️ REMOVIDO: fetchInitialUsers via API — toda atualização da lista de pessoas
+        // vai exclusivamente pelo WebSocket do LiveKit (onParticipantConnected).
+        // Sem API, sem polling.
 
         // Executar uma vez no início
         joinStreamOnce();
-        fetchInitialUsers();
         fetchInitialLikes();
         // Socket.IO joinRoom removido — room gerenciado via LiveKit
 
