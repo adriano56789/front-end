@@ -44,9 +44,14 @@ desktop.ini
 *.cache
 *.tmp
 *.temp
+tmp/
 tmp_*
 *.bak
 *.old
+
+# Scripts de deploy temporários
+fix-vps*
+!fix-vps/
 
 # Android (Configurações Locais)
 android/local.properties
