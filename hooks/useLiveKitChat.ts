@@ -211,6 +211,15 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       console.log('[LiveKitChat] Connected to room live_' + streamId +
         ' | participants:', room.remoteParticipants.size);
 
+      // 📡 State Sync: Ler metadata inicial da Room ao entrar
+      // Docs: https://docs.livekit.io/transport/data/state/room-metadata/
+      try {
+        if (room.metadata) {
+          optionsRef.current.onRoomMetadataChanged?.(room.metadata);
+          console.log('[LiveKitChat] Room metadata inicial:', room.metadata);
+        }
+      } catch (_) {}
+
       // [DIAGNOSTIC] Log all remote participants and their tracks
       if (room.remoteParticipants.size > 0) {
         console.log('[LiveKitChat] === Remote participants in room (initial sync) ===');
@@ -765,6 +774,35 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════
+  // 📡 ROOM METADATA — Sincronização de estado global da sala
+  // Docs: https://docs.livekit.io/transport/data/state/room-metadata/
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Atualiza o metadata da Room via backend API (UpdateRoomMetadata).
+   * O frontend NÃO pode definir room.metadata diretamente — apenas o backend
+   * (RoomService API) tem permissão. Esta função chama o backend que, por
+   * sua vez, usa roomService.updateRoomMetadata() do Server SDK.
+   *
+   * Campos típicos: { liveId, hostId, title, category, pk, coHostEnabled, chatEnabled }
+   */
+  const updateRoomMetadata = useCallback(async (
+    metadata: Record<string, any>
+  ): Promise<{ success: boolean }> => {
+    const roomName = `live_${streamId}`;
+    try {
+      const result = await livekitApi.updateRoomMetadata(roomName, metadata);
+      if (result.success) {
+        console.log('[LiveKitChat] Room metadata enviada via backend:', metadata);
+      }
+      return result;
+    } catch (err) {
+      console.warn('[LiveKitChat] updateRoomMetadata erro:', err);
+      return { success: false };
+    }
+  }, [streamId]);
+
+  // ═══════════════════════════════════════════════════════════════════
   // 📡 RPC — Funções para chamar métodos em outros participantes
   // Docs: https://docs.livekit.io/transport/data/rpc/
   // ═══════════════════════════════════════════════════════════════════
@@ -833,6 +871,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     sendFile,
     disconnect,
     setMetadata,
+    updateRoomMetadata,
     publishTracks,
     unpublishTracks,
     muteTrack,

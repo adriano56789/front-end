@@ -50,6 +50,29 @@ export const livekitApi = {
     }
   },
 
+  /**
+   * PUT /api/livekit/rooms/:roomName/metadata
+   * Atualiza metadata da Room via RoomService API.
+   * Usa o Server SDK (roomService.updateRoomMetadata()) no backend.
+   * O metadata é sincronizado automaticamente para todos os participantes
+   * via RoomEvent.RoomMetadataChanged.
+   *
+   * Docs: https://docs.livekit.io/transport/data/state/room-metadata/
+   */
+  updateRoomMetadata: async (
+    roomName: string,
+    metadata: Record<string, any>
+  ): Promise<{ success: boolean }> => {
+    console.log('[LIVEKIT-API] updateRoomMetadata chamado room:', roomName, 'metadata:', metadata);
+    try {
+      const res = await api.put(`/api/livekit/rooms/${encodeURIComponent(roomName)}/metadata`, { metadata });
+      return { success: true };
+    } catch (err) {
+      console.warn('[LIVEKIT-API] updateRoomMetadata erro:', err);
+      return { success: false };
+    }
+  },
+
   getChatToken: async (streamId: string, userId: string, isHost: boolean): Promise<{ token: string; serverUrl: string }> => {
     console.log('[LIVEKIT-API] getChatToken chamado streamId:', streamId, 'userId:', userId, 'isHost:', isHost);
     

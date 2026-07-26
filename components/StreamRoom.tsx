@@ -261,6 +261,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // 📡 Data Packet methods — reações e digitação
     sendReaction: lkSendReaction,
     sendTyping: lkSendTyping,
+    // 📡 Room Metadata
+    updateRoomMetadata: lkUpdateRoomMetadata,
+    onRoomMetadataChanged: lkOnRoomMetadataChanged, // already destructured above
     // 📡 State Synchronization methods
     setAttributes: lkSetAttributes,
     setParticipantRole: lkSetRole,
@@ -414,8 +417,21 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         if (parsed.liveStatus) {
           console.log('[StateSync] Status da live:', parsed.liveStatus);
         }
-        if (parsed.pkConfig) {
-          console.log('[StateSync] Config PK:', parsed.pkConfig);
+        if (parsed.title && parsed.title !== streamer.name) {
+          console.log('[StateSync] Título da live:', parsed.title);
+        }
+        if (parsed.pk) {
+          console.log('[StateSync] Config PK:', parsed.pk);
+        }
+        if (parsed.coHostEnabled !== undefined) {
+          console.log('[StateSync] Co-host habilitado:', parsed.coHostEnabled);
+        }
+        if (parsed.chatEnabled !== undefined) {
+          console.log('[StateSync] Chat habilitado:', parsed.chatEnabled);
+        }
+        // Atualizar UI conforme os metadados
+        if (parsed.liveStatus === 'ended' && isBroadcaster) {
+          console.log('[StateSync] Live finalizada pelo backend');
         }
       } catch {}
     },
@@ -451,6 +467,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       console.log('[CHAT] LiveKitChat conectado!');
       // 📡 State Sync: sincronizar papel do participante
       lkSetRole(isBroadcaster ? 'host' : 'viewer');
+      // 📡 Room Metadata: Se for o broadcaster, enviar metadata inicial da live
+      // A existência da sala LiveKit já indica que a live está ativa.
+      // Docs: https://docs.livekit.io/transport/data/state/room-metadata/
+      if (isBroadcaster && liveSession) {
+        lkUpdateRoomMetadata({
+          liveId: streamer.id,
+          hostId: streamer.hostId,
+          title: streamer.name,
+          category: streamer.category || '',
+          coHostEnabled: liveSession.isCoHostEnabled || false,
+          chatEnabled: liveSession.isChatEnabled !== false,
+        });
+      }
     },
     onDisconnected: () => {
       console.log('[CHAT] LiveKitChat desconectado!');
@@ -1045,6 +1074,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     // activeScreen é controlado pela prop setActiveScreen do componente pai
 
 
+    // 📡 Room Metadata: A sala LiveKit será removida pelo backend/webhook ao encerrar a live.
+    // O metadata não precisa ser atualizado — o evento room_finished do webhook
+    // já notifica todos os participantes.
+    const handleEndStream = useCallback(() => {
+      onRequestEndStream();
+    }, [onRequestEndStream]);
+
     // 📡 RPC: Convidar via LiveKit em vez de REST API
     const handleRpcInvite = useCallback(async (friend: User) => {
       if (coHostModalMode === 'battle') {
@@ -1574,7 +1610,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </button>
                             )}
                             <button 
-                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
+                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? handleEndStream() : onLeaveStreamView(); }}
                                 className="focus:outline-none cursor-pointer text-white hover:opacity-85 transition-opacity"
                                 title={isBroadcaster ? 'Encerrar transmissão' : 'Fechar'}
                             >
