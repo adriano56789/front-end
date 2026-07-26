@@ -413,9 +413,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       console.log('[StateSync] Metadata da Room alterada:', metadata);
       try {
         const parsed = JSON.parse(metadata);
-        if (parsed.liveStatus) {
-          console.log('[StateSync] Status da live:', parsed.liveStatus);
-        }
         if (parsed.title && parsed.title !== streamer.name) {
           console.log('[StateSync] Título da live:', parsed.title);
         }
@@ -427,10 +424,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
         if (parsed.chatEnabled !== undefined) {
           console.log('[StateSync] Chat habilitado:', parsed.chatEnabled);
-        }
-        // Atualizar UI conforme os metadados
-        if (parsed.liveStatus === 'ended' && isBroadcaster) {
-          console.log('[StateSync] Live finalizada pelo backend');
         }
       } catch {}
     },
