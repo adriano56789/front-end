@@ -263,7 +263,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     sendTyping: lkSendTyping,
     // 📡 Room Metadata
     updateRoomMetadata: lkUpdateRoomMetadata,
-    onRoomMetadataChanged: lkOnRoomMetadataChanged, // already destructured above
     // 📡 State Synchronization methods
     setAttributes: lkSetAttributes,
     setParticipantRole: lkSetRole,
