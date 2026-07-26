@@ -412,6 +412,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     onRoomMetadataChanged: (metadata) => {
       console.log('[StateSync] Metadata da Room alterada:', metadata);
       try {
+        // 📡 Size limit: Room Metadata tem limite de 512 KiB (documentação oficial)
+        // Se o metadata exceder 1 KiB, logar alerta para revisão
+        if (metadata.length > 1024) {
+          console.warn('[StateSync] ⚠️ Room metadata grande (' + metadata.length + ' bytes). Considere usar configId para dados maiores.');
+        }
         const parsed = JSON.parse(metadata);
         if (parsed.title && parsed.title !== streamer.name) {
           console.log('[StateSync] Título da live:', parsed.title);
@@ -424,6 +429,24 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
         if (parsed.chatEnabled !== undefined) {
           console.log('[StateSync] Chat habilitado:', parsed.chatEnabled);
+        }
+        // 📡 configId pattern: Se o metadata tem um configId, buscar dados completos do MongoDB
+        // Docs: https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
+        if (parsed.configId) {
+          livekitApi.fetchRoomConfig(parsed.configId).then(res => {
+            if (res.success && res.config) {
+              console.log('[StateSync] Config completa carregada via configId:', res.config);
+              // Atualizar UI com dados da configuração, se necessário
+              if (res.config.viewers !== undefined) {
+                updateLiveSession({ viewers: Math.max(1, res.config.viewers) });
+              }
+              if (res.config.isMicrophoneMuted !== undefined && isBroadcaster) {
+                // Mic status já sincronizado via Participant Attributes
+              }
+            }
+          }).catch(err => {
+            console.warn('[StateSync] Erro ao buscar config via configId:', err);
+          });
         }
       } catch {}
     },
@@ -468,6 +491,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           hostId: streamer.hostId,
           title: streamer.name,
           category: streamer.category || '',
+          configId: streamer.id, // Referência ao StreamSession no MongoDB (padrão "Reference by ID")
           coHostEnabled: liveSession.isCoHostEnabled || false,
           chatEnabled: liveSession.isChatEnabled !== false,
         });

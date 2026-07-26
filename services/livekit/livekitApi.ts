@@ -73,6 +73,27 @@ export const livekitApi = {
     }
   },
 
+  /**
+   * GET /api/livekit/room-config/:configId
+   * Busca a configuração completa de uma sala pelo configId.
+   * Implementa o padrão "Reference by ID" do LiveKit:
+   * - Dados grandes ficam no MongoDB, não no Room Metadata
+   * - O configId é um ID real (streamId ou MongoDB _id)
+   * - O frontend busca os dados completos via API
+   *
+   * Docs: https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
+   */
+  fetchRoomConfig: async (configId: string): Promise<{ success: boolean; config?: any }> => {
+    console.log('[LIVEKIT-API] fetchRoomConfig chamado configId:', configId);
+    try {
+      const res = await api.get(`/api/livekit/room-config/${encodeURIComponent(configId)}`);
+      return { success: true, config: res.config };
+    } catch (err) {
+      console.warn('[LIVEKIT-API] fetchRoomConfig erro:', err);
+      return { success: false };
+    }
+  },
+
   getChatToken: async (streamId: string, userId: string, isHost: boolean): Promise<{ token: string; serverUrl: string }> => {
     console.log('[LIVEKIT-API] getChatToken chamado streamId:', streamId, 'userId:', userId, 'isHost:', isHost);
     
