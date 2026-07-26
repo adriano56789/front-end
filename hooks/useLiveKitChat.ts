@@ -347,6 +347,37 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       optionsRef.current.onTrackUnmuted?.(publication, participant);
     };
 
+    // 📡 Data Packets: handler nomeado para permitir cleanup correto
+    // Docs: https://docs.livekit.io/transport/data/packets/
+    const onDataReceivedFn = (payload: Uint8Array, participant?: any) => {
+      if (destroyedRef.current) return;
+      try {
+        const text = new TextDecoder().decode(payload);
+        const data = JSON.parse(text);
+        if (!data || !data.type) return;
+
+        if (data.type === 'reaction') {
+          optionsRef.current.onReaction?.({
+            reaction: data.reaction,
+            fromUserId: data.fromUserId,
+            fromName: data.fromName,
+            streamId: data.streamId,
+            timestamp: data.timestamp,
+          });
+        } else if (data.type === 'typing') {
+          optionsRef.current.onTyping?.({
+            fromUserId: data.fromUserId,
+            fromName: data.fromName,
+            streamId: data.streamId,
+            isTyping: data.isTyping,
+            timestamp: data.timestamp,
+          });
+        }
+      } catch {
+        // Payload não é JSON — ignorar
+      }
+    };
+
     // Register only once (prevents duplicates on re-renders)
     if (!listenersRegistered.current) {
       listenersRegistered.current = true;
@@ -356,35 +387,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       registerByteStreamHandler(CHAT_IMAGE_TOPIC, onByteStream);
       // 📡 Data Packets: escutar eventos em tempo real
       // Docs: https://docs.livekit.io/transport/data/packets/
-      room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: any) => {
-        if (destroyedRef.current) return;
-        try {
-          const text = new TextDecoder().decode(payload);
-          const data = JSON.parse(text);
-          if (!data || !data.type) return;
-
-          const topic = data.type;
-          if (topic === 'reaction') {
-            optionsRef.current.onReaction?.({
-              reaction: data.reaction,
-              fromUserId: data.fromUserId,
-              fromName: data.fromName,
-              streamId: data.streamId,
-              timestamp: data.timestamp,
-            });
-          } else if (topic === 'typing') {
-            optionsRef.current.onTyping?.({
-              fromUserId: data.fromUserId,
-              fromName: data.fromName,
-              streamId: data.streamId,
-              isTyping: data.isTyping,
-              timestamp: data.timestamp,
-            });
-          }
-        } catch {
-          // Payload não é JSON — ignorar
-        }
-      });
+      room.on(RoomEvent.DataReceived, onDataReceivedFn);
 
       // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
@@ -454,6 +457,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       destroyedRef.current = true;
       if (listenersRegistered.current) {
         listenersRegistered.current = false;
+        room.off(RoomEvent.DataReceived, onDataReceivedFn);
         room.off(RoomEvent.Connected, onConnected);
         room.off(RoomEvent.Disconnected, onDisconnected);
         room.off(RoomEvent.Reconnecting, onReconnecting);

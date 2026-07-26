@@ -241,6 +241,33 @@ export default function PKBattleScreen({
                 console.log('[PKBattle] Track de video do oponente removida');
             }
         },
+        // 📡 Data Packets: receber reações no PK
+        onReaction: (data) => {
+            const reactionMap: Record<string, string> = {
+                'like': '❤️',
+                'fire': '🔥',
+                'thumbsup': '👍',
+                'clap': '👏',
+                'laugh': '😂',
+                'heart': '💜',
+            };
+            const emoji = reactionMap[data.reaction] || data.reaction;
+            const reactionMsg: any = {
+                id: Date.now() + Math.random(),
+                type: 'chat',
+                user: data.fromName,
+                message: `${data.fromName} reagiu com ${emoji}`,
+                avatar: '',
+                level: 1,
+            };
+            setMessages(prev => [...prev, reactionMsg]);
+        },
+        onTyping: (data) => {
+            // PKBattleScreen pode ignorar typing ou mostrar indicador simples
+            if (data.isTyping) {
+                console.log('[PKBattle] Digitando:', data.fromName);
+            }
+        },
     });
 
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);

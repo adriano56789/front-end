@@ -182,6 +182,15 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // 📡 Cleanup do typingTimeout ao desmontar
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, []);
+
     // ═══ Sincronizar viewer count com a lista de onlineUsers (LiveKit) ═══
     useEffect(() => {
         updateLiveSession({ viewers: Math.max(1, onlineUsers.length) });
