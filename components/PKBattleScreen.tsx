@@ -155,6 +155,9 @@ export default function PKBattleScreen({
         // 📡 RPC methods for co-host/PK invites
         inviteCoHost: lkInviteCoHost,
         invitePK: lkInvitePK,
+        // 📡 Data Packet methods — reações
+        sendReaction: lkSendReaction,
+        sendTyping: lkSendTyping,
     } = useLiveKitChat({
         streamId: streamer.id,
         userId: currentUser.id,
@@ -1039,6 +1042,22 @@ export default function PKBattleScreen({
                                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
                                     className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                                 />
+                            </div>
+                            {/* 📡 Reaction buttons */}
+                            <div className="flex items-center gap-0.5 mr-1">
+                              {['❤️','🔥','👍','😂'].map(emoji => (
+                                <button
+                                  key={emoji}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    lkSendReaction(emoji, currentUser.name);
+                                  }}
+                                  className="text-xs w-6 h-6 rounded-full bg-white/5 hover:bg-white/15 active:scale-125 transition-all border-none cursor-pointer flex items-center justify-center"
+                                  title={`Enviar ${emoji}`}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
                             </div>
                             <div className="flex items-center gap-2">
                                 {/* Send button */}

@@ -213,6 +213,86 @@ export function registerRpcMethod(
  * Retorna a resposta como string ou lança erro com código do LiveKit.
  * Timeout padrão: 10 segundos (configurável).
  */
+// ═══════════════════════════════════════════════════════════════════
+// 📡 DATA PACKETS — Pequenos eventos em tempo real (reações, digitação, etc.)
+// Docs: https://docs.livekit.io/transport/data/packets/
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Envia um pequeno pacote de dados em tempo real via DataPacket.
+ * - reliable: entrega garantida, útil para eventos importantes (ex: reações)
+ * - lossy: sem retransmissão, útil para eventos de alta frequência (ex: digitando)
+ * Limite: ~15KiB para reliable, ~1300 bytes para lossy (recomendado).
+ * Docs: https://docs.livekit.io/reference/client-sdk-js/classes/LocalParticipant.html#publishData
+ */
+export async function publishDataPacket(
+  topic: string,
+  payload: any,
+  options?: {
+    reliable?: boolean;
+    destinationIdentities?: string[];
+  }
+): Promise<boolean> {
+  const room = getLiveKitRoom();
+  if (room.state !== 'connected' || !room.localParticipant) {
+    console.warn('[DataPacket] publishData ignorado — Room não conectada');
+    return false;
+  }
+  try {
+    const data = new TextEncoder().encode(JSON.stringify(payload));
+    await room.localParticipant.publishData(data, {
+      topic,
+      reliable: options?.reliable ?? true,
+      destinationIdentities: options?.destinationIdentities,
+    });
+    return true;
+  } catch (err) {
+    console.warn('[DataPacket] publishData erro:', err);
+    return false;
+  }
+}
+
+/**
+ * Envia uma reação rápida (❤️ 👍 🔥) usando DataPacket lossy.
+ * Reações são eventos temporários de alta frequência, onde perder
+ * um pacote ocasional é aceitável para reduzir latência.
+ */
+export async function sendReactionPacket(
+  reaction: string,
+  fromUserId: string,
+  fromName: string,
+  streamId: string
+): Promise<boolean> {
+  return publishDataPacket('reaction', {
+    type: 'reaction',
+    reaction,
+    fromUserId,
+    fromName,
+    streamId,
+    timestamp: Date.now(),
+  }, { reliable: false }); // lossy: aceitável perder um pacote de reação
+}
+
+/**
+ * Envia sinal de "digitando" via DataPacket lossy.
+ * Evento temporário e de alta frequência — lossy evita sobrecarga.
+ */
+export async function sendTypingPacket(
+  fromUserId: string,
+  fromName: string,
+  streamId: string,
+  isTyping: boolean
+): Promise<boolean> {
+  return publishDataPacket('typing', {
+    type: 'typing',
+    fromUserId,
+    fromName,
+    streamId,
+    isTyping,
+    timestamp: Date.now(),
+  }, { reliable: false }); // lossy: o pacote mais recente substitui o anterior
+}
+
 export async function performRpc(
   destinationIdentity: string,
   method: string,

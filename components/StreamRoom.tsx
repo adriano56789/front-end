@@ -179,6 +179,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
+    const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ═══ Sincronizar viewer count com a lista de onlineUsers (LiveKit) ═══
     useEffect(() => {
@@ -247,6 +249,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // 📡 RPC methods for co-host/PK invites
     inviteCoHost: lkInviteCoHost,
     invitePK: lkInvitePK,
+    // 📡 Data Packet methods — reações e digitação
+    sendReaction: lkSendReaction,
+    sendTyping: lkSendTyping,
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
@@ -339,6 +344,43 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         console.log('[CHAT] Removendo da lista de onlineUsers. Antes:', prev.length, 'Depois:', filtered.length);
         return filtered;
       });
+    },
+    // 📡 Data Packets: receber reações em tempo real
+    onReaction: (data) => {
+      console.log('[Reaction] Recebida:', data.reaction, 'de:', data.fromName);
+      // Adicionar reação como mensagem animada no chat
+      const reactionMap: Record<string, string> = {
+        'like': '❤️',
+        'fire': '🔥',
+        'thumbsup': '👍',
+        'clap': '👏',
+        'laugh': '😂',
+        'heart': '💜',
+      };
+      const emoji = reactionMap[data.reaction] || data.reaction;
+      const reactionMsg: ChatMessageType = {
+        id: String(Date.now() + Math.random()),
+        type: 'chat',
+        user: data.fromName,
+        message: (
+          <span className="inline-flex items-center gap-1">
+            <span className="animate-bounce inline-block text-lg">{emoji}</span>
+          </span>
+        ),
+        avatar: '',
+        level: 1,
+      };
+      setMessages(prev => [...prev, reactionMsg]);
+    },
+    onTyping: (data) => {
+      if (data.isTyping) {
+        setTypingUsers(prev => {
+          if (prev.includes(data.fromName)) return prev;
+          return [...prev, data.fromName];
+        });
+      } else {
+        setTypingUsers(prev => prev.filter(name => name !== data.fromName));
+      }
     },
     // 📡 RPC: Receber convites de co-host/PK via LiveKit
     onInviteCoHost: async (callerIdentity: string, payload: any) => {
@@ -1604,13 +1646,54 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 )}
 
                 <footer className="p-3 pointer-events-auto">
+                    {/* 📡 Typing indicator */}
+                    {typingUsers.length > 0 && (
+                      <div className="px-2 py-1 text-xs text-gray-400 italic">
+                        {typingUsers.length === 1
+                          ? `${typingUsers[0]} está digitando...`
+                          : `${typingUsers.join(', ')} estão digitando...`
+                        }
+                      </div>
+                    )}
+                    {/* 📡 Reaction buttons */}
+                    <div className="flex items-center gap-1 px-2 pb-1">
+                      {['❤️','🔥','👍','😂'].map(emoji => (
+                        <button
+                          key={emoji}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            lkSendReaction(emoji, currentUser.name);
+                          }}
+                          className="text-sm w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 active:scale-125 transition-all border-none cursor-pointer flex items-center justify-center"
+                          title={`Enviar ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
                             <input 
                                 type="text"
                                 placeholder={t('streamRoom.sayHi')}
                                 value={chatInput}
-                                onChange={(e) => setChatInput(e.target.value)}
+                                onChange={(e) => {
+                                  setChatInput(e.target.value);
+                                  // 📡 Data Packet: sinalizar digitação
+                                  if (lkChatConnected && e.target.value.length > 0) {
+                                    lkSendTyping(true, currentUser.name);
+                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                    typingTimeoutRef.current = setTimeout(() => {
+                                      lkSendTyping(false, currentUser.name);
+                                    }, 2000);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (lkChatConnected && typingTimeoutRef.current) {
+                                    clearTimeout(typingTimeoutRef.current);
+                                    lkSendTyping(false, currentUser.name);
+                                  }
+                                }}
                                 onKeyDown={(e) => { if (e.key === "Enter") { console.log("[CHAT] onKeyDown Enter disparado"); handleSendMessage(e); } }}
                                 className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                             />

@@ -8,6 +8,9 @@ import {
   registerTextStreamHandler,
   registerByteStreamHandler,
   sendFileBytes,
+  publishDataPacket,
+  sendReactionPacket,
+  sendTypingPacket,
   registerRpcMethod,
   performRpc,
   disconnectLiveKitRoom,
@@ -15,6 +18,11 @@ import {
 
 const CHAT_TOPIC = 'chat';
 const CHAT_IMAGE_TOPIC = 'chat-image';
+
+// 📡 Data Packet topics para eventos em tempo real
+// Docs: https://docs.livekit.io/transport/data/packets/
+const REACTION_TOPIC = 'reaction';
+const TYPING_TOPIC = 'typing';
 
 // 📡 Constantes para métodos RPC
 const RPC = {
@@ -70,6 +78,23 @@ interface LiveKitChatOptions {
   onRejectPK?: (callerIdentity: string, payload: any) => Promise<string>;
   onEndPK?: (callerIdentity: string, payload: any) => Promise<string>;
   onKickParticipant?: (callerIdentity: string, payload: any) => Promise<string>;
+
+  // 📡 Data Packet events — pequenos eventos em tempo real
+  // Docs: https://docs.livekit.io/transport/data/packets/
+  onReaction?: (data: {
+    reaction: string;
+    fromUserId: string;
+    fromName: string;
+    streamId: string;
+    timestamp: number;
+  }) => void;
+  onTyping?: (data: {
+    fromUserId: string;
+    fromName: string;
+    streamId: string;
+    isTyping: boolean;
+    timestamp: number;
+  }) => void;
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
@@ -329,6 +354,38 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       registerTextStreamHandler(CHAT_TOPIC, onTextStream);
       // 📡 Byte Streams: registrar handler para imagens do chat
       registerByteStreamHandler(CHAT_IMAGE_TOPIC, onByteStream);
+      // 📡 Data Packets: escutar eventos em tempo real
+      // Docs: https://docs.livekit.io/transport/data/packets/
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array, participant?: any) => {
+        if (destroyedRef.current) return;
+        try {
+          const text = new TextDecoder().decode(payload);
+          const data = JSON.parse(text);
+          if (!data || !data.type) return;
+
+          const topic = data.type;
+          if (topic === 'reaction') {
+            optionsRef.current.onReaction?.({
+              reaction: data.reaction,
+              fromUserId: data.fromUserId,
+              fromName: data.fromName,
+              streamId: data.streamId,
+              timestamp: data.timestamp,
+            });
+          } else if (topic === 'typing') {
+            optionsRef.current.onTyping?.({
+              fromUserId: data.fromUserId,
+              fromName: data.fromName,
+              streamId: data.streamId,
+              isTyping: data.isTyping,
+              timestamp: data.timestamp,
+            });
+          }
+        } catch {
+          // Payload não é JSON — ignorar
+        }
+      });
+
       // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
       room.on(RoomEvent.Disconnected, onDisconnected);
@@ -413,6 +470,33 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       }
     };
   }, [streamId, userId, disabled, reconnectKey]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 📡 DATA PACKETS — Eventos em tempo real (reações, digitação, etc.)
+  // Docs: https://docs.livekit.io/transport/data/packets/
+  // ═══════════════════════════════════════════════════════════════════
+
+  const sendReaction = useCallback(async (
+    reaction: string,
+    userName?: string
+  ): Promise<boolean> => {
+    if (disabled) {
+      console.warn('[LiveKitChat] sendReaction ignored - disabled=true');
+      return false;
+    }
+    return sendReactionPacket(reaction, userId, userName || userId, streamId || userId);
+  }, [disabled, userId, streamId]);
+
+  const sendTyping = useCallback(async (
+    isTyping: boolean,
+    userName?: string
+  ): Promise<boolean> => {
+    if (disabled) {
+      console.warn('[LiveKitChat] sendTyping ignored - disabled=true');
+      return false;
+    }
+    return sendTypingPacket(userId, userName || userId, streamId || userId, isTyping);
+  }, [disabled, userId, streamId]);
 
   const sendMessage = useCallback(async (payload: any): Promise<boolean> => {
     if (disabled) {
@@ -660,9 +744,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
 
   const kickParticipant = useCallback(async (identity: string, data: any = {}) => {
     return callRpc(identity, RPC.KICK_PARTICIPANT, data);
-  }, [callRpc]);
-
-  return {
+  }, [callRpc]);    return {
     connected,
     sendMessage,
     sendFile,
@@ -672,6 +754,9 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     unpublishTracks,
     muteTrack,
     unmuteTrack,
+    // 📡 Data Packet methods — pequenos eventos em tempo real
+    sendReaction,
+    sendTyping,
     // 📡 RPC methods
     inviteCoHost,
     acceptCoHost,
