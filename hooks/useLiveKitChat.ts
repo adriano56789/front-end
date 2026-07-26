@@ -8,7 +8,6 @@ import {
   registerTextStreamHandler,
   registerByteStreamHandler,
   sendFileBytes,
-  publishDataPacket,
   sendReactionPacket,
   sendTypingPacket,
   registerRpcMethod,
