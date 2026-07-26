@@ -108,4 +108,73 @@ export function registerTextStreamHandler(
   room.registerTextStreamHandler(topic, handler);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 📡 BYTE STREAMS — Envio de imagens e arquivos via LiveKit
+// Docs: https://docs.livekit.io/transport/data/byte-streams/
+// ═══════════════════════════════════════════════════════════════════
 
+/**
+ * Envia um arquivo (imagem, etc.) via Byte Streams.
+ * Usa sendFile() do LiveKit — envia dados binários em tempo real.
+ * O tópico 'chat-image' separa imagens do chat de texto.
+ * Opcional: callback onProgress para monitorar progresso do upload.
+ */
+export async function sendFileBytes(
+  file: File,
+  topic: string = 'chat-image',
+  onProgress?: (progress: number) => void
+): Promise<boolean> {
+  const room = getLiveKitRoom();
+  if (room.state !== 'connected' || !room.localParticipant) {
+    console.warn('[ByteStream] sendFile ignorado — Room não conectada');
+    return false;
+  }
+  try {
+    const options: any = { topic };
+    if (typeof onProgress === 'function') {
+      options.onProgress = onProgress;
+    }
+    await room.localParticipant.sendFile(file, options);
+    console.log('[ByteStream] ✅ Arquivo enviado:', file.name, `(${(file.size / 1024).toFixed(1)} KB)`);
+    return true;
+  } catch (err) {
+    console.warn('[ByteStream] sendFile erro:', err);
+    return false;
+  }
+}
+
+/**
+ * Registra um handler para receber Byte Streams de um tópico específico.
+ * O callback recebe o reader (ByteStreamReader) e o participant que enviou.
+ * O reader pode ser usado para ler chunks progressivamente ou usar readAll().
+ * Docs: https://docs.livekit.io/transport/data/byte-streams/
+ */
+export function registerByteStreamHandler(
+  topic: string,
+  handler: (reader: any, participant: any) => void
+): void {
+  const room = getLiveKitRoom();
+  room.registerByteStreamHandler(topic, handler);
+}
+
+/**
+ * Cria um stream de bytes para envio contínuo de dados binários.
+ * Retorna um ByteStreamWriter que deve ser fechado com .close() após o envio.
+ * Docs: https://docs.livekit.io/transport/data/byte-streams/
+ */
+export async function streamBytes(
+  topic: string = 'file-transfer'
+): Promise<any | null> {
+  const room = getLiveKitRoom();
+  if (room.state !== 'connected' || !room.localParticipant) {
+    console.warn('[ByteStream] streamBytes ignorado — Room não conectada');
+    return null;
+  }
+  try {
+    const writer = await room.localParticipant.streamBytes({ topic });
+    return writer;
+  } catch (err) {
+    console.warn('[ByteStream] streamBytes erro:', err);
+    return null;
+  }
+}

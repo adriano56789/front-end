@@ -6,10 +6,13 @@ import {
   connectLiveKitRoom,
   sendTextStream,
   registerTextStreamHandler,
+  registerByteStreamHandler,
+  sendFileBytes,
   disconnectLiveKitRoom,
 } from '../services/livekit/livekitRoomService';
 
 const CHAT_TOPIC = 'chat';
+const CHAT_IMAGE_TOPIC = 'chat-image';
 
 interface ParticipantMetadata {
   avatarUrl?: string;
@@ -32,11 +35,15 @@ interface LiveKitChatOptions {
   onDisconnected?: () => void;
   onReconnecting?: () => void;
   onReconnected?: () => void;
-  // 📡 Track events (LiveKit docs: https://docs.livekit.io/intro/basics/rooms-participants-tracks/tracks/)
+  // 📡 Track events (LiveKit docs)
   onTrackSubscribed?: (track: any, publication: any, participant: RemoteParticipant) => void;
   onTrackUnsubscribed?: (track: any, publication: any, participant: RemoteParticipant) => void;
   onTrackMuted?: (publication: any, participant: RemoteParticipant) => void;
   onTrackUnmuted?: (publication: any, participant: RemoteParticipant) => void;
+
+  // 📡 Byte Streams events (LiveKit docs: https://docs.livekit.io/transport/data/byte-streams/)
+  onFileReceived?: (data: { fileName: string; fileSize: number; mimeType: string; bytes: ArrayBuffer; sender: any }) => void;
+  onFileProgress?: (progress: number) => void;
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
@@ -68,8 +75,6 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
 
     // 📡 Text Streams: Receber mensagens via registerTextStreamHandler
     // Docs: https://docs.livekit.io/transport/data/text-streams/
-    // Handler único processa qualquer stream de texto (chat, pk-sync, etc.)
-    // Lê todos os chunks da stream e repassa para onMessage.
     const onTextStream = async (reader: any, participant: any) => {
       if (destroyedRef.current) return;
       try {
@@ -84,6 +89,54 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
         }
       } catch (err) {
         console.warn('[LiveKitChat] Error processing text stream:', err);
+      }
+    };
+
+    // 📡 Byte Streams: Receber imagens/arquivos via registerByteStreamHandler
+    // Docs: https://docs.livekit.io/transport/data/byte-streams/
+    const onByteStream = async (reader: any, participant: any) => {
+      if (destroyedRef.current) return;
+      try {
+        const info = reader.info || {};
+        const fileName = info.name || `file_${Date.now()}`;
+        const fileSize = info.size || 0;
+        const mimeType = info.mimeType || 'application/octet-stream';
+
+        // 📡 Progresso de download (se suportado pelo reader)
+        if (typeof reader.onProgress === 'function') {
+          reader.onProgress = (pct: number) => {
+            optionsRef.current.onFileProgress?.(pct);
+          };
+        }
+
+        // 📡 Ler chunks incrementalmente (funciona com sendFile e streamBytes)
+        const chunks: Uint8Array[] = [];
+        for await (const chunk of reader) {
+          chunks.push(chunk);
+        }
+        if (chunks.length === 0) return;
+
+        // 🔄 Juntar todos os chunks em um único Uint8Array
+        const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+        const bytes = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const c of chunks) {
+          bytes.set(c, offset);
+          offset += c.length;
+        }
+
+        const onFileReceived = optionsRef.current.onFileReceived;
+        if (typeof onFileReceived === 'function') {
+          onFileReceived({
+            fileName,
+            fileSize,
+            mimeType,
+            bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+            sender: participant,
+          });
+        }
+      } catch (err) {
+        console.warn('[LiveKitChat] Error processing byte stream:', err);
       }
     };
     const onConnected = () => {
@@ -211,9 +264,12 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     // Register only once (prevents duplicates on re-renders)
     if (!listenersRegistered.current) {
       listenersRegistered.current = true;
-      // 📡 Text Streams: registrar handler para chat (substitui o antigo onDataReceived + publishData)
+      // 📡 Text Streams: registrar handler para chat
       // Docs: https://docs.livekit.io/transport/data/text-streams/
       registerTextStreamHandler(CHAT_TOPIC, onTextStream);
+      // 📡 Byte Streams: registrar handler para imagens do chat
+      // Docs: https://docs.livekit.io/transport/data/byte-streams/
+      registerByteStreamHandler(CHAT_IMAGE_TOPIC, onByteStream);
       // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
       room.on(RoomEvent.Disconnected, onDisconnected);
@@ -311,10 +367,32 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     }
     try {
       // 📡 Text Streams: usar sendText com topic 'chat'
-      // Docs: https://docs.livekit.io/transport/data/text-streams/
       return await sendTextStream(CHAT_TOPIC, payload);
     } catch (err) {
       console.warn('[LiveKitChat] Error sending:', err);
+      return false;
+    }
+  }, [disabled]);
+
+  const sendFile = useCallback(async (
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<boolean> => {
+    if (disabled) {
+      console.warn('[LiveKitChat] sendFile ignored - disabled=true');
+      return false;
+    }
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected') {
+      console.warn('[LiveKitChat] sendFile ignored - room not connected');
+      return false;
+    }
+    try {
+      // 📡 Byte Streams: usar sendFile com topic 'chat-image'
+      // Docs: https://docs.livekit.io/transport/data/byte-streams/
+      return await sendFileBytes(file, CHAT_IMAGE_TOPIC, onProgress);
+    } catch (err) {
+      console.warn('[LiveKitChat] Error sending file:', err);
       return false;
     }
   }, [disabled]);
@@ -463,6 +541,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
   return {
     connected,
     sendMessage,
+    sendFile,
     disconnect,
     setMetadata,
     publishTracks,
