@@ -4,12 +4,12 @@ import { livekitApi } from '../services/livekit/livekitApi';
 import {
   getLiveKitRoom,
   connectLiveKitRoom,
-  sendLiveKitData,
+  sendTextStream,
+  registerTextStreamHandler,
   disconnectLiveKitRoom,
 } from '../services/livekit/livekitRoomService';
 
-// Maximum message size for LiveKit DataPacket (~16KB)
-const MAX_MESSAGE_SIZE = 16384;
+const CHAT_TOPIC = 'chat';
 
 interface ParticipantMetadata {
   avatarUrl?: string;
@@ -66,19 +66,24 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     destroyedRef.current = false;
     const room = getLiveKitRoom();
 
-    // Register listeners - with proper cleanup
-    // Named functions for unregistering later.
-    // optionsRef.current ensures callbacks always capture the latest version.
-    const onDataReceived = (payload: Uint8Array, participant: any, _kind: any, topic?: string) => {
+    // 📡 Text Streams: Receber mensagens via registerTextStreamHandler
+    // Docs: https://docs.livekit.io/transport/data/text-streams/
+    // Handler único processa qualquer stream de texto (chat, pk-sync, etc.)
+    // Lê todos os chunks da stream e repassa para onMessage.
+    const onTextStream = async (reader: any, participant: any) => {
       if (destroyedRef.current) return;
       try {
-        const text = new TextDecoder().decode(payload);
-        const data = JSON.parse(text);
+        let fullText = '';
+        for await (const chunk of reader) {
+          fullText += chunk;
+        }
+        if (!fullText) return;
+        const data = JSON.parse(fullText);
         if (optionsRef.current.onMessage && data) {
           optionsRef.current.onMessage(data);
         }
       } catch (err) {
-        console.warn('[LiveKitChat] Error decoding payload:', err);
+        console.warn('[LiveKitChat] Error processing text stream:', err);
       }
     };
     const onConnected = () => {
@@ -206,7 +211,10 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     // Register only once (prevents duplicates on re-renders)
     if (!listenersRegistered.current) {
       listenersRegistered.current = true;
-      room.on(RoomEvent.DataReceived, onDataReceived);
+      // 📡 Text Streams: registrar handler para chat (substitui o antigo onDataReceived + publishData)
+      // Docs: https://docs.livekit.io/transport/data/text-streams/
+      registerTextStreamHandler(CHAT_TOPIC, onTextStream);
+      // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
       room.on(RoomEvent.Disconnected, onDisconnected);
       room.on(RoomEvent.Reconnecting, onReconnecting);
@@ -266,13 +274,14 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     }
 
     // Cleanup: remove listeners and reset state
-    // The Room singleton STAYS connected (other hooks may use it),
-    // but we remove our specific listeners.
+    // Text Streams handlers são registrados via registerTextStreamHandler,
+    // que não tem método de unregister direto. Como a Room é singleton,
+    // os handlers persistem enquanto a Room existir.
+    // Os event listeners do RoomEvent são removidos normalmente.
     return () => {
       destroyedRef.current = true;
       if (listenersRegistered.current) {
         listenersRegistered.current = false;
-        room.off(RoomEvent.DataReceived, onDataReceived);
         room.off(RoomEvent.Connected, onConnected);
         room.off(RoomEvent.Disconnected, onDisconnected);
         room.off(RoomEvent.Reconnecting, onReconnecting);
@@ -301,7 +310,9 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       return false;
     }
     try {
-      return await sendLiveKitData(payload);
+      // 📡 Text Streams: usar sendText com topic 'chat'
+      // Docs: https://docs.livekit.io/transport/data/text-streams/
+      return await sendTextStream(CHAT_TOPIC, payload);
     } catch (err) {
       console.warn('[LiveKitChat] Error sending:', err);
       return false;

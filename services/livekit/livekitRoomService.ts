@@ -1,9 +1,10 @@
 import { Room } from 'livekit-client';
 
 // ── Singleton Room — única instância por aplicação ──
-// LiveKit: conexão de sala, chat, eventos, presença via data channels.
-// Mídia (câmera/microfone) é publicada via WHIP diretamente ao SRS.
-// Documentação: https://docs.livekit.io/client-sdk-js/
+// 📡 Text Streams: chat em tempo real via LiveKit (documentação oficial).
+// SRS: mídia (câmera/microfone) via WHIP.
+// LiveKit: sala, participantes, chat (Text Streams), tracks, metadados.
+// Documentação Text Streams: https://docs.livekit.io/transport/data/text-streams/
 
 let roomInstance: Room | null = null;
 let connectPromise: Promise<void> | null = null;
@@ -17,7 +18,7 @@ export function getLiveKitRoom(): Room {
     roomInstance = new Room({
       adaptiveStream: false,
       dynacast: false,
-      autoSubscribe: true, // LiveKit docs: subscribe to all tracks automatically
+      autoSubscribe: true,
     });
   }
   return roomInstance;
@@ -30,12 +31,9 @@ export function getLiveKitRoom(): Room {
 export async function connectLiveKitRoom(url: string, token: string): Promise<void> {
   const room = getLiveKitRoom();
 
-  // Já conectado ou conectando — reutilizar
   if (room.state === 'connected') return;
   if (room.state === 'connecting' || room.state === 'reconnecting') {
-    // Aguardar a conexão em andamento
     if (connectPromise) return connectPromise;
-    // Se não há promise mas o estado é 'connecting' (raro), esperar um pouco
     await new Promise(resolve => setTimeout(resolve, 2000));
     return;
   }
@@ -47,7 +45,7 @@ export async function connectLiveKitRoom(url: string, token: string): Promise<vo
       await room.connect(url, token);
       console.log('[LiveKitRoom] ✅ Conectado | room:', room.name, '| participants:', room.remoteParticipants.size);
     } catch (err) {
-      connectPromise = null; // reset em caso de falha
+      connectPromise = null;
       throw err;
     }
   })();
@@ -67,25 +65,47 @@ export async function disconnectLiveKitRoom(): Promise<void> {
   roomInstance = null;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 📡 TEXT STREAMS — Chat em tempo real via LiveKit
+// Docs: https://docs.livekit.io/transport/data/text-streams/
+// ═══════════════════════════════════════════════════════════════════
+
 /**
- * Envia dados com topic 'livechat' (padrão para toda mensagem de chat/presença/gift/like).
- * Todos os participantes recebem no handler DataReceived com topic='livechat'.
+ * Envia uma mensagem de texto via Text Streams (topic 'chat').
+ * Usa sendText() do LiveKit — o SDK fragmenta automaticamente para mensagens grandes.
+ * LiveKit entrega para todos os participantes conectados que registraram handler para o topic.
  */
-export async function sendLiveKitData(payload: any): Promise<boolean> {
+export async function sendTextStream(
+  topic: string,
+  payload: any
+): Promise<boolean> {
   const room = getLiveKitRoom();
-  if (room.state !== 'connected') {
-    console.warn('[LiveKitRoom] sendData ignorado — Room não conectada');
+  if (room.state !== 'connected' || !room.localParticipant) {
+    console.warn('[TextStream] sendText ignorado — Room não conectada');
     return false;
   }
   try {
-    const data = new TextEncoder().encode(JSON.stringify(payload));
-    await room.localParticipant.publishData(data, {
-      reliable: true,
-      topic: 'livechat',
-    });
+    const text = JSON.stringify(payload);
+    await room.localParticipant.sendText(text, { topic });
     return true;
   } catch (err) {
-    console.warn('[LiveKitRoom] sendData erro:', err);
+    console.warn('[TextStream] sendText erro:', err);
     return false;
   }
 }
+
+/**
+ * Registra um handler para receber Text Streams de um tópico específico.
+ * O callback recebe o reader (para ler chunks) e o participant que enviou.
+ * Usar registerTextStreamHandler() conforme documentação oficial:
+ * https://docs.livekit.io/reference/client-sdk-js/classes/Room.html#registerTextStreamHandler
+ */
+export function registerTextStreamHandler(
+  topic: string,
+  handler: (reader: any, participant: any) => void
+): void {
+  const room = getLiveKitRoom();
+  room.registerTextStreamHandler(topic, handler);
+}
+
+
