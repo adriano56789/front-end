@@ -152,6 +152,9 @@ export default function PKBattleScreen({
         muteTrack,
         unmuteTrack,
         setMetadata: lkChatSetMetadata,
+        // 📡 RPC methods for co-host/PK invites
+        inviteCoHost: lkInviteCoHost,
+        invitePK: lkInvitePK,
     } = useLiveKitChat({
         streamId: streamer.id,
         userId: currentUser.id,
@@ -1150,7 +1153,23 @@ export default function PKBattleScreen({
                     onOpenTimerSettings={onOpenPKTimerSettings} 
                     currentUser={currentUser} 
                     addToast={addToast} 
-                    streamId={streamer.id} 
+                    streamId={streamer.id}
+                    onRpcInvite={async (friend) => {
+                        if (coHostModalMode === 'battle') {
+                            return await lkInvitePK(friend.id, {
+                                streamId: streamer.id,
+                                senderId: currentUser.id,
+                                senderName: currentUser.name,
+                                senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
+                            });
+                        }
+                        return await lkInviteCoHost(friend.id, {
+                            streamId: streamer.id,
+                            senderId: currentUser.id,
+                            senderName: currentUser.name,
+                            senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
+                        });
+                    }}
                 />
             )}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={()=>{}} currentResolution={"480p"} />

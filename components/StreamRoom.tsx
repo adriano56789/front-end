@@ -244,6 +244,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     sendMessage: lkChatSendMessage,
     disconnect: disconnectLkChat,
     setMetadata: lkChatSetMetadata,
+    // 📡 RPC methods for co-host/PK invites
+    inviteCoHost: lkInviteCoHost,
+    invitePK: lkInvitePK,
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
@@ -336,6 +339,34 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         console.log('[CHAT] Removendo da lista de onlineUsers. Antes:', prev.length, 'Depois:', filtered.length);
         return filtered;
       });
+    },
+    // 📡 RPC: Receber convites de co-host/PK via LiveKit
+    onInviteCoHost: async (callerIdentity: string, payload: any) => {
+      console.log('[RPC] Convite co-host recebido de:', callerIdentity, payload);
+      // Disparar evento window para UI existente mostrar notificação
+      window.dispatchEvent(new CustomEvent('livego:live_invite', {
+        detail: {
+          inviteId: `rpc_${Date.now()}`,
+          type: 'co-host',
+          from: callerIdentity,
+          fromName: payload.senderName || callerIdentity,
+          streamId: payload.streamId || streamer.id,
+        }
+      }));
+      return 'received';
+    },
+    onInvitePK: async (callerIdentity: string, payload: any) => {
+      console.log('[RPC] Convite PK recebido de:', callerIdentity, payload);
+      window.dispatchEvent(new CustomEvent('livego:live_invite', {
+        detail: {
+          inviteId: `rpc_${Date.now()}`,
+          type: 'pk-battle',
+          from: callerIdentity,
+          fromName: payload.senderName || callerIdentity,
+          streamId: payload.streamId || streamer.id,
+        }
+      }));
+      return 'received';
     },
     onConnected: () => {
       console.log('[CHAT] LiveKitChat conectado!');
@@ -932,6 +963,27 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
     // activeScreen é controlado pela prop setActiveScreen do componente pai
 
+
+    // 📡 RPC: Convidar via LiveKit em vez de REST API
+    const handleRpcInvite = useCallback(async (friend: User) => {
+      if (coHostModalMode === 'battle') {
+        return await lkInvitePK(friend.id, {
+          streamId: streamer.id,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
+          mode: 'battle',
+        });
+      } else {
+        return await lkInviteCoHost(friend.id, {
+          streamId: streamer.id,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
+          mode: 'cohost',
+        });
+      }
+    }, [coHostModalMode, lkInviteCoHost, lkInvitePK, streamer.id, currentUser.id, currentUser.name, currentUser.avatarUrl, currentUser.avatar]);
 
     const handleInvite = (opponent: User) => {
         setIsCoHostModalOpen(false);
@@ -1667,7 +1719,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={handleSelectResolution} currentResolution={currentResolution} />
-            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
+            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} onRpcInvite={handleRpcInvite} />
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
             <GiftModal

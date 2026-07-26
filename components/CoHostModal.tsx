@@ -23,6 +23,8 @@ interface CoHostModalProps {
   addToast: (type: ToastType, message: string) => void;
   streamId: string;
   mode?: 'cohost' | 'battle';
+  /** 📡 LiveKit RPC: substitui a chamada REST API para enviar convite direto ao participante */
+  onRpcInvite?: (friend: User) => Promise<{success: boolean; error?: string; message?: string}>;
 }
 
 const CoHostModal: React.FC<CoHostModalProps> = ({ 
@@ -166,14 +168,27 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     addToast(ToastType.Info, `Convidando ${friend.name} para ${inviteTypeLabel}...`);
 
     try {
-      const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
-      const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
-      if (success) {
-        addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
-        setInvitedFriends(prev => new Set(prev).add(friend.id));
-        onInvite(friend); 
+      // 📡 Usar RPC se disponivel (LiveKit), fallback para REST API
+      if (typeof onRpcInvite === 'function') {
+        const result = await onRpcInvite(friend);
+        if (result.success) {
+          addToast(ToastType.Success, result.message || `Convite para ${friend.name} enviado.`);
+          setInvitedFriends(prev => new Set(prev).add(friend.id));
+          onInvite(friend);
+        } else {
+          addToast(ToastType.Error, result.error || 'Falha ao enviar convite via RPC.');
+        }
       } else {
-        addToast(ToastType.Error, error || 'Falha ao enviar convite.');
+        // Fallback: REST API
+        const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
+        const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
+        if (success) {
+          addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
+          setInvitedFriends(prev => new Set(prev).add(friend.id));
+          onInvite(friend); 
+        } else {
+          addToast(ToastType.Error, error || 'Falha ao enviar convite.');
+        }
       }
     } catch(err) {
       addToast(ToastType.Error, (err as Error).message || 'Erro de rede ao enviar convite.');
