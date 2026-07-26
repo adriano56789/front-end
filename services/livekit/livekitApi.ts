@@ -30,6 +30,26 @@ export const livekitApi = {
     return { success: res.success };
   },
 
+  /**
+   * PUT /api/livekit/rooms/:roomName/participants/:identity
+   * Atualiza metadata de um participante na sala via RoomService API.
+   * Usa o Server SDK (roomService.updateParticipant()) no backend.
+   */
+  updateParticipant: async (
+    roomName: string,
+    identity: string,
+    data: { metadata?: string; permission?: Record<string, boolean> }
+  ): Promise<{ success: boolean }> => {
+    console.log('[LIVEKIT-API] updateParticipant chamado room:', roomName, 'identity:', identity);
+    try {
+      const res = await api.put(`/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}`, data);
+      return { success: true };
+    } catch (err) {
+      console.warn('[LIVEKIT-API] updateParticipant erro:', err);
+      return { success: false };
+    }
+  },
+
   getChatToken: async (streamId: string, userId: string, isHost: boolean): Promise<{ token: string; serverUrl: string }> => {
     console.log('[LIVEKIT-API] getChatToken chamado streamId:', streamId, 'userId:', userId, 'isHost:', isHost);
     

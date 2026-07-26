@@ -29,6 +29,7 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useLiveKitChat } from '../hooks/useLiveKitChat';
+import { livekitApi } from '../services/livekit/livekitApi';
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
 
@@ -242,6 +243,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     connected: lkChatConnected,
     sendMessage: lkChatSendMessage,
     disconnect: disconnectLkChat,
+    setMetadata: lkChatSetMetadata,
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
@@ -284,16 +286,29 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     },
     onParticipantConnected: (participant) => {
       console.log('[CHAT] Participante conectado via LiveKit:', participant.identity, 'name:', participant.name);
+      const participantId = participant.identity;
+      // 📡 Ler metadata nativa do participante (LiveKit nativo, nao custom data channel)
+      let parsedName = participant.name || participantId;
+      let avatarUrl = '';
+      let level = 1;
+      try {
+        if (participant.metadata) {
+          const meta = JSON.parse(participant.metadata);
+          if (meta.name) parsedName = meta.name;
+          if (meta.avatarUrl) avatarUrl = meta.avatarUrl;
+          if (meta.level) level = meta.level;
+        }
+      } catch {}
       setOnlineUsers(prev => {
-        if (prev.some(u => u.id === participant.identity)) return prev;
+        if (prev.some(u => u.id === participantId)) return prev;
         const newUser = {
-          avatar: '',
-          id: participant.identity,
-          identification: participant.identity,
-          name: participant.name || participant.identity,
-          avatarUrl: '',
+          avatar: avatarUrl,
+          id: participantId,
+          identification: participantId,
+          name: parsedName,
+          avatarUrl: avatarUrl,
           value: 0,
-          level: 1,
+          level: level,
           fans: 0,
           following: 0,
           receptores: 0,
@@ -303,9 +318,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           earnings_withdrawn: 0,
           ownedFrames: [],
         } as User & { value: number };
-        console.log('[CHAT] Adicionando à lista de onlineUsers:', newUser.name);
         return [...prev, newUser];
       });
+    },
+    onParticipantMetadataChanged: (participant, metadata) => {
+      console.log('[CHAT] Metadata alterada:', participant.identity, metadata);
+      setOnlineUsers(prev => prev.map(u =>
+        u.id === participant.identity
+          ? { ...u, avatar: metadata.avatarUrl || u.avatar, avatarUrl: metadata.avatarUrl || u.avatarUrl, name: metadata.name || u.name, level: metadata.level || u.level }
+          : u
+      ));
     },
     onParticipantDisconnected: (participant) => {
       console.log('[CHAT] Participante desconectado via LiveKit:', participant.identity);
@@ -326,6 +348,30 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       // NÃO remover o usuário automaticamente.
     },
   });
+
+    // 📡 Enviar metadata do usuario atual via LiveKit (nativo + RoomService API)
+    // 1) participant.setMetadata: distribui metadata para todos os participantes na sala
+    // 2) PUT /api/livekit/rooms/:roomName/participants/:identity: atualiza server-side via RoomService API
+    useEffect(() => {
+        if (!lkChatConnected) return;
+        const metadataPayload = {
+            avatarUrl: currentUser.avatarUrl || currentUser.avatar || '',
+            name: currentUser.name,
+            level: currentUser.level || 1,
+        };
+        // 1) Nativo: distribuir metadata para todos na sala via LiveKit
+        lkChatSetMetadata(metadataPayload);
+        console.log('[CHAT] Metadata enviada via participant.setMetadata');
+        // 2) Server-side: atualizar metadata via RoomService API (UpdateParticipant)
+        const roomName = 'live_' + streamer.id;
+        livekitApi.updateParticipant(roomName, currentUser.id, {
+            metadata: JSON.stringify(metadataPayload),
+        }).then(res => {
+            if (res.success) {
+                console.log('[CHAT] Metadata atualizada server-side via UpdateParticipant');
+            }
+        });
+    }, [lkChatConnected]);
 
     // useLiveKit (room.ts) REMOVIDO — comunicação via useLiveKitChat + SRS WHIP.
     // LiveKit: sala para participantes, eventos e data channels.
@@ -541,25 +587,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         };
 
-        // Variável de controle para evitar chamadas duplicadas
-        let hasJoined = false;
+        // ⚠️ REMOVIDO: Socket.IO join_stream — presença gerenciada exclusivamente pelo LiveKit
+        // nativamente via onParticipantConnected/onParticipantDisconnected.
+        // Documentação: https://docs.livekit.io/intro/basics/rooms-participants-tracks/rooms/
 
-        // Marcar usuário como online na stream via Socket.IO join_stream (único caminho)
-        const joinStreamOnce = () => {
-            if (!hasJoined) {
-                hasJoined = true;
-                import('../services/socketService').then(({ emitJoinStream }) => {
-                    emitJoinStream(streamer.id);
-                });
-            }
-        };
-
-        // ⚠️ REMOVIDO: fetchInitialUsers via API — toda atualização da lista de pessoas
-        // vai exclusivamente pelo WebSocket do LiveKit (onParticipantConnected).
-        // Sem API, sem polling.
-
-        // Executar uma vez no início
-        joinStreamOnce();
         fetchInitialLikes();
         // Socket.IO joinRoom removido — room gerenciado via LiveKit
 

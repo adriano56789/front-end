@@ -17,6 +17,7 @@ export function getLiveKitRoom(): Room {
     roomInstance = new Room({
       adaptiveStream: false,
       dynacast: false,
+      autoSubscribe: true, // LiveKit docs: subscribe to all tracks automatically
     });
   }
   return roomInstance;

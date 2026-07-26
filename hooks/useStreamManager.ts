@@ -225,53 +225,87 @@ export const useStreamManager = (
         startNativePublish(streamId);
       }
 
-      // 2. Usar OBRIGATORIAMENTE o draftStream já existente (criado pelo GoLiveScreen)
-      // NUNCA chama api.createStream() aqui - isso causava 401 e redirect ao login
+      // 2. 📡 ARQUITETURA (ARCHITECTURE.md §13):
+      //    a. POST /api/streams → Cria/reativa stream no MongoDB
+      //       Response: { stream: { id, hlsUrl, webrtcUrl, ... } }
+      //    b. startWebRTCPublish(stream.id) — acontece em StreamRoom
+      //    c. onStartStream(streamer) → App.tsx
+      //
+      // NÃO usar api.publishStream() — não faz parte do fluxo documentado.
+      // Criar a stream via api.createStream() que retorna o objeto completo
+      // com URLs reais do backend (hlsUrl, webrtcUrl, playbackUrl).
+
       if (!draftStream) {
         throw new Error("Nenhum rascunho de stream encontrado. Salve os detalhes primeiro.");
       }
       const registeredStream = draftStream;
-      console.log('[STREAM_MANAGER] 📡 3. Usando draft existente, sem nova chamada createStream.');
 
-      // 3. Marcar stream como live no backend (cria LiveCard)
-      try {
-        await api.publishStream(streamId);
-        console.log('[STREAM_MANAGER] ✅ Transmissão publicada com sucesso no backend!');
-      } catch (publishErr) {
-        console.warn('[STREAM_MANAGER] ⚠️ Falha ao publicar transmissão:', publishErr);
+      let streamer: Streamer;
+
+      if (registeredStream && registeredStream.hlsUrl) {
+        // Draft veio do backend — já tem URLs reais. Só marcar como live.
+        streamer = {
+          ...registeredStream,
+          id: registeredStream.id,
+          isLive: true,
+          streamStatus: 'active',
+          startTime: new Date()
+        };
+        console.log('[STREAM_MANAGER] 📡 Usando draft do backend (já tem URLs):', registeredStream.id);
+      } else {
+        // Draft local ou inexistente — criar no backend conforme documentação
+        console.log('[STREAM_MANAGER] 📡 Criando stream no backend (ARCHITECTURE.md §13.a)...');
+        const createdStream = await api.createStream(currentUser.id, {
+          name: streamTitle || registeredStream?.name || `Live de ${currentUser.name}`,
+          message: streamDescription || registeredStream?.message || '',
+          category: selectedCategoryKey,
+          tags: [selectedCategoryKey],
+          isPrivate: isPrivate
+        });
+
+        if (createdStream && createdStream.id) {
+          // Backend retornou stream com URLs reais — usar ele
+          streamer = {
+            ...createdStream,
+            name: streamTitle || createdStream.name || registeredStream?.name || `Live de ${currentUser.name}`,
+            avatar: currentUser.avatarUrl || createdStream.avatar || registeredStream?.avatar || '',
+            location: currentUser.country || createdStream.location || registeredStream?.location || 'Global',
+            time: 'Ao Vivo',
+            isLive: true,
+            streamStatus: 'active',
+            startTime: new Date(),
+            viewers: createdStream.viewers || registeredStream?.viewers || 0
+          };
+          console.log('[STREAM_MANAGER] ✅ Stream criada no backend:', createdStream.id);
+        } else {
+          // createStream falhou — usar dados locais como fallback (último caso)
+          console.warn('[STREAM_MANAGER] ⚠️ createStream falhou, usando fallback local');
+          streamer = {
+            id: `stream_${currentUser.id}`,
+            hostId: currentUser.id,
+            name: streamTitle || `Live de ${currentUser.name}`,
+            avatar: currentUser.avatarUrl || '',
+            location: currentUser.country || 'Global',
+            time: 'Ao Vivo',
+            message: streamDescription || '',
+            tags: [selectedCategoryKey || 'popular'],
+            isLive: true,
+            streamStatus: 'active',
+            streamKey: `stream_${currentUser.id}`,
+            startTime: new Date(),
+            viewers: 0,
+            hlsUrl: `/srs/live/${currentUser.id}.m3u8`,
+            webrtcUrl: `/api/rtc/v1/whep/?app=live&stream=${currentUser.id}`,
+            playbackUrl: `/srs/live/${currentUser.id}.m3u8`,
+            vhost: '__defaultVhost__',
+            app: 'live',
+            stream: currentUser.id,
+            country: currentUser.country || 'global'
+          } as Streamer;
+        }
       }
 
-      // 4. Construct final streamer object
-      const streamer: Streamer = {
-        ...registeredStream,
-        id: streamId,
-        hostId: currentUser.id,
-        name: streamTitle || registeredStream?.name || `Live de ${currentUser.name}`,
-        avatar: currentUser.avatarUrl || registeredStream?.avatar || '',
-        location: currentUser.country || registeredStream?.location || 'Global',
-        time: 'Ao Vivo',
-        message: streamDescription || registeredStream?.message || '',
-        tags: [selectedCategoryKey || 'popular'],
-        isLive: true,
-        streamStatus: 'active',
-        streamKey: streamId,
-        startTime: new Date(),
-        viewers: registeredStream?.viewers || 0,
-        hlsUrl: `/srs/live/${streamId}.m3u8`,
-        webrtcUrl: `/api/rtc/v1/whep/?app=live&stream=${streamId}`,
-        playbackUrl: `/srs/live/${streamId}.m3u8`,
-        vhost: '__defaultVhost__',
-        app: 'live',
-        stream: streamId
-      };
-
       setDraftStream(streamer);
-
-      // live_started emitido — removido Socket.IO, notificação via LiveKit room data channel
-
-      // REMOVIDO: localStorage.setItem('currentStreamId', streamer.id);
-      // O streamId deve ser persistido no backend via API de startLive, não em localStorage
-
       onStartStream(streamer);
     } catch (error) {
       console.warn('[STREAM_MANAGER] Erro ao iniciar live (continuando mesmo assim):', error);

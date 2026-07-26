@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useLiveKit } from '../hooks/useLiveKit';
+import { useLiveKitChat } from '../hooks/useLiveKitChat';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
@@ -16,7 +16,6 @@ import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-import { livekitApi } from '../services/livekit/livekitApi';
 // Socket.IO removido — comunicação PK via LiveKit DataChannel + REST API
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
@@ -139,115 +138,148 @@ export default function PKBattleScreen({
     const [isSendingGift, setIsSendingGift] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
-    // Real-time LiveKit SFU hook for PK Battle
+    // 📡 useLiveKitChat: auto-conecta à mesma sala live_{streamId} (LiveKit docs)
+    // Usa publishTracks/publishTrack para camera, onTrackSubscribed para oponente
+    const lkConnectedRef = useRef(false);
+    const remoteVideoAttachedRef = useRef(false);
+
     const {
-        room: lkRoom,
-        connect: connectLiveKit,
-        disconnect: disconnectLiveKit,
-        connectionState: lkState,
-        localParticipant: lkLocal,
-        remoteParticipants: lkRemotes
-    } = useLiveKit();
+        connected: lkConnected,
+        sendMessage: lkSendMessage,
+        disconnect: disconnectLkChat,
+        publishTracks,
+        unpublishTracks,
+        muteTrack,
+        unmuteTrack,
+        setMetadata: lkChatSetMetadata,
+    } = useLiveKitChat({
+        streamId: streamer.id,
+        userId: currentUser.id,
+        isHost: isBroadcaster,
+        disabled: false,
+        onMessage: (data: any) => {
+            if (!data || !data.type) return;
+            // Mensagens de chat
+            if (data.type === 'chat_message' || data.type === 'chat') {
+                const stableId = Date.now() + Math.random();
+                setMessages(prev => [...prev, { ...data, type: 'chat', id: stableId }]);
+            }
+            // Sync de estado PK
+            else if (data.type === 'pk_state_sync') {
+                setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
+                if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
+                    setTimeLeft(data.timeLeft);
+                }
+                if (data.opponentHearts !== undefined) {
+                    setOpponentHearts(data.opponentHearts);
+                }
+            }
+            // Comandos PK (end_battle etc)
+            else if (data.type === 'pk_battle_command') {
+                if (data.command === 'end_battle') {
+                    addToast(ToastType.Info, 'O oponente encerrou a batalha.');
+                    onEndPKBattle();
+                }
+            }
+        },
+        onConnected: () => {
+            console.log('[PKBattle] LiveKitChat conectado!');
+            lkConnectedRef.current = true;
+            // Publicar camera local quando conectar
+            if (isBroadcaster) {
+                startLocalCamera();
+            }
+            // Enviar metadata
+            lkChatSetMetadata({
+                avatarUrl: currentUser.avatarUrl || currentUser.avatar || '',
+                name: currentUser.name,
+                level: currentUser.level || 1,
+            });
+        },
+        onDisconnected: () => {
+            console.log('[PKBattle] LiveKitChat desconectado');
+            lkConnectedRef.current = false;
+            addToast(ToastType.Error, 'Conexão PK perdida. A batalha será encerrada.');
+            setTimeout(() => handleEndBattle(), 3000);
+        },
+        onReconnecting: () => {
+            addToast(ToastType.Info, 'Reconectando ao servidor PK...');
+        },
+        onReconnected: () => {
+            addToast(ToastType.Success, 'PK reconectado!');
+            // Re-enviar estado atual para o oponente
+            sendPkState();
+        },
+        // 📡 Track events (LiveKit docs)
+        onTrackSubscribed: (track: any, publication: any, participant: any) => {
+            const identity = participant?.identity || '';
+            console.log('[PKBattle] TrackSubscribed:', publication?.kind, 'de:', identity);
+            // Verificar se e a track de camera do oponente
+            if (publication?.source === 'camera' || publication?.trackName === 'camera') {
+                const video = remoteVideoRef.current;
+                if (video && track?.mediaStreamTrack && !remoteVideoAttachedRef.current) {
+                    video.srcObject = new MediaStream([track.mediaStreamTrack]);
+                    video.style.transform = 'scaleX(1)';
+                    setIsOpponentConnected(true);
+                    remoteVideoAttachedRef.current = true;
+                    console.log('[PKBattle] ✅ Track de video do oponente conectada');
+                }
+            }
+        },
+        onTrackUnsubscribed: (_track: any, publication: any, participant: any) => {
+            if (publication?.source === 'camera' || publication?.trackName === 'camera') {
+                const video = remoteVideoRef.current;
+                if (video) video.srcObject = null;
+                setIsOpponentConnected(false);
+                remoteVideoAttachedRef.current = false;
+                console.log('[PKBattle] Track de video do oponente removida');
+            }
+        },
+    });
 
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const selfPreviewRef = useRef<HTMLVideoElement>(null);
+    const localMediaStreamRef = useRef<MediaStream | null>(null);
 
-    // Fetch Token and Connect to LiveKit SFU Room for PK interactive tracks
-    useEffect(() => {
-        let active = true;
-        const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
-        
-        const initLiveKit = async () => {
-            try {
-                console.log(`[PK-LiveKit] Requesting credentials for live room: ${streamer.id}`);
-                const pkRoomName = `live_${streamer.id}`;
-                console.log('[PK-LiveKit] Room name (alinhado com chat):', pkRoomName);
-                const res = await livekitApi.getLiveKitToken(pkRoomName, currentUser.id, isBroadcasterUser);
-                if (res.success && active) {
-                    await connectLiveKit(res.serverUrl, res.token);
-                }
-            } catch (err) {
-                console.error('[PK-LiveKit] Connection failed:', err);
+    // 📡 Iniciar camera local e publicar como track no LiveKit
+    const startLocalCamera = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 320 }, height: { ideal: 240 } },
+                audio: false,
+            });
+            localMediaStreamRef.current = stream;
+
+            // Self-preview local
+            const video = selfPreviewRef.current;
+            if (video) {
+                video.srcObject = stream;
+                video.style.transform = 'scaleX(-1)';
             }
-        };
 
-        initLiveKit();
+            // Publicar camera como track LiveKit
+            await publishTracks(stream);
+            console.log('[PKBattle] Camera publicada via LiveKit');
+        } catch (err) {
+            console.warn('[PKBattle] Falha ao iniciar camera:', err);
+        }
+    };
 
+    // 📡 Limpeza: parar tracks locais quando o componente desmontar
+    useEffect(() => {
         return () => {
-            active = false;
-            disconnectLiveKit();
-        };
-    }, [streamer.id, currentUser.id, opponent]);
-
-    // Handle Local Camera Stream for self-preview overlay (LiveKit tracks)
-    // NOTE: The main left column uses LivePlayer (SRS) for the public stream.
-    // This self-preview is just a small PIP overlay for the broadcaster.
-    useEffect(() => {
-        const video = selfPreviewRef.current;
-        if (!video) return;
-
-        let localTrack: MediaStreamTrack | null = null;
-        const isBroadcasterUser = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
-        
-        if (lkLocal) {
-            const videoPub = Array.from(lkLocal.tracks.values()).find((pub: any) => pub.source === 'camera') as any;
-            if (videoPub && videoPub.track) {
-                localTrack = videoPub.track;
-                video.srcObject = new MediaStream([localTrack]);
-                video.style.transform = 'scaleX(-1)'; // mirror
+            // Parar tracks de midia local
+            if (localMediaStreamRef.current) {
+                localMediaStreamRef.current.getTracks().forEach(t => t.stop());
+                localMediaStreamRef.current = null;
             }
-        }
-
-        // Fallback to standard preview stream if LiveKit is not active yet
-        if (!localTrack && isBroadcasterUser) {
-            navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 320 } }, audio: false })
-                .then(stream => {
-                    if (video) {
-                        video.srcObject = stream;
-                        video.style.transform = 'scaleX(-1)';
-                    }
-                })
-                .catch(err => {
-                    console.warn('[PKBattle] Self-preview fallback stream failed:', err);
-                });
-        }
-
-        return () => {
-            if (video) video.srcObject = null;
+            // Remover tracks publicadas no LiveKit
+            unpublishTracks();
+            lkConnectedRef.current = false;
+            remoteVideoAttachedRef.current = false;
         };
-    }, [lkLocal, streamer?.hostId, currentUser?.id]);
-
-    // Handle Remote Opponent Video Track binding (Right Column) via LiveKit
-    useEffect(() => {
-        const video = remoteVideoRef.current;
-        if (!video) return;
-
-        // Find opponent from remotes — identity pode ser 'streamer_{id}' ou apenas '{id}'
-        const opponentIdentity = opponent.id;
-        const opponentStreamerIdentity = `streamer_${opponent.id}`;
-        
-        const oppParticipant = lkRemotes.find(p => 
-            p.identity === opponentIdentity || 
-            p.identity === opponentStreamerIdentity ||
-            p.identity === `viewer_${opponent.id}`
-        );
-        
-        if (oppParticipant && oppParticipant.tracks) {
-            const videoPub = Array.from(oppParticipant.tracks.values()).find((pub: any) => 
-                pub.source === 'camera' || pub.trackName === 'camera'
-            ) as any;
-            if (videoPub && videoPub.track) {
-                video.srcObject = new MediaStream([videoPub.track]);
-                video.style.transform = 'scaleX(1)';
-                setIsOpponentConnected(true);
-                return;
-            }
-        }
-
-        video.srcObject = null;
-        setIsOpponentConnected(false);
-    }, [lkRemotes, opponent.id]);
+    }, []);
     
     // Build SRS stream URL for the LivePlayer (left column — public stream via SRS)
     const getStreamUrl = () => {
@@ -371,8 +403,8 @@ export default function PKBattleScreen({
             setBannerGifts(prev => [...prev, newBanner].slice(-5));
 
             // Sincronizar via LiveKit data channel
-            if (lkRoom && lkRoom.state === 'connected') {
-                lkRoom.sendChatMessage({
+            if (lkConnected) {
+                lkSendMessage({
                     type: 'gift_sent',
                     fromUser: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level },
                     toUser: { id: streamer.hostId || streamer.id, name: streamer.name },
@@ -524,44 +556,8 @@ export default function PKBattleScreen({
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
 
-    // Escutar todas as mensagens do LiveKit data channel (chat + pk sync)
-    useEffect(() => {
-        if (!lkRoom) return;
-
-        const handleDataReceived = (data: any) => {
-            if (!data || !data.type) return;
-            // Mensagens de chat
-            if (data.type === 'chat_message' || data.type === 'chat') {
-                const stableId = Date.now() + Math.random();
-                setMessages(prev => {
-                    return [...prev, { ...data, type: 'chat', id: stableId }];
-                });
-            }
-            // Sync de estado PK
-            else if (data.type === 'pk_state_sync') {
-                setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
-                if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
-                    setTimeLeft(data.timeLeft);
-                }
-                if (data.opponentHearts !== undefined) {
-                    setOpponentHearts(data.opponentHearts);
-                }
-            }
-            // Comandos PK (end_battle etc)
-            else if (data.type === 'pk_battle_command') {
-                if (data.command === 'end_battle') {
-                    addToast(ToastType.Info, 'O oponente encerrou a batalha.');
-                    onEndPKBattle();
-                }
-            }
-        };
-
-        lkRoom.on('data_received', handleDataReceived);
-
-        return () => {
-            lkRoom.off('data_received', handleDataReceived);
-        };
-    }, [lkRoom]);
+    // 📡 onMessage do useLiveKitChat processa chat e pk sync (definido nas options do hook)
+    // Este useEffect foi substituido pelo callback onMessage no useLiveKitChat
 
     const handleFollowStreamer = (user: User) => onFollowUser(user, streamer.id);
 
@@ -577,29 +573,28 @@ export default function PKBattleScreen({
         }
     }, [currentEffect, effectsQueue]);
 
-    // Enviar estado do PK via LiveKit data channel para sincronização entre participantes
+    // 📡 Enviar estado do PK via sendMessage (useLiveKitChat)
+    const sendPkState = () => {
+        if (!lkConnected || !lkConnectedRef.current) return;
+        try {
+            lkSendMessage({
+                type: 'pk_state_sync',
+                myScore,
+                opponentScore,
+                timeLeft,
+                myHearts,
+                opponentHearts,
+                timestamp: Date.now()
+            });
+        } catch (e) {
+            // silent fail
+        }
+    };
     useEffect(() => {
-        if (!lkRoom || lkRoom.state !== 'connected') return;
-        
-        const interval = setInterval(() => {
-            try {
-                const pkState = {
-                    type: 'pk_state_sync',
-                    myScore,
-                    opponentScore,
-                    timeLeft,
-                    myHearts,
-                    opponentHearts,
-                    timestamp: Date.now()
-                };
-                lkRoom.sendChatMessage(pkState);
-            } catch (e) {
-                // silent fail - data channel pode não estar pronto
-            }
-        }, 5000); // Sync a cada 5 segundos
-        
+        if (!lkConnected) return;
+        const interval = setInterval(sendPkState, 5000);
         return () => clearInterval(interval);
-    }, [lkRoom, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
+    }, [lkConnected, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
 
     // Escutar eventos CustomEvent para sincronização de score/timer vindos do backend
     useEffect(() => {
@@ -637,52 +632,13 @@ export default function PKBattleScreen({
         return () => clearInterval(timerId);
     }, [timeLeft]);
 
-    // Tratamento de reconexão do LiveKit
-    useEffect(() => {
-        if (!lkRoom) return;
-
-        const handleReconnecting = () => {
-            addToast(ToastType.Info, 'Reconectando ao servidor PK...');
-        };
-        const handleReconnected = () => {
-            addToast(ToastType.Success, 'PK reconectado!');
-            // Re-enviar estado atual para o oponente
-            try {
-                const pkState = {
-                    type: 'pk_state_sync',
-                    myScore,
-                    opponentScore,
-                    timeLeft,
-                    myHearts,
-                    opponentHearts,
-                    timestamp: Date.now()
-                };
-                lkRoom.sendChatMessage(pkState);
-            } catch (e) {
-                // silent
-            }
-        };
-        const handleDisconnected = () => {
-            addToast(ToastType.Error, 'Conexão PK perdida. A batalha será encerrada.');
-            setTimeout(() => handleEndBattle(), 3000);
-        };
-
-        lkRoom.on('reconnecting', handleReconnecting);
-        lkRoom.on('reconnected', handleReconnected);
-        lkRoom.on('disconnected', handleDisconnected);
-
-        return () => {
-            lkRoom.off('reconnecting', handleReconnecting);
-            lkRoom.off('reconnected', handleReconnected);
-            lkRoom.off('disconnected', handleDisconnected);
-        };
-    }, [lkRoom, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
+    // 📡 Reconexao tratada pelos callbacks onReconnecting/onReconnected/onDisconnected do hook
 
     // Override do onEndPKBattle para enviar comando de fim via LiveKit antes de encerrar
     const handleEndBattle = () => {
-        if (lkRoom && lkRoom.state === 'connected') {
+        if (lkConnected) {
             try {
-                lkRoom.sendChatMessage({ type: 'pk_battle_command', command: 'end_battle' });
+                lkSendMessage({ type: 'pk_battle_command', command: 'end_battle' });
             } catch (e) {
                 // silent
             }
@@ -747,8 +703,8 @@ export default function PKBattleScreen({
         setMessages(prev => [...prev, safePayload]);
         
         // Enviar via LiveKit data channel
-        if (lkRoom && lkRoom.state === 'connected') {
-            lkRoom.sendChatMessage(safePayload);
+        if (lkConnected) {
+            lkSendMessage(safePayload);
         } else {
             console.warn('[PKBattle] Chat não enviado — LiveKit não conectado');
         }

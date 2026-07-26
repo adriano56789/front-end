@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { RoomEvent, RemoteParticipant } from 'livekit-client';
+import { RoomEvent, RemoteParticipant, ConnectionQuality } from 'livekit-client';
 import { livekitApi } from '../services/livekit/livekitApi';
 import {
   getLiveKitRoom,
@@ -11,6 +11,12 @@ import {
 // Maximum message size for LiveKit DataPacket (~16KB)
 const MAX_MESSAGE_SIZE = 16384;
 
+interface ParticipantMetadata {
+  avatarUrl?: string;
+  name?: string;
+  level?: number;
+}
+
 interface LiveKitChatOptions {
   streamId: string;
   userId: string;
@@ -19,10 +25,18 @@ interface LiveKitChatOptions {
   onMessage?: (data: any) => void;
   onParticipantConnected?: (participant: RemoteParticipant) => void;
   onParticipantDisconnected?: (participant: RemoteParticipant) => void;
+  onParticipantActive?: (participant: RemoteParticipant) => void;
+  onParticipantMetadataChanged?: (participant: RemoteParticipant, metadata: ParticipantMetadata) => void;
+  onConnectionQualityChanged?: (quality: ConnectionQuality, participant: RemoteParticipant) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onReconnecting?: () => void;
   onReconnected?: () => void;
+  // 📡 Track events (LiveKit docs: https://docs.livekit.io/intro/basics/rooms-participants-tracks/tracks/)
+  onTrackSubscribed?: (track: any, publication: any, participant: RemoteParticipant) => void;
+  onTrackUnsubscribed?: (track: any, publication: any, participant: RemoteParticipant) => void;
+  onTrackMuted?: (publication: any, participant: RemoteParticipant) => void;
+  onTrackUnmuted?: (publication: any, participant: RemoteParticipant) => void;
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
@@ -124,59 +138,69 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       console.log('[LiveKitChat] Reconnected to room live_' + streamId);
       optionsRef.current.onReconnected?.();
     };
+    // 📡 ParticipantActive: media connection established (LiveKit docs: corresponds to participant_joined webhook)
+    const onParticipantActiveFn = (participant: RemoteParticipant) => {
+      if (destroyedRef.current) return;
+      console.log('[LiveKitChat] Participant active (media connected):', participant.identity);
+      optionsRef.current.onParticipantActive?.(participant);
+    };
+
+    const onConnectionQualityChangedFn = (quality: ConnectionQuality, participant: RemoteParticipant) => {
+      if (destroyedRef.current) return;
+      optionsRef.current.onConnectionQualityChanged?.(quality, participant);
+    };
+
     const onParticipantConnectedFn = (participant: RemoteParticipant) => {
       if (destroyedRef.current) return;
-      console.log('[LiveKitChat] Participant joined:', participant.identity, '|', participant.name);
-
-      // [DIAGNOSTIC] Log participant's existing tracks
-      const videoTracks = Array.from(participant.videoTrackPublications.values());
-      const audioTracks = Array.from(participant.audioTrackPublications.values());
-      console.log('[LiveKitChat]   Tracks of', participant.identity, ':',
-        videoTracks.length + audioTracks.length, 'total',
-        '(video:', videoTracks.length, 'audio:', audioTracks.length, ')');
-      videoTracks.forEach(t => {
-        console.log('[LiveKitChat]     [video]', t.trackSid, 'subscribed:', t.isSubscribed);
-      });
-      audioTracks.forEach(t => {
-        console.log('[LiveKitChat]     [audio]', t.trackSid, 'subscribed:', t.isSubscribed);
-      });
-
+      console.log('[LiveKitChat] Participant joined:', participant.identity, '|', participant.name, '| metadata:', participant.metadata);
       optionsRef.current.onParticipantConnected?.(participant);
+    };
+
+    const onParticipantMetadataChangedFn = (prevMetadata: string, participant: RemoteParticipant) => {
+      if (destroyedRef.current) return;
+      console.log('[LiveKitChat] Participant metadata changed:', participant.identity, '| metadata:', participant.metadata);
+      try {
+        const metadata: ParticipantMetadata = participant.metadata ? JSON.parse(participant.metadata) : {};
+        optionsRef.current.onParticipantMetadataChanged?.(participant, metadata);
+      } catch {
+        // Ignore malformed metadata
+      }
     };
     const onParticipantDisconnectedFn = (participant: RemoteParticipant) => {
       if (destroyedRef.current) return;
       console.log('[LiveKitChat] Participant left:', participant.identity);
       optionsRef.current.onParticipantDisconnected?.(participant);
     };
-    // [DIAGNOSTIC] TrackSubscribed: when viewer receives/subscribes to a remote track
+    // 📡 TrackSubscribed: when viewer receives/subscribes to a remote track (LiveKit docs)
     const onTrackSubscribedFn = (track: any, publication: any, participant: RemoteParticipant) => {
       if (destroyedRef.current) return;
       const kind = track?.kind || publication?.kind || 'unknown';
       const trackSid = publication?.trackSid || 'unknown';
       const source = publication?.source || 'unknown';
-      console.log('[LiveKitChat] [DIAG] TrackSubscribed |', kind,
-        '| sid:', trackSid,
-        '| source:', source,
-        '| participant:', participant.identity,
-        '| muted:', publication?.isMuted);
-
-      if (kind === 'video') {
-        const hasTrack = !!track?.mediaStreamTrack || !!track;
-        const trackReady = track?.mediaStreamTrack?.readyState || 'unknown';
-        console.log('[LiveKitChat] [DIAG]   Video track received | hasTrack:', hasTrack,
-          '| readyState:', trackReady,
-          '| canAttach:', typeof track?.attach === 'function',
-          '(NOT attaching - viewer uses HLS)');
-      }
+      console.log('[LiveKitChat] TrackSubscribed |', kind,
+        '| sid:', trackSid, '| source:', source,
+        '| participant:', participant.identity, '| muted:', publication?.isMuted);
+      optionsRef.current.onTrackSubscribed?.(track, publication, participant);
     };
-    // [DIAGNOSTIC] TrackUnsubscribed: when viewer loses a remote track
+    // 📡 TrackUnsubscribed: when viewer loses a remote track (LiveKit docs)
     const onTrackUnsubscribedFn = (track: any, publication: any, participant: RemoteParticipant) => {
       if (destroyedRef.current) return;
-      const kind = track?.kind || publication?.kind || 'unknown';
-      const trackSid = publication?.trackSid || 'unknown';
-      console.log('[LiveKitChat] [DIAG] TrackUnsubscribed |', kind,
-        '| sid:', trackSid,
+      console.log('[LiveKitChat] TrackUnsubscribed |', track?.kind || publication?.kind || 'unknown',
+        '| sid:', publication?.trackSid || 'unknown',
         '| participant:', participant.identity);
+      optionsRef.current.onTrackUnsubscribed?.(track, publication, participant);
+    };
+    // 📡 TrackMuted: when a remote participant mutes a track (LiveKit docs)
+    const onTrackMutedFn = (publication: any, participant: RemoteParticipant) => {
+      if (destroyedRef.current) return;
+      console.log('[LiveKitChat] TrackMuted |', publication?.kind || 'unknown', '| participant:', participant.identity);
+      optionsRef.current.onTrackMuted?.(publication, participant);
+    };
+    // 📡 TrackUnmuted: when a remote participant unmutes a track (LiveKit docs)
+    const onTrackUnmutedFn = (publication: any, participant: RemoteParticipant) => {
+      if (destroyedRef.current) return;
+      console.log('[LiveKitChat] TrackUnmuted |', publication?.kind || 'unknown', '| participant:', participant.identity);
+      optionsRef.current.onTrackUnmuted?.(publication, participant);
     };
 
     // Register only once (prevents duplicates on re-renders)
@@ -189,8 +213,13 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       room.on(RoomEvent.Reconnected, onReconnected);
       room.on(RoomEvent.ParticipantConnected, onParticipantConnectedFn);
       room.on(RoomEvent.ParticipantDisconnected, onParticipantDisconnectedFn);
+      room.on(RoomEvent.ParticipantActive, onParticipantActiveFn);
+      room.on(RoomEvent.ConnectionQualityChanged, onConnectionQualityChangedFn);
+      room.on(RoomEvent.ParticipantMetadataChanged, onParticipantMetadataChangedFn);
       room.on(RoomEvent.TrackSubscribed, onTrackSubscribedFn);
       room.on(RoomEvent.TrackUnsubscribed, onTrackUnsubscribedFn);
+      room.on(RoomEvent.TrackMuted, onTrackMutedFn);
+      room.on(RoomEvent.TrackUnmuted, onTrackUnmutedFn);
     }
 
     // Connect ONLY ONCE
@@ -250,8 +279,13 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
         room.off(RoomEvent.Reconnected, onReconnected);
         room.off(RoomEvent.ParticipantConnected, onParticipantConnectedFn);
         room.off(RoomEvent.ParticipantDisconnected, onParticipantDisconnectedFn);
+        room.off(RoomEvent.ParticipantActive, onParticipantActiveFn);
+        room.off(RoomEvent.ConnectionQualityChanged, onConnectionQualityChangedFn);
+        room.off(RoomEvent.ParticipantMetadataChanged, onParticipantMetadataChangedFn);
         room.off(RoomEvent.TrackSubscribed, onTrackSubscribedFn);
         room.off(RoomEvent.TrackUnsubscribed, onTrackUnsubscribedFn);
+        room.off(RoomEvent.TrackMuted, onTrackMutedFn);
+        room.off(RoomEvent.TrackUnmuted, onTrackUnmutedFn);
       }
     };
   }, [streamId, userId, disabled, reconnectKey]);
@@ -281,5 +315,148 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     }).catch(() => {});
   }, []);
 
-  return { connected, sendMessage, disconnect };
+  const setMetadata = useCallback(async (metadata: ParticipantMetadata): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] setMetadata ignorado — Room não conectada');
+      return;
+    }
+    try {
+      await room.localParticipant.setMetadata(JSON.stringify(metadata));
+      console.log('[LiveKitChat] Metadata atualizada:', metadata);
+    } catch (err) {
+      console.warn('[LiveKitChat] setMetadata erro:', err);
+    }
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 📡 Track management (LiveKit docs: tracks, mute/unmute, pub/unpub)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Publica camera (video) e microfone (audio) como tracks no LiveKit.
+   * Mantem uma unica Video Track (camera) e uma unica Audio Track (microfone).
+   * Para mutar/desmutar, use muteTrack/unmuteTrack (evita renegociacao).
+   */
+  const publishTracks = useCallback(async (mediaStream: MediaStream): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] publishTracks ignorado — Room nao conectada');
+      return;
+    }
+    try {
+      const videoTrack = mediaStream.getVideoTracks()[0];
+      const audioTrack = mediaStream.getAudioTracks()[0];
+
+      if (videoTrack) {
+        // LiveKit docs: publica como Camera source, nao recria se ja existe
+        const existingVideoPub = Array.from(room.localParticipant.videoTrackPublications.values())
+          .find(p => p.source === 'camera');
+        if (existingVideoPub) {
+          await existingVideoPub.track?.setMediaStreamTrack(videoTrack);
+        } else {
+          await room.localParticipant.publishTrack(videoTrack, {
+            source: 'camera',
+            name: 'camera',
+          });
+        }
+      }
+
+      if (audioTrack) {
+        const existingAudioPub = Array.from(room.localParticipant.audioTrackPublications.values())
+          .find(p => p.source === 'microphone');
+        if (existingAudioPub) {
+          await existingAudioPub.track?.setMediaStreamTrack(audioTrack);
+        } else {
+          await room.localParticipant.publishTrack(audioTrack, {
+            source: 'microphone',
+            name: 'microphone',
+          });
+        }
+      }
+
+      console.log('[LiveKitChat] Tracks publicadas: video=', !!videoTrack, 'audio=', !!audioTrack);
+    } catch (err) {
+      console.warn('[LiveKitChat] publishTracks erro:', err);
+    }
+  }, []);
+
+  /**
+   * Remove todas as tracks publicadas localmente.
+   */
+  const unpublishTracks = useCallback(async (): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] unpublishTracks ignorado — Room nao conectada');
+      return;
+    }
+    try {
+      const publications = [
+        ...Array.from(room.localParticipant.videoTrackPublications.values()),
+        ...Array.from(room.localParticipant.audioTrackPublications.values()),
+      ];
+      for (const pub of publications) {
+        await room.localParticipant.unpublishTrack(pub.trackSid);
+      }
+      console.log('[LiveKitChat] Todas as tracks foram removidas');
+    } catch (err) {
+      console.warn('[LiveKitChat] unpublishTracks erro:', err);
+    }
+  }, []);
+
+  /**
+   * Muta uma track local (audio ou video).
+   * LiveKit docs recomenda mute/unmute em vez de unpublish/republish.
+   */
+  const muteTrack = useCallback(async (kind: 'audio' | 'video'): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] muteTrack ignorado — Room nao conectada');
+      return;
+    }
+    try {
+      const publications = kind === 'audio'
+        ? Array.from(room.localParticipant.audioTrackPublications.values())
+        : Array.from(room.localParticipant.videoTrackPublications.values());
+      for (const pub of publications) {
+        await pub.mute();
+      }
+      console.log('[LiveKitChat] Track mutada:', kind);
+    } catch (err) {
+      console.warn('[LiveKitChat] muteTrack erro:', err);
+    }
+  }, []);
+
+  /**
+   * Desmuta uma track local (audio ou video).
+   */
+  const unmuteTrack = useCallback(async (kind: 'audio' | 'video'): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] unmuteTrack ignorado — Room nao conectada');
+      return;
+    }
+    try {
+      const publications = kind === 'audio'
+        ? Array.from(room.localParticipant.audioTrackPublications.values())
+        : Array.from(room.localParticipant.videoTrackPublications.values());
+      for (const pub of publications) {
+        await pub.unmute();
+      }
+      console.log('[LiveKitChat] Track desmutada:', kind);
+    } catch (err) {
+      console.warn('[LiveKitChat] unmuteTrack erro:', err);
+    }
+  }, []);
+
+  return {
+    connected,
+    sendMessage,
+    disconnect,
+    setMetadata,
+    publishTracks,
+    unpublishTracks,
+    muteTrack,
+    unmuteTrack,
+  };
 }
