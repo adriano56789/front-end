@@ -261,6 +261,12 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // 📡 Data Packet methods — reações e digitação
     sendReaction: lkSendReaction,
     sendTyping: lkSendTyping,
+    // 📡 State Synchronization methods
+    setAttributes: lkSetAttributes,
+    setParticipantRole: lkSetRole,
+    setMicStatus: lkSetMicStatus,
+    setCamStatus: lkSetCamStatus,
+    setHandRaise: lkSetHandRaise,
   } = useLiveKitChat({
     streamId: streamer.id,
     userId: currentUser.id,
@@ -391,6 +397,28 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setTypingUsers(prev => prev.filter(name => name !== data.fromName));
       }
     },
+    // 📡 State Synchronization: escutar mudanças de atributos dos participantes
+    onAttributesChanged: (changed, participant) => {
+      console.log('[StateSync] Atributos alterados de', participant.identity, ':', changed);
+      if (changed.role && participant.identity !== currentUser.id) {
+        addToast(ToastType.Info, `${participant.name || participant.identity} agora é ${changed.role}`);
+      }
+      if (changed.mic && participant.identity !== currentUser.id) {
+        // Atualizar indicador de microfone do participante na UI
+      }
+    },
+    onRoomMetadataChanged: (metadata) => {
+      console.log('[StateSync] Metadata da Room alterada:', metadata);
+      try {
+        const parsed = JSON.parse(metadata);
+        if (parsed.liveStatus) {
+          console.log('[StateSync] Status da live:', parsed.liveStatus);
+        }
+        if (parsed.pkConfig) {
+          console.log('[StateSync] Config PK:', parsed.pkConfig);
+        }
+      } catch {}
+    },
     // 📡 RPC: Receber convites de co-host/PK via LiveKit
     onInviteCoHost: async (callerIdentity: string, payload: any) => {
       console.log('[RPC] Convite co-host recebido de:', callerIdentity, payload);
@@ -421,6 +449,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     },
     onConnected: () => {
       console.log('[CHAT] LiveKitChat conectado!');
+      // 📡 State Sync: sincronizar papel do participante
+      lkSetRole(isBroadcaster ? 'host' : 'viewer');
     },
     onDisconnected: () => {
       console.log('[CHAT] LiveKitChat desconectado!');
@@ -1309,7 +1339,16 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     const handleToggleMicrophone = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isBroadcaster) return;
-        await api.toggleMicrophone(streamer.id);
+        // 📡 State Sync: atualizar status do microfone APÓS sucesso da API
+        try {
+          await api.toggleMicrophone(streamer.id);
+          if (lkChatConnected) {
+            const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
+            lkSetMicStatus(newMicState);
+          }
+        } catch (err) {
+          console.warn('[StreamRoom] toggleMicrophone erro:', err);
+        }
     };
 
     const handleToggleSound = async (e: React.MouseEvent) => {

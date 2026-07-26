@@ -78,6 +78,11 @@ interface LiveKitChatOptions {
   onEndPK?: (callerIdentity: string, payload: any) => Promise<string>;
   onKickParticipant?: (callerIdentity: string, payload: any) => Promise<string>;
 
+  // 📡 State Synchronization — sincronização de estado via Participant Attributes e Room Metadata
+  // Docs: https://docs.livekit.io/transport/data/state/
+  onAttributesChanged?: (changed: Record<string, string>, participant: any) => void;
+  onRoomMetadataChanged?: (metadata: string) => void;
+
   // 📡 Data Packet events — pequenos eventos em tempo real
   // Docs: https://docs.livekit.io/transport/data/packets/
   onReaction?: (data: {
@@ -346,6 +351,19 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       optionsRef.current.onTrackUnmuted?.(publication, participant);
     };
 
+    // 📡 State Synchronization: mudança de atributos de participantes
+    // Docs: https://docs.livekit.io/transport/data/state/
+    const onParticipantAttributesChangedFn = (changed: Record<string, string>, participant: any) => {
+      if (destroyedRef.current) return;
+      optionsRef.current.onAttributesChanged?.(changed, participant);
+    };
+
+    // 📡 State Synchronization: mudança de metadados da Room
+    const onRoomMetadataChangedFn = (metadata: string) => {
+      if (destroyedRef.current) return;
+      optionsRef.current.onRoomMetadataChanged?.(metadata);
+    };
+
     // 📡 Data Packets: handler nomeado para permitir cleanup correto
     // Docs: https://docs.livekit.io/transport/data/packets/
     const onDataReceivedFn = (payload: Uint8Array, participant?: any) => {
@@ -387,6 +405,10 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       // 📡 Data Packets: escutar eventos em tempo real
       // Docs: https://docs.livekit.io/transport/data/packets/
       room.on(RoomEvent.DataReceived, onDataReceivedFn);
+
+      // 📡 State Synchronization: escutar mudanças de atributos e metadata
+      room.on(RoomEvent.ParticipantAttributesChanged, onParticipantAttributesChangedFn);
+      room.on(RoomEvent.RoomMetadataChanged, onRoomMetadataChangedFn);
 
       // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
@@ -457,6 +479,8 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       if (listenersRegistered.current) {
         listenersRegistered.current = false;
         room.off(RoomEvent.DataReceived, onDataReceivedFn);
+        room.off(RoomEvent.ParticipantAttributesChanged, onParticipantAttributesChangedFn);
+        room.off(RoomEvent.RoomMetadataChanged, onRoomMetadataChangedFn);
         room.off(RoomEvent.Connected, onConnected);
         room.off(RoomEvent.Disconnected, onDisconnected);
         room.off(RoomEvent.Reconnecting, onReconnecting);
@@ -563,6 +587,62 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
       console.warn('[LiveKitChat] setMetadata erro:', err);
     }
   }, []);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 📡 STATE SYNCHRONIZATION — Participant Attributes + Room Metadata
+  // Docs: https://docs.livekit.io/transport/data/state/
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Atualiza atributos do participante atual (key-value strings).
+   * Estes atributos são sincronizados automaticamente para todos os
+   * participantes na Room via RoomEvent.ParticipantAttributesChanged.
+   *
+   * Atributos típicos: 'role', 'mic', 'cam', 'handRaise', 'level', 'name'
+   *
+   * Docs: https://docs.livekit.io/reference/client-sdk-js/classes/LocalParticipant.html#setAttributes
+   */
+  const setAttributes = useCallback(async (attrs: Record<string, string>): Promise<void> => {
+    const room = getLiveKitRoom();
+    if (room.state !== 'connected' || !room.localParticipant) {
+      console.warn('[LiveKitChat] setAttributes ignorado — Room não conectada');
+      return;
+    }
+    try {
+      await room.localParticipant.setAttributes(attrs);
+      console.log('[LiveKitChat] Atributos atualizados:', attrs);
+    } catch (err) {
+      console.warn('[LiveKitChat] setAttributes erro:', err);
+    }
+  }, []);
+
+  /**
+   * Atalho para atualizar o papel do participante (host, co-host, viewer).
+   */
+  const setParticipantRole = useCallback(async (role: 'host' | 'co-host' | 'viewer'): Promise<void> => {
+    return setAttributes({ 'role': role });
+  }, [setAttributes]);
+
+  /**
+   * Atalho para atualizar o status do microfone.
+   */
+  const setMicStatus = useCallback(async (muted: boolean): Promise<void> => {
+    return setAttributes({ 'mic': muted ? 'muted' : 'unmuted' });
+  }, [setAttributes]);
+
+  /**
+   * Atalho para atualizar o status da câmera.
+   */
+  const setCamStatus = useCallback(async (enabled: boolean): Promise<void> => {
+    return setAttributes({ 'cam': enabled ? 'enabled' : 'disabled' });
+  }, [setAttributes]);
+
+  /**
+   * Atalho para sinalizar mão levantada (pedir para falar).
+   */
+  const setHandRaise = useCallback(async (raised: boolean): Promise<void> => {
+    return setAttributes({ 'handRaise': raised ? 'raised' : '' });
+  }, [setAttributes]);
 
   // ═══════════════════════════════════════════════════════════════════
   // 📡 Track management (LiveKit docs: tracks, mute/unmute, pub/unpub)
@@ -760,6 +840,12 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     // 📡 Data Packet methods — pequenos eventos em tempo real
     sendReaction,
     sendTyping,
+    // 📡 State Synchronization methods
+    setAttributes,
+    setParticipantRole,
+    setMicStatus,
+    setCamStatus,
+    setHandRaise,
     // 📡 RPC methods
     inviteCoHost,
     acceptCoHost,

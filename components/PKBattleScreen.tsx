@@ -158,6 +158,8 @@ export default function PKBattleScreen({
         // 📡 Data Packet methods — reações
         sendReaction: lkSendReaction,
         sendTyping: lkSendTyping,
+        // 📡 State Sync methods
+        setParticipantRole: lkSetRole,
     } = useLiveKitChat({
         streamId: streamer.id,
         userId: currentUser.id,
@@ -191,6 +193,8 @@ export default function PKBattleScreen({
         onConnected: () => {
             console.log('[PKBattle] LiveKitChat conectado!');
             lkConnectedRef.current = true;
+            // 📡 State Sync: sincronizar papel
+            lkSetRole(isBroadcaster ? 'host' : 'viewer');
             // Publicar camera local quando conectar
             if (isBroadcaster) {
                 startLocalCamera();
