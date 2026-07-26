@@ -19,6 +19,8 @@ interface ChatScreenProps {
     onReportUser: (user: User) => void;
     onOpenPhotoViewer: (photos: FeedPhoto[], initialIndex: number) => void;
     messages?: any[];
+    // 📡 Byte Streams: envio de imagens em tempo real (se disponível)
+    sendFile?: (file: File, onProgress?: (pct: number) => void) => Promise<boolean>;
 }
 
 const MessageStatus: React.FC<{ status: Message['status'] }> = ({ status }) => {
@@ -183,7 +185,7 @@ const BecameFriendsIndicator: React.FC<{ onNavigate: () => void }> = ({ onNaviga
 };
 
 
-const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages }) => {
+const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages, sendFile: propSendFile }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const effectiveMessages = propMessages || messages;
     const [newMessage, setNewMessage] = useState('');
@@ -193,6 +195,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const blobUrlsRef = useRef<string[]>([]);
     const { t } = useTranslation();
     const chatKey = useMemo(() => {
         const cId = currentUser?.id;
@@ -260,6 +263,44 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             setIsLoading(false);
         }
     }, [user.id]);
+
+    // 📡 Byte Streams: receber imagens via window event (disparado pelo hook useLiveKitChat)
+    useEffect(() => {
+        const onByteStreamFile = (e: Event) => {
+            const data = (e as CustomEvent).detail;
+            if (!data || !data.bytes) return;
+            
+            const blob = new Blob([data.bytes], { type: data.mimeType || 'application/octet-stream' });
+            const blobUrl = URL.createObjectURL(blob);
+            blobUrlsRef.current.push(blobUrl);
+            
+            const receivedMessage: Message = {
+                id: `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                chatId: chatKey,
+                from: data.sender?.identity || user.id,
+                to: currentUser.id,
+                text: '',
+                imageUrl: blobUrl,
+                timestamp: new Date().toISOString(),
+                status: 'sent' as 'sent',
+            };
+            
+            setMessages(prev => [...prev, receivedMessage]);
+            
+            setTimeout(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }, 100);
+        };
+        
+        window.addEventListener('byteStream:fileReceived', onByteStreamFile);
+        
+        return () => {
+            window.removeEventListener('byteStream:fileReceived', onByteStreamFile);
+            // Limpar blob URLs para evitar memory leak
+            blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+            blobUrlsRef.current = [];
+        };
+    }, [chatKey, user.id, currentUser.id]);
 
     useEffect(() => {
         fetchInitialData();
@@ -354,7 +395,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     const handleSendMessage = async () => {
         const hasText = newMessage.trim() !== '';
-        const hasImage = !!selectedImageFile;            const sendingMessage = effectiveMessages.some((m: any) => m.status === 'sending');
+        const hasImage = !!selectedImageFile;
+        const sendingMessage = effectiveMessages.some((m: any) => m.status === 'sending');
 
         if ((!hasText && !hasImage) || sendingMessage) return;
 
@@ -370,7 +412,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             text: textToSend,
             imageUrl: selectedImage || undefined,
             timestamp: new Date().toISOString(),
-            status: 'sending' as 'sent', // Casting for type compatibility until status is widened
+            status: 'sending' as 'sent',
         };
 
         setMessages(prev => [...prev, optimisticMessage]);
@@ -384,8 +426,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
         try {
             let finalImageUrl: string | undefined = undefined;
+
             if (imageFile) {
-                // Usar nova API de upload com FormData
+                // 📡 Byte Streams: enviar imagem em tempo real via LiveKit (se disponível)
+                if (typeof propSendFile === 'function') {
+                    propSendFile(imageFile, (pct: number) => {
+                        console.log('[ByteStream] Upload progress:', Math.round(pct * 100), '%');
+                    });
+                }
+
+                // REST API: upload para persistência no banco
                 const uploadResponse = await api.uploadChatImage(imageFile) as unknown as { success: boolean; imageUrl: string };
                 if (uploadResponse?.success && uploadResponse?.imageUrl) {
                     finalImageUrl = uploadResponse.imageUrl;
@@ -397,7 +447,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             const result = await api.sendChatMessage(currentUser.id, user.id, textToSend, finalImageUrl, tempId);
 
             if (result && result.message) {
-                // Update the optimistic message with the real one and status 'sent'
                 setMessages(prev =>
                     prev.map(msg =>
                         msg.id === tempId
@@ -415,7 +464,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                 );
             }
         } catch (error) {
-            // Revert optimistic update on failure, or show failed status
             setMessages(prev =>
                 prev.map(msg =>
                     msg.id === tempId

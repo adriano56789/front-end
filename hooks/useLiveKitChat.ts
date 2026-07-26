@@ -125,16 +125,26 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
           offset += c.length;
         }
 
+        const fileData = {
+          fileName,
+          fileSize,
+          mimeType,
+          bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+          sender: participant,
+        };
+
+        // Callback da prop (se houver)
         const onFileReceived = optionsRef.current.onFileReceived;
         if (typeof onFileReceived === 'function') {
-          onFileReceived({
-            fileName,
-            fileSize,
-            mimeType,
-            bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-            sender: participant,
-          });
+          onFileReceived(fileData);
         }
+
+        // 📡 Disparar evento global para componentes como ChatScreen
+        try {
+          window.dispatchEvent(new CustomEvent('byteStream:fileReceived', {
+            detail: fileData,
+          }));
+        } catch (_) {}
       } catch (err) {
         console.warn('[LiveKitChat] Error processing byte stream:', err);
       }
