@@ -181,6 +181,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // 📡 Referência para evitar fetch duplicado do configId
+    const lastConfigIdRef = useRef<string | null>(null);
 
     // 📡 Cleanup do typingTimeout ao desmontar
     useEffect(() => {
@@ -413,7 +415,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       console.log('[StateSync] Metadata da Room alterada:', metadata);
       try {
         // 📡 Size limit: Room Metadata tem limite de 512 KiB (documentação oficial)
-        // Se o metadata exceder 1 KiB, logar alerta para revisão
+        // https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
+        // Alerta conservador para metadados > 1 KiB
         if (metadata.length > 1024) {
           console.warn('[StateSync] ⚠️ Room metadata grande (' + metadata.length + ' bytes). Considere usar configId para dados maiores.');
         }
@@ -432,7 +435,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
         // 📡 configId pattern: Se o metadata tem um configId, buscar dados completos do MongoDB
         // Docs: https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
-        if (parsed.configId) {
+        // Evitar fetch duplicado: só buscar se configId mudou
+        if (parsed.configId && parsed.configId !== lastConfigIdRef.current) {
+          lastConfigIdRef.current = parsed.configId;
           livekitApi.fetchRoomConfig(parsed.configId).then(res => {
             if (res.success && res.config) {
               console.log('[StateSync] Config completa carregada via configId:', res.config);
@@ -440,12 +445,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
               if (res.config.viewers !== undefined) {
                 updateLiveSession({ viewers: Math.max(1, res.config.viewers) });
               }
-              if (res.config.isMicrophoneMuted !== undefined && isBroadcaster) {
-                // Mic status já sincronizado via Participant Attributes
-              }
             }
-          }).catch(err => {
-            console.warn('[StateSync] Erro ao buscar config via configId:', err);
           });
         }
       } catch {}
