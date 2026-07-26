@@ -178,3 +178,64 @@ export async function streamBytes(
     return null;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// 📡 RPC — Comandos remotos entre participantes
+// Docs: https://docs.livekit.io/transport/data/rpc/
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Registra um método RPC que outros participantes podem chamar.
+ * O handler deve retornar uma string (resposta) ou lançar um erro.
+ */
+export function registerRpcMethod(
+  method: string,
+  handler: (data: any) => Promise<string>
+): void {
+  const room = getLiveKitRoom();
+  try {
+    room.registerRpcMethod(method, async (invocationData: any) => {
+      try {
+        return await handler(invocationData);
+      } catch (err: any) {
+        // Relançar como RpcError para o LiveKit transmitir ao caller
+        throw err;
+      }
+    });
+    console.log('[RPC] ✅ Método registrado:', method);
+  } catch (err) {
+    console.warn('[RPC] Erro ao registrar método', method, ':', err);
+  }
+}
+
+/**
+ * Executa uma chamada RPC em outro participante.
+ * Retorna a resposta como string ou lança erro com código do LiveKit.
+ * Timeout padrão: 10 segundos (configurável).
+ */
+export async function performRpc(
+  destinationIdentity: string,
+  method: string,
+  payload: string,
+  timeout: number = 10000
+): Promise<string> {
+  const room = getLiveKitRoom();
+  if (room.state !== 'connected' || !room.localParticipant) {
+    throw new Error('Room not connected');
+  }
+  try {
+    const response = await room.localParticipant.performRpc({
+      destinationIdentity,
+      method,
+      payload,
+      responseTimeout: timeout,
+    });
+    return response;
+  } catch (err: any) {
+    // Repassar erros nativos do LiveKit
+    const code = err?.code || err?.name || 'UNKNOWN';
+    const message = err?.message || String(err);
+    console.warn('[RPC] performRpc falhou:', method, '->', destinationIdentity, ':', code, message);
+    throw { code, message, originalError: err };
+  }
+}

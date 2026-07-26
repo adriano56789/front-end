@@ -8,11 +8,26 @@ import {
   registerTextStreamHandler,
   registerByteStreamHandler,
   sendFileBytes,
+  registerRpcMethod,
+  performRpc,
   disconnectLiveKitRoom,
 } from '../services/livekit/livekitRoomService';
 
 const CHAT_TOPIC = 'chat';
 const CHAT_IMAGE_TOPIC = 'chat-image';
+
+// 📡 Constantes para métodos RPC
+const RPC = {
+  INVITE_CO_HOST: 'inviteCoHost',
+  ACCEPT_CO_HOST: 'acceptCoHost',
+  REJECT_CO_HOST: 'rejectCoHost',
+  END_CO_HOST: 'endCoHost',
+  INVITE_PK: 'invitePK',
+  ACCEPT_PK: 'acceptPK',
+  REJECT_PK: 'rejectPK',
+  END_PK: 'endPK',
+  KICK_PARTICIPANT: 'kickParticipant',
+} as const;
 
 interface ParticipantMetadata {
   avatarUrl?: string;
@@ -44,6 +59,17 @@ interface LiveKitChatOptions {
   // 📡 Byte Streams events (LiveKit docs: https://docs.livekit.io/transport/data/byte-streams/)
   onFileReceived?: (data: { fileName: string; fileSize: number; mimeType: string; bytes: ArrayBuffer; sender: any }) => void;
   onFileProgress?: (progress: number) => void;
+
+  // 📡 RPC callbacks — chamados quando OUTRO participante invoca o método
+  onInviteCoHost?: (callerIdentity: string, payload: any) => Promise<string>;
+  onAcceptCoHost?: (callerIdentity: string, payload: any) => Promise<string>;
+  onRejectCoHost?: (callerIdentity: string, payload: any) => Promise<string>;
+  onEndCoHost?: (callerIdentity: string, payload: any) => Promise<string>;
+  onInvitePK?: (callerIdentity: string, payload: any) => Promise<string>;
+  onAcceptPK?: (callerIdentity: string, payload: any) => Promise<string>;
+  onRejectPK?: (callerIdentity: string, payload: any) => Promise<string>;
+  onEndPK?: (callerIdentity: string, payload: any) => Promise<string>;
+  onKickParticipant?: (callerIdentity: string, payload: any) => Promise<string>;
 }
 
 export function useLiveKitChat(options: LiveKitChatOptions) {
@@ -52,6 +78,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
   const [reconnectKey, setReconnectKey] = useState(0);
   const optionsRef = useRef(options);
   const listenersRegistered = useRef(false);
+  const rpcRegistered = useRef(false);
   const destroyedRef = useRef(false);
   const connectAttempted = useRef(false);
 
@@ -185,6 +212,30 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
         console.log('[LiveKitChat]   (no remote participants yet - waiting for host...)');
       }
 
+      // 📡 RPC: Registrar métodos APÓS conectar (requer conexão ativa)
+      // Docs: https://docs.livekit.io/transport/data/rpc/
+      if (!rpcRegistered.current) {
+        rpcRegistered.current = true;
+        const registerRpc = (method: string, cb: ((caller: string, payload: any) => Promise<string>) | undefined) => {
+          if (typeof cb !== 'function') return;
+          registerRpcMethod(method, async (invocationData: any) => {
+            const { callerIdentity, payload } = invocationData;
+            let parsedPayload: any = {};
+            try { parsedPayload = JSON.parse(payload); } catch { parsedPayload = { raw: payload }; }
+            return await cb(callerIdentity, parsedPayload);
+          });
+        };
+        registerRpc(RPC.INVITE_CO_HOST, optionsRef.current.onInviteCoHost);
+        registerRpc(RPC.ACCEPT_CO_HOST, optionsRef.current.onAcceptCoHost);
+        registerRpc(RPC.REJECT_CO_HOST, optionsRef.current.onRejectCoHost);
+        registerRpc(RPC.END_CO_HOST, optionsRef.current.onEndCoHost);
+        registerRpc(RPC.INVITE_PK, optionsRef.current.onInvitePK);
+        registerRpc(RPC.ACCEPT_PK, optionsRef.current.onAcceptPK);
+        registerRpc(RPC.REJECT_PK, optionsRef.current.onRejectPK);
+        registerRpc(RPC.END_PK, optionsRef.current.onEndPK);
+        registerRpc(RPC.KICK_PARTICIPANT, optionsRef.current.onKickParticipant);
+      }
+
       optionsRef.current.onConnected?.();
     };
     const onDisconnected = () => {
@@ -275,10 +326,8 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     if (!listenersRegistered.current) {
       listenersRegistered.current = true;
       // 📡 Text Streams: registrar handler para chat
-      // Docs: https://docs.livekit.io/transport/data/text-streams/
       registerTextStreamHandler(CHAT_TOPIC, onTextStream);
       // 📡 Byte Streams: registrar handler para imagens do chat
-      // Docs: https://docs.livekit.io/transport/data/byte-streams/
       registerByteStreamHandler(CHAT_IMAGE_TOPIC, onByteStream);
       // 📡 Room events (presença, tracks, metadados)
       room.on(RoomEvent.Connected, onConnected);
@@ -548,6 +597,71 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     }
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 📡 RPC — Funções para chamar métodos em outros participantes
+  // Docs: https://docs.livekit.io/transport/data/rpc/
+  // ═══════════════════════════════════════════════════════════════════
+
+  const callRpc = useCallback(async (
+    destinationIdentity: string,
+    method: string,
+    payload: any = {},
+    timeout: number = 10000
+  ): Promise<{ success: boolean; data?: any; error?: string }> => {
+    try {
+      const response = await performRpc(
+        destinationIdentity,
+        method,
+        JSON.stringify(payload),
+        timeout
+      );
+      let parsed: any;
+      try { parsed = JSON.parse(response); } catch { parsed = { raw: response }; }
+      return { success: true, data: parsed };
+    } catch (err: any) {
+      const code = err?.code || err?.name || 'UNKNOWN';
+      const message = err?.message || String(err);
+      console.warn(`[RPC] ${method} falhou para ${destinationIdentity}: ${code} - ${message}`);
+      return { success: false, error: `${code}: ${message}` };
+    }
+  }, []);
+
+  const inviteCoHost = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.INVITE_CO_HOST, data);
+  }, [callRpc]);
+
+  const acceptCoHost = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.ACCEPT_CO_HOST, data);
+  }, [callRpc]);
+
+  const rejectCoHost = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.REJECT_CO_HOST, data);
+  }, [callRpc]);
+
+  const endCoHost = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.END_CO_HOST, data);
+  }, [callRpc]);
+
+  const invitePK = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.INVITE_PK, data);
+  }, [callRpc]);
+
+  const acceptPK = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.ACCEPT_PK, data);
+  }, [callRpc]);
+
+  const rejectPK = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.REJECT_PK, data);
+  }, [callRpc]);
+
+  const endPK = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.END_PK, data);
+  }, [callRpc]);
+
+  const kickParticipant = useCallback(async (identity: string, data: any = {}) => {
+    return callRpc(identity, RPC.KICK_PARTICIPANT, data);
+  }, [callRpc]);
+
   return {
     connected,
     sendMessage,
@@ -558,5 +672,15 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     unpublishTracks,
     muteTrack,
     unmuteTrack,
+    // 📡 RPC methods
+    inviteCoHost,
+    acceptCoHost,
+    rejectCoHost,
+    endCoHost,
+    invitePK,
+    acceptPK,
+    rejectPK,
+    endPK,
+    kickParticipant,
   };
 }
