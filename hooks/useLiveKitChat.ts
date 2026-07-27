@@ -134,10 +134,7 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
     const onTextStream = async (reader: any, participant: any) => {
       if (destroyedRef.current) return;
       try {
-        let fullText = '';
-        for await (const chunk of reader) {
-          fullText += chunk;
-        }
+        const fullText = await reader.readAll();
         if (!fullText) return;
         const data = JSON.parse(fullText);
         if (optionsRef.current.onMessage && data) {
@@ -158,22 +155,16 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
         const fileSize = info.size || 0;
         const mimeType = info.mimeType || 'application/octet-stream';
 
-        // 📡 Progresso de download (se suportado pelo reader)
         if (typeof reader.onProgress === 'function') {
           reader.onProgress = (pct: number) => {
             optionsRef.current.onFileProgress?.(pct);
           };
         }
 
-        // 📡 Ler chunks incrementalmente (funciona com sendFile e streamBytes)
-        const chunks: Uint8Array[] = [];
-        for await (const chunk of reader) {
-          chunks.push(chunk);
-        }
-        if (chunks.length === 0) return;
+        const chunks = await reader.readAll();
+        if (!chunks || chunks.length === 0) return;
 
-        // 🔄 Juntar todos os chunks em um único Uint8Array
-        const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+        const totalLen = chunks.reduce((acc: number, c: Uint8Array) => acc + c.length, 0);
         const bytes = new Uint8Array(totalLen);
         let offset = 0;
         for (const c of chunks) {
@@ -189,13 +180,11 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
           sender: participant,
         };
 
-        // Callback da prop (se houver)
         const onFileReceived = optionsRef.current.onFileReceived;
         if (typeof onFileReceived === 'function') {
           onFileReceived(fileData);
         }
 
-        // 📡 Disparar evento global para componentes como ChatScreen
         try {
           window.dispatchEvent(new CustomEvent('byteStream:fileReceived', {
             detail: fileData,
@@ -276,13 +265,14 @@ export function useLiveKitChat(options: LiveKitChatOptions) {
 
       optionsRef.current.onConnected?.();
     };
-    const onDisconnected = () => {
+    const onDisconnected = (reason?: any) => {
       if (destroyedRef.current) return;
       setConnected(false);
       connectAttempted.current = false; // 🔄 Permitir reconexão
       setReconnectKey(k => k + 1); // Forçar re-avaliação do effect
       optionsRef.current.onDisconnected?.();
-      console.warn('[LiveKitChat] Disconnected - reconnect permitido');
+      const reasonCode = typeof reason === 'number' ? reason : (reason?.code ?? reason ?? 'unknown');
+      console.warn('[LiveKitChat] Disconnected - reason:', reasonCode, '| reconnect permitido');
     };
     const onReconnecting = () => {
       if (!destroyedRef.current) {

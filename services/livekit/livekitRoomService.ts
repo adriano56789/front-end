@@ -34,7 +34,6 @@ export async function connectLiveKitRoom(url: string, token: string): Promise<vo
   if (room.state === 'connected') return;
   if (room.state === 'connecting' || room.state === 'reconnecting') {
     if (connectPromise) return connectPromise;
-    await new Promise(resolve => setTimeout(resolve, 2000));
     return;
   }
 
