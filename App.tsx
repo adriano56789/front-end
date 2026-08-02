@@ -1123,6 +1123,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
   const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
   const fcmInitializedRef = useRef(false);
+  // Refs de estado para uso em listeners globais (SW auto-update)
+  const activeStreamRef = useRef(activeStream);
+  useEffect(() => { activeStreamRef.current = activeStream; }, [activeStream]);
   // Flag para evitar que o auto-load effect re-entre em uma stream que acabou de ser encerrada
   const leftStreamRef = useRef(false);
 
@@ -1443,10 +1446,18 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
             }
           });
         });
-        // Quando o SW novo assumir o controle, recarregar com o app novo
+        // Quando o SW novo assumir o controle, recarregar com o app novo.
+        // ⚠️ Proteção: NUNCA recarregar durante uma transmissão ao vivo — o
+        // reload derrubaria o publish WHIP e encerraria a live. Nesse caso,
+        // aguarda até a próxima abertura (o SW já ativado garante a versão nova).
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (refreshing) return;
+          // Se há uma live ativa (transmitindo ou em sala), adia o reload
+          if (activeStreamRef.current) {
+            console.log('[PWA] ⏸️ Live ativa — adiando auto-reload para não derrubar a transmissão');
+            return;
+          }
           refreshing = true;
           console.log('[PWA] 🔄 Recarregando com a versão nova...');
           window.location.reload();
