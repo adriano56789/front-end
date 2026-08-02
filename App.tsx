@@ -1428,8 +1428,29 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     // cache é só fallback offline — não causa "assets antigos" para usuários conectados.
     if ('serviceWorker' in navigator && !fcmInitializedRef.current) {
       fcmInitializedRef.current = true;
-      navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js').then((reg) => {
         console.log('[FCM] Service Worker registrado (única vez)');
+        // 🚀 AUTO-UPDATE: se uma versão nova do app for detectada no servidor,
+        // ativa o service worker novo e recarrega a página automaticamente.
+        // Assim o usuário nunca fica preso na versão antiga (sem limpar cache).
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (!newWorker) return;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('[PWA] ✅ Versão nova instalada — ativando automaticamente...');
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+        // Quando o SW novo assumir o controle, recarregar com o app novo
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing) return;
+          refreshing = true;
+          console.log('[PWA] 🔄 Recarregando com a versão nova...');
+          window.location.reload();
+        });
       }).catch((err) => {
         console.warn('[FCM] Erro ao registrar Service Worker:', err);
       });

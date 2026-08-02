@@ -31,6 +31,17 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// ── Atualização automática ────────────────────────────────────────────────
+// O app (App.tsx) envia SKIP_WAITING quando encontra uma versão nova instalada
+// no servidor — isso ativa o SW novo imediatamente (sem esperar fechar o app),
+// e o controllerchange no app recarrega a página com a versão nova.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Ativando versão nova imediatamente (SKIP_WAITING)');
+    self.skipWaiting();
+  }
+});
+
 // ── Ativação ───────────────────────────────────────────────────────────────
 // Limpa caches antigos e assume controle de todas as abas
 self.addEventListener('activate', (event) => {
