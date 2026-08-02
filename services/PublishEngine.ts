@@ -103,8 +103,12 @@ export class PublishEngine {
     }
 
     // 🎥 Capturar câmera/microfone com erro claro (o SDK antigo pendurava aqui).
+    // 🔧 Só reutiliza o stream do preview se tiver pelo menos 1 track VIVA.
+    // Se um publish anterior falhou, o teardown parou os tracks (readyState !== 'live')
+    // e o stream ficaria morto — nesse caso captura de novo.
     let stream = preCapturedStream ?? null;
-    if (!stream || stream.getTracks().length === 0) {
+    const hasLiveTracks = !!stream && stream.getTracks().some(t => t.readyState === 'live');
+    if (!stream || !hasLiveTracks) {
       stream = await this._captureMedia();
     }
     if (this._destroyed) {

@@ -424,7 +424,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // (câmera em uso) → publish falha antes de chegar ao SRS. Passando o
             // stream existente, o engine pula o getUserMedia e publica direto.
             const previewStream = streamPublishService.getCurrentStream();
-            const mediaForPublish = (previewStream && previewStream.getVideoTracks().length > 0)
+            // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
+            // anteriormente parou os tracks — o stream morto não serve para publicar).
+            const mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
                 ? previewStream
                 : undefined;
             console.log('[HOST] 🎥 Reutilizando preview do GoLive para publish:', !!mediaForPublish);
