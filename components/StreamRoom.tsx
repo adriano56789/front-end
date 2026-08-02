@@ -419,8 +419,18 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 streamPublishService.setPublishing(true);
             });
 
+            // 🔧 REUTILIZAR o stream do preview (GoLiveScreen já capturou a câmera).
+            // No celular, capturar a câmera DE NOVO aqui causa NotReadableError
+            // (câmera em uso) → publish falha antes de chegar ao SRS. Passando o
+            // stream existente, o engine pula o getUserMedia e publica direto.
+            const previewStream = streamPublishService.getCurrentStream();
+            const mediaForPublish = (previewStream && previewStream.getVideoTracks().length > 0)
+                ? previewStream
+                : undefined;
+            console.log('[HOST] 🎥 Reutilizando preview do GoLive para publish:', !!mediaForPublish);
+
             // WHIP inicia a sessão e captura a mídia (getUserMedia) ao publicar
-            await engine.start(streamer.streamKey || streamer.id, undefined, currentUser.id);
+            await engine.start(streamer.streamKey || streamer.id, mediaForPublish, currentUser.id);
             isPublishingRef.current = true;
             console.log('[HOST] ✅ Stream publicada via WHIP ao SRS');
         } catch (err) {

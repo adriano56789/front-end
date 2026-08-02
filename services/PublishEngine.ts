@@ -1,4 +1,5 @@
 import { getWhipPublishUrl } from './mediaConfig';
+import { cameraService } from './cameraService';
 
 export type PublishState = 'idle' | 'connecting' | 'publishing' | 'reconnecting' | 'failed';
 
@@ -147,17 +148,20 @@ export class PublishEngine {
     this._waitForIceConnected(pc);
   }
 
-  private _captureMedia(): Promise<MediaStream> {
-    return navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: {
-        width: { ideal: 1280, max: 720 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 },
-      },
-    }).catch((err: any) => {
+  private async _captureMedia(): Promise<MediaStream> {
+    try {
+      // 🎥 Usa o cameraService (tiered fallbacks: vídeo+áudio → vídeo separado →
+      // áudio separado → mínimo). Isso evita falha de captura em celulares com
+      // constraints não suportadas (NotOverconstrainedError) ou câmera ocupada.
+      return await cameraService.captureStream('user');
+    } catch (err: any) {
+      // Fallback absoluto: captura mínima simples, sem constraints
+      try {
+        const fallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (fallback && fallback.getTracks().length > 0) return fallback;
+      } catch { /* mantém erro original */ }
       throw new Error(getUserMediaErrorMessage(err));
-    });
+    }
   }
 
   private _preferVideoCodec(pc: RTCPeerConnection, codec: 'H264' | 'VP8' | 'VP9') {
