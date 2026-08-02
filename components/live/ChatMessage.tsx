@@ -96,7 +96,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             className="flex items-center gap-2 text-xs bg-transparent rounded-[18px] px-3 py-1 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap"
         >
             <span 
-                className="font-extrabold tracking-wide shrink-0 font-sans text-[13px] pr-0.5"
+                className="font-extrabold tracking-wide shrink-0 font-sans text-[11px] pr-0.5"
                 style={{ 
                     color: nameColor,
                     textShadow: '0 1px 1.5px rgba(0,0,0,0.85)'
@@ -121,7 +121,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             <AgeBadge gender={userObject.gender} age={userObject.age} />
 
             <span 
-                className="text-white font-sans font-semibold break-words leading-relaxed ml-0.5 tracking-wide text-[13px]"
+                className="text-white font-sans font-semibold break-words leading-relaxed ml-0.5 tracking-wide text-[11px]"
                 style={{ 
                     textShadow: '0 1px 1.5px rgba(0,0,0,0.85)'
                 }}

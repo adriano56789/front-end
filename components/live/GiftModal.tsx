@@ -190,9 +190,11 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
         dragOverItem.current = null;
     };
 
+    // 🔧 Overlay transparente: a transmissão continua CLARA quando o painel
+    // de presentes abre (sem escurecer). O painel é um bottom sheet parcial.
     return (
         <div 
-            className={`fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
+            className={`fixed inset-0 z-[100] flex items-end justify-center bg-transparent transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
             onClick={onClose}
         >
             <div 

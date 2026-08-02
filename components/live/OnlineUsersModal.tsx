@@ -164,8 +164,10 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
         };
     }, [streamId]);
 
+    // 🔧 Overlay transparente: NÃO tampar a transmissão com fundo preto.
+    // O painel (bottom sheet) cobre só a parte inferior; o vídeo fica visível.
     return (
-        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-transparent" onClick={onClose}>
             <div 
                 className="bg-[#0f1115] w-full max-h-[92vh] h-auto rounded-t-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border border-white/5"
                 onClick={e => e.stopPropagation()}

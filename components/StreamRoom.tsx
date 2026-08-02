@@ -90,7 +90,7 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
     return (
         <div className="flex items-center gap-2 text-xs bg-transparent rounded-[18px] px-3 py-1 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap">
             <span 
-                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[13px]"
+                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[11px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {follower}
@@ -102,13 +102,13 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
             </span>
 
             <span 
-                className="text-zinc-300 font-sans font-semibold text-[13px] ml-0.5 tracking-wide"
+                className="text-zinc-300 font-sans font-semibold text-[11px] ml-0.5 tracking-wide"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {t('streamRoom.followed')}
             </span>
             <span 
-                className="text-[#c084fc] font-extrabold ml-0.5 font-sans text-[13px]"
+                className="text-[#c084fc] font-extrabold ml-0.5 font-sans text-[11px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {followed}! 🎉
@@ -660,9 +660,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 level: fromUser.level || 1,
                 message: (
                     <span className="inline-flex items-center gap-1">
-                        <span className="font-extrabold text-[#c084fc] hover:underline">{fromUser.name}</span>
-                        <span className="text-purple-250">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
-                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block" }) : <span className="text-base">{gift.icon || '🎁'}</span>}
+                        <span className="font-extrabold text-[#c084fc] hover:underline text-[11px]">{fromUser.name}</span>
+                        <span className="text-purple-250 text-[11px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
+                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-4 h-4 inline-block" }) : <span className="text-sm">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
                 // 🔧 Fallback de avatar para garantir renderização (msg.avatar obrigatório no chat)
@@ -821,48 +821,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         }
     }, [messages.length]);
 
-    // Periodic gold system announcements to simulate live stream events in real-time, free and lightweight
-    useEffect(() => {
-        // Welcome message on join
-        const welcomeTimeout = setTimeout(() => {
-            const welcomeId = String(Date.now() + Math.random());
-            setMessages(prev => [...prev, {
-                id: welcomeId,
-                type: 'chat',
-                user: 'Sistema',
-                message: 'Bem-vindo à sala de transmissão ao vivo! Siga as diretrizes de convivência e apoie o streamer compartilhando a live ou enviando presentes! 🎉',
-                level: 1,
-            }]);
-        }, 1200);
-
-        const systemEvents = [
-            'Novo evento de presente ativado! Envie presentes para subir no ranking de patrocinadores!',
-            'Toque na tela repetidamente para enviar likes e impulsionar a transmissão!',
-            'Quer ter destaque supremo com molduras brilhantes e efeitos de entrada? Adquira já o passe de VIP no perfil!',
-            'Dica de segurança: Não compartilhe dados pessoais no chat público. Mantenha a live segura para todos.',
-            'O modo PK Battle está liberado! O streamer pode ativar o modo PK para disputar curtidas com outros streamers!',
-            'Participe do ranking de contribuição semanal tocando no troféu no cabeçalho.'
-        ];
-
-        let index = Math.floor(Math.random() * systemEvents.length);
-        const eventInterval = setInterval(() => {
-            const nextEvent = systemEvents[index % systemEvents.length];
-            const evtId = String(Date.now() + Math.random());
-            setMessages(prev => [...prev, {
-                id: evtId,
-                type: 'chat',
-                user: 'Sistema',
-                message: nextEvent,
-                level: 1,
-            }]);
-            index++;
-        }, 35000); // Send beautifully every 35 seconds
-
-        return () => {
-            clearTimeout(welcomeTimeout);
-            clearInterval(eventInterval);
-        };
-    }, [streamer.name]);
+    // 🚫 REMOVIDO: mensagens automáticas do Sistema (welcome + dicas periódicas).
+    // O chat agora só mostra eventos REAIS: mensagens de usuários, entradas e
+    // presentes enviados por usuários reais (live_gift_received via socket).
 
     // Monitorar status de publish usando apenas controle do backend (SRS apenas para ingestão)
     useEffect(() => {
@@ -1631,17 +1592,21 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             >
                                 <SendIcon className="w-5 h-5 text-white" />
                             </button>
-                            {/* Gift Action */}
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
-                                className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
-                            >
-                                <img 
-                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
-                                    alt="Gift Icon" 
-                                    className="w-9 h-9 object-cover rounded-full shadow-lg" 
-                                />
-                            </button>
+                            {/* Gift Action — 🔧 só para ESPECTADORES. O host não
+                                envia presente para si mesmo; o painel de presentes
+                                não aparece para o broadcaster. */}
+                            {!isBroadcaster && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                                    className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                                >
+                                    <img 
+                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                        alt="Gift Icon" 
+                                        className="w-9 h-9 object-cover rounded-full shadow-lg" 
+                                    />
+                                </button>
+                            )}
                             {/* Private Chat */}
                             {!isBroadcaster && (
                                 <button 
@@ -1728,19 +1693,22 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
-            <GiftModal
-                isOpen={isGiftModalOpen}
-                onClose={() => setGiftModalOpen(false)}
-                userDiamonds={currentUser.diamonds ?? 0}
-                onSendGift={handleSendGift}
-                onRecharge={handleRecharge}
-                gifts={gifts}
-                receivedGifts={receivedGifts}
-                isBroadcaster={isBroadcaster}
-                onOpenVIPCenter={onOpenVIPCenter}
-                isVIP={currentUser.isVIP || false}
-                currentUser={currentUser}
-            />
+            {/* 🔧 Painel de presentes apenas para espectadores (host não envia presente) */}
+            {!isBroadcaster && (
+                <GiftModal
+                    isOpen={isGiftModalOpen}
+                    onClose={() => setGiftModalOpen(false)}
+                    userDiamonds={currentUser.diamonds ?? 0}
+                    onSendGift={handleSendGift}
+                    onRecharge={handleRecharge}
+                    gifts={gifts}
+                    receivedGifts={receivedGifts}
+                    isBroadcaster={isBroadcaster}
+                    onOpenVIPCenter={onOpenVIPCenter}
+                    isVIP={currentUser.isVIP || false}
+                    currentUser={currentUser}
+                />
+            )}
             {isWalletOpen && (
                 <WalletScreen
                     onClose={() => setIsWalletOpen(false)}

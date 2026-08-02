@@ -33,7 +33,7 @@ const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, 
             data-purpose="system-notification"
         >
             <span 
-                className="text-[#fbbf24] font-extrabold tracking-wide font-sans text-[13px]"
+                className="text-[#fbbf24] font-extrabold tracking-wide font-sans text-[11px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {user.name}
@@ -54,7 +54,7 @@ const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, 
             )}
 
             <span 
-                className="text-zinc-300 font-sans font-semibold text-[13px] ml-0.5 tracking-wide"
+                className="text-zinc-300 font-sans font-semibold text-[11px] ml-0.5 tracking-wide"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 entrou na sala.

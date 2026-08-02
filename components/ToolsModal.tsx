@@ -322,13 +322,15 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
         { icon: <HelpIcon className="w-7 h-7" />, label: 'Ajuda', hasDot: false, onClick: handleHelp },
     ];
 
+    // 🔧 Abre igual o painel do presente: bottom sheet parcial, overlay
+    // transparente — a transmissão continua visível/clara.
     return (
         <div 
-          className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm transition-opacity duration-350 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          className={`fixed inset-0 z-[100] flex items-end justify-center bg-transparent transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           onClick={onClose}
         >
             <div
-                className={`bg-[#131124] w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl p-6 space-y-6 transform transition-transform duration-300 ease-out border border-white/[0.04] pb-8 overflow-y-auto ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+                className={`bg-[#131124] w-full max-h-[88vh] rounded-t-3xl p-6 space-y-6 transform transition-all duration-300 ease-in-out border border-white/10 shadow-2xl pb-8 overflow-y-auto ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
                 onClick={e => e.stopPropagation()}
             >
                 <header className="flex items-center justify-between px-1">
