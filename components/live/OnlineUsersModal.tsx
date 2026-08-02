@@ -165,9 +165,9 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     }, [streamId]);
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-stretch sm:items-center sm:justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
             <div 
-                className="bg-[#0f1115] w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border sm:border-white/5"
+                className="bg-[#0f1115] w-full max-w-lg max-h-[92vh] h-auto sm:max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border sm:border-white/5"
                 onClick={e => e.stopPropagation()}
             >
                 <header className="relative flex items-center justify-between p-4 flex-shrink-0 select-none">

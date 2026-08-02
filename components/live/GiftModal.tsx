@@ -192,11 +192,11 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
 
     return (
         <div 
-            className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
+            className={`fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:justify-center bg-black/60 backdrop-blur-[2px] transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} 
             onClick={onClose}
         >
             <div 
-                className={`bg-[#060608] border border-gray-900/60 w-[94%] max-w-lg max-h-[88vh] h-auto sm:max-h-[92vh] rounded-3xl flex flex-col transform transition-all duration-300 ease-in-out shadow-2xl ${isOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-full opacity-0 scale-95'}`} 
+                className={`bg-[#060608] border border-gray-900/60 w-full max-w-lg max-h-[88vh] h-auto sm:max-h-[92vh] rounded-t-3xl sm:rounded-3xl flex flex-col transform transition-all duration-300 ease-in-out shadow-2xl ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`} 
                 onClick={e => e.stopPropagation()}
             >
                 <header className="flex-shrink-0 px-4 pt-3.5 pb-2 bg-[#060608]">
