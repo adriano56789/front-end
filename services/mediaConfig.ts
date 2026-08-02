@@ -31,6 +31,27 @@ export const getWhepPlayUrl = (streamId: string): string => {
 };
 
 /**
+ * Converte uma URL WHEP (geralmente relativa, ex: /api/rtc/v1/whep/?...) em URL
+ * absoluta usando o origin atual da página.
+ *
+ * Por que isso importa: o SDK oficial do SRS (srs.sdk.js) constrói URLs internas
+ * com `new URL(location, url)` e `xhr.open('POST', url)`. Se a base for relativa,
+ * o browser lança `TypeError: Failed to construct 'URL': Invalid base URL` — o
+ * exato erro visto em produção (WHEP timeout + retries infinitos). URLs absolutas
+ * funcionam em qualquer versão do SDK (inclusive versões antigas em cache).
+ */
+export const resolveAbsoluteUrl = (url: string): string => {
+  if (!url) return url;
+  if (typeof window === 'undefined') return url;
+  try {
+    // new URL(relativa, baseAbsoluta) também valida a URL — se inválida, retorna a original.
+    return new URL(url, window.location.href).href;
+  } catch {
+    return url;
+  }
+};
+
+/**
  * SRS WHIP Publish URL (WebRTC — protocolo oficial de publish do SRS).
  * O SRS publica a live como stream_{id} (com prefixo 'stream_').
  * Passa pelo proxy do nginx do livego.store: /api/rtc/v1/whip/ → SRS:1985/rtc/v1/whip/.

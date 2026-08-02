@@ -1122,11 +1122,9 @@ export default function PKBattleScreen({
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setIsOnlineUsersOpen(false);
-                        if (isBroadcaster) {
-                            setUserActionModalState({ isOpen: true, user: selectedUser });
-                        } else {
-                            onViewProfile(selectedUser);
-                        }
+                        // Sempre abrir o perfil como página (também para o broadcaster).
+                        // Ações de moderação (expulsar/tornar mod) continuam disponíveis no chat.
+                        onViewProfile(selectedUser);
                     }}
                 />
             )}

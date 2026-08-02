@@ -88,34 +88,10 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     const [error, setError] = useState<string | null>(null);
 
     // Mesclar avatar atualizado do usuário logado (sincronização em tempo real)
-    let usersWithFreshAvatar = (users || []).map(u =>
+    // 🚫 Usuário simulado REMOVIDO — apenas usuários reais aparecem na lista
+    const usersWithFreshAvatar = (users || []).map(u =>
         currentUser && u.id === currentUser.id ? { ...u, avatarUrl: currentUser.avatarUrl || u.avatarUrl } : u
     );
-
-    // Garantir que o Luan simulado esteja presente
-    const hasLuanInUsers = usersWithFreshAvatar.some(u => u.id === 'simulated_luan');
-    if (!hasLuanInUsers) {
-        const simulatedLuanSim = {
-            id: 'simulated_luan',
-            identification: 'simulated_luan',
-            name: 'Luan',
-            avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=150&q=80',
-            gender: 'male',
-            level: 8,
-            xp: 750,
-            coins: 400,
-            diamonds: 1000,
-            fans: 312,
-            following: 58,
-            receptores: 0,
-            enviados: 250,
-            earnings: 0,
-            earnings_withdrawn: 0,
-            ownedFrames: [],
-            value: 250,
-        };
-        usersWithFreshAvatar = [simulatedLuanSim as any, ...usersWithFreshAvatar];
-    }
 
     useEffect(() => {
         // Conectar à sala da stream para receber atualizações em tempo real

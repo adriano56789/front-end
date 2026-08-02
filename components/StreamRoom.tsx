@@ -1679,11 +1679,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setOnlineUsersOpen(false);
-                        if (isBroadcaster) {
-                            setUserActionModalState({ isOpen: true, user: selectedUser });
-                        } else {
-                            onViewProfile(selectedUser);
-                        }
+                        // Sempre abrir o perfil como página (também para o broadcaster).
+                        // Ações de moderação (expulsar/tornar mod) continuam disponíveis no chat.
+                        onViewProfile(selectedUser);
                     }}
                     moderatorIds={moderatorIds}
                 />

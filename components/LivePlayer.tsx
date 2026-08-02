@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { SrsPlayerEngine } from "../services/SrsPlayerEngine";
 import { streamPublishService } from "../services/streamPublishService";
-import { getWhepPlayUrl } from "../services/mediaConfig";
+import { getWhepPlayUrl, resolveAbsoluteUrl } from "../services/mediaConfig";
 
 interface LivePlayerProps {
   url?: string;
@@ -150,7 +150,9 @@ export default function LivePlayer({
 
         // 🔧 Usar URL WHEP do backend se disponível, senão gerar com getWhepPlayUrl()
         // A URL do backend já tem o prefixo 'stream_' correto (ex: /api/rtc/v1/whep/?app=live&stream=stream_1951388)
-        const finalUrl = url || getWhepPlayUrl(streamId);
+        // ⚠️ Sempre ABSOLUTA: o srs.sdk.js constrói URLs internas com base na URL passada;
+        // URLs relativas disparam 'Failed to construct URL: Invalid base URL' no WHEP.
+        const finalUrl = resolveAbsoluteUrl(url || getWhepPlayUrl(streamId));
         engine.start(streamId, video, finalUrl).catch(err => {
           const errMsg = err instanceof Error ? err.message : String(err);
           console.error('[LivePlayer] Error running SrsPlayerEngine:', errMsg);

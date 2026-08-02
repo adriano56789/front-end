@@ -52,7 +52,15 @@ interface StreamChatOptions {
 }
 
 export function useStreamChat(options: StreamChatOptions) {
-  const { streamId, userId, userName, disabled } = options;
+  const { streamId: rawStreamId, userId, userName, disabled } = options;
+  // 🔧 NORMALIZAÇÃO DO STREAM ID (crítico para o tempo real entre telas):
+  // O backend remove o prefixo 'stream_' em TODAS as rotas REST
+  // (router.param('id') em liveRoutes.js) e faz o broadcast de mensagens
+  // e presentes para a sala SEM prefixo (io.to('1065527')).
+  // O socket precisa entrar na MESMA sala para receber esses broadcasts.
+  const streamId = String(rawStreamId || '').startsWith('stream_')
+    ? String(rawStreamId).replace('stream_', '')
+    : String(rawStreamId || '');
   const [connected, setConnected] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const optionsRef = useRef(options);

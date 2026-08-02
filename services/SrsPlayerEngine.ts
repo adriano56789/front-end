@@ -1,4 +1,4 @@
-import { getWhepPlayUrl } from './mediaConfig';
+import { getWhepPlayUrl, resolveAbsoluteUrl } from './mediaConfig';
 
 export type PlayerState =
   | 'idle'
@@ -20,6 +20,17 @@ interface EngineConfig {
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000];
 const SDK_WAIT_TIMEOUT = 10000;
+
+/** URL WHEP válida = absoluta (http/https) e com host definido. */
+function isValidWhepUrl(url: string): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * ═══════════════════════════════════════════════════════════════════
@@ -141,10 +152,23 @@ export class SrsPlayerEngine {
 
     this._setState('loading');
 
-    const whepUrl = this._customWhepUrl || getWhepPlayUrl(this._streamId);
+    // ⚠️ Sempre usar URL ABSOLUTA no SDK do SRS: o SDK faz `new URL(location, url)`
+    // e `xhr.open('POST', url)` internamente — com base relativa o browser lança
+    // `TypeError: Failed to construct 'URL': Invalid base URL` (bug visto em produção).
+    const whepUrl = resolveAbsoluteUrl(this._customWhepUrl || getWhepPlayUrl(this._streamId));
     if (this._config.verboseLogs) {
       console.log(`[SRS-Engine] 🎬 Iniciando player WHEP (WebRTC) para stream ${streamId}`);
       console.log(`[SRS-Engine] 📡 URL WHEP: ${whepUrl}`);
+    }
+
+    // URL determinísticamente inválida → erro imediato SEM fila de reconexão
+    // (reconectar 5x com URL quebrada só gera spam de erro e timeout inútil).
+    if (!isValidWhepUrl(whepUrl)) {
+      console.error(`[SRS-Engine] ❌ URL WHEP inválida: "${this._customWhepUrl || getWhepPlayUrl(this._streamId)}"`);
+      this._setState('error');
+      this._emit('error', 'PLAYBACK_FAILED', `URL de reprodução WHEP inválida. Verifique a configuração do stream (${streamId}).`);
+      this._connecting = false;
+      return;
     }
 
     try {
@@ -153,11 +177,16 @@ export class SrsPlayerEngine {
       this._connecting = false;
     } catch (err: any) {
       const errMsg = err?.message || 'Falha ao conectar no WebRTC (WHEP)';
+      const isFatalUrlError =
+        err instanceof TypeError ||
+        /failed to construct 'url'|invalid base url|invalid url/i.test(errMsg);
       console.error(`[SRS-Engine] ❌ WHEP falhou na tentativa inicial:`, errMsg);
       this._setState('error');
       this._emit('error', 'PLAYBACK_FAILED', `Stream não disponível: ${errMsg}. Verifique se a transmissão ao vivo foi iniciada corretamente.`);
 
-      if (this._config.reconnectRetries > 0 && !this._destroyed) {
+      // Não tentar reconectar quando o erro é determinístico (URL quebrada) —
+      // retry só faz sentido para falhas transitórias de rede/SRS.
+      if (this._config.reconnectRetries > 0 && !this._destroyed && !isFatalUrlError) {
         console.log(`[SRS-Engine] 🔄 Iniciando reconexão (${this._config.reconnectRetries} tentativas)...`);
         this._scheduleRetry();
       }
@@ -184,16 +213,24 @@ export class SrsPlayerEngine {
 
       try {
         this._disposePlayer();
-        const whepUrl = this._customWhepUrl || getWhepPlayUrl(this._streamId);
+        const whepUrl = resolveAbsoluteUrl(this._customWhepUrl || getWhepPlayUrl(this._streamId));
         await this._ensureSdk();
         await this._startWhep(whepUrl);
         console.log(`[SRS-Engine] ✅ Reconexão bem-sucedida na tentativa ${this._retryCount}!`);
         this._retryCount = 0;
       } catch (err: any) {
-        console.error(`[SRS-Engine] ❌ Tentativa ${this._retryCount} falhou:`, err?.message);
+        const retryErrMsg = err?.message || 'Falha ao reconectar (WHEP)';
+        const isFatalUrlError =
+          err instanceof TypeError ||
+          /failed to construct 'url'|invalid base url|invalid url/i.test(retryErrMsg);
+        console.error(`[SRS-Engine] ❌ Tentativa ${this._retryCount} falhou:`, retryErrMsg);
         this._setState('error');
-        this._emit('error', 'RETRY_FAILED', err?.message);
-        this._scheduleRetry();
+        this._emit('error', 'RETRY_FAILED', retryErrMsg);
+        // Erros determinísticos de URL não melhoram com retry — encerra a fila
+        // (evita o spam de reconexão visto em produção com SDK antigo em cache).
+        if (!isFatalUrlError) {
+          this._scheduleRetry();
+        }
       }
     }, delay);
   }
