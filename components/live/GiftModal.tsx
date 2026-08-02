@@ -30,6 +30,13 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     const dragItem = useRef<Gift | null>(null);
     const dragOverItem = useRef<Gift | null>(null);
 
+    const giftCategories = useMemo(() => {
+        const categories: (Gift['category'] | 'Galeria')[] = ['Popular', 'Luxo', 'Atividade', 'VIP', 'Efeito', 'Entrada', 'Galeria'];
+        return categories;
+    }, []);
+
+    const [activeTab, setActiveTab] = useState<(Gift['category'] | 'Galeria')>(giftCategories[0]);
+
     // Função para buscar presentes por categoria da API
     const fetchGiftsByCategory = async (category: string) => {
         if (category === 'Galeria') {
@@ -98,14 +105,8 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
         if (isOpen) {
             fetchGiftsByCategory(activeTab);
         }
-    }, [isOpen]);
+    }, [isOpen, activeTab]);
 
-    const giftCategories = useMemo(() => {
-        const categories: (Gift['category'] | 'Galeria')[] = ['Popular', 'Luxo', 'Atividade', 'VIP', 'Efeito', 'Entrada', 'Galeria'];
-        return categories;
-    }, []);
-
-    const [activeTab, setActiveTab] = useState<(Gift['category'] | 'Galeria')>(giftCategories[0]);
     const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
     const [quantity, setQuantity] = useState(1);
     const presetQuantities = [1, 10, 99, 188, 520, 1314];
@@ -173,7 +174,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
         const dragItemIndex = currentGifts.findIndex(g => g.name === dragItem.current!.name);
         const dragOverItemIndex = currentGifts.findIndex(g => g.name === dragOverItem.current!.name);
     
-        if (dragItemIndex === -1 || dragOverItemIndex === -1 || dragItemIndex === dragItemIndex) {
+        if (dragItemIndex === -1 || dragOverItemIndex === -1 || dragItemIndex === dragOverItemIndex) {
             return;
         }
     

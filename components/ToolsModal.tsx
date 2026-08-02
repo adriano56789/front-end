@@ -170,7 +170,7 @@ const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, hasDot, isActive, 
         <button 
             onClick={onClick} 
             disabled={disabled} 
-            className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-250 outline-none active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 outline-none active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
                 isActive 
                     ? 'bg-gradient-to-br from-[#00e5ff] to-[#bd00ff] shadow-[0_4px_16px_rgba(0,229,255,0.4)] text-white' 
                     : 'bg-transparent text-[#9ea3b5] hover:text-white hover:bg-white/[0.06]'

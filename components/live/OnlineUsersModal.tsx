@@ -65,11 +65,13 @@ const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick
                 </div>
                 
                 <div className="flex items-center gap-2 mt-1">
-                    {/* Orange Capsule Value Badge */}
-                    <div className="flex items-center gap-1 bg-[#2b1f13] text-[#f59e0b] px-2.5 py-0.5 rounded-full border border-yellow-700/20 text-[10px] font-extrabold font-mono">
-                        <span>▼</span>
-                        <span>{user.value || 77}</span>
-                    </div>
+                    {/* Orange Capsule Value Badge (só se houver valor real de contribuição) */}
+                    {typeof user.value === 'number' && user.value > 0 && (
+                        <div className="flex items-center gap-1 bg-[#2b1f13] text-[#f59e0b] px-2.5 py-0.5 rounded-full border border-yellow-700/20 text-[10px] font-extrabold font-mono">
+                            <span>▼</span>
+                            <span>{user.value}</span>
+                        </div>
+                    )}
 
                     {/* Glossy Silver metal level badge matching the screenshot */}
                     <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-400 text-zinc-900 border border-zinc-200 text-[10px] font-black px-2 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[18px] leading-none">
@@ -96,39 +98,6 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     useEffect(() => {
         // Conectar à sala da stream para receber atualizações em tempo real
         // Socket.IO joinRoom removido — presença via API
-
-        // Handler para quando presente é enviado para a stream
-        const handleGiftSent = async (data: { streamId: string; gift: { fromUserId: string; totalValue: number } }) => {
-            if (data.streamId === streamId) {
-                // Recarregar usuários da API para pegar valores atualizados
-                try {
-                    const updatedUsers = await api.getStreamOnlineUsers(streamId);
-                    if (Array.isArray(updatedUsers)) {
-                        setUsers(updatedUsers);
-                    }
-                } catch (error) {
-                    console.log('Erro ao recarregar usuários após presente:', error);
-                }
-            }
-        };
-
-        // Handler para quando live é encerrada (remover todos os usuários)
-        const handleStreamEnded = (data: { streamId: string }) => {
-            if (data.streamId === streamId) {
-                // Remover todos os usuários
-                setUsers([]);
-            }
-        };
-
-        // Handler para quando usuário é forçado a sair da live
-        const handleLiveStreamEnded = (data: { streamId: string }) => {
-            if (data.streamId === streamId) {
-                // Limpar usuários quando a live termina
-                setUsers([]);
-            }
-        };
-
-        // Socket.IO listeners removidos — eventos via API + REST polling
 
         // Initial fetch - APENAS UMA CHAMADA
         const fetchUsers = async () => {
