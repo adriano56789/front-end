@@ -9,7 +9,7 @@ interface GiftModalProps {
     isOpen: boolean;
     onClose: () => void;
     userDiamonds: number;
-    onSendGift: (gift: Gift, quantity: number, isSimulation?: boolean) => void;
+    onSendGift: (gift: Gift, quantity: number) => void;
     onRecharge: () => void;
     gifts: Gift[];
     receivedGifts: (Gift & { count: number })[];

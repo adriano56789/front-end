@@ -87,10 +87,10 @@ interface Heart {
 const FollowChatMessage: React.FC<{ follower: string; followed: string }> = ({ follower, followed }) => {
     const { t } = useTranslation();
     return (
-        <div className="bg-purple-500/30 rounded-[18px] p-1.5 px-3 flex items-center self-start text-xs">
-            <span className="text-purple-300 font-bold">{follower}</span>
-            <span className="text-gray-200 ml-1.5">{t('streamRoom.followed')}</span>
-            <span className="text-purple-300 font-bold ml-1.5">{followed}! 🎉</span>
+        <div className="bg-purple-500/30 rounded-[14px] p-1 px-2.5 flex items-center self-start text-[10px]">
+            <span className="text-purple-300 font-bold text-[10px]">{follower}</span>
+            <span className="text-gray-200 ml-1.5 text-[10px]">{t('streamRoom.followed')}</span>
+            <span className="text-purple-300 font-bold ml-1.5 text-[10px]">{followed}! 🎉</span>
         </div>
     );
 };
@@ -371,7 +371,7 @@ export default function PKBattleScreen({
         setMessages(prev => [...prev, giftMessage]);
     };
 
-    const handleSendGift = async (gift: Gift, quantity: number, isSimulation?: boolean) => {
+    const handleSendGift = async (gift: Gift, quantity: number) => {
         if (isSendingGift) return;
         setIsSendingGift(true);
         try {
@@ -407,10 +407,8 @@ export default function PKBattleScreen({
                 });
             }
 
-            if (isSimulation) {
-                // Simplesmente termina aqui na simulação
-                return;
-            }
+            // 🚫 ENVIO DE PRESENTE FAKE REMOVIDO — todo presente enviado
+            // passa obrigatoriamente pela API (api.sendGift). Nada de simulação.
 
             const { success, error, updatedSender, updatedReceiver } = await api.sendGift(currentUser.id, streamer.id, streamer.id, gift.name, quantity);
             
@@ -461,8 +459,9 @@ export default function PKBattleScreen({
 
     useEffect(() => {
         setMyScore(liveSession?.coins || 0);
-        const opponentInitialScore = Math.floor((liveSession?.coins || 0) * (Math.random() * 0.4 + 0.8));
-        setOpponentScore(opponentInitialScore);
+        // 🚫 SCORE FAKE REMOVIDO — o placar do oponente só reflete dados reais
+        // (pk_state_sync do backend / eventos CustomEvent). Inicia em 0.
+        setOpponentScore(0);
     }, [liveSession?.coins]);
     
     const handleHeartClick = (e: React.MouseEvent) => {

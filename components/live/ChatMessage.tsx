@@ -16,7 +16,7 @@ const AgeBadge: React.FC<{ gender?: 'male' | 'female' | 'not_specified'; age?: n
     const isMale = gender === 'male';
     const displayAge = age && age > 0 ? age : 18;
     return (
-        <span className={`text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center space-x-0.5 select-none shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] h-[15px] shrink-0 font-sans ${isMale ? 'bg-[#3b82f6]' : 'bg-[#ec4899]'}`}>
+        <span className={`text-white text-[8px] font-black px-1 py-0.5 rounded flex items-center space-x-0.5 select-none shadow-[0_1px_1.5px_rgba(0,0,0,0.35)] h-[13px] shrink-0 font-sans ${isMale ? 'bg-[#3b82f6]' : 'bg-[#ec4899]'}`}>
             {isMale ? <MaleIcon className="h-2.5 w-2.5 text-white" /> : <FemaleIcon className="h-2.5 w-2.5 text-white" />}
             <span>{displayAge}</span>
         </span>
@@ -93,10 +93,10 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
     return (
         <div 
             onClick={onAvatarClick}
-            className="flex items-center gap-2 text-xs bg-transparent rounded-[18px] px-3 py-1 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap"
+            className="flex items-center gap-1.5 text-[10px] bg-transparent rounded-[14px] px-2 py-0.5 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap"
         >
             <span 
-                className="font-extrabold tracking-wide shrink-0 font-sans text-[11px] pr-0.5"
+                className="font-extrabold tracking-wide shrink-0 font-sans text-[10px] pr-0.5"
                 style={{ 
                     color: nameColor,
                     textShadow: '0 1px 1.5px rgba(0,0,0,0.85)'
@@ -107,13 +107,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
 
             {/* ADM/Moderator badge - positioned above level */}
             {isModerator && (
-                <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0 scale-[0.95]">
+                <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[8px] font-black px-1 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[13px] leading-none shrink-0 scale-[0.95]">
                     Adm
                 </span>
             )}
             
             {/* Glossy Silver metal level badge matching the screenshot */}
-            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[16px]">
+            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[8px] font-black px-1 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[13px]">
                 Lvl. {level || 1}
             </span>
 
@@ -121,7 +121,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             <AgeBadge gender={userObject.gender} age={userObject.age} />
 
             <span 
-                className="text-white font-sans font-semibold break-words leading-relaxed ml-0.5 tracking-wide text-[11px]"
+                className="text-white font-sans font-semibold break-words leading-relaxed ml-0.5 tracking-wide text-[10px]"
                 style={{ 
                     textShadow: '0 1px 1.5px rgba(0,0,0,0.85)'
                 }}
