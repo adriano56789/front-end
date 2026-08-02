@@ -459,9 +459,9 @@ export default function PKBattleScreen({
 
     useEffect(() => {
         setMyScore(liveSession?.coins || 0);
-        // 🚫 SCORE FAKE REMOVIDO — o placar do oponente só reflete dados reais
-        // (pk_state_sync do backend / eventos CustomEvent). Inicia em 0.
-        setOpponentScore(0);
+        // 🚫 SCORE FAKE REMOVIDO — o placar do oponente NUNCA é setado aqui.
+        // Só reflete dados reais (pk_state_sync / eventos CustomEvent) e inicia
+        // em 0 no useState. Não resetar aqui para não apagar score real sincronizado.
     }, [liveSession?.coins]);
     
     const handleHeartClick = (e: React.MouseEvent) => {

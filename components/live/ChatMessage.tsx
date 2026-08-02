@@ -70,20 +70,20 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             return (
                 <div 
                     onClick={onAvatarClick}
-                    className="flex items-center gap-2 text-xs bg-purple-950/30 backdrop-blur-md border border-purple-500/50 rounded-[18px] px-4 py-1.5 my-1 max-w-[95%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_15px_rgba(168,85,247,0.35),_inset_0_1px_2px_rgba(168,85,247,0.15)] hover:bg-purple-900/40 transition-all duration-200"
+                    className="flex items-center gap-1.5 text-[10px] bg-purple-950/30 backdrop-blur-md border border-purple-500/50 rounded-[14px] px-2 py-0.5 my-0.5 max-w-[95%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_15px_rgba(168,85,247,0.35),_inset_0_1px_2px_rgba(168,85,247,0.15)] hover:bg-purple-900/40 transition-all duration-200"
                 >
-                    <span className="font-extrabold text-[#c084fc] font-sans tracking-wide">Sistema:</span>
-                    <span className="text-purple-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed">{message}</span>
+                    <span className="font-extrabold text-[#c084fc] font-sans tracking-wide text-[10px]">Sistema:</span>
+                    <span className="text-purple-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed text-[10px]">{message}</span>
                 </div>
             );
         } else {
             return (
                 <div 
                     onClick={onAvatarClick}
-                    className="flex items-center gap-2 text-xs bg-amber-950/30 backdrop-blur-md border border-amber-500/50 rounded-[18px] px-4 py-1.5 my-1 max-w-[95%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_15px_rgba(245,158,11,0.35),_inset_0_1px_2px_rgba(245,158,11,0.15)] hover:bg-amber-900/40 transition-all duration-200"
+                    className="flex items-center gap-1.5 text-[10px] bg-amber-950/30 backdrop-blur-md border border-amber-500/50 rounded-[14px] px-2 py-0.5 my-0.5 max-w-[95%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_15px_rgba(245,158,11,0.35),_inset_0_1px_2px_rgba(245,158,11,0.15)] hover:bg-amber-900/40 transition-all duration-200"
                 >
-                    <span className="font-extrabold text-[#fbbf24] font-sans tracking-wide">Sistema:</span>
-                    <span className="text-amber-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed">{message}</span>
+                    <span className="font-extrabold text-[#fbbf24] font-sans tracking-wide text-[10px]">Sistema:</span>
+                    <span className="text-amber-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed text-[10px]">{message}</span>
                 </div>
             );
         }
