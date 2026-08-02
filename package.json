@@ -5,18 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/copy-mediapipe-assets.mjs && vite build",
     "preview": "vite preview",
     "start": "vite preview --port 5174 --host 0.0.0.0"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.0",
     "axios": "^1.7.2",
     "firebase": "^12.15.0",
-    "hls.js": "^1.6.16",
-    "livekit-client": "^2.21.0",
+    "protobufjs": "^7.6.5",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.14.1"
+    "react-router-dom": "^7.14.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

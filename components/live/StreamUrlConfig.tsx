@@ -1,7 +1,7 @@
 import React from 'react';
 import { CopyIcon } from '../icons';
 import { Streamer } from '../../types';
-import { getVideoHttpBaseUrl, getHlsPlayUrl } from '../../services/mediaConfig';
+import { getVideoHttpBaseUrl, getWhepPlayUrl } from '../../services/mediaConfig';
 import { env } from '../../src/config/environment';
 
 type StreamUrlConfigField = 'editRtmpUrl' | 'editStreamKey' | 'editSrtUrl' | 'editPlaybackUrl' | 'editWhipUrl';
@@ -234,7 +234,7 @@ export const StreamUrlConfig: React.FC<StreamUrlConfigProps> = ({
   const renderPlaybackUrl = () => (
     <div className="text-xs space-y-1 text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5">
       <div className="flex items-center justify-between mb-2">
-        <label className="font-semibold text-gray-400">URL de Playback (HLS)</label>
+        <label className="font-semibold text-gray-400">URL de Playback (WHEP)</label>
         {!isEditingUrls && (
           <button onClick={onToggleEditMode} className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[10px] hover:bg-blue-500/30">
             Editar
@@ -246,7 +246,7 @@ export const StreamUrlConfig: React.FC<StreamUrlConfigProps> = ({
         <input 
           type="text" 
           readOnly={!isEditingUrls} 
-          value={isEditingUrls ? editPlaybackUrl : (draftStream?.playbackUrl || (draftStream?.id ? getHlsPlayUrl(draftStream.id) : 'Aguardando stream...'))} 
+          value={isEditingUrls ? editPlaybackUrl : (draftStream?.playbackUrl || (draftStream?.id ? getWhepPlayUrl(draftStream.id) : 'Aguardando stream...'))} 
           onChange={e => onUrlChange('editPlaybackUrl', e.target.value)}
           className={`flex-1 p-2 rounded-md text-white font-mono text-[10px] transition-colors ${
             isEditingUrls ? 'bg-[#1a1a2e] border border-blue-500/50 focus:outline-none' : 'bg-[#111] border border-white/10 select-all'

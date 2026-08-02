@@ -324,11 +324,11 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
 
     return (
         <div 
-          className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-350 ${isOpen ? 'opacity-100 bg-transparent' : 'opacity-0 pointer-events-none'}`}
+          className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm transition-opacity duration-350 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           onClick={onClose}
         >
             <div
-                className={`bg-[#131124] w-full max-w-md rounded-t-[2.2rem] p-6 space-y-6 transform transition-transform duration-300 ease-out shadow-[0_-8px_32px_rgba(0,0,0,0.5)] border-t border-white/[0.04] pb-8 ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+                className={`bg-[#131124] w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl p-6 space-y-6 transform transition-transform duration-300 ease-out border border-white/[0.04] pb-8 overflow-y-auto ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
                 onClick={e => e.stopPropagation()}
             >
                 <header className="flex items-center justify-between px-1">

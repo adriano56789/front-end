@@ -93,4 +93,16 @@
   "category": "Premium",
   "tab": "Beleza",
   "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69e655267349cfe727803a99"
+  },
+  "name": "Rosto Bebê",
+  "type": "effect",
+  "icon": "https://cdn-icons-png.flaticon.com/512/1828/1828666.png",
+  "img": "https://i.pravatar.cc/150?img=8",
+  "category": "Premium",
+  "tab": "Beleza",
+  "__v": 0
 }]

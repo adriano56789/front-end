@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Streamer, User, ToastType } from '../types';
 import { api } from '../services/api';
-import { streamPublishService } from '../services/streamPublishService';
-// Socket.IO removido — LiveKit gerencia início de transmissão
+import { getWhepPlayUrl } from '../services/mediaConfig';
+// Socket.IO removido — início de transmissão gerenciado via SRS (WebSocket/WebRTC)
 
 interface StreamManagerState {
   draftStream: Streamer | null;
@@ -18,15 +18,9 @@ interface StreamManagerActions {
   createDraftStream: () => Promise<Streamer | null>;
   updateStreamDetails: (data: Partial<Streamer>) => Promise<void>;
   uploadCover: (file?: File) => Promise<void>;
-  startNativePublish: (streamKey: string) => boolean;
   initiateStream: (onStartStream: (streamer: Streamer) => void, onJoinStream?: (streamer: Streamer) => void, inviteData?: any) => Promise<void>;
   updateState: (updates: Partial<StreamManagerState>) => void;
 }
-
-const isAndroidApp = (): boolean =>
-  typeof window !== 'undefined' &&
-  'Android' in window &&
-  typeof window.Android?.startRTMP === 'function';
 
 export const useStreamManager = (
   currentUser: User,
@@ -79,7 +73,7 @@ export const useStreamManager = (
     // Fallback: criar stream LOCALMENTE se a API falhar
     // NUNCA mostrar erro ao usuário nem retornar null
     const localStream: Streamer = {
-      id: `stream_${currentUser.id}`,
+      id: currentUser.id,
       hostId: currentUser.id,
       name: streamTitle || `Live de ${currentUser.name}`,
       avatar: currentUser.avatarUrl || '',
@@ -103,7 +97,7 @@ export const useStreamManager = (
     // Isso resolve stale closure: mesmo que o setDraftStream de createDraftStream
     // não tenha propagado ainda, criamos um stream local na hora.
     const targetStream = draftStream || {
-      id: `stream_${currentUser.id || Date.now()}`,
+      id: currentUser.id || String(Date.now()),
       hostId: currentUser.id,
       name: currentUser.name || 'Streamer',
       avatar: currentUser.avatarUrl || '',
@@ -178,30 +172,12 @@ export const useStreamManager = (
     }
   }, [draftStream, createDraftStream, addToast]);
 
-  const startNativePublish = useCallback((streamKey: string): boolean => {
-    if (!isAndroidApp()) {
-      return false;
-    }
-    try {
-      streamPublishService.startPublish(streamKey, { videoRef });
-      return true;
-    } catch (err) {
-      console.error('[STREAM_MANAGER] Erro ao chamar RTMP bridge:', err);
-      return false;
-    }
-  }, [videoRef]);
-
   const initiateStream = useCallback(async (
     onStartStream: (streamer: Streamer) => void,
     onJoinStream?: (streamer: Streamer) => void,
     inviteData?: any
   ) => {
     if (inviteData && onJoinStream) {
-      const streamKey = inviteData.streamId;
-      if (isAndroidApp()) {
-        startNativePublish(streamKey);
-      }
-
       onJoinStream({
         id: inviteData.streamId,
         hostId: inviteData.hostId,
@@ -217,23 +193,15 @@ export const useStreamManager = (
     }
 
     try {
-      const streamId = `stream_${currentUser.id}`;
-
-      // WHIP/SRS removido — LiveKit é a única fonte de mídia e data channels.
-      // A publicação de mídia (câmera/microfone) ocorre via LiveKit em StreamRoom.
-      if (isAndroidApp()) {
-        startNativePublish(streamId);
-      }
-
       // 2. 📡 ARQUITETURA (ARCHITECTURE.md §13):
       //    a. POST /api/streams → Cria/reativa stream no MongoDB
-      //       Response: { stream: { id, hlsUrl, webrtcUrl, ... } }
-      //    b. startWebRTCPublish(stream.id) — acontece em StreamRoom
+      //       Response: { stream: { id, webrtcUrl, playbackUrl, ... } }
+      //    b. Publicação WebSocket/WebRTC — acontece em StreamRoom
       //    c. onStartStream(streamer) → App.tsx
       //
       // NÃO usar api.publishStream() — não faz parte do fluxo documentado.
       // Criar a stream via api.createStream() que retorna o objeto completo
-      // com URLs reais do backend (hlsUrl, webrtcUrl, playbackUrl).
+      // com URLs reais do backend (webrtcUrl, playbackUrl).
 
       if (!draftStream) {
         throw new Error("Nenhum rascunho de stream encontrado. Salve os detalhes primeiro.");
@@ -242,7 +210,7 @@ export const useStreamManager = (
 
       let streamer: Streamer;
 
-      if (registeredStream && registeredStream.hlsUrl) {
+      if (registeredStream && (registeredStream.playbackUrl || registeredStream.webrtcUrl)) {
         // Draft veio do backend — já tem URLs reais. Só marcar como live.
         streamer = {
           ...registeredStream,
@@ -281,7 +249,7 @@ export const useStreamManager = (
           // createStream falhou — usar dados locais como fallback (último caso)
           console.warn('[STREAM_MANAGER] ⚠️ createStream falhou, usando fallback local');
           streamer = {
-            id: `stream_${currentUser.id}`,
+            id: currentUser.id,
             hostId: currentUser.id,
             name: streamTitle || `Live de ${currentUser.name}`,
             avatar: currentUser.avatarUrl || '',
@@ -294,9 +262,8 @@ export const useStreamManager = (
             streamKey: `stream_${currentUser.id}`,
             startTime: new Date(),
             viewers: 0,
-            hlsUrl: `/srs/live/${currentUser.id}.m3u8`,
-            webrtcUrl: `/api/rtc/v1/whep/?app=live&stream=${currentUser.id}`,
-            playbackUrl: `/srs/live/${currentUser.id}.m3u8`,
+            webrtcUrl: getWhepPlayUrl(`stream_${currentUser.id}`),
+            playbackUrl: getWhepPlayUrl(`stream_${currentUser.id}`),
             vhost: '__defaultVhost__',
             app: 'live',
             stream: currentUser.id,
@@ -312,7 +279,7 @@ export const useStreamManager = (
       // NÃO parar publicação nem mostrar toast de erro
       // O fluxo continua com os dados locais disponíveis
     }
-  }, [currentUser, streamTitle, streamDescription, selectedCategoryKey, isPrivate, startNativePublish, videoRef, addToast, draftStream]);
+  }, [currentUser, streamTitle, streamDescription, selectedCategoryKey, isPrivate, videoRef, addToast, draftStream]);
 
   return {
     draftStream,
@@ -325,7 +292,6 @@ export const useStreamManager = (
     createDraftStream,
     updateStreamDetails,
     uploadCover,
-    startNativePublish,
     initiateStream,
     updateState
   };

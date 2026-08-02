@@ -46,6 +46,18 @@ const ContrastIcon = ({ className = "w-7 h-7 text-white" }) => (
   </svg>
 );
 
+const BabyFaceIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 8C19.5 8 10 17.5 10 30C10 42.5 19.5 56 32 56C44.5 56 54 42.5 54 30C54 17.5 44.5 8 32 8Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M23 26C24.5 27.5 26.5 27.5 28 26" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M36 26C37.5 27.5 39.5 27.5 41 26" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M27 37C29 39.5 35 39.5 37 37" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <circle cx="22" cy="33" r="2.5" fill="#fda4af" />
+    <circle cx="42" cy="33" r="2.5" fill="#fda4af" />
+    <path d="M32 12C32 12 28 16 28 19C28 21 30 22 32 22C34 22 36 21 36 19C36 16 32 12 32 12Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
 const LockIconCustom = ({ className = "w-5 h-5" }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -77,6 +89,8 @@ const renderEffectIcon = (effectName: string, isSelected: boolean) => {
             return <BlushIconPropsWrapper isSelected={isSelected} />;
         case 'Contraste':
             return <ContrastIcon className={iconClass} />;
+        case 'Rosto Bebê':
+            return <BabyFaceIcon className={iconClass} />;
         default:
             return <div className="text-xl">✨</div>;
     }
@@ -203,7 +217,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             whitening: apiSettings['Branquear'] || 0,
             smoothing: apiSettings['Alisar a pele'] || 0,
             saturation: apiSettings['Ruborizar'] || 0,
-            contrast: apiSettings['Contraste'] || 0
+            contrast: apiSettings['Contraste'] || 0,
+            babyFace: apiSettings['Rosto Bebê'] || 0
         };
     };
 
@@ -354,8 +369,11 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         const beautySettings = convertSettingsToBeautySettings(newSettings);
         videoProcessor.updateBeautySettings(beautySettings);
         
-        // Sempre aplicar efeitos CSS ao vídeo local para feedback imediato e impecável na tela do broadcaster
-        applyEffectToVideo(selectedEffect, value);
+        // "Rosto Bebê" não tem equivalente em CSS — o warp acontece no processador WebGL
+        if (selectedEffect !== 'Rosto Bebê') {
+            // Sempre aplicar efeitos CSS ao vídeo local para feedback imediato e impecável na tela do broadcaster
+            applyEffectToVideo(selectedEffect, value);
+        }
     };
 
     // Handler para seleção de filtros (Recomendar)
@@ -363,7 +381,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSelectedFilter(filterName);
         
         // Configurações para filtros pré-definidos
-        const filterSettings: Record<string, BeautyEffectSettings> = {
+        const filterSettings: Record<string, Partial<BeautyEffectSettings>> = {
             'Fechar': { whitening: 0, smoothing: 0, saturation: 0, contrast: 0 },
             'Musa': { whitening: 10, smoothing: 15, saturation: 20, contrast: 5 },
             'Bonito': { whitening: 15, smoothing: 20, saturation: 10, contrast: 10 },
@@ -392,8 +410,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         // Salvar na API
         saveSettings(apiSettings);
         
-        // Sincronizar tanto WebGL quanto render local
-        videoProcessor.updateBeautySettings(selectedSettings);
+        // Sincronizar tanto WebGL quanto render local (preservando "Rosto Bebê")
+        videoProcessor.updateBeautySettings({ ...selectedSettings, babyFace: settings['Rosto Bebê'] || 0 });
         applyFilterToVideo(filterName);
     };
 
@@ -413,7 +431,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
 
     const resetEffects = () => {
         const defaultSettings: BeautySettings = effectsData.effects.reduce((acc, effect) => {
-            acc[effect.name] = 20; // Defaulting to 20
+            acc[effect.name] = effect.name === 'Rosto Bebê' ? 0 : 20; // Defaulting to 20
             return acc;
         }, {} as BeautySettings);
         
@@ -427,7 +445,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             whitening: 0,
             smoothing: 0,
             saturation: 0,
-            contrast: 0
+            contrast: 0,
+            babyFace: 0
         });
         
         // Resetar vídeo (filtro CSS local)

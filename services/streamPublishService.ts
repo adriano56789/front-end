@@ -1,4 +1,3 @@
-import { isNativeRtmpBridge } from './mediaConfig';
 import { cameraService } from './cameraService';
 
 type PublishEngineType = { replaceTrack: (kind: 'audio' | 'video', track: MediaStreamTrack | null) => Promise<void> };
@@ -107,18 +106,11 @@ class StreamPublishService {
   }
 
   getState(): PublishStateT {
-    if (isNativeRtmpBridge()) {
-      const streaming = (window as any).Android?.isStreaming?.();
-      return streaming ? 'native' : 'idle';
-    }
     if (this._publishing) return 'publishing';
     return 'idle';
   }
 
   isPublishing(): boolean {
-    if (isNativeRtmpBridge()) {
-      return (window as any).Android?.isStreaming?.() || false;
-    }
     return this._publishing;
   }
 
@@ -143,18 +135,6 @@ class StreamPublishService {
       videoRef?: { current: HTMLVideoElement | null };
     }
   ): Promise<void> {
-    if (isNativeRtmpBridge()) {
-      const webPreview = options.videoRef?.current;
-      if (webPreview?.srcObject) {
-        const stream = webPreview.srcObject as MediaStream;
-        stream.getTracks().forEach(t => t.stop());
-        webPreview.srcObject = null;
-      }
-      window.Android!.startRTMP(streamKey);
-      this._publishing = true;
-      return;
-    }
-
     let mediaStream = options.previewStream ?? null;
     if (!mediaStream && options.videoRef?.current?.srcObject) {
       mediaStream = options.videoRef.current.srcObject as MediaStream;
@@ -187,12 +167,6 @@ class StreamPublishService {
   }
 
   stopPublish(): void {
-    if (isNativeRtmpBridge()) {
-      try { window.Android?.stopRTMP?.(); } catch { /* ignore */ }
-      this._publishing = false;
-      return;
-    }
-
     this.currentStream = null;
     this.currentVideoRef = null;
     this.currentFacingMode = 'user';
@@ -201,11 +175,6 @@ class StreamPublishService {
   }
 
   async switchCamera(): Promise<void> {
-    if (isNativeRtmpBridge()) {
-      window.Android?.switchCamera?.();
-      return;
-    }
-
     const nextFacing = this.currentFacingMode === 'user' ? 'environment' : 'user';
     const videoElement = this.currentVideoRef?.current;
 
@@ -335,23 +304,3 @@ class StreamPublishService {
 }
 
 export const streamPublishService = new StreamPublishService();
-
-declare global {
-  interface Window {
-    Android?: {
-      startRTMP: (streamKey: string) => void;
-      stopRTMP: () => void;
-      switchCamera: () => void;
-      prepareRTMPPreview?: () => void;
-      releaseRTMP?: () => void;
-      isStreaming?: () => boolean;
-      applyBeautySettings?: (
-        whitening: number,
-        smoothing: number,
-        saturation: number,
-        contrast: number,
-        filterName: string
-      ) => void;
-    };
-  }
-}

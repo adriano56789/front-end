@@ -385,12 +385,15 @@ const callApiWithOptions = async <T = any>(
 
         return responseData;
     } catch (error: any) {
+        // 🐛 CORRECAO: Erros de extensoes de navegador (content.js, Grammarly, etc)
+        // devem ser ignorados silenciosamente, sem throw, para nao poluir o console.
         if (error.message &&
             (error.message.includes('useCache') ||
                 error.message.includes('Receiving end does not exist') ||
-                error.message.includes('content.js'))) {
-            console.warn('Ignorando erro de extensão:', error.message);
-            throw error;
+                error.message.includes('content.js') ||
+                error.message.includes('polyfill.js'))) {
+            // Erro de extensao de navegador — ignorar silenciosamente
+            return {} as T;
         }
 
         // Se já é nosso erro HTTP (com status), propagar
@@ -2119,137 +2122,6 @@ export const api = {
 
     sfuCallJoin: (roomId: string) => callApi<{ success: boolean; signalingUrl: string }>('POST', '/api/call-invitation/sfu/join', { roomId }),
 
-    // --- LiveKit APIs ---
-
-    getLiveKitToken: (roomOrIdentity: string, identityOrRoom: string, metadataOrIsPublisher?: string | boolean) => {
-      let identity: string;
-      let room: string;
-      let isPub = false;
-
-      if (typeof metadataOrIsPublisher === 'boolean') {
-        isPub = metadataOrIsPublisher;
-        room = roomOrIdentity;
-        identity = identityOrRoom;
-      } else {
-        identity = roomOrIdentity;
-        room = identityOrRoom;
-        if (typeof metadataOrIsPublisher === 'string') {
-          isPub = (metadataOrIsPublisher === 'publisher');
-        } else {
-          isPub = !!(identity && identity.startsWith('streamer_'));
-        }
-      }
-
-      return callApi<{ success: boolean; token: string; serverUrl: string; livekitUrl: string }>(
-        'GET', `/api/lives/${encodeURIComponent(room)}/livekit-token?identity=${encodeURIComponent(identity)}&publisher=${isPub ? 'true' : 'false'}`
-      ).then(res => ({
-        ...res,
-        identity,
-        room,
-        livekitUrl: res.serverUrl || 'wss://livego.store/livekit',
-        serverUrl: res.serverUrl || 'wss://livego.store/livekit'
-      }));
-    },
-
-    createLiveKitRoom: (name: string, emptyTimeout?: number, maxParticipants?: number) =>
-      callApi<{ success: boolean; room: { name: string; emptyTimeout: number; maxParticipants: number; createdAt: string } }>(
-        'POST', '/api/livekit/rooms', { name, emptyTimeout, maxParticipants }
-      ),
-
-    listLiveKitRooms: () =>
-      callApi<{ success: boolean; rooms: Array<{ name: string; emptyTimeout: number; maxParticipants: number; createdAt: string; participantCount: number }>; source: string }>(
-        'GET', '/api/livekit/rooms'
-      ),
-
-    deleteLiveKitRoom: (roomName: string) =>
-      callApi<{ success: boolean; source: string }>('DELETE', `/api/livekit/rooms/${encodeURIComponent(roomName)}`),
-
-    getLiveKitParticipants: (roomName: string) =>
-      callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
-        'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
-      ),
-
-    joinLiveKitRoom: (roomName: string, identity: string, name?: string, role?: string) =>
-      callApi<{ success: boolean; room: { name: string; participantCount: number }; participant: { identity: string; name: string; role: string }; token: string; livekitUrl: string }>(
-        'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/join`, { identity, name, role }
-      ),
-
-    kickLiveKitParticipant: (roomName: string, identity: string) =>
-      callApi<{ success: boolean; source: string }>(
-        'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/kick`
-      ),
-
-    // --- LiveKit Egress APIs ---
-
-    startRTMPEgress: (roomId: string, streamId: string, rtmpUrl?: string) =>
-      callApi<{ success: boolean; egressId: string; roomId: string; streamId: string; rtmpUrl: string; status: string }>(
-        'POST', '/api/livekit/egress/start-rtmp', { roomId, streamId, rtmpUrl }
-      ),
-
-    stopEgress: (egressId: string) =>
-      callApi<{ success: boolean; egressId: string; status: string }>(
-        'POST', '/api/livekit/egress/stop', { egressId }
-      ),
-
-    listEgress: () =>
-      callApi<{ success: boolean; egressList: Array<{ egressId: string; roomId: string; status: string; startedAt: number; endedAt: number }> }>(
-        'GET', '/api/livekit/egress/list'
-      ),
-
-    getEgressStatus: (egressId: string) =>
-      callApi<{ success: boolean; egressId: string; roomId: string; status: string; startedAt?: number; endedAt?: number; error?: string; details?: { error?: string } }>(
-        'GET', `/api/livekit/egress/status/${egressId}`
-      ),
-
-    validateHlsStream: (streamId: string) =>
-      callApi<{ success: boolean; streamId: string; manifestOk: boolean; segmentsOk: boolean; segmentCount: number; manifestUrl: string; statusCode: number | null; firstSegmentUrl: string | null; message: string; segments?: string[] }>(
-        'GET', `/api/hls/validate/${streamId}`
-      ),
-
-    // --- LiveKit namespace (aliases for compat with room.ts) ---
-
-    livekit: {
-      getToken: (identity: string, room: string, metadata?: string) =>
-        api.getLiveKitToken(identity, room, metadata),
-
-      createRoom: (name: string, emptyTimeout?: number, maxParticipants?: number) =>
-        callApi<{ success: boolean; room: { name: string; emptyTimeout: number; maxParticipants: number; createdAt: string } }>(
-          'POST', '/api/livekit/rooms', { name, emptyTimeout, maxParticipants }
-        ),
-
-      listRooms: () =>
-        callApi<{ success: boolean; rooms: Array<{ name: string; emptyTimeout: number; maxParticipants: number; createdAt: string; participantCount: number }>; source: string }>(
-          'GET', '/api/livekit/rooms'
-        ),
-
-      deleteRoom: (roomName: string) =>
-        callApi<{ success: boolean; source: string }>('DELETE', `/api/livekit/rooms/${encodeURIComponent(roomName)}`),
-
-      getParticipants: (roomName: string) =>
-        callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
-          'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
-        ),
-
-      listParticipants: (roomName: string) =>
-        callApi<{ success: boolean; participants: Array<{ identity: string; name: string; joinedAt: string; trackCount: number }>; source: string }>(
-          'GET', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants`
-        ),
-
-      joinRoom: (roomName: string, identity: string, name?: string, role?: string) =>
-        callApi<{ success: boolean; room: { name: string; participantCount: number }; participant: { identity: string; name: string; role: string }; token: string; livekitUrl: string }>(
-          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/join`, { identity, name, role }
-        ),
-
-      kickParticipant: (roomName: string, identity: string) =>
-        callApi<{ success: boolean; source: string }>(
-          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/kick`
-        ),
-
-      publishTrack: (roomName: string, identity: string, trackSid: string, source: string, muted: boolean) =>
-        callApi<{ success: boolean; track: { sid: string; source: string; muted: boolean } }>(
-          'POST', `/api/livekit/rooms/${encodeURIComponent(roomName)}/participants/${encodeURIComponent(identity)}/tracks`, { trackSid, source, muted }
-        ),
-    },
 
     rtc: {
       whip: (streamKey: string, sdp: string) => {

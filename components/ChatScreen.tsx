@@ -4,8 +4,9 @@ import { BackIcon, ThreeDotsIcon, SendIcon, GalleryIcon, CheckIcon, DoubleCheckI
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { LoadingSpinner } from './Loading';
-// Socket.IO removido — chat gerenciado via REST API + LiveKit DataChannel
+// Socket.IO removido — chat gerenciado via REST API
 
 interface ChatScreenProps {
     user: User;
@@ -194,6 +195,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatInputRef = useRef<HTMLInputElement>(null);
+    const keyboardInset = useKeyboardInset();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const blobUrlsRef = useRef<string[]>([]);
     const { t } = useTranslation();
@@ -204,7 +207,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         return `chat_private_${cId < fId ? cId + '_' + fId : fId + '_' + cId}`;
     }, [currentUser?.id, user?.id]);
 
-    // Sala de chat: Socket.IO removido — mensagens via REST API + LiveKit DataChannel
+    // Sala de chat: Socket.IO removido — mensagens via REST API
     const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
     
     // Cache local para evitar requisições duplicadas
@@ -264,7 +267,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         }
     }, [user.id]);
 
-    // 📡 Byte Streams: receber imagens via window event (disparado pelo hook useLiveKitChat)
+    // 📡 Byte Streams: receber imagens via window event
     useEffect(() => {
         const onByteStreamFile = (e: Event) => {
             const data = (e as CustomEvent).detail;
@@ -428,7 +431,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             let finalImageUrl: string | undefined = undefined;
 
             if (imageFile) {
-                // 📡 Byte Streams: enviar imagem em tempo real via LiveKit (se disponível)
+                // 📡 Byte Streams: enviar imagem em tempo real
                 if (typeof propSendFile === 'function') {
                     propSendFile(imageFile, (pct: number) => {
                         console.log('[ByteStream] Upload progress:', Math.round(pct * 100), '%');
@@ -627,7 +630,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     )}
                     </div>
                 </main>
-                <footer className="flex-shrink-0 z-10 bg-[#131317] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 border-t border-[#232128]">
+                <footer className="flex-shrink-0 z-10 bg-[#131317] px-4 pt-3 border-t border-[#232128]" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${keyboardInset}px + 12px)` }}>
                     {selectedImage && (
                         <div className="relative mb-2 w-fit">
                             <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
@@ -658,16 +661,20 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         </button>
                         <div className="flex-grow h-10">
                             <input
+                                ref={chatInputRef}
                                 type="text"
                                 placeholder="Diga oi..."
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                                onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); setTimeout(() => chatInputRef.current?.focus(), 0); } }}
+                                enterKeyHint="send"
+                                autoComplete="off"
                                 className="w-full h-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 focus:outline-none"
                             />
                         </div>
                         <button
-                            onClick={handleSendMessage}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => { handleSendMessage(); setTimeout(() => chatInputRef.current?.focus(), 0); }}
                             className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
                             disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
                         >

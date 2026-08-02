@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
     "target": "ES2022",
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
@@ -34,6 +34,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "scripts"
+    "scripts",
+    "deploy"
   ]
 }

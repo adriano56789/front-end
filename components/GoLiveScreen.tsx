@@ -74,7 +74,6 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     const cameraPreview = useCameraPreview(isOpen, addToast);
     const streamManager = useStreamManager(currentUser, addToast, cameraPreview.videoRef);
     const streamUrls = useStreamUrls(addToast);
-    const hasNativeRtmpPreview = typeof window !== 'undefined' && Boolean((window as any).Android?.prepareRTMPPreview);
 
     // Estado local para UI
     const [streamType, setStreamType] = useState('WebRTC');
@@ -215,7 +214,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
     return (
         <div
-            className={`absolute inset-0 ${hasNativeRtmpPreview ? 'bg-transparent' : 'bg-black'} z-50 transition-opacity duration-300 flex flex-col justify-between perspective-viewport ${
+            className={`absolute inset-0 bg-black z-50 transition-opacity duration-300 flex flex-col justify-between perspective-viewport ${
                 isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
         >
@@ -225,7 +224,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 autoPlay
                 playsInline
                 muted
-                className={`absolute inset-0 w-full h-full object-cover -z-10 ${hasNativeRtmpPreview ? 'hidden' : ''}`}
+                className="absolute inset-0 w-full h-full object-cover -z-10"
                 style={{
                     // Upscale visual CSS - 144p real exibido como Full HD
                     transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)', // Mirror effect

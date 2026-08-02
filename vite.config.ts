@@ -23,7 +23,13 @@ export default defineConfig({
         secure: false,
         ws: true,
       },
-      /* socket.io proxy removido */
+      // ── Socket.IO (presentes/chat em tempo real — mesmo servidor Express do backend) ──
+      '/socket.io': {
+        target: 'https://livego.store',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
       '/uploads': {
         target: 'https://livego.store',
         changeOrigin: true,
@@ -33,6 +39,7 @@ export default defineConfig({
         target: `https://${process.env.VITE_SRS_HOST || '2.25.192.154'}`,
         changeOrigin: true,
         secure: false,
+        ws: true,
         rewrite: (path) => path.replace(/^\/rtc/, '/rtc')
       }
     }

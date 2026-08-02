@@ -86,19 +86,28 @@ const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children }) => {
   return <>{children}</>;
 };
 
-// Adicionar tratamento de erros globais para extensões (fora do ErrorBoundary)
+// Adicionar tratamento de erros globais para extensões (fora do ErrorBounday)
 window.addEventListener('error', (event) => {
   // Ignorar erros de extensões de navegador
-  if (event.filename && (event.filename.includes('content.js') || event.filename.includes('polyfill.js'))) {
+  const msg = event.message || '';
+  if ((event.filename && (event.filename.includes('content.js') || event.filename.includes('polyfill.js'))) ||
+      msg.includes('useCache') || msg.includes('Receiving end does not exist')) {
     event.preventDefault();
     return false;
   }
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  // Ignorar rejeições de extensões
-  if (event.reason && typeof event.reason === 'string' && 
-      (event.reason.includes('useCache') || event.reason.includes('Receiving end does not exist'))) {
+  // Normalizar reason (pode ser string, Error, ou undefined)
+  let reasonStr = '';
+  if (event.reason) {
+    reasonStr = typeof event.reason === 'string' ? event.reason :
+                event.reason instanceof Error ? event.reason.message :
+                event.reason.message || String(event.reason);
+  }
+  // Ignorar rejeições de extensões de navegador
+  if (reasonStr.includes('useCache') || reasonStr.includes('Receiving end does not exist') ||
+      reasonStr.includes('content.js') || reasonStr.includes('polyfill.js')) {
     event.preventDefault();
     return false;
   }
@@ -131,7 +140,7 @@ import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSess
 
 import Toast from './components/Toast';
 
-import MessageNotification from './components/MessageNotification';  // Socket.IO removido — comunicação via LiveKit DataChannel
+import MessageNotification from './components/MessageNotification';  // Socket.IO removido — chat via REST API
 
 import UserProfileScreen from './components/BroadcasterProfileScreen';
 
@@ -248,11 +257,7 @@ const INITIAL_DATA = {
 
   avatarFrames: []
 
-};
-
-
-
-// 📡 Tudo via LiveKit DataChannel — sem polling, sem Socket.IO
+};  // 📡 Chat/presença via REST API (useStreamChat) — sem polling, sem Socket.IO
 
 
 
@@ -761,6 +766,19 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     loadInitialData();
   }, []);
 
+  // Suporte ao formato /video-room?room_id=X&uid=Y (compatível com TI Live / SRS SFU)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!location.pathname.startsWith('/video-room')) return;
+    const params = new URLSearchParams(location.search);
+    const roomId = params.get('room_id');
+    if (!roomId) {
+      navigate('/');
+      return;
+    }
+    navigate(`/live/${roomId}`, { replace: true });
+  }, [location.pathname, location.search, isAuthenticated, navigate]);
+
   // Auto-load stream from URL /live/:streamId
   // Só carrega automaticamente se NÃO acabamos de sair de uma stream
   useEffect(() => {
@@ -1043,7 +1061,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     const handlePKScoreUpdate = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail && detail.streamId && detail.streamId !== activeStream?.id) return;
-      // O score é sincronizado via LiveKit data channel no PKBattleScreen
+      // O score é sincronizado via REST API no PKBattleScreen
       // Este evento é útil para espectadores via Socket.IO
       if (detail) {
         window.dispatchEvent(new CustomEvent('livego:pk_score_sync', { 
@@ -1333,7 +1351,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
   // REMOVIDO: WebSocket events simplificados (kicked, joinDenied)
-  // Esses eventos agora são gerenciados via LiveKit no componente StreamRoom
+  // Esses eventos agora são gerenciados via useStreamChat no componente StreamRoom
 
 
 
@@ -1377,7 +1395,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    // REMOVIDO: simpleEventManager - eventos gerenciados via LiveKit
+    // REMOVIDO: simpleEventManager - eventos gerenciados via useStreamChat (REST)
 
 
 
@@ -1405,40 +1423,36 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   useEffect(() => {
 
+    // 📲 PWA: registrar Service Worker (obrigatório para instalação do app + push notifications)
+    // O firebase-messaging-sw.js usa Network-First: online sempre busca conteúdo fresco,
+    // cache é só fallback offline — não causa "assets antigos" para usuários conectados.
+    if ('serviceWorker' in navigator && !fcmInitializedRef.current) {
+      fcmInitializedRef.current = true;
+      navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => {
+        console.log('[FCM] Service Worker registrado (única vez)');
+      }).catch((err) => {
+        console.warn('[FCM] Erro ao registrar Service Worker:', err);
+      });
+    }
+
     if (currentUserRef.current) {
-
-
-      
-      // Inicializar Firebase Cloud Messaging para notificações push (APENAS UMA VEZ)
-      if ('serviceWorker' in navigator && 'Notification' in window && !fcmInitializedRef.current) {
-        fcmInitializedRef.current = true;
-        navigator.serviceWorker.register('/firebase-messaging-sw.js').then(() => {
-          console.log('[FCM] Service Worker registrado (única vez)');
-        }).catch((err) => {
-          console.warn('[FCM] Erro ao registrar Service Worker:', err);
+      import('./services/notificationService').then(({ initNotifications }) => {
+        initNotifications(currentUserRef.current.id);
+      });
+      import('./services/firebase').then(({ onForegroundMessage }) => {
+        onForegroundMessage((payload) => {
+          const title = payload.notification?.title || payload.data?.title || 'Nova notificação';
+          const body = payload.notification?.body || payload.data?.body || '';
+          const type = payload.data?.type;
+          if (type === 'new_message') {
+            addToast(ToastType.Info, `${title}: ${body}`);
+          } else if (type === 'live_started') {
+            addToast(ToastType.Info, `🔴 ${title} está ao vivo!`);
+          } else if (body) {
+            addToast(ToastType.Info, `${title}: ${body}`);
+          }
         });
-        import('./services/notificationService').then(({ initNotifications }) => {
-          initNotifications(currentUserRef.current.id);
-        });
-        import('./services/firebase').then(({ onForegroundMessage }) => {
-          onForegroundMessage((payload) => {
-            const title = payload.notification?.title || payload.data?.title || 'Nova notificação';
-            const body = payload.notification?.body || payload.data?.body || '';
-            const type = payload.data?.type;
-            if (type === 'new_message') {
-              addToast(ToastType.Info, `${title}: ${body}`);
-            } else if (type === 'live_started') {
-              addToast(ToastType.Info, `🔴 ${title} está ao vivo!`);
-            } else if (body) {
-              addToast(ToastType.Info, `${title}: ${body}`);
-            }
-          });
-        });
-      }
-
-
-
-          // 📡 Tudo via LiveKit DataChannel — sem polling, sem Socket.IO
+      });
     }
 
     return () => {};
@@ -1767,7 +1781,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-    // Eventos gerenciados via LiveKit DataChannel
+    // Eventos gerenciados via useStreamChat (REST polling)
 
 
 
@@ -2492,22 +2506,15 @@ const logLiveEvent = (type: string, data: any) => {
 
     setIsEndStreamConfirmOpen(false);
 
-    try {
-      (window as any).Android?.stopRTMP?.();
-    } catch (error) {
-      console.warn('[LIVE-END] Falha ao parar RTMP nativo:', error);
-    }
+    // 🚫 Impedir auto-load de re-entrar na stream que acabou de ser encerrada
+    leftStreamRef.current = true;
 
     try {
       const { streamPublishService } = await import('./services/streamPublishService');
       streamPublishService.stopPublish();
     } catch (error) {
       console.warn('[LIVE-END] Falha ao parar publicação:', error);
-    }
-
-
-
-    if (activeStream && liveSession) {
+    }      if (activeStream && liveSession) {
 
       // Validate that activeStream.id is a string
 
@@ -2524,6 +2531,8 @@ const logLiveEvent = (type: string, data: any) => {
         setPkOpponent(null);
 
         setLiveSession(null);
+
+        navigate('/');
 
         return;
 
@@ -2585,22 +2594,9 @@ const logLiveEvent = (type: string, data: any) => {
 
       setIsEndStreamSummaryOpen(true);
 
-      // Limpar estado da stream imediatamente para desmontar StreamRoom
-      setActiveStream(null);
-      setIsPKBattleActive(false);
-      setPkOpponent(null);
-      setLiveSession(null);
-      setStreamRoomData(null);
-      navigate('/');
-
+      // 🔧 CORREÇÃO: Primeiro executar as chamadas de API (que usam activeStream e liveSession)
+      // DEPOIS limpar o estado e navegar para fora
       try {
-
-        if (!liveSession) {
-
-          throw new Error('Sessão da live não encontrada');
-
-        }
-
         // 1. Chamar backend para registrar fim da live (controle de status)
         try {
           console.log('[LIVE-END] Encerrando live - chamando backend...');
@@ -2612,52 +2608,47 @@ const logLiveEvent = (type: string, data: any) => {
           }
         } catch (backendError) {
           console.warn('[LIVE-END] Erro ao chamar endLiveStream:', backendError);
-          // Continuar mesmo se falhar o backend, pois o encerramento local é mais importante
         }
 
         const response = await api.endLiveSession(activeStream.id, liveSession);
 
-
-
         // 2. Remover o card especificamente
-
+        console.log('[LIVE-END] Removendo card da live...');
         const removeResponse = await api.removeLiveCard(activeStream.id, currentUser?.id || '');
 
-        
-
-        // Verificar se o card foi removido com sucesso
-
         if (!removeResponse.success) {
-
-          // Card da live não foi removido
-
+          console.warn('[LIVE-END] ⚠️ Card da live não foi removido no backend');
+        } else {
+          console.log('[LIVE-END] ✅ Card removido com sucesso');
         }
 
-
-
         // 3. Recarregar a lista de streams para atualizar os cards
-
         await loadStreams();
-
       } catch (error) {
-
+        console.error('[LIVE-END] ❌ Erro ao encerrar transmissão:', error);
         addToast(ToastType.Error, 'Erro ao encerrar transmissão');
-
       }
+
+      // ✅ SEMPRE limpar estado e navegar, independente de erros nas chamadas de API
+      setActiveStream(null);
+      setIsPKBattleActive(false);
+      setPkOpponent(null);
+      setLiveSession(null);
+      setStreamRoomData(null);
+      navigate('/');
 
     }
 
-
-
+    // 🔧 Fallback incondicional: sempre limpar estado e navegar, mesmo se activeStream/liveSession for null
+    // Garante que o usuário nunca fique preso na tela de stream morta
     setActiveStream(null);
-
     setIsPKBattleActive(false);
-
     setPkOpponent(null);
-
     setLiveSession(null);
-
     setStreamRoomData(null);
+
+    // ✅ Navegar para home independente do caminho do if acima
+    navigate('/');
 
   };
 
@@ -3575,6 +3566,8 @@ const logLiveEvent = (type: string, data: any) => {
                 />
               ) : location.pathname.startsWith('/live/') && location.pathname !== '/live' ? (
                 <LiveLoadingRedirect />
+              ) : location.pathname === '/video-room' ? (
+                null
               ) : location.pathname === '/video' ? (
                 <VideoScreen
                   onViewProfile={handleViewProfile}
@@ -4054,6 +4047,7 @@ const App: React.FC = () => {
             <Route path="/" element={<AppContentWithRouter />} />
             <Route path="/live" element={<AppContentWithRouter />} />
             <Route path="/live/:streamId" element={<AppContentWithRouter />} />
+            <Route path="/video-room" element={<AppContentWithRouter />} />
             <Route path="/video" element={<AppContentWithRouter />} />
             <Route path="/messages" element={<AppContentWithRouter />} />
             <Route path="/golive" element={<AppContentWithRouter />} />

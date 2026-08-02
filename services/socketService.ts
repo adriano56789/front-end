@@ -1,0 +1,181 @@
+// ═══════════════════════════════════════════════════════════════════════
+// Socket.IO Service — Conexão única com JWT auth
+//
+// Usado para eventos em tempo real da live:
+//   - live_gift_received / gift_received → presentes em tempo real
+//   - diamonds_updated / earnings_updated / live_coins_updated → saldos
+//
+// O backend (server.js → socket.js) expõe o Socket.IO no MESMO servidor
+// Express (porta 3000, rota /socket.io). O nginx e o proxy do Vite
+// encaminham /socket.io/ com Upgrade para websocket.
+// ═══════════════════════════════════════════════════════════════════════
+
+import { io, Socket } from 'socket.io-client';
+import { getAuthToken } from './api';
+
+let socket: Socket | null = null;
+let connected = false;
+let listeners = new Set<() => void>(); // callbacks de mudança de estado
+
+// Usa a mesma URL base da API (mesmo servidor Express do backend)
+const API_BASE = import.meta.env.VITE_API_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || API_BASE;
+
+export function getSocket(): Socket | null {
+    return socket;
+}
+
+export function isSocketConnected(): boolean {
+    return connected;
+}
+
+/** Conecta ao Socket.IO (idempotente) e resolve quando conectado ou falha */
+export function connectSocket(): Promise<Socket | null> {
+    return new Promise((resolve) => {
+        if (socket?.connected) {
+            resolve(socket);
+            return;
+        }
+        if (socket) {
+            // Já existe mas não conectou ainda — aguardar (com timeout)
+            const check = setInterval(() => {
+                if (socket?.connected) {
+                    clearInterval(check);
+                    resolve(socket);
+                }
+            }, 100);
+            setTimeout(() => {
+                clearInterval(check);
+                if (!socket?.connected) resolve(null); // timeout: não travar await
+            }, 8000);
+            return;
+        }
+
+        const token = getAuthToken();
+        if (!token) {
+            console.warn('[SocketIO] Sem token JWT — não foi possível conectar');
+            resolve(null);
+            return;
+        }
+
+        try {
+            socket = io(SOCKET_URL, {
+                auth: { token },
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 2000,
+                timeout: 10000,
+            });
+
+            socket.on('connect', () => {
+                connected = true;
+                console.log('[SocketIO] Conectado');
+                listeners.forEach(cb => cb());
+                resolve(socket);
+            });
+
+            socket.on('disconnect', (reason) => {
+                connected = false;
+                console.log('[SocketIO] Desconectado:', reason);
+            });
+
+            socket.on('connect_error', (err) => {
+                console.warn('[SocketIO] Erro de conexão:', err.message);
+            });
+        } catch (err) {
+            console.error('[SocketIO] Erro ao criar conexão:', err);
+            resolve(null);
+        }
+
+        // Timeout de segurança: se não conectar em 8s, resolve null para não pendurar
+        setTimeout(() => {
+            if (!socket?.connected) resolve(null);
+        }, 8000);
+    });
+}
+
+export function disconnectSocket(): void {
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+        connected = false;
+    }
+}
+
+/**
+ * Entra na sala da stream (user_joined no backend → socket.join(streamId)).
+ * Necessário para receber broadcasts como live_gift_received da sala.
+ */
+export async function emitUserJoined(payload: {
+    streamId: string;
+    userId: string;
+    userName?: string;
+    userAvatar?: string;
+    userLevel?: number;
+}): Promise<boolean> {
+    const s = await connectSocket();
+    if (!s?.connected) {
+        console.warn('[SocketIO] Não conectado — não foi possível emitir user_joined');
+        return false;
+    }
+    try {
+        s.emit('user_joined', {
+            streamId: payload.streamId,
+            userId: payload.userId,
+            userName: payload.userName || payload.userId,
+            userAvatar: payload.userAvatar || '',
+            userLevel: payload.userLevel || 1,
+        });
+        return true;
+    } catch (err) {
+        console.warn('[SocketIO] Erro ao emitir user_joined:', err);
+        return false;
+    }
+}
+
+/**
+ * join_stream — dispara o handler handleJoinStream do backend (server.js),
+ * que: (1) marca o usuário como online na stream no banco (isOnline + currentStreamId),
+ * (2) faz socket.join(streamId), (3) emite os eventos JSON de entrada da sala:
+ *   user_joined_stream / user:join / user_joined_chat / online_users_updated
+ *
+ * Esse é o ÚNICO caminho que gera eventos de entrada visíveis para o host,
+ * pois o caminho protobuf (user_joined → binary_data) está quebrado no backend
+ * (encodeUserJoinedEvent produz 0 bytes — verificado com teste de round-trip).
+ */
+export async function emitJoinStream(payload: {
+    streamId: string;
+    userId: string;
+    userName?: string;
+    userAvatar?: string;
+}): Promise<boolean> {
+    const s = await connectSocket();
+    if (!s?.connected) {
+        console.warn('[SocketIO] Não conectado — não foi possível emitir join_stream');
+        return false;
+    }
+    try {
+        s.emit('join_stream', {
+            streamId: payload.streamId,
+            userId: payload.userId,
+            userName: payload.userName || payload.userId,
+            userAvatar: payload.userAvatar || '',
+        });
+        return true;
+    } catch (err) {
+        console.warn('[SocketIO] Erro ao emitir join_stream:', err);
+        return false;
+    }
+}
+
+/** Escuta um evento do socket; retorna função para cancelar */
+export function onSocketEvent<T = any>(event: string, handler: (data: T) => void): () => void {
+    const s = getSocket();
+    if (!s) return () => {};
+    s.on(event, handler);
+    return () => s.off(event, handler);
+}
+
+

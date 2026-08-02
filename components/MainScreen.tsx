@@ -136,7 +136,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     isDown.current = true;
     wasDragging.current = false;
     if (navRef.current) {
-      startX.current = e.pageX - navRef.current.offsetLeft;
+      startX.current = e.pageX;
       scrollLeft.current = navRef.current.scrollLeft;
       navRef.current.style.scrollBehavior = 'auto';
     }
@@ -152,7 +152,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDown.current || !navRef.current) return;
     e.preventDefault();
-    const x = e.pageX - navRef.current.offsetLeft;
+    const x = e.pageX;
     const walk = (x - startX.current) * 1.5;
     if (Math.abs(walk) > 5) {
         wasDragging.current = true;
@@ -175,7 +175,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     isDown.current = true;
     wasDragging.current = false;
     if (navRef.current) {
-      startX.current = e.touches[0].pageX - navRef.current.offsetLeft;
+      startX.current = e.touches[0].pageX;
       scrollLeft.current = navRef.current.scrollLeft;
       navRef.current.style.scrollBehavior = 'auto';
     }
@@ -183,7 +183,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDown.current || !navRef.current) return;
-    const x = e.touches[0].pageX - navRef.current.offsetLeft;
+    const x = e.touches[0].pageX;
     const walk = (x - startX.current) * 1.5;
     if (Math.abs(walk) > 5) {
         wasDragging.current = true;

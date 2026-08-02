@@ -123,8 +123,8 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
     const kickButton = getKickButtonContent();
 
     return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-fade-in" onClick={onClose}>
-            {/* Sleeping dark overlay removed to ensure the main screen background never turns dark */}
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+            {/* Dark overlay */}
             <div className="bg-[#07050f]/95 backdrop-blur-xl rounded-[24px] w-[290px] p-6 text-center border border-white/[0.08] shadow-[0_16px_50px_rgba(0,0,0,0.85)]" onClick={e => e.stopPropagation()}>
                 
                 {/* Purplish Glowing Avatar Frame wrapper */}

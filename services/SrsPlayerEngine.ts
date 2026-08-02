@@ -1,5 +1,4 @@
-import Hls from 'hls.js';
-import { getHlsPlayUrl } from './mediaConfig';
+import { getWhepPlayUrl } from './mediaConfig';
 
 export type PlayerState =
   | 'idle'
@@ -11,31 +10,52 @@ export type PlayerState =
 
 interface EngineConfig {
   autoMuteRetry?: boolean;
-  /** Número máximo de tentativas de reconexão HLS (com backoff exponencial). Default: 5 */
+  /** Número máximo de tentativas de reconexão WHEP (com backoff exponencial). Default: 5 */
   reconnectRetries?: number;
-  /** Timeout em ms para carregamento do manifest .m3u8. Default: 15000 */
-  manifestTimeout?: number;
-  /** Se true, loga cada etapa do pipeline HLS em detalhe. Default: true */
+  /** Timeout em ms para conectar ao WHEP. Default: 15000 */
+  connectTimeout?: number;
+  /** Se true, loga cada etapa do pipeline WHEP em detalhe. Default: true */
   verboseLogs?: boolean;
 }
 
 const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000];
-const BUFFER_POLL_MS = 1000;
+const SDK_WAIT_TIMEOUT = 10000;
 
 /**
  * ═══════════════════════════════════════════════════════════════════
  * SrsPlayerEngine
  *
- * Player HLS que conecta ao SRS para reprodução de streams ao vivo.
+ * Player WebRTC (WHEP) que conecta ao SRS (Simple Realtime Server)
+ * usando o SDK OFICIAL do SRS (srs.sdk.js → classe SrsRtcWhipWhepAsync).
+ *
+ * Docs oficiais:
+ *   - https://ossrs.net/lts/en-us/docs/v5/doc/webrtc
+ *   - https://github.com/ossrs/srs/blob/develop/trunk/research/players/js/srs.sdk.js
  *
  * Pipeline:
- *   1. Gera URL do .m3u8 via getHlsPlayUrl()
- *   2. Tenta carregar o manifest (nativo ou hls.js)
- *   3. Valida que o manifest contém segmentos .ts
- *   4. Inicia reprodução
+ *   1. Gera URL WHEP via getWhepPlayUrl()
+ *   2. Carrega o SDK oficial (srs.sdk.js) se ainda não estiver no window
+ *   3. Instancia SrsRtcWhipWhepAsync e chama play(url)
+ *   4. Anexa player.stream (MediaStream remota) ao <video>
  *   5. Em caso de falha, tenta reconectar com backoff exponencial
  * ═══════════════════════════════════════════════════════════════════
  */
+
+// Tipos do SDK oficial do SRS (declarados globalmente, sem dependência externa)
+declare global {
+  interface SrsRtcWhipWhepAsyncInstance {
+    publish: (url: string, options?: any) => Promise<any>;
+    play: (url: string, options?: any) => Promise<any>;
+    close: () => void;
+    stream: MediaStream;
+    pc: RTCPeerConnection;
+  }
+
+  interface Window {
+    SrsRtcWhipWhepAsync?: new () => SrsRtcWhipWhepAsyncInstance;
+  }
+}
+
 export class SrsPlayerEngine {
   private _state: PlayerState = 'idle';
   private _destroyed = false;
@@ -44,12 +64,13 @@ export class SrsPlayerEngine {
 
   private _video: HTMLVideoElement | null = null;
   private _streamId = '';
-  private _hls: Hls | null = null;
+  private _customWhepUrl = '';
+
+  private _player: SrsRtcWhipWhepAsyncInstance | null = null;
 
   private _bufferTimer: ReturnType<typeof setInterval> | null = null;
   private _bufferPercent = 0;
 
-  private _audioCtx: AudioContext | null = null;
   private _listeners = new Map<string, Set<Function>>();
   private _visibilityHandler: (() => void) | null = null;
   private _unlockHandler: (() => void) | null = null;
@@ -57,7 +78,7 @@ export class SrsPlayerEngine {
   private _config: Required<EngineConfig> = {
     autoMuteRetry: true,
     reconnectRetries: 5,
-    manifestTimeout: 15000,
+    connectTimeout: 15000,
     verboseLogs: true,
   };
 
@@ -89,7 +110,24 @@ export class SrsPlayerEngine {
     this._emit('stateChanged', prev, next);
   }
 
-  async start(streamId: string, video: HTMLVideoElement): Promise<void> {
+  /**
+   * Garante que o SDK oficial do SRS (srs.sdk.js) esteja carregado.
+   * Se o script ainda não terminou de carregar (defer), aguarda até
+   * SDK_WAIT_TIMEOUT ms.
+   */
+  private async _ensureSdk(): Promise<void> {
+    if (typeof window !== 'undefined' && window.SrsRtcWhipWhepAsync) return;
+
+    const started = Date.now();
+    while (Date.now() - started < SDK_WAIT_TIMEOUT) {
+      if (this._destroyed) throw new Error('Engine destroyed while waiting for SRS SDK');
+      if (typeof window !== 'undefined' && window.SrsRtcWhipWhepAsync) return;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    throw new Error('SDK oficial do SRS (srs.sdk.js) não carregado. Verifique o <script> no index.html.');
+  }
+
+  async start(streamId: string, video: HTMLVideoElement, customUrl?: string): Promise<void> {
     if (this._destroyed) return;
     if (this._connecting) {
       console.warn('[SRS-Engine] Já está conectando. Ignorando start().');
@@ -99,22 +137,26 @@ export class SrsPlayerEngine {
     this._streamId = streamId;
     this._video = video;
     this._retryCount = 0;
+    this._customWhepUrl = customUrl || '';
 
     this._setState('loading');
 
-    const hlsUrl = getHlsPlayUrl(this._streamId);
-    console.log(`[SRS-Engine] 🎬 Iniciando player HLS para stream ${streamId}`);
-    console.log(`[SRS-Engine] 📡 URL do manifest: ${hlsUrl}`);
+    const whepUrl = this._customWhepUrl || getWhepPlayUrl(this._streamId);
+    if (this._config.verboseLogs) {
+      console.log(`[SRS-Engine] 🎬 Iniciando player WHEP (WebRTC) para stream ${streamId}`);
+      console.log(`[SRS-Engine] 📡 URL WHEP: ${whepUrl}`);
+    }
 
     try {
-      await this._startHls();
+      await this._ensureSdk();
+      await this._startWhep(whepUrl);
       this._connecting = false;
     } catch (err: any) {
-      console.error(`[SRS-Engine] ❌ HLS falhou na tentativa inicial:`, err?.message || err);
+      const errMsg = err?.message || 'Falha ao conectar no WebRTC (WHEP)';
+      console.error(`[SRS-Engine] ❌ WHEP falhou na tentativa inicial:`, errMsg);
       this._setState('error');
-      this._emit('error', 'PLAYBACK_FAILED', err?.message || 'Falha ao conectar no HLS');
+      this._emit('error', 'PLAYBACK_FAILED', `Stream não disponível: ${errMsg}. Verifique se a transmissão ao vivo foi iniciada corretamente.`);
 
-      // Tentar reconectar com backoff
       if (this._config.reconnectRetries > 0 && !this._destroyed) {
         console.log(`[SRS-Engine] 🔄 Iniciando reconexão (${this._config.reconnectRetries} tentativas)...`);
         this._scheduleRetry();
@@ -123,9 +165,6 @@ export class SrsPlayerEngine {
     }
   }
 
-  /**
-   * Agenda uma tentativa de reconexão com backoff exponencial.
-   */
   private _scheduleRetry(): void {
     if (this._destroyed) return;
     if (this._retryCount >= this._config.reconnectRetries) {
@@ -136,9 +175,7 @@ export class SrsPlayerEngine {
 
     const delay = RECONNECT_DELAYS[this._retryCount] || 15000;
     this._retryCount++;
-    console.log(
-      `[SRS-Engine] 🔄 Tentativa ${this._retryCount}/${this._config.reconnectRetries} em ${delay}ms...`,
-    );
+    console.log(`[SRS-Engine] 🔄 Tentativa ${this._retryCount}/${this._config.reconnectRetries} em ${delay}ms...`);
 
     setTimeout(async () => {
       if (this._destroyed) return;
@@ -146,152 +183,61 @@ export class SrsPlayerEngine {
       this._setState('loading');
 
       try {
-        // Destruir HLS anterior se existir
-        if (this._hls) {
-          this._hls.destroy();
-          this._hls = null;
-        }
-
-        await this._startHls();
+        this._disposePlayer();
+        const whepUrl = this._customWhepUrl || getWhepPlayUrl(this._streamId);
+        await this._ensureSdk();
+        await this._startWhep(whepUrl);
         console.log(`[SRS-Engine] ✅ Reconexão bem-sucedida na tentativa ${this._retryCount}!`);
-        this._retryCount = 0; // Reset contador após sucesso
+        this._retryCount = 0;
       } catch (err: any) {
-        console.error(`[SRS-Engine] ❌ Tentativa ${this._retryCount} falhou:`, err.message);
+        console.error(`[SRS-Engine] ❌ Tentativa ${this._retryCount} falhou:`, err?.message);
         this._setState('error');
-        this._emit('error', 'RETRY_FAILED', err.message);
-        this._scheduleRetry(); // Tentar novamente
+        this._emit('error', 'RETRY_FAILED', err?.message);
+        this._scheduleRetry();
       }
     }, delay);
   }
 
-  private async _startHls(): Promise<void> {
+  private async _startWhep(whepUrl: string): Promise<void> {
     const video = this._video;
     if (!video || this._destroyed) throw new Error('No video element');
 
-    const hlsUrl = getHlsPlayUrl(this._streamId);
+    const Ctor = window.SrsRtcWhipWhepAsync!;
+    const player = new Ctor();
+    this._player = player;
 
-    // Tentar reprodução nativa (Chrome, Safari, Edge)
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      console.log('[SRS-Engine] 🍎 Tentando player HLS nativo primeiro...');
-      try {
-        video.src = hlsUrl;
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('HLS native timeout: .m3u8 não carregou em 15s'));
-          }, this._config.manifestTimeout);
-
-          video.addEventListener('loadedmetadata', () => {
-            clearTimeout(timeout);
-            console.log('[SRS-Engine] ✅ Manifest .m3u8 carregado (nativo)');
-            this._autoPlay(video).then(resolve).catch(reject);
-          }, { once: true });
-
-          video.addEventListener('error', () => {
-            clearTimeout(timeout);
-            const medErr = video.error;
-            reject(new Error(`HLS native error: ${medErr?.message || medErr?.code || 'unknown'}`));
-          }, { once: true });
-        });
-        this._startBufferMonitor(video);
-        this._setState('playing');
-        this._emit('playing');
-        this._handleVisibility();
-        return;
-      } catch (nativeErr: any) {
-        console.warn('[SRS-Engine] ⚠️ Nativo falhou:', nativeErr.message);
-        // Se hls.js estiver disponível, tentar como fallback
-        if (Hls.isSupported()) {
-          console.log('[SRS-Engine] 📦 Nativo falhou, fazendo fallback para hls.js...');
-          video.src = ''; // Limpar src nativo
-        } else {
-          // Se hls.js não estiver disponível, relançar o erro
-          throw nativeErr;
-        }
-      }
+    if (this._config.verboseLogs) {
+      console.log('[SRS-Engine] 📡 SDK oficial SRS (SrsRtcWhipWhepAsync) instanciado. Negociando SDP via WHEP...');
     }
 
-    // hls.js para demais navegadores
-    if (!Hls.isSupported()) {
-      throw new Error('HLS not supported in this browser');
+    const connectPromise = player.play(whepUrl, {});
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`WHEP timeout (${this._config.connectTimeout / 1000}s)`)), this._config.connectTimeout);
+    });
+
+    await Promise.race([connectPromise, timeoutPromise]);
+
+    if (this._destroyed) {
+      player.close();
+      return;
     }
 
-    console.log('[SRS-Engine] 📦 Usando hls.js para reprodução');
+    const remoteStream = player.stream;
+    if (!remoteStream || remoteStream.getTracks().length === 0) {
+      throw new Error('Nenhuma track remota recebida do SRS (WHEP)');
+    }
 
-    const hls = new Hls({
-      enableWorker: true,
-      lowLatencyMode: true,
-      manifestLoadPolicy: {
-        default: {
-          maxTimeToFirstByteMs: 8000,
-          maxLoadTimeMs: this._config.manifestTimeout,
-          timeoutRetry: {
-            maxNumRetry: 3,
-            retryDelayMs: 1000,
-            maxRetryDelayMs: 5000,
-          },
-          errorRetry: {
-            maxNumRetry: 3,
-            retryDelayMs: 1000,
-            maxRetryDelayMs: 5000,
-          },
-        },
-      },
-    });
-    this._hls = hls;
-
-    // Log detalhado de erros HLS
-    hls.on(Hls.Events.ERROR, (_e, data) => {
-      const { type, details, fatal, reason } = data;
-      console.warn(
-        `[SRS-Engine] ⚠️ HLS Error | type=${type} details=${details} fatal=${fatal} reason=${reason}`,
-      );
-
-      if (fatal) {
-        if (type === Hls.ErrorTypes.NETWORK_ERROR) {
-          console.log('[SRS-Engine] 🔄 Tentando recuperar de erro de rede (startLoad)...');
-          hls.startLoad();
-        } else if (type === Hls.ErrorTypes.MEDIA_ERROR) {
-          console.log('[SRS-Engine] 🔄 Tentando recuperar de erro de mídia (recoverMediaError)...');
-          hls.recoverMediaError();
-        } else {
-          console.error('[SRS-Engine] ❌ Erro fatal não recuperável');
-          this._setState('error');
-          this._emit('error', 'HLS_FATAL', reason || details);
-        }
-      }
-    });
-
-    // Log quando manifest é carregado
-    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
-      console.log(
-        `[SRS-Engine] ✅ Manifest .m3u8 carregado: ${data.levels?.length || 0} qualidade(s), ` +
-        `${data.audioTracks?.length || 0} faixa(s) de áudio`,
-      );
-    });
-
-    // Log de níveis
-    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
-      console.log(`[SRS-Engine] 📊 Qualidade alternada para nível ${data.level}`);
-    });
-
-    hls.loadSource(hlsUrl);
-    hls.attachMedia(video);
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`HLS manifest timeout: .m3u8 não carregou em ${this._config.manifestTimeout / 1000}s`));
-      }, this._config.manifestTimeout);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        clearTimeout(timeout);
-        this._autoPlay(video).then(resolve).catch(reject);
-      });
-    });
+    video.srcObject = remoteStream;
+    await this._autoPlay(video);
 
     this._startBufferMonitor(video);
     this._setState('playing');
     this._emit('playing');
     this._handleVisibility();
+
+    if (this._config.verboseLogs) {
+      console.log(`[SRS-Engine] ✅ WebRTC/WHEP conectado. Tracks remotas: ${remoteStream.getTracks().length} (video=${remoteStream.getVideoTracks().length}, audio=${remoteStream.getAudioTracks().length})`);
+    }
   }
 
   private async _autoPlay(video: HTMLVideoElement): Promise<void> {
@@ -336,7 +282,7 @@ export class SrsPlayerEngine {
           this._emit('bufferChanged', this._bufferPercent);
         }
       } catch { /* buffer check não crítico */ }
-    }, BUFFER_POLL_MS);
+    }, 1000);
   }
 
   private _stopBufferMonitor(): void {
@@ -363,11 +309,9 @@ export class SrsPlayerEngine {
     this._removeAudioUnlock();
     const handler = () => {
       try {
-        if (!this._audioCtx || this._audioCtx.state === 'closed') {
-          this._audioCtx = new AudioContext();
-        }
-        if (this._audioCtx.state === 'suspended') {
-          this._audioCtx.resume();
+        const video = this._video;
+        if (video && video.paused) {
+          video.play().catch(() => {});
         }
       } catch { /* audio unlock não crítico */ }
     };
@@ -381,6 +325,13 @@ export class SrsPlayerEngine {
 
   private _removeAudioUnlock(): void {
     if (this._unlockHandler) { this._unlockHandler(); this._unlockHandler = null; }
+  }
+
+  private _disposePlayer(): void {
+    if (this._player) {
+      try { this._player.close(); } catch { /* ignore */ }
+      this._player = null;
+    }
   }
 
   pause(): void {
@@ -406,20 +357,12 @@ export class SrsPlayerEngine {
     this._removeVisibilityHandler();
     this._removeAudioUnlock();
 
-    if (this._hls) {
-      this._hls.destroy();
-      this._hls = null;
-    }
+    this._disposePlayer();
 
     if (this._video) {
-      this._video.src = '';
       this._video.srcObject = null;
+      this._video.src = '';
       this._video = null;
-    }
-
-    if (this._audioCtx) {
-      this._audioCtx.close().catch(() => {});
-      this._audioCtx = null;
     }
 
     this._listeners.clear();

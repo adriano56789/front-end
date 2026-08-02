@@ -134,12 +134,12 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
   
   return (
     <div 
-      className={`fixed inset-0 z-[100] flex items-end justify-center transition-all duration-300 ${isOpen ? 'bg-black/10 pointer-events-auto' : 'bg-transparent pointer-events-none'}`}
+      className={`fixed inset-0 z-[100] flex items-stretch sm:items-center sm:justify-center transition-all duration-300 ${isOpen ? 'bg-black/90 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
       onClick={onClose}
     >
-      {/* Pitch black design plate: bg-black / placa preta, rounded upper border, high height */}
+      {/* Pitch black design plate: bg-black / placa preta, rounded, full height so the live video is NOT visible behind */}
       <div
-        className={`bg-black border-t-2 border-zinc-900 w-full max-w-md h-[80vh] rounded-t-[2rem] flex flex-col transform transition-transform duration-300 ease-out shadow-[0_-20px_50px_rgba(0,0,0,0.9)] ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`bg-black w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl border sm:border-zinc-900 flex flex-col transform transition-transform duration-300 ease-out shadow-[0_-20px_50px_rgba(0,0,0,0.9)] ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Modern clean drag handle indicator */}

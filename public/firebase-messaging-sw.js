@@ -1,10 +1,10 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-const CACHE_NAME = 'livenza-cache-v1';
+const CACHE_NAME = 'livenza-cache-v2';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
   '/',
-  '/site.webmanifest',
+  '/manifest.json',
   '/favicon.svg',
   '/favicon.ico',
   '/favicon-32x32.png',
@@ -65,9 +65,7 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/rtc/') ||
       url.pathname.includes('/video/') ||
-      url.pathname.includes('.m3u8') ||
-      url.pathname.includes('.ts') ||
-      url.pathname.includes('.flv')) {
+      url.pathname.includes('/srs/')) {
     return;
   }
 

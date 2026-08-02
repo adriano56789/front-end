@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useLiveKitChat } from '../hooks/useLiveKitChat';
+import { useStreamChat } from '../hooks/useStreamChat';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
 import EntryChatMessage from './live/EntryChatMessage';
 import ToolsModal from './ToolsModal';
 const ToolsModalAny: any = ToolsModal;
+import ConnectionQualityIndicator from './live/ConnectionQualityIndicator';
 import ResolutionPanel from './live/ResolutionPanel';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, ViewerIcon, StarIcon, HeartIcon, GoldCoinWithGIcon, BellIcon } from './icons';
@@ -16,7 +18,7 @@ import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-// Socket.IO removido — comunicação PK via LiveKit DataChannel + REST API
+// Socket.IO removido — comunicação PK via REST API + SRS (WebSocket/WebRTC)
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
@@ -109,6 +111,7 @@ export default function PKBattleScreen({
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const keyboardInset = useKeyboardInset();
     
     const [myScore, setMyScore] = useState(0);
     const [opponentScore, setOpponentScore] = useState(0);
@@ -138,31 +141,33 @@ export default function PKBattleScreen({
     const [isSendingGift, setIsSendingGift] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
-    // 📡 useLiveKitChat: auto-conecta à mesma sala live_{streamId} (LiveKit docs)
-    // Usa publishTracks/publishTrack para camera, onTrackSubscribed para oponente
+    // 📡 useStreamChat: chat + presença via Socket.IO; convites via REST (SRS-only)
+    // O vídeo do oponente agora vem da live SRS do próprio oponente via WHEP
+    // (renderizado em um segundo LivePlayer), sem LiveKit.
     const lkConnectedRef = useRef(false);
     const remoteVideoAttachedRef = useRef(false);
 
+    // Declarado antes do useStreamChat (usado nos callbacks onConnected/isHost)
+    const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+
     const {
         connected: lkConnected,
+        connectionQualities: lkConnectionQualities,
         sendMessage: lkSendMessage,
         disconnect: disconnectLkChat,
-        publishTracks,
-        unpublishTracks,
-        muteTrack,
-        unmuteTrack,
         setMetadata: lkChatSetMetadata,
-        // 📡 RPC methods for co-host/PK invites
+        // 📡 Convites co-host/PK via REST API
         inviteCoHost: lkInviteCoHost,
         invitePK: lkInvitePK,
-        // 📡 Data Packet methods — reações
+        // 📡 Reações e digitação (no-op)
         sendReaction: lkSendReaction,
         sendTyping: lkSendTyping,
-        // 📡 State Sync methods
+        // 📡 State Sync (no-op — mantido por compatibilidade)
         setParticipantRole: lkSetRole,
-    } = useLiveKitChat({
+    } = useStreamChat({
         streamId: streamer.id,
         userId: currentUser.id,
+        userName: currentUser.name,
         isHost: isBroadcaster,
         disabled: false,
         onMessage: (data: any) => {
@@ -172,7 +177,45 @@ export default function PKBattleScreen({
                 const stableId = Date.now() + Math.random();
                 setMessages(prev => [...prev, { ...data, type: 'chat', id: stableId }]);
             }
-            // Sync de estado PK
+            // 🚪 Entrada de espectador na sala (Socket.IO user_joined_stream/user:join → live_entry)
+            else if (data.type === 'live_entry') {
+                if (data.fullUser && String(data.fullUser.id) === String(currentUser.id)) return;
+                const stableId = Date.now() + Math.random();
+                setMessages(prev => {
+                    if (prev.some(m => m.type === 'entry' && m.fullUser && String(m.fullUser.id) === String(data.fullUser?.id || data.userId))) return prev;
+                    return [...prev, {
+                        id: stableId,
+                        type: 'entry',
+                        user: data.userName || data.user?.name,
+                        fullUser: data.fullUser || null,
+                    }];
+                });
+            }
+            // 🎁 Presentes em tempo real (Socket.IO + polling REST)
+            else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
+                const isSelf = data.from?.id === currentUser?.id || data.fromUser?.id === currentUser?.id;
+                if (!isSelf) {
+                    const giftEvtPayload: any = {
+                        fromUser: {
+                            id: data.from?.id || data.fromUser?.id,
+                            identification: data.from?.identification || data.fromUser?.identification || data.from?.id,
+                            name: data.from?.name || data.fromUser?.name || 'Usuário',
+                            avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '',
+                            level: data.from?.level || data.fromUser?.level || 1,
+                            fans: 0, following: 0, receptores: 0, enviados: 0,
+                            diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
+                        },
+                        toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
+                        gift: data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' },
+                        quantity: data.quantity || 1,
+                        roomId: streamer.id,
+                        id: String(data.id || Date.now() + Math.random()),
+                    };
+                    setEffectsQueue(prev => [...prev, giftEvtPayload]);
+                    postGiftChatMessage(giftEvtPayload);
+                }
+            }
+            // Sync de estado PK (mantido para compatibilidade futura — via REST)
             else if (data.type === 'pk_state_sync') {
                 setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
                 if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
@@ -191,95 +234,22 @@ export default function PKBattleScreen({
             }
         },
         onConnected: () => {
-            console.log('[PKBattle] LiveKitChat conectado!');
+            console.log('[PKBattle] Chat REST conectado!');
             lkConnectedRef.current = true;
             // 📡 State Sync: sincronizar papel
             lkSetRole(isBroadcaster ? 'host' : 'viewer');
-            // Publicar camera local quando conectar
+            // Publicar camera local quando conectar (apenas preview local — sem LiveKit)
             if (isBroadcaster) {
                 startLocalCamera();
-            }
-            // Enviar metadata
-            lkChatSetMetadata({
-                avatarUrl: currentUser.avatarUrl || currentUser.avatar || '',
-                name: currentUser.name,
-                level: currentUser.level || 1,
-            });
-        },
-        onDisconnected: () => {
-            console.log('[PKBattle] LiveKitChat desconectado');
-            lkConnectedRef.current = false;
-            addToast(ToastType.Error, 'Conexão PK perdida. A batalha será encerrada.');
-            setTimeout(() => handleEndBattle(), 3000);
-        },
-        onReconnecting: () => {
-            addToast(ToastType.Info, 'Reconectando ao servidor PK...');
-        },
-        onReconnected: () => {
-            addToast(ToastType.Success, 'PK reconectado!');
-            // Re-enviar estado atual para o oponente
-            sendPkState();
-        },
-        // 📡 Track events (LiveKit docs)
-        onTrackSubscribed: (track: any, publication: any, participant: any) => {
-            const identity = participant?.identity || '';
-            console.log('[PKBattle] TrackSubscribed:', publication?.kind, 'de:', identity);
-            // Verificar se e a track de camera do oponente
-            if (publication?.source === 'camera' || publication?.trackName === 'camera') {
-                const video = remoteVideoRef.current;
-                if (video && track?.mediaStreamTrack && !remoteVideoAttachedRef.current) {
-                    video.srcObject = new MediaStream([track.mediaStreamTrack]);
-                    video.style.transform = 'scaleX(1)';
-                    setIsOpponentConnected(true);
-                    remoteVideoAttachedRef.current = true;
-                    console.log('[PKBattle] ✅ Track de video do oponente conectada');
-                }
-            }
-        },
-        onTrackUnsubscribed: (_track: any, publication: any, participant: any) => {
-            if (publication?.source === 'camera' || publication?.trackName === 'camera') {
-                const video = remoteVideoRef.current;
-                if (video) video.srcObject = null;
-                setIsOpponentConnected(false);
-                remoteVideoAttachedRef.current = false;
-                console.log('[PKBattle] Track de video do oponente removida');
-            }
-        },
-        // 📡 Data Packets: receber reações no PK
-        onReaction: (data) => {
-            const reactionMap: Record<string, string> = {
-                'like': '❤️',
-                'fire': '🔥',
-                'thumbsup': '👍',
-                'clap': '👏',
-                'laugh': '😂',
-                'heart': '💜',
-            };
-            const emoji = reactionMap[data.reaction] || data.reaction;
-            const reactionMsg: any = {
-                id: Date.now() + Math.random(),
-                type: 'chat',
-                user: data.fromName,
-                message: `${data.fromName} reagiu com ${emoji}`,
-                avatar: '',
-                level: 1,
-            };
-            setMessages(prev => [...prev, reactionMsg]);
-        },
-        onTyping: (data) => {
-            // PKBattleScreen pode ignorar typing ou mostrar indicador simples
-            if (data.isTyping) {
-                console.log('[PKBattle] Digitando:', data.fromName);
             }
         },
     });
 
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);
-    const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const selfPreviewRef = useRef<HTMLVideoElement>(null);
     const localMediaStreamRef = useRef<MediaStream | null>(null);
 
-    // 📡 Iniciar camera local e publicar como track no LiveKit
+    // 📡 Iniciar camera local (apenas self-preview — mídia do PK via SRS/WHEP, sem LiveKit)
     const startLocalCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -295,9 +265,7 @@ export default function PKBattleScreen({
                 video.style.transform = 'scaleX(-1)';
             }
 
-            // Publicar camera como track LiveKit
-            await publishTracks(stream);
-            console.log('[PKBattle] Camera publicada via LiveKit');
+            console.log('[PKBattle] Camera local iniciada (self-preview)');
         } catch (err) {
             console.warn('[PKBattle] Falha ao iniciar camera:', err);
         }
@@ -311,25 +279,13 @@ export default function PKBattleScreen({
                 localMediaStreamRef.current.getTracks().forEach(t => t.stop());
                 localMediaStreamRef.current = null;
             }
-            // Remover tracks publicadas no LiveKit
-            unpublishTracks();
             lkConnectedRef.current = false;
             remoteVideoAttachedRef.current = false;
         };
     }, []);
     
-    // Build SRS stream URL for the LivePlayer (left column — public stream via SRS)
-    const getStreamUrl = () => {
-        if (streamer.hlsUrl) return streamer.hlsUrl;
-        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (
-            typeof window !== 'undefined' && window.location
-            ? `${window.location.origin}/srs`
-            : '/srs'
-        );
-        return `${httpBase}/live/${streamer.id}.m3u8`;
-    };
-        
-    const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+    // O LivePlayer monta a URL WHEP automaticamente a partir do streamId
+    // (getWhepPlayUrl → /api/rtc/v1/whep/?app=live&stream=stream_{id})
 
     const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
         e.stopPropagation();
@@ -408,7 +364,7 @@ export default function PKBattleScreen({
                     {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon}</span>}
                 </span>
             ),
-            avatar: fromUser.avatarUrl,
+            avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
             activeFrameId: fromUser.activeFrameId,
             frameExpiration: fromUser.frameExpiration,
         };
@@ -439,7 +395,7 @@ export default function PKBattleScreen({
             const newBanner = { ...giftPayload, id: nextGiftId.current++ };
             setBannerGifts(prev => [...prev, newBanner].slice(-5));
 
-            // Sincronizar via LiveKit data channel
+            // Sincronizar via REST API
             if (lkConnected) {
                 lkSendMessage({
                     type: 'gift_sent',
@@ -565,7 +521,7 @@ export default function PKBattleScreen({
                 previousOnlineUsersRef.current = newUsers;
             }
         };
-        // Socket.IO removido — eventos PK via LiveKit DataChannel + CustomEvents
+        // Socket.IO removido — eventos PK via REST API + CustomEvents
         const handleHeartUpdate = (data: { roomId: string, heartsA: number, heartsB: number }) => {
              if (data.roomId === streamer.id) {
                 setMyHearts(data.heartsA);
@@ -573,7 +529,7 @@ export default function PKBattleScreen({
             }
         };
 
-        // Socket.IO removido — gifts via LiveKit DataChannel
+        // Socket.IO removido — gifts via REST API
         const handleFollowUpdate = (payload: { follower: User, followed: User, isUnfollow: boolean }) => {
             if (payload.isUnfollow) return; 
 
@@ -587,14 +543,13 @@ export default function PKBattleScreen({
         };
 
 
-        // Socket.IO removido — mensagens/gifts/recebimento via LiveKit DataChannel
+        // Socket.IO removido — mensagens/gifts/recebimento via REST API
     
         return () => {
         };
     }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
 
-    // 📡 onMessage do useLiveKitChat processa chat e pk sync (definido nas options do hook)
-    // Este useEffect foi substituido pelo callback onMessage no useLiveKitChat
+    // 📡 onMessage do useStreamChat processa chat e pk sync (definido nas options do hook)
 
     const handleFollowStreamer = (user: User) => onFollowUser(user, streamer.id);
 
@@ -610,7 +565,7 @@ export default function PKBattleScreen({
         }
     }, [currentEffect, effectsQueue]);
 
-    // 📡 Enviar estado do PK via sendMessage (useLiveKitChat)
+    // 📡 Enviar estado do PK via sendMessage (useStreamChat)
     const sendPkState = () => {
         if (!lkConnected || !lkConnectedRef.current) return;
         try {
@@ -671,7 +626,7 @@ export default function PKBattleScreen({
 
     // 📡 Reconexao tratada pelos callbacks onReconnecting/onReconnected/onDisconnected do hook
 
-    // Override do onEndPKBattle para enviar comando de fim via LiveKit antes de encerrar
+    // Override do onEndPKBattle para enviar comando de fim antes de encerrar
     const handleEndBattle = () => {
         if (lkConnected) {
             try {
@@ -739,11 +694,11 @@ export default function PKBattleScreen({
         // Otimista: adicionar mensagem localmente
         setMessages(prev => [...prev, safePayload]);
         
-        // Enviar via LiveKit data channel
+        // Enviar via REST API (polling)
         if (lkConnected) {
             lkSendMessage(safePayload);
         } else {
-            console.warn('[PKBattle] Chat não enviado — LiveKit não conectado');
+            console.warn('[PKBattle] Chat não enviado — chat REST não conectado');
         }
         
         setChatInput('');
@@ -781,10 +736,10 @@ export default function PKBattleScreen({
             {/* ═══════════════════════════════════════════════════════════
                PROFESSIONAL PICTURE-IN-PICTURE PK BATTLE LAYOUT
                
-               ARQUITETURA:
-               - Fundo fullscreen: Host video (SRS HLS/WHEP) — stream pública
-               - Janela PiP flutuante: Opponent video (LiveKit remote track)
-               - Mini-PiP: Self-preview (LiveKit local camera) para broadcaster
+               ARQUITETURA (apenas SRS):
+               - Fundo fullscreen: Host video (SRS WHEP) — stream pública
+               - Janela PiP flutuante: Opponent video (SRS WHEP)
+               - Mini-PiP: Self-preview local (câmera) para broadcaster
                - VS Banner: overlay centralizado no topo
                - Chat: sobreposição no bottom
                ═══════════════════════════════════════════════════════════ */}
@@ -794,10 +749,9 @@ export default function PKBattleScreen({
                 className="relative w-full h-full bg-zinc-950 overflow-hidden"
                 onClick={handleHeartClick}
             >
-                {/* ─── LAYER 1: Host Video (Full Background via SRS) ─── */}
+                {/* ─── LAYER 1: Host Video (Full Background via SRS WHEP) ─── */}
                 <div className="absolute inset-0 bg-black">
                     <LivePlayer
-                        url={getStreamUrl()}
                         streamId={streamer.streamKey || streamer.id}
                         isBroadcaster={isBroadcaster}
                         userId={currentUser.id}
@@ -813,7 +767,7 @@ export default function PKBattleScreen({
                     />
                 </div>
 
-                {/* ─── LAYER 2: Floating PiP — Opponent Video (LiveKit) ─── */}
+                {/* ─── LAYER 2: Floating PiP — Opponent Video (SRS WHEP) ─── */}
                 {/* 
                     Professional PiP styling (top-right corner, like Zoom/Google Meet):
                     - Positioned top-right to avoid overlapping with chat input at bottom
@@ -822,6 +776,10 @@ export default function PKBattleScreen({
                     - Glassmorphism backdrop when opponent not connected
                     - Smooth scale+opacity entrance animation
                     - Team-colored shadow glow
+
+                    O vídeo do oponente agora vem da própria live SRS do oponente
+                    via WHEP (segundo LivePlayer), sem LiveKit. Se o oponente não
+                    estiver transmitindo, o placeholder "AGUARDANDO" é exibido.
                 */}
                 <div 
                     className={`absolute sm:top-4 top-[72px] right-3 z-30 transition-all duration-500 ease-out
@@ -843,20 +801,18 @@ export default function PKBattleScreen({
                             : 'shadow-[0_0_15px_rgba(0,122,255,0.15)] border-[2px] border-white/15'
                     }`} />
                     
-                    {/* Video element */}
+                    {/* Video element — live SRS do oponente via WHEP */}
                     <div className="absolute inset-0 rounded-2xl overflow-hidden bg-black/80 backdrop-blur-sm">
-                        <video
-                            ref={remoteVideoRef}
-                            autoPlay
-                            playsInline
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${
-                                isOpponentConnected ? 'opacity-100' : 'opacity-0'
-                            }`}
+                        <LivePlayer
+                            streamId={opponent.id}
+                            userId={currentUser.id}
+                            onPlaying={() => setIsOpponentConnected(true)}
+                            onError={() => setIsOpponentConnected(false)}
                         />
                         
-                        {/* Placeholder when opponent not connected */}
+                        {/* Placeholder when opponent not connected — cobre o player até conectar */}
                         {!isOpponentConnected && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
+                            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
                                 {/* Animated pulsing avatar placeholder */}
                                 <div className="relative mb-3">
                                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 p-[2px] animate-pulse">
@@ -897,7 +853,8 @@ export default function PKBattleScreen({
                                 <span className="text-white text-[9px] font-bold truncate drop-shadow-lg">
                                     {opponent.name}
                                 </span>
-                                <span className="ml-auto text-blue-300 text-[7px] font-semibold">LIVE</span>
+                                <ConnectionQualityIndicator quality={lkConnectionQualities[opponent.id]} className="ml-auto" />
+                                <span className="text-blue-300 text-[7px] font-semibold">LIVE</span>
                             </div>
                             {/* Small score indicator */}
                             <div className="flex items-center gap-1 mt-0.5">
@@ -966,9 +923,12 @@ export default function PKBattleScreen({
                                         <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
-                                            {streamerDisplayUser.name}
-                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
+                                                {streamerDisplayUser.name}
+                                            </span>
+                                            <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} />
+                                        </div>
                                         <span className="text-pink-300 text-[9px] font-bold">
                                             {myScore.toLocaleString()}
                                             <span className="text-pink-400/60 text-[7px] ml-0.5">({myHearts}♥)</span>
@@ -991,9 +951,12 @@ export default function PKBattleScreen({
                                         <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full object-cover" />
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
-                                            {opponent.name}
-                                        </span>
+                                        <div className="flex items-center gap-1">
+                                            <ConnectionQualityIndicator quality={lkConnectionQualities[opponent.id]} />
+                                            <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
+                                                {opponent.name}
+                                            </span>
+                                        </div>
                                         <span className="text-blue-300 text-[9px] font-bold">
                                             {opponentScore.toLocaleString()}
                                             <span className="text-blue-400/60 text-[7px] ml-0.5">({opponentHearts}♥)</span>
@@ -1022,7 +985,7 @@ export default function PKBattleScreen({
                 </div>
 
                 {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
-                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardInset }}>
                     {/* Chat messages */}
                     <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{
                         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'
@@ -1037,7 +1000,7 @@ export default function PKBattleScreen({
                                     onFollow={onFollowUser}
                                     isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
                             }
-                            if (msg.type === 'chat' && msg.user && msg.avatar) {
+                            if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
                                 const chatUser = constructUserFromMessage(msg);
                                 const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
                                 return <ChatMessage 
@@ -1156,6 +1119,7 @@ export default function PKBattleScreen({
                     streamId={streamer.id} 
                     userId={currentUser.id} 
                     currentUser={currentUser} 
+                    connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setIsOnlineUsersOpen(false);
                         if (isBroadcaster) {
@@ -1204,22 +1168,6 @@ export default function PKBattleScreen({
                     currentUser={currentUser} 
                     addToast={addToast} 
                     streamId={streamer.id}
-                    onRpcInvite={async (friend) => {
-                        if (coHostModalMode === 'battle') {
-                            return await lkInvitePK(friend.id, {
-                                streamId: streamer.id,
-                                senderId: currentUser.id,
-                                senderName: currentUser.name,
-                                senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
-                            });
-                        }
-                        return await lkInviteCoHost(friend.id, {
-                            streamId: streamer.id,
-                            senderId: currentUser.id,
-                            senderName: currentUser.name,
-                            senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
-                        });
-                    }}
                 />
             )}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={()=>{}} currentResolution={"480p"} />

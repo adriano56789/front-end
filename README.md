@@ -1,16 +1,15 @@
 # LiveGo - Frontend
 
-Aplicação frontend do LiveGo, uma plataforma de live streaming com chat em tempo real, sistema de presentes virtuais, batalhas PK, filtros de beleza em WebGL e integração com LiveKit para comunicação em tempo real.
+Aplicação frontend do LiveGo, uma plataforma de live streaming com chat em tempo real, sistema de presentes virtuais, batalhas PK, filtros de beleza em WebGL e integração com SRS (WebRTC) para transmissão ao vivo.
 
 ## Tecnologias
 
 - **React** + **TypeScript**
 - **Vite** para build
 - **Tailwind CSS** para estilização
-- **LiveKit** para chat e comunicação em tempo real
-- **SRS** (Simple Realtime Server) para streaming de vídeo
+- **SRS** (Simple Realtime Server) para streaming de vídeo (WebRTC publish via WebSocket + WHEP play)
 - **WebGL** para filtros de beleza em tempo real
-- **Socket.IO** para eventos complementares
+- **REST API** para chat, presença e eventos complementares
 - **i18n** com suporte a português e inglês
 
 ## Estrutura

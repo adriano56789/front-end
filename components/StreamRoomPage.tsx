@@ -62,9 +62,8 @@ const StreamRoomPage: React.FC = () => {
           console.log(`✅ [StreamRoomPage] Stream encontrada:`, data);
           
           // Validar URLs reais retornadas pelo backend
-          const { hlsUrl, webrtcUrl, flvUrl, rtmpIngestUrl } = data;
+          const { webrtcUrl, flvUrl, rtmpIngestUrl } = data;
           console.log(`🔗 [StreamRoomPage] URLs validadas:`, {
-            hlsUrl,
             webrtcUrl,
             flvUrl,
             rtmpUrl: rtmpIngestUrl

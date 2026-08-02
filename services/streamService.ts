@@ -1,6 +1,6 @@
 import { api } from './api';
 import { Streamer, User } from '../types';
-import { getHlsPlayUrl } from './mediaConfig';
+import { getWhepPlayUrl, getWhipPublishUrl } from './mediaConfig';
 
 export class StreamService {
   static async createStream(userId: string, streamData: {
@@ -76,14 +76,12 @@ export class StreamService {
     srtIngestUrl: string;
     playbackUrl: string;
     webrtcUrl: string;
-    hlsUrl: string;
   } {
     return {
       rtmpIngestUrl: '',
       srtIngestUrl: '',
-      playbackUrl: getHlsPlayUrl(streamId),
-      webrtcUrl: '',
-      hlsUrl: getHlsPlayUrl(streamId)
+      playbackUrl: getWhepPlayUrl(streamId),
+      webrtcUrl: getWhipPublishUrl(streamId)
     };
   }
 
@@ -135,7 +133,6 @@ export class StreamService {
       rtmpIngestUrl: streamData.rtmpIngestUrl,
       playbackUrl: streamData.playbackUrl,
       webrtcUrl: streamData.webrtcUrl,
-      hlsUrl: streamData.hlsUrl,
       flvUrl: streamData.flvUrl,
       vhost: streamData.vhost || '__defaultVhost__',
       app: streamData.app || 'live',

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { CloseIcon, ActionIcon, YellowDiamondIcon, CrownIcon, UserIcon, RankIcon } from '../icons';
+import ConnectionQualityIndicator, { ConnectionQualityValue } from './ConnectionQualityIndicator';
 import { User } from '../../types';
 import { api } from '../../services/api';
-// Socket.IO removido — eventos via API + LiveKit
+// Socket.IO removido — eventos via API REST + polling
 import { LoadingSpinner } from '../Loading';
 
 interface OnlineUsersModalProps {
@@ -12,9 +13,10 @@ interface OnlineUsersModalProps {
     currentUser?: User | null; // Para sincronizar avatar do usuário atual em tempo real
     onSelectUser?: (user: User) => void;
     moderatorIds?: string[];
+    connectionQualities?: Record<string, ConnectionQualityValue>;
 }
 
-const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick?: () => void; isModerator?: boolean }> = ({ user, rank, onClick, isModerator }) => {
+const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick?: () => void; isModerator?: boolean; quality?: ConnectionQualityValue }> = ({ user, rank, onClick, isModerator, quality }) => {
     // Proteção contra dados inválidos
     if (!user || !user.id) {
         return null;
@@ -54,6 +56,7 @@ const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick
             <div className="flex-grow min-w-0">
                 <div className="flex items-center gap-1.5">
                     <p className="font-bold text-white tracking-wide truncate">{user.name || 'Usuário'}</p>
+                    <ConnectionQualityIndicator quality={quality} />
                     {isModerator && (
                         <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white border border-blue-400/30 text-[9px] font-black px-1.5 py-0.5 rounded shadow-[0_0_8px_rgba(59,130,246,0.6)] tracking-wider uppercase font-sans flex items-center h-[16px] leading-none shrink-0">
                             Adm
@@ -79,7 +82,7 @@ const UserItem: React.FC<{ user: User & { value: number }; rank: number; onClick
 };
 
 
-const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, userId, currentUser, onSelectUser, moderatorIds = [] }) => {
+const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, userId, currentUser, onSelectUser, moderatorIds = [], connectionQualities = {} }) => {
     const [users, setUsers] = useState<(User & { value: number })[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -149,7 +152,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
             }
         };
 
-        // Socket.IO listeners removidos — eventos via API + LiveKit DataChannel
+        // Socket.IO listeners removidos — eventos via API + REST polling
 
         // Initial fetch - APENAS UMA CHAMADA
         const fetchUsers = async () => {
@@ -186,9 +189,9 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     }, [streamId]);
 
     return (
-        <div className="absolute inset-0 z-50 flex items-end" onClick={onClose}>
+        <div className="fixed inset-0 z-[100] flex items-stretch sm:items-center sm:justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
             <div 
-                className="bg-[#0f1115] w-full max-w-md h-[75%] rounded-t-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5"
+                className="bg-[#0f1115] w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl flex flex-col shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border sm:border-white/5"
                 onClick={e => e.stopPropagation()}
             >
                 <header className="relative flex items-center justify-between p-4 flex-shrink-0 select-none">
@@ -236,6 +239,7 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
                                 rank={index + 1} 
                                 onClick={onSelectUser ? () => onSelectUser(user) : undefined}
                                 isModerator={moderatorIds.includes(user.id)}
+                                quality={connectionQualities[user.id]}
                             />
                         ))
                     ) : (

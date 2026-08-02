@@ -1,6 +1,8 @@
 // Serviço de processamento de vídeo em tempo real com efeitos de beleza
 // Implementação completa com WebGL para performance via GPU
 
+import { BabyFaceProcessor } from './BabyFaceProcessor';
+
 export interface VideoProcessorConfig {
   width: number;
   height: number;
@@ -13,6 +15,7 @@ export interface BeautyEffectSettings {
   smoothing: number;        // Alisar a pele (0-100)  
   saturation: number;        // Ruborizar (0-100)
   contrast: number;         // Contraste (0-100)
+  babyFace: number;         // Rosto Bebê (0-100) — rejuvenesce o rosto
   selectedFilter?: string;
 }
 
@@ -51,8 +54,13 @@ export class VideoProcessor {
     smoothing: 0,
     saturation: 0,
     contrast: 0,
+    babyFace: 0,
     selectedFilter: ''
   };
+
+  // Baby face (warp por landmarks MediaPipe)
+  private babyFaceProcessor: BabyFaceProcessor | null = null;
+  private babyFaceActive = false;
   
   private config: VideoProcessorConfig = {
     width: 1280,
@@ -99,6 +107,16 @@ export class VideoProcessor {
       
       // Obter stream original do vídeo
       this.stream = await this.getVideoStream();
+
+      // Garantir que o "Rosto Bebê" seja inicializado se já estiver ativo
+      if (this.beautySettings.babyFace && this.beautySettings.babyFace > 0) {
+        this.babyFaceActive = true;
+        this.ensureBabyFace().then((ok) => {
+          if (ok && this.babyFaceProcessor) {
+            this.babyFaceProcessor.setIntensity((this.beautySettings.babyFace || 0) / 100);
+          }
+        });
+      }
       
       console.log('✅ [VIDEO_PROCESSOR] Inicializado com WebGL');
       return true;
@@ -567,9 +585,14 @@ export class VideoProcessor {
       // Usar programa
       gl.useProgram(program);
       
-      // Atualizar textura do vídeo
+      // Atualizar textura do vídeo (com warp de "Rosto Bebê" se ativo)
       gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoElement);
+      let source: CanvasImageSource = videoElement;
+      if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
+        const warped = this.babyFaceProcessor.render();
+        if (warped) source = warped;
+      }
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
       
       // Configurar uniforms
       if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
@@ -624,9 +647,16 @@ export class VideoProcessor {
     
     const render = () => {
       if (!this.isProcessing) return;
-      
+
+      // Com "Rosto Bebê" ativo, usa o frame warpeado como base
+      let source: CanvasImageSource = videoElement;
+      if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
+        const warped = this.babyFaceProcessor.render();
+        if (warped) source = warped;
+      }
+
       // Desenhar vídeo no canvas
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
       
       // Aplicar filtros CSS básicos como fallback
       ctx.filter = this.getCSSFilterString();
@@ -671,6 +701,30 @@ export class VideoProcessor {
   updateBeautySettings(settings: Partial<BeautyEffectSettings>): void {
     this.beautySettings = { ...this.beautySettings, ...settings };
     this.syncNativeBeautySettings();
+
+    const babyFace = this.beautySettings.babyFace || 0;
+    this.babyFaceActive = babyFace > 0;
+    if (this.babyFaceActive) {
+      this.ensureBabyFace().then((ok) => {
+        if (ok && this.babyFaceProcessor) {
+          this.babyFaceProcessor.setIntensity(babyFace / 100);
+        }
+      });
+    } else if (this.babyFaceProcessor) {
+      this.babyFaceProcessor.setIntensity(0);
+    }
+  }
+
+  /**
+   * Inicializar (lazy) o processador de "Rosto Bebê" com MediaPipe
+   */
+  private async ensureBabyFace(): Promise<boolean> {
+    if (this.babyFaceProcessor) {
+      return this.babyFaceProcessor.isReady() || this.babyFaceProcessor.initialize(this.videoElement!);
+    }
+    if (!this.videoElement) return false;
+    this.babyFaceProcessor = new BabyFaceProcessor();
+    return this.babyFaceProcessor.initialize(this.videoElement);
   }
 
   private syncNativeBeautySettings(): void {
@@ -707,6 +761,10 @@ export class VideoProcessor {
     if (this.processedStream) {
       this.processedStream.getTracks().forEach(track => track.stop());
       this.processedStream = null;
+    }
+    
+    if (this.babyFaceProcessor) {
+      this.babyFaceProcessor.setIntensity(0);
     }
     
     console.log('⏹️ [VIDEO_PROCESSOR] Processamento parado');
@@ -749,6 +807,12 @@ export class VideoProcessor {
     this.videoElement = null;
     this.canvas = null;
     this.gl = null;
+    
+    if (this.babyFaceProcessor) {
+      this.babyFaceProcessor.destroy();
+      this.babyFaceProcessor = null;
+    }
+    this.babyFaceActive = false;
     
     console.log('🗑️ [VIDEO_PROCESSOR] Recursos liberados');
   }

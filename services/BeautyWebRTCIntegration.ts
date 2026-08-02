@@ -31,7 +31,8 @@ export class BeautyWebRTCIntegration {
         smoothing: 0.5,
         whitening: 0.3,
         saturation: 0.2,
-        contrast: 0.1
+        contrast: 0.1,
+        babyFace: 0
       },
       quality: {
         width: 1280,
@@ -197,8 +198,7 @@ export class BeautyWebRTCIntegration {
    * Verificar se está processando
    */
   isBeautyActive(): boolean {
-    const nativeBridge = typeof window !== 'undefined' ? (window as any).Android : undefined;
-    return (this.config.enableBeauty && this.isProcessing) || Boolean(nativeBridge?.applyBeautySettings);
+    return this.config.enableBeauty && this.isProcessing;
   }
 
   /**

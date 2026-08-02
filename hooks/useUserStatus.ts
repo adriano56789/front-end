@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '../services/api';
-// Socket.IO removido — status gerenciado via REST API + LiveKit participantes
+// Socket.IO removido — status gerenciado via REST API
 
 export interface UserStatus {
     user_id: string;

@@ -1,6 +1,7 @@
 # =============================================================================
 # 🐳 LiveGo Local Stack — Configuração CORRIGIDA para Ambiente Local
-# 8 Containers: MongoDB, Redis, EMQX, Backend, SRS, Coturn, LiveKit, FFmpeg
+# 7 Containers: MongoDB, Redis, EMQX, Backend, SRS, Coturn, FFmpeg
+# (LiveKit removido — SRS-only: WebRTC publish via WebSocket + WHEP play)
 # 
 # USO: docker compose -f docker-compose.local.yml up -d
 # Logs: docker compose -f docker-compose.local.yml logs -f [serviço]
@@ -163,13 +164,6 @@ services:
       CORS_ORIGIN: "*"
       CORS_CREDENTIALS: "true"
 
-      # ── LiveKit (container name resolution via Docker network) ──
-      LIVEKIT_URL: ws://livekit:7880
-      LIVEKIT_ENDPOINT: http://livekit:7880
-      LIVEKIT_SERVER_URL: http://livekit:7880
-      LIVEKIT_API_KEY: dfd8670dd9bc2f158eb5da850fcb47778f19fc9c88ed8f76f2d1d34cd0d29c66
-      LIVEKIT_API_SECRET: 8529e52ace6e923af0a1b72dffe29fc59372faa96b302c398c9142e197f7636d
-
       # ── TURN/STUN (coturn container name resolution) ──
       TURN_HOST: coturn
       TURN_PORT: 3478
@@ -205,7 +199,7 @@ services:
         max-file: "5"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 5️⃣  SRS — Streaming Server (RTMP, WebRTC, HLS, FLV)
+  # 5️⃣  SRS — Streaming Server (RTMP, WebRTC)
   # ═══════════════════════════════════════════════════════════════════════════
   srs:
     image: ossrs/srs:5
@@ -215,7 +209,7 @@ services:
     ports:
       - "1935:1935"       # RTMP
       - "1985:1985"       # HTTP API (WebRTC signaling)
-      - "8080:8080"       # HTTP Server (HLS/FLV playback)
+      - "8080:8080"       # HTTP Server (estático)
       - "8000:8000/udp"   # WebRTC media
       - "1990:1990"       # HTTPS API
       - "8088:8088"       # HTTPS Server
@@ -270,43 +264,7 @@ services:
         max-file: "3"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # 7️⃣  LiveKit — SFU (Selective Forwarding Unit) para salas de vídeo
-  # ═══════════════════════════════════════════════════════════════════════════
-  livekit:
-    image: livekit/livekit-server:latest
-    container_name: livego-livekit
-    restart: unless-stopped
-    ports:
-      - "7880:7880"       # API + WebSocket
-      - "7881:7881"       # TCP TURN
-      - "50000-60000:50000-60000/udp"   # UDP media ports
-    command: --config /etc/livekit.yaml
-    volumes:
-      - ./docker/livekit-server.yaml:/etc/livekit.yaml:ro
-    environment:
-      LIVEKIT_API_KEY: dfd8670dd9bc2f158eb5da850fcb47778f19fc9c88ed8f76f2d1d34cd0d29c66
-      LIVEKIT_API_SECRET: 8529e52ace6e923af0a1b72dffe29fc59372faa96b302c398c9142e197f7636d
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7880/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    depends_on:
-      - redis
-      - coturn
-    networks:
-      - livego-net
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "50m"
-        max-file: "5"
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # 8️⃣  FFmpeg Worker — Processamento de vídeo em background
+  # 7️⃣  FFmpeg Worker — Processamento de vídeo em background
   # ═══════════════════════════════════════════════════════════════════════════
   ffmpeg:
     image: node:20-alpine

@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════
-// REMOVIDO: EgressMonitor — polling de estado do Egress RTMP
+// REMOVIDO: EgressMonitor — não é mais necessário.
 // 
-// Toda comunicação em tempo real agora é feita exclusivamente via 
-// LiveKit WebSocket. O player HLS tenta conectar diretamente sem 
-// precisar de monitor de Egress.
+// Toda comunicação em tempo real agora é feita exclusivamente via SRS
+// (WebRTC publish via WebSocket + WHEP play) e REST API. O player
+// WebRTC/WHEP conecta diretamente ao SRS sem precisar de monitor.
 // ═══════════════════════════════════════════════════════════════════════
 export {};

@@ -7,6 +7,7 @@ import EntryChatMessage from './live/EntryChatMessage';
 import ChatScreen from './ChatScreen';
 import ToolsModal from './ToolsModal';
 const ToolsModalAny: any = ToolsModal;
+import ConnectionQualityIndicator from './live/ConnectionQualityIndicator';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon } from './icons';
 import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
@@ -24,12 +25,12 @@ import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import { streamPublishService } from '../services/streamPublishService';
-// Socket.IO removido — comunicação via LiveKit DataChannel
+// Chat e presença via Socket.IO (useStreamChat) com sync inicial REST
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
-import { useLiveKitChat } from '../hooks/useLiveKitChat';
-import { livekitApi } from '../services/livekit/livekitApi';
+import { useStreamChat } from '../hooks/useStreamChat';
+import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
 
@@ -116,6 +117,8 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
     );
 };
 
+const MAX_CHAT_MESSAGES = 200;
+
 const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onMinimizeStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
     const { t } = useTranslation();
 
@@ -141,28 +144,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const lastLoggedUrlRef = useRef<string>('');
-    // Função para gerar URL HLS do stream
-    const getStreamUrl = () => {
-        // 🎥 USANDO URLs REAIS DO BACKEND
-        // Priorizar URL HLS retornada pelo backend para garantir Network requests
-        if (streamer.hlsUrl) {
-            if (lastLoggedUrlRef.current !== streamer.hlsUrl) {
-                console.log(`🔗 [StreamRoom] Usando HLS URL do backend: ${streamer.hlsUrl}`);
-                lastLoggedUrlRef.current = streamer.hlsUrl;
-            }
-            return streamer.hlsUrl;
-        }
-        
-        // Fallback para URL construída via proxy HTTPS (caso backend não retorne hlsUrl)
-        const httpBase = import.meta.env.VITE_SRS_HTTP_URL || (typeof window !== 'undefined' && window.location ? `${window.location.origin}/srs` : '/srs');
-        const fallbackUrl = `${httpBase}/live/${streamer.id}.m3u8`;
-        if (lastLoggedUrlRef.current !== fallbackUrl) {
-            console.log(`⚠️ [StreamRoom] Usando fallback HLS URL: ${fallbackUrl}`);
-            lastLoggedUrlRef.current = fallbackUrl;
-        }
-        return fallbackUrl;
-    };
     const [isRankingOpen, setIsRankingOpen] = useState(false);
     const [onlineUsersInterval, setOnlineUsersInterval] = useState<NodeJS.Timeout | null>(null);
     const [isResolutionPanelOpen, setResolutionPanelOpen] = useState(false);
@@ -173,7 +154,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
-    const [keyboardOffset, setKeyboardOffset] = useState(0);
+    const chatInputRef = useRef<HTMLInputElement>(null);
+    const keyboardInset = useKeyboardInset();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
     const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
@@ -181,8 +163,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // 📡 Referência para evitar fetch duplicado do configId
-    const lastConfigIdRef = useRef<string | null>(null);
 
     // 📡 Cleanup do typingTimeout ao desmontar
     useEffect(() => {
@@ -193,7 +173,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, []);
 
-    // ═══ Sincronizar viewer count com a lista de onlineUsers (LiveKit) ═══
+    // ═══ Sincronizar viewer count com a lista de onlineUsers (REST polling) ═══
     useEffect(() => {
         updateLiveSession({ viewers: Math.max(1, onlineUsers.length) });
     }, [onlineUsers.length]);
@@ -245,37 +225,40 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
 
     // ═══════════════════════════════════════════════════════════════════
-    // ARQUITETURA:
-    // - SRS: Publica mídia (câmera/microfone) via WHIP direto do browser
-    // - LiveKit: Gerencia sala, participantes, convites, data channels
+    // ARQUITETURA (apenas SRS):
+    // - SRS: Publica mídia (câmera/microfone) via WHIP (WebRTC)
+    // - Socket.IO: Chat, presentes, likes e presença em tempo real (useStreamChat)
+    //   com sincronização inicial única via REST (histórico, online, presentes, likes)
     // - Firebase (FCM): Notificações push
-    // - WebSocket: Chat e mensagens em tempo real
+    // - SRS WHEP: Playback dos espectadores
     // ═══════════════════════════════════════════════════════════════════
 
   const {
     connected: lkChatConnected,
+    connectionQualities: lkConnectionQualities,
     sendMessage: lkChatSendMessage,
     disconnect: disconnectLkChat,
     setMetadata: lkChatSetMetadata,
-    // 📡 RPC methods for co-host/PK invites
+    // 📡 Convites co-host/PK via REST API
     inviteCoHost: lkInviteCoHost,
     invitePK: lkInvitePK,
-    // 📡 Data Packet methods — reações e digitação
+    // 📡 Reações e digitação (no-op no polling REST)
     sendReaction: lkSendReaction,
     sendTyping: lkSendTyping,
-    // 📡 Room Metadata
+    // 📡 Room Metadata (no-op — mantido para compatibilidade)
     updateRoomMetadata: lkUpdateRoomMetadata,
-    // 📡 State Synchronization methods
+    // 📡 State Synchronization (REST)
     setAttributes: lkSetAttributes,
     setParticipantRole: lkSetRole,
     setMicStatus: lkSetMicStatus,
     setCamStatus: lkSetCamStatus,
     setHandRaise: lkSetHandRaise,
-  } = useLiveKitChat({
+  } = useStreamChat({
     streamId: streamer.id,
     userId: currentUser.id,
+    userName: currentUser.name,
     isHost: isBroadcaster,
-    disabled: false, // host e viewers conectam na mesma sala live_${streamId}
+    disabled: false, // host e viewers conectam na mesma live (Socket.IO)
     onMessage: (data: any) => {
       if (!data || !data.type) return;
       if (data.type === 'chat_message' || data.type === 'chat') {
@@ -290,6 +273,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           if (prev.some(m => String(m.id) === stableId)) return prev;
           return [...prev, { id: stableId, type: 'entry', user: data.user || data.userName, fullUser: data.fullUser || null }];
         });
+        // 🔔 Notificar o host quando um espectador entra na sala (além da msg no chat)
+        if (isBroadcaster) {
+          const entryName = data.fullUser?.name || data.userName || data.user?.name || 'Alguém';
+          addToast(ToastType.Info, `👋 ${entryName} entrou na sala`);
+        }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
         const isSelf = data.from?.id === currentUser?.id || data.fromUser?.id === currentUser?.id;
         if (!isSelf) {
@@ -309,206 +297,68 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       } else if (data.type === 'stream_unliked' && data.streamId === streamer.id) {
         setLikes(data.totalLikes);
         if (data.userId === currentUser?.id) setIsLiked(false);
-      }
-    },
-    onParticipantConnected: (participant) => {
-      console.log('[CHAT] Participante conectado via LiveKit:', participant.identity, 'name:', participant.name);
-      const participantId = participant.identity;
-      // 📡 Ler metadata nativa do participante (LiveKit nativo, nao custom data channel)
-      let parsedName = participant.name || participantId;
-      let avatarUrl = '';
-      let level = 1;
-      try {
-        if (participant.metadata) {
-          const meta = JSON.parse(participant.metadata);
-          if (meta.name) parsedName = meta.name;
-          if (meta.avatarUrl) avatarUrl = meta.avatarUrl;
-          if (meta.level) level = meta.level;
-        }
-      } catch {}
-      setOnlineUsers(prev => {
-        if (prev.some(u => u.id === participantId)) return prev;
-        const newUser = {
-          avatar: avatarUrl,
-          id: participantId,
-          identification: participantId,
-          name: parsedName,
-          avatarUrl: avatarUrl,
-          value: 0,
-          level: level,
-          fans: 0,
-          following: 0,
-          receptores: 0,
-          enviados: 0,
-          diamonds: 0,
-          earnings: 0,
-          earnings_withdrawn: 0,
-          ownedFrames: [],
-        } as User & { value: number };
-        return [...prev, newUser];
-      });
-    },
-    onParticipantMetadataChanged: (participant, metadata) => {
-      console.log('[CHAT] Metadata alterada:', participant.identity, metadata);
-      setOnlineUsers(prev => prev.map(u =>
-        u.id === participant.identity
-          ? { ...u, avatar: metadata.avatarUrl || u.avatar, avatarUrl: metadata.avatarUrl || u.avatarUrl, name: metadata.name || u.name, level: metadata.level || u.level }
-          : u
-      ));
-    },
-    onParticipantDisconnected: (participant) => {
-      console.log('[CHAT] Participante desconectado via LiveKit:', participant.identity);
-      setOnlineUsers(prev => {
-        const filtered = prev.filter(u => u.id !== participant.identity);
-        console.log('[CHAT] Removendo da lista de onlineUsers. Antes:', prev.length, 'Depois:', filtered.length);
-        return filtered;
-      });
-    },
-    // 📡 Data Packets: receber reações em tempo real
-    onReaction: (data) => {
-      console.log('[Reaction] Recebida:', data.reaction, 'de:', data.fromName);
-      // Adicionar reação como mensagem animada no chat
-      const reactionMap: Record<string, string> = {
-        'like': '❤️',
-        'fire': '🔥',
-        'thumbsup': '👍',
-        'clap': '👏',
-        'laugh': '😂',
-        'heart': '💜',
-      };
-      const emoji = reactionMap[data.reaction] || data.reaction;
-      const reactionMsg: ChatMessageType = {
-        id: String(Date.now() + Math.random()),
-        type: 'chat',
-        user: data.fromName,
-        message: (
-          <span className="inline-flex items-center gap-1">
-            <span className="animate-bounce inline-block text-lg">{emoji}</span>
-          </span>
-        ),
-        avatar: '',
-        level: 1,
-      };
-      setMessages(prev => [...prev, reactionMsg]);
-    },
-    onTyping: (data) => {
-      if (data.isTyping) {
-        setTypingUsers(prev => {
-          if (prev.includes(data.fromName)) return prev;
-          return [...prev, data.fromName];
-        });
-      } else {
-        setTypingUsers(prev => prev.filter(name => name !== data.fromName));
-      }
-    },
-    // 📡 State Synchronization: escutar mudanças de atributos dos participantes
-    onAttributesChanged: (changed, participant) => {
-      console.log('[StateSync] Atributos alterados de', participant.identity, ':', changed);
-      if (changed.role && participant.identity !== currentUser.id) {
-        addToast(ToastType.Info, `${participant.name || participant.identity} agora é ${changed.role}`);
-      }
-      if (changed.mic && participant.identity !== currentUser.id) {
-        // Atualizar indicador de microfone do participante na UI
-      }
-    },
-    onRoomMetadataChanged: (metadata) => {
-      console.log('[StateSync] Metadata da Room alterada:', metadata);
-      try {
-        // 📡 Size limit: Room Metadata tem limite de 512 KiB (documentação oficial)
-        // https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
-        // Alerta conservador para metadados > 1 KiB
-        if (metadata.length > 1024) {
-          console.warn('[StateSync] ⚠️ Room metadata grande (' + metadata.length + ' bytes). Considere usar configId para dados maiores.');
-        }
-        const parsed = JSON.parse(metadata);
-        if (parsed.title && parsed.title !== streamer.name) {
-          console.log('[StateSync] Título da live:', parsed.title);
-        }
-        if (parsed.pk) {
-          console.log('[StateSync] Config PK:', parsed.pk);
-        }
-        if (parsed.coHostEnabled !== undefined) {
-          console.log('[StateSync] Co-host habilitado:', parsed.coHostEnabled);
-        }
-        if (parsed.chatEnabled !== undefined) {
-          console.log('[StateSync] Chat habilitado:', parsed.chatEnabled);
-        }
-        // 📡 configId pattern: Se o metadata tem um configId, buscar dados completos do MongoDB
-        // Docs: https://docs.livekit.io/transport/data/state/room-metadata/#size-limits
-        // Evitar fetch duplicado: só buscar se configId mudou
-        if (parsed.configId && parsed.configId !== lastConfigIdRef.current) {
-          lastConfigIdRef.current = parsed.configId;
-          livekitApi.fetchRoomConfig(parsed.configId).then(res => {
-            if (res.success && res.config) {
-              console.log('[StateSync] Config completa carregada via configId:', res.config);
-              // Atualizar UI com dados da configuração, se necessário
-              if (res.config.viewers !== undefined) {
-                updateLiveSession({ viewers: Math.max(1, res.config.viewers) });
-              }
-            }
+      } else if (data.type === 'viewer_joined') {
+        const u = data.user;
+        if (u?.id) {
+          setOnlineUsers(prev => {
+            if (prev.some(p => String(p.id) === String(u.id))) return prev;
+            return [...prev, {
+              avatar: u.avatarUrl || u.avatar || '',
+              id: u.id,
+              identification: u.id,
+              name: u.name || u.userName || u.id,
+              avatarUrl: u.avatarUrl || u.avatar || '',
+              value: 0,
+              level: u.level || 1,
+              fans: 0,
+              following: 0,
+              receptores: 0,
+              enviados: 0,
+              diamonds: 0,
+              earnings: 0,
+              earnings_withdrawn: 0,
+              ownedFrames: [],
+            } as User & { value: number }];
           });
         }
-      } catch {}
-    },
-    // 📡 RPC: Receber convites de co-host/PK via LiveKit
-    onInviteCoHost: async (callerIdentity: string, payload: any) => {
-      console.log('[RPC] Convite co-host recebido de:', callerIdentity, payload);
-      // Disparar evento window para UI existente mostrar notificação
-      window.dispatchEvent(new CustomEvent('livego:live_invite', {
-        detail: {
-          inviteId: `rpc_${Date.now()}`,
-          type: 'co-host',
-          from: callerIdentity,
-          fromName: payload.senderName || callerIdentity,
-          streamId: payload.streamId || streamer.id,
+      } else if (data.type === 'viewer_left') {
+        const leftId = data.userId;
+        if (leftId) {
+          setOnlineUsers(prev => prev.filter(u => String(u.id) !== String(leftId)));
         }
-      }));
-      return 'received';
-    },
-    onInvitePK: async (callerIdentity: string, payload: any) => {
-      console.log('[RPC] Convite PK recebido de:', callerIdentity, payload);
-      window.dispatchEvent(new CustomEvent('livego:live_invite', {
-        detail: {
-          inviteId: `rpc_${Date.now()}`,
-          type: 'pk-battle',
-          from: callerIdentity,
-          fromName: payload.senderName || callerIdentity,
-          streamId: payload.streamId || streamer.id,
-        }
-      }));
-      return 'received';
+      }
     },
     onConnected: () => {
-      console.log('[CHAT] LiveKitChat conectado!');
+      console.log('[CHAT] Chat REST conectado (polling)!');
       // 📡 State Sync: sincronizar papel do participante
       lkSetRole(isBroadcaster ? 'host' : 'viewer');
-      // 📡 Room Metadata: Se for o broadcaster, enviar metadata inicial da live
-      // A existência da sala LiveKit já indica que a live está ativa.
-      // Docs: https://docs.livekit.io/transport/data/state/room-metadata/
+      // 📡 Room Metadata: Se for o broadcaster, registrar metadata inicial da live
       if (isBroadcaster && liveSession) {
         lkUpdateRoomMetadata({
           liveId: streamer.id,
           hostId: streamer.hostId,
           title: streamer.name,
           category: streamer.category || '',
-          configId: streamer.id, // Referência ao StreamSession no MongoDB (padrão "Reference by ID")
+          configId: streamer.id,
           coHostEnabled: liveSession.isCoHostEnabled || false,
           chatEnabled: liveSession.isChatEnabled !== false,
         });
       }
     },
-    onDisconnected: () => {
-      console.log('[CHAT] LiveKitChat desconectado!');
-      // A live SÓ encerra quando o dono da transmissão clicar em "Encerrar Transmissão".
-      // LiveKit pode desconectar por vários motivos (rede, reload, etc.) mas isso
-      // NÃO significa que a live acabou. O viewer pode reconectar.
-      // NÃO remover o usuário automaticamente.
+    onDisconnected: (reason?: any) => {
+      const reasonCode = typeof reason === 'number' ? reason : (reason?.code ?? -1);
+      console.log('[CHAT] Chat REST desconectado! Reason:', reasonCode);
+      // 🔴 Code 5 = live encerrada (404 na API)
+      if (reasonCode === 5 && !isBroadcaster) {
+        console.log('[CHAT] 🔴 Live encerrada pelo broadcaster. Redirecionando para MainScreen...');
+        setTimeout(() => {
+          onLeaveStreamView();
+        }, 1000);
+      }
     },
   });
 
-    // 📡 Enviar metadata do usuario atual via LiveKit (nativo + RoomService API)
-    // 1) participant.setMetadata: distribui metadata para todos os participantes na sala
-    // 2) PUT /api/livekit/rooms/:roomName/participants/:identity: atualiza server-side via RoomService API
+    // 📡 Sincronizar metadata do usuário atual (REST polling — no-op mantido p/ compatibilidade)
     useEffect(() => {
         if (!lkChatConnected) return;
         const metadataPayload = {
@@ -516,30 +366,14 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             name: currentUser.name,
             level: currentUser.level || 1,
         };
-        // 1) Nativo: distribuir metadata para todos na sala via LiveKit
         lkChatSetMetadata(metadataPayload);
-        console.log('[CHAT] Metadata enviada via participant.setMetadata');
-        // 2) Server-side: atualizar metadata via RoomService API (UpdateParticipant)
-        const roomName = 'live_' + streamer.id;
-        livekitApi.updateParticipant(roomName, currentUser.id, {
-            metadata: JSON.stringify(metadataPayload),
-        }).then(res => {
-            if (res.success) {
-                console.log('[CHAT] Metadata atualizada server-side via UpdateParticipant');
-            }
-        });
     }, [lkChatConnected]);
 
-    // useLiveKit (room.ts) REMOVIDO — comunicação via useLiveKitChat + SRS WHIP.
-    // LiveKit: sala para participantes, eventos e data channels.
-    // SRS: mídia (câmera/microfone) via WHIP direto do browser.
-    // Host publica câmera/microfone pelo PublishEngine (WHIP ao SRS).
-    // Viewers recebem HLS do SRS.
+    // Apenas SRS: host publica câmera/microfone via WHIP (sdk.publish do srs.sdk.js).
+    // Viewers recebem via SRS WHEP.
 
-    // HOST-MEDIA: Após useLiveKitChat conectar, host publica câmera/microfone
-    // pelo Room singleton (mesmo usado para chat/eventos).
+    // HOST-MEDIA: Host publica câmera/microfone via PublishEngine (WHIP — sdk.publish).
     // Melhorias: usar refs para evitar recriação de MediaStream em rerenders
-    const mediaStreamRef = useRef<MediaStream | null>(null);
     const isPublishingRef = useRef(false);
     const isConnectingRef = useRef(false);
 
@@ -554,65 +388,67 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         isConnectingRef.current = true;
         
         try {
-            // Reutilizar MediaStream se já existir
-            if (!mediaStreamRef.current) {
-                console.log('[HOST] Criando nova MediaStream...');
-                mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 640 }, height: { ideal: 360 } },
-                    audio: true,
-                });
-            } else {
-                console.log('[HOST] Reutilizando MediaStream existente');
-            }
-
-            const streamToPublish = mediaStreamRef.current;
-            if (!streamToPublish) {
-                console.warn('[HOST] MediaStream é null');
-                isConnectingRef.current = false;
-                return;
-            }
-
-            streamPublishService.setCurrentStream(streamToPublish);
-            streamPublishService.setPublishing(true);
-
-            // Publicar direto no SRS via WHIP (sem LiveKit Egress)
+            // 🔌 FLUXO REAL (WHIP — sdk.publish do srs.sdk.js):
+            // 1. PublishEngine inicia a sessão WHIP no SRS (POST SDP offer)
+            // 2. O SDK captura câmera/mic (getUserMedia) e a mídia flui via WebRTC
+            // O evento 'mediaReady' entrega a MediaStream capturada para o preview.
             const engine = new PublishEngine({ videoCodec: 'H264', maxVideoBitrate: 2500 });
             publishEngineRef.current = engine;
             streamPublishService.setPublishEngine(engine);
 
             engine.on('stateChanged', (prev: string, next: string) => {
-                console.log(`[HOST] WHIP state: ${prev} → ${next}`);
+                console.log(`[HOST] WHIP publish state: ${prev} → ${next}`);
+            });
+            // 🎀 Quando o ICE conectar (senders existem), aplicar beleza pré-configurada
+            // via replaceTrack real no sender do engine — path robusto pós-publicação.
+            engine.on('connected', () => {
+                streamPublishService.updateBeautyTrack();
             });
             engine.on('error', (code: string, msg: string) => {
-                console.error(`[HOST] WHIP error ${code}:`, msg);
+                console.error(`[HOST] Publish error ${code}:`, msg);
+                if (code === 'PUBLISH_FAILED' || code === 'RECONNECT_EXHAUSTED' || code === 'ICE_CLOSED') {
+                    addToast(ToastType.Error, `Erro na transmissão: ${msg}. Verifique sua conexão de rede e câmera.`);
+                }
             });
 
-            await engine.start(streamer.streamKey || streamer.id, streamToPublish);
+            // 📺 Quando o engine capturar a mídia (via WHIP), registrar
+            // no streamPublishService para o LivePlayer (modo broadcaster) exibir o preview.
+            engine.on('mediaReady', (stream: MediaStream) => {
+                console.log('[HOST] 🎥 Mídia capturada via WHIP — registrando preview');
+                streamPublishService.setCurrentStream(stream);
+                streamPublishService.setPublishing(true);
+            });
+
+            // WHIP inicia a sessão e captura a mídia (getUserMedia) ao publicar
+            await engine.start(streamer.streamKey || streamer.id, undefined, currentUser.id);
             isPublishingRef.current = true;
             console.log('[HOST] ✅ Stream publicada via WHIP ao SRS');
         } catch (err) {
-            console.warn('[HOST] Falha ao publicar mídia:', err);
+            const errMsg = err instanceof Error ? err.message : String(err);
+            console.warn('[HOST] Falha ao publicar mídia:', errMsg);
+            // 🔧 Resetar estado de publishing se falhou após o mediaReady (evita status incorreto)
+            streamPublishService.setPublishing(false);
+            addToast(ToastType.Error, '❌ Falha ao iniciar transmissão: ' + errMsg + '. Verifique câmera, microfone e rede.');
         } finally {
             isConnectingRef.current = false;
         }
-    }, [streamer.id, streamer.streamKey]);
+    }, [streamer.id, streamer.streamKey, currentUser.id]);
 
+    // 🎯 Publica mídia no SRS via WHIP imediatamente (independente do chat REST)
     useEffect(() => {
-        if (!isBroadcaster || !lkChatConnected) return;
+        if (!isBroadcaster) return;
 
-        // Pequeno delay para garantir que a Room esteja totalmente conectada
+        console.log('[HOST] 🎬 Iniciando publicacao via WHIP (SRS)...');
         const timer = setTimeout(() => {
             publishMedia();
-        }, 500);
+        }, 300);
 
         return () => {
             clearTimeout(timer);
-            // Não desconectar no cleanup - isso é apenas rerenderização
-            // A desconexão real acontece quando o componente é desmontado
         };
-    }, [isBroadcaster, lkChatConnected, publishMedia]);
+    }, [isBroadcaster, publishMedia]);
 
-    // Cleanup ao desmontar: NÃO parar tracks nem WHIP publish.
+    // Cleanup ao desmontar: NÃO parar tracks nem fechar o WebSocket de publish.
     // A transmissão SÓ deve ser encerrada pelo dono ao clicar "Encerrar Transmissão".
     useEffect(() => {
         return () => {
@@ -620,7 +456,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, []);
 
-    // Escutar mensagens de chat via Socket.IO (redundância quando LiveKit não roteia)
+    // Escutar mensagens de chat via evento global (window CustomEvent)
     useEffect(() => {
         if (!streamer.id) return;
 
@@ -630,7 +466,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             const text = message.text || message.message || '';
             if (!text) return;
             
-            // Extrair dados do formato Socket.IO
+            // Extrair dados do formato do evento
             const stableId = String(message.id || Date.now() + Math.random());
             const chatMsg: ChatMessageType = {
                 id: stableId,
@@ -641,7 +477,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 level: message.level || 1,
             };
 
-            // Não adicionar se já existe (evitar duplicatas com LiveKit)
+            // Não adicionar se já existe (evitar duplicatas com o polling REST)
             setMessages(prev => {
                 if (prev.some(m => String(m.id) === stableId)) return prev;
                 return [...prev, chatMsg];
@@ -744,12 +580,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         };
 
-        // ⚠️ REMOVIDO: Socket.IO join_stream — presença gerenciada exclusivamente pelo LiveKit
-        // nativamente via onParticipantConnected/onParticipantDisconnected.
-        // Documentação: https://docs.livekit.io/intro/basics/rooms-participants-tracks/rooms/
-
         fetchInitialLikes();
-        // Socket.IO joinRoom removido — room gerenciado via LiveKit
+        // Presença/chat em tempo real via Socket.IO (useStreamChat) — online users sync inicial REST
 
         // Buscar histórico de mensagens do banco
         api.get("/api/streams/" + streamer.id + "/live-messages?limit=50").then((res: any) => {
@@ -778,12 +610,14 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
 
     useEffect(() => {
-        const handleLiveInvite = (e) => {
-            const d = e.detail; if (!d) return;
+        const handleLiveInvite = (e: Event) => {
+            const d = (e as CustomEvent<any>).detail;
+            if (!d) return;
             setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: d.type || "co-host", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || "" });
         };
-        const handleCallInvite = (e) => {
-            const d = e.detail; if (!d) return;
+        const handleCallInvite = (e: Event) => {
+            const d = (e as CustomEvent<any>).detail;
+            if (!d) return;
             setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: "call", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || streamer.id });
         };
         const clearInvite = () => setActiveLiveInvite(null);
@@ -807,9 +641,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             if (!fromUser || !fromUser.name || !gift || !toUser || !toUser.name) {
                 console.error('postGiftChatMessage: Dados inválidos', { fromUser, gift, toUser, quantity });
                 return;
-            }
-
-            const giftMessage: ChatMessageType = {
+            }                    const giftMessage: ChatMessageType = {
                 id: String(Date.now() + Math.random()),
                 type: 'chat',
                 user: 'Sistema', // Under 'Sistema', ChatMessage styles it with a gorgeous purple glowing border
@@ -821,7 +653,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block" }) : <span className="text-base">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
-                avatar: fromUser.avatarUrl || '',
+                // 🔧 Fallback de avatar para garantir renderização (msg.avatar obrigatório no chat)
+                avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
                 activeFrameId: fromUser.activeFrameId || null,
                 frameExpiration: fromUser.frameExpiration || null,
             };
@@ -880,25 +713,18 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
         setMessages(prev => [...prev, safePayload]);
         
-        // Host e viewers: todos usam lkChatSendMessage (sala live_${streamId} compartilhada)
-        if (lkChatConnected) {
-            lkChatSendMessage({ type: 'chat_message', ...safePayload });
-        } else {
-            console.warn('[CHAT] LiveKit chat não conectado. Mensagem local apenas.');
-        }
-
-        const apiUrl = '/api/streams/' + streamer.id + '/live-message';
-        console.log('[CHAT] Persistindo no MongoDB via REST API:', apiUrl, 'streamer:', streamer.id);
-        // Persistir no MongoDB via REST API (sem distribuir em tempo real)
-        api.post(apiUrl, {
-            text: safePayload.message || chatInput.trim(),
-            userId: currentUser.id,
-            userName: currentUser.name,
-            userAvatar: safePayload.avatar,
-            userLevel: currentUser.level,
-        }).then(() => console.log('[CHAT] REST API sucesso')).catch((err: any) => console.warn('[CHAT] REST API erro:', err));
+        // Host e viewers: todos usam lkChatSendMessage (Socket.IO, com fallback REST).
+        // 🔧 ÚNICA persistência — lkChatSendMessage emite send_live_message (persiste + broadcast live_message).
+        //    (Removido o api.post() direto abaixo, que causava mensagens DUPLICADAS no banco.)
+        lkChatSendMessage({ ...safePayload, type: 'chat_message' })
+            .catch((err: any) => console.warn('[CHAT] Erro ao persistir mensagem:', err));
         
         setChatInput('');
+        
+        // 🔧 Manter foco no input para o teclado NÃO fechar após enviar (comportamento tipo app famoso)
+        requestAnimationFrame(() => {
+            chatInputRef.current?.focus();
+        });
     };
 
     const handleTogglePrivacy = async () => {
@@ -930,7 +756,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(false);
-                    // Transmitir like via LiveKit data channel
+                    // Broadcast de stream_unliked já é feito pelo backend (liveRoutes) para a sala
                     if (lkChatConnected) { lkChatSendMessage({ type: 'stream_unliked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id }); }
                 }
             } else {
@@ -939,7 +765,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 if (response?.success) {
                     setLikes(response.totalLikes);
                     setIsLiked(true);
-                    // Transmitir like via LiveKit data channel
+                    // Broadcast de stream_liked já é feito pelo backend (liveRoutes) para a sala
                     if (lkChatConnected) { lkChatSendMessage({ type: 'stream_liked', streamId: streamer.id, totalLikes: response.totalLikes, userId: currentUser.id }); }
                 }
             }
@@ -949,19 +775,39 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     // Scroll inteligente: só vai para o fim se usuário NÃO tiver scrollado para cima
+    // ⚡ Optimização: medições de layout no máximo 1x por frame (rAF-throttle) e scroll
+    // automático agendado via requestAnimationFrame para evitar "forced reflow" a cada
+    // mensagem nova do chat.
+    const scrollFrameRef = useRef<number>(0);
     const handleChatScroll = useCallback(() => {
-        if (chatContainerRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
-            setIsUserScrolledUp(!isNearBottom);
-        }
+        if (scrollFrameRef.current) return;
+        scrollFrameRef.current = requestAnimationFrame(() => {
+            scrollFrameRef.current = 0;
+            if (chatContainerRef.current) {
+                const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+                setIsUserScrolledUp(!isNearBottom);
+            }
+        });
     }, []);
 
     useEffect(() => {
         if (chatContainerRef.current && !isUserScrolledUp) {
-            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+            const frame = requestAnimationFrame(() => {
+                if (chatContainerRef.current) {
+                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                }
+            });
+            return () => cancelAnimationFrame(frame);
         }
-    }, [messages, isUserScrolledUp]);
+    }, [messages.length, isUserScrolledUp]);
+
+    // Cap de mensagens: limita o DOM do chat para manter o custo de layout baixo
+    useEffect(() => {
+        if (messages.length > MAX_CHAT_MESSAGES) {
+            setMessages(prev => (prev.length > MAX_CHAT_MESSAGES ? prev.slice(prev.length - MAX_CHAT_MESSAGES) : prev));
+        }
+    }, [messages.length]);
 
     // Periodic gold system announcements to simulate live stream events in real-time, free and lightweight
     useEffect(() => {
@@ -1074,49 +920,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
     }, []); // Sem dependências para evitar re-execução
 
-    // Keyboard offset for mobile chat (prevents video from scrolling with keyboard)
-    useEffect(() => {
-        const vv = window.visualViewport;
-        if (!vv) return;
-        const handler = () => {
-            const diff = window.innerHeight - vv.height;
-            setKeyboardOffset(diff > 0 ? diff : 0);
-        };
-        vv.addEventListener('resize', handler);
-        handler();
-        return () => vv.removeEventListener('resize', handler);
-    }, []);
+    // Keyboard removed: usar position:fixed no footer mantém o chat sempre visível
+    // sem empurrar o layout. O teclado não desce ao enviar porque mantemos o foco no input.
 
     // activeScreen é controlado pela prop setActiveScreen do componente pai
 
 
-    // 📡 Room Metadata: A sala LiveKit será removida pelo backend/webhook ao encerrar a live.
-    // O metadata não precisa ser atualizado — o evento room_finished do webhook
-    // já notifica todos os participantes.
     const handleEndStream = useCallback(() => {
       onRequestEndStream();
     }, [onRequestEndStream]);
-
-    // 📡 RPC: Convidar via LiveKit em vez de REST API
-    const handleRpcInvite = useCallback(async (friend: User) => {
-      if (coHostModalMode === 'battle') {
-        return await lkInvitePK(friend.id, {
-          streamId: streamer.id,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
-          mode: 'battle',
-        });
-      } else {
-        return await lkInviteCoHost(friend.id, {
-          streamId: streamer.id,
-          senderId: currentUser.id,
-          senderName: currentUser.name,
-          senderAvatar: currentUser.avatarUrl || currentUser.avatar || '',
-          mode: 'cohost',
-        });
-      }
-    }, [coHostModalMode, lkInviteCoHost, lkInvitePK, streamer.id, currentUser.id, currentUser.name, currentUser.avatarUrl, currentUser.avatar]);
 
     const handleInvite = (opponent: User) => {
         setIsCoHostModalOpen(false);
@@ -1246,20 +1058,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 id: stableGiftId // string única
             };
 
-            // Enviar presento imediatamente (optimistic UI)
+            // Enviar presente imediatamente (optimistic UI)
             postGiftChatMessage(giftPayload);
             setFullscreenGiftQueue(prev => [...prev, giftPayload]);
 
-            // Transmitir presente via LiveKit data channel (sala compartilhada)
-            if (lkChatConnected) {
-                lkChatSendMessage({
-                    type: 'live_gift_received',
-                    from: { id: currentUser.id, identification: currentUser.identification || currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level || 1 },
-                    toUser: { id: streamer.hostId || streamer.id, name: streamer.name || 'Streamer' },
-                    gift: { id: gift.name, name: gift.name, price: gift.price, icon: gift.icon, category: gift.category },
-                    quantity, roomId: streamer.id, id: giftPayload.id
-                });
-            }
+            // 🔧 Presente agora propagado em tempo real via Socket.IO:
+            // a rota POST /streams/:id/gift do backend emite live_gift_received
+            // para a sala da stream — todos (inclusive o remetente) recebem.
+            // O broadcast REST via lkChatSendMessage foi removido (payload sem
+            // texto era ignorado pelo sendMessage).
 
             // Now, call the API in the background
             try {
@@ -1469,7 +1276,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             )}
 
             {/* 1. Video Layer (Bottom) */}
-            <div className="absolute inset-0 z-0 bg-black">
+            <div className="absolute inset-0 z-0 bg-black" onClick={() => { if (chatInputRef.current && document.activeElement === chatInputRef.current) chatInputRef.current.blur(); }}>
                 {/* Loading state - mostra gradiente sutil + spinner enquanto vídeo não carrega */}
                 {!isBroadcaster && !isVideoPlaying && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
@@ -1481,9 +1288,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                 )}
 
-                {/* Video Layer - SRS (HLS/WHEP) + LiveKit para tempo real */}
+                {/* Video Layer - SRS WHEP (WebRTC) */}
                 <LivePlayer
-                    url={getStreamUrl()}
                     streamId={streamer.streamKey || streamer.id}
                     isBroadcaster={isBroadcaster}
                     userId={currentUser.id}
@@ -1530,6 +1336,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-black flex-shrink-0 flex items-center justify-center bg-black">
                                     <AvatarWithFrame
                                         user={streamerDisplayUser || ({
+                                            avatar: streamer.avatar || '',
                                             id: streamer.hostId,
                                             name: streamer.name,
                                             avatarUrl: streamer.avatar,
@@ -1552,7 +1359,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </div>
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <span className="font-bold text-sm truncate max-w-[120px] text-white select-none">{streamerDisplayUser?.name || streamer.name}</span>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-bold text-sm truncate max-w-[100px] text-white select-none">{streamerDisplayUser?.name || streamer.name}</span>
+                                    <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} />
+                                </div>
                                 <div className="flex items-center gap-1 text-[10px] text-gray-300 font-medium">
                                     <svg className="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M13 7H7v2h6V7z"></path>
@@ -1699,12 +1509,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`absolute left-0 right-0 w-full transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardOffset + 'px' }}>
+            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardInset }}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                {!isBroadcaster && (
-                    <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 relative z-10">
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[min(33vh,38dvh)] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 pb-[env(safe-area-inset-bottom)] relative z-10">
                         <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
                             {messages.map((msg, index) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
@@ -1719,7 +1528,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     };
                                     return <EntryChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} {...entryProps} />;
                                 }
-                                if (msg.type === 'chat' && msg.user && msg.avatar) {
+                                if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
                                     const chatUser = constructUserFromMessage(msg);
                                     const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
 
@@ -1743,9 +1552,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             })}
                         </div>
                     </div>
-                )}
 
-                <footer className="p-3 pointer-events-auto">
+                <footer className="p-3 pb-[env(safe-area-inset-bottom)] pointer-events-auto">
                     {/* 📡 Typing indicator */}
                     {typingUsers.length > 0 && (
                       <div className="px-2 py-1 text-xs text-gray-400 italic">
@@ -1774,6 +1582,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
                             <input 
+                                ref={chatInputRef}
                                 type="text"
                                 placeholder={t('streamRoom.sayHi')}
                                 value={chatInput}
@@ -1795,12 +1604,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                   }
                                 }}
                                 onKeyDown={(e) => { if (e.key === "Enter") { console.log("[CHAT] onKeyDown Enter disparado"); handleSendMessage(e); } }}
+                                enterKeyHint="send"
+                                autoComplete="off"
                                 className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                             />
                         </div>
                         <div className="flex items-center gap-3">
                             {/* Share/Send Action */}
                             <button 
+                                onMouseDown={(e) => e.preventDefault()}
                                 onClick={(e) => { console.log('[CHAT] onClick botão Enviar disparado'); handleSendMessage(e); }} 
                                 className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
                                 style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
@@ -1864,6 +1676,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     streamId={streamer.id} 
                     userId={currentUser.id} 
                     currentUser={currentUser} 
+                    connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setOnlineUsersOpen(false);
                         if (isBroadcaster) {
@@ -1902,7 +1715,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={handleSelectResolution} currentResolution={currentResolution} />
-            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} onRpcInvite={handleRpcInvite} />
+            <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
             <GiftModal
@@ -1969,7 +1782,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 Recusar
                             </button>
                             <button className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
-                                onClick={() => { api.respondToLiveInvite(activeLiveInvite.inviteId, "accepted").catch(() => {}); setActiveLiveInvite(null); }}>
+                                onClick={() => {
+                                    api.respondToLiveInvite(activeLiveInvite.inviteId, "accepted").catch(() => {});
+                                    if (activeLiveInvite.type === "co-host" || activeLiveInvite.type === "pk-battle") {
+                                        lkSetRole("co-host");
+                                    }
+                                    setActiveLiveInvite(null);
+                                }}>
                                 Aceitar
                             </button>
                         </div>

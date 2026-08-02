@@ -23,8 +23,6 @@ interface CoHostModalProps {
   addToast: (type: ToastType, message: string) => void;
   streamId: string;
   mode?: 'cohost' | 'battle';
-  /** 📡 LiveKit RPC: substitui a chamada REST API para enviar convite direto ao participante */
-  onRpcInvite?: (friend: User) => Promise<{success: boolean; error?: string; message?: string}>;
 }
 
 const CoHostModal: React.FC<CoHostModalProps> = ({ 
@@ -168,27 +166,15 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     addToast(ToastType.Info, `Convidando ${friend.name} para ${inviteTypeLabel}...`);
 
     try {
-      // 📡 Usar RPC se disponivel (LiveKit), fallback para REST API
-      if (typeof onRpcInvite === 'function') {
-        const result = await onRpcInvite(friend);
-        if (result.success) {
-          addToast(ToastType.Success, result.message || `Convite para ${friend.name} enviado.`);
-          setInvitedFriends(prev => new Set(prev).add(friend.id));
-          onInvite(friend);
-        } else {
-          addToast(ToastType.Error, result.error || 'Falha ao enviar convite via RPC.');
-        }
+      // 📡 Enviar convite via REST API
+      const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
+      const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
+      if (success) {
+        addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
+        setInvitedFriends(prev => new Set(prev).add(friend.id));
+        onInvite(friend);
       } else {
-        // Fallback: REST API
-        const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
-        const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
-        if (success) {
-          addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
-          setInvitedFriends(prev => new Set(prev).add(friend.id));
-          onInvite(friend); 
-        } else {
-          addToast(ToastType.Error, error || 'Falha ao enviar convite.');
-        }
+        addToast(ToastType.Error, error || 'Falha ao enviar convite.');
       }
     } catch(err) {
       addToast(ToastType.Error, (err as Error).message || 'Erro de rede ao enviar convite.');
@@ -231,11 +217,11 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
 
   return (
     <div
-      className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100 bg-transparent' : 'opacity-0 pointer-events-none'}`}
+      className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       onClick={onClose}
     >
       <div
-        className={`bg-[#131124] w-full max-w-md h-[75%] rounded-t-2xl shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`bg-[#131124] w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

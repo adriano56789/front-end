@@ -1,7 +1,7 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { SrsPlayerEngine } from "../services/SrsPlayerEngine";
 import { streamPublishService } from "../services/streamPublishService";
-import { getHlsPlayUrl } from "../services/mediaConfig";
+import { getWhepPlayUrl } from "../services/mediaConfig";
 
 interface LivePlayerProps {
   url?: string;
@@ -32,6 +32,7 @@ function safePlay(video: HTMLVideoElement): Promise<void> {
 }
 
 export default function LivePlayer({
+  url,
   streamId,
   isBroadcaster = false,
   onPlaying,
@@ -40,6 +41,7 @@ export default function LivePlayer({
   onVideoRef,
 }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [playerError, setPlayerError] = useState<string | null>(null);
 
   // ─── Refs de proteção contra dupla inicialização (React StrictMode) ───
   const engineRef = useRef<SrsPlayerEngine | null>(null);
@@ -104,52 +106,73 @@ export default function LivePlayer({
       // ═══ MODO VIEWER ═══
       if (!streamId) return;
 
-      console.log(`[LivePlayer] Iniciando player para stream ID: ${streamId}`);
+      console.log(`[LivePlayer] Iniciando player WHEP (WebRTC) para stream ID: ${streamId}`);
 
       if (engineRef.current) {
         console.log('[LivePlayer] Engine já existe, ignorando dupla inicialização');
         return;
       }
 
-      const startHlsPlayer = () => {
+      // Variáveis para cleanup - declaradas no escopo do useEffect
+      let unsubState: (() => void) | undefined;
+      let unsubError: (() => void) | undefined;
+      let unsubPlaying: (() => void) | undefined;
+
+      const startWhepPlayer = () => {
         if (instanceKey !== destroyKeyRef.current) return;
 
         const engine = new SrsPlayerEngine({
           autoMuteRetry: true,
           reconnectRetries: 5,
-          manifestTimeout: 15000,
+          connectTimeout: 15000,
           verboseLogs: true,
         });
         engineRef.current = engine;
 
-        const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
+        unsubState = engine.on('stateChanged', (prev: string, next: string) => {
           if (instanceKey !== destroyKeyRef.current) return;
           console.log(`[LivePlayer] Estado mudou: ${prev} -> ${next}`);
           if (next === 'playing') {
-            console.log('[LivePlayer] HLS playback iniciado');
+            setPlayerError(null);
+            console.log('[LivePlayer] WebRTC/WHEP playback iniciado');
             onPlaying?.();
           } else if (next === 'error') {
             onError?.();
           }
         });
 
-        engine.start(streamId, video).catch(err => {
-          console.error('[LivePlayer] Error running SrsPlayerEngine:', err);
+        // Escutar erros detalhados do engine
+        unsubError = engine.on('error', (code: string, msg: string) => {
+          console.error(`[LivePlayer] SRS error ${code}:`, msg);
+          setPlayerError(msg || 'Erro ao conectar na transmissão');
           onError?.();
         });
 
-        return unsubState;
+        // 🔧 Usar URL WHEP do backend se disponível, senão gerar com getWhepPlayUrl()
+        // A URL do backend já tem o prefixo 'stream_' correto (ex: /api/rtc/v1/whep/?app=live&stream=stream_1951388)
+        const finalUrl = url || getWhepPlayUrl(streamId);
+        engine.start(streamId, video, finalUrl).catch(err => {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.error('[LivePlayer] Error running SrsPlayerEngine:', errMsg);
+          setPlayerError(errMsg || 'Falha ao carregar transmissão');
+          onError?.();
+        });
+
+        // Limpar erro quando começar a tocar
+        unsubPlaying = engine.on('playing', () => {
+          setPlayerError(null);
+        });
       };
 
-      // Iniciar HLS player IMEDIATAMENTE — sem validação de URL.
-      // A validação prévia causava delay de até 30s mostrando a capa de fundo.
-      // O SrsPlayerEngine já trata erros de manifest/HLS internamente.
-      console.log('[LivePlayer] Iniciando HLS player imediatamente (sem validação)...');
-      const unsubState = startHlsPlayer();
+      // Iniciar WHEP player IMEDIATAMENTE — sem validação de URL.
+      console.log('[LivePlayer] Iniciando WHEP player imediatamente (WebRTC)...');
+      startWhepPlayer();
 
       return () => {
         if (instanceKey !== destroyKeyRef.current) return;
         if (unsubState) unsubState();
+        if (unsubError) unsubError();
+        if (unsubPlaying) unsubPlaying();
         if (engineRef.current) {
           engineRef.current.destroy();
           engineRef.current = null;
@@ -173,6 +196,15 @@ export default function LivePlayer({
         controls={false}
         className="w-full h-full object-cover"
       />
+      {playerError && !isBroadcaster && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
+          <div className="text-center px-6">
+            <div className="text-red-400 text-4xl mb-3">📡</div>
+            <p className="text-white font-semibold text-sm mb-1">Stream indisponível</p>
+            <p className="text-gray-400 text-xs max-w-[250px]">{playerError}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

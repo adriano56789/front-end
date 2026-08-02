@@ -82,6 +82,27 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
     }
   }, [mediaSessionMetadata]);
 
+  /**
+   * Aguarda o vídeo carregar metadata antes de entrar em PiP.
+   * Retorna true se o vídeo está pronto, false se timeout.
+   */
+  const waitForMetadata = useCallback(async (video: HTMLVideoElement, timeoutMs = 3000): Promise<boolean> => {
+    if (video.readyState >= HTMLMediaElement.HAVE_METADATA) return true;
+    
+    return new Promise(resolve => {
+      const timeout = setTimeout(() => {
+        resolve(false);
+      }, timeoutMs);
+      
+      function onLoaded() {
+        clearTimeout(timeout);
+        resolve(true);
+      }
+      
+      video.addEventListener('loadedmetadata', onLoaded, { once: true });
+    });
+  }, []);
+
   // Request native PiP mode — uses video.requestPictureInPicture()
   // (wider support: Chrome, Edge, Safari, Firefox, Android WebView)
   const requestPiP = useCallback(async () => {
@@ -90,7 +111,19 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
     if (document.pictureInPictureElement) return true;
     
     try {
-      await videoRef.current.requestPictureInPicture();
+      const video = videoRef.current;
+      
+      // ⚠️ CORREÇÃO: Aguardar metadata carregar antes de PiP
+      // Erro no console: "InvalidStateError: Metadata for the video element are not loaded yet"
+      if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+        console.log('[NativePiP] ⏳ Aguardando metadata do vídeo carregar...');
+        const ready = await waitForMetadata(video);
+        if (!ready) {
+          console.warn('[NativePiP] ⚠️ Metadata não carregou dentro do timeout, tentando PiP mesmo assim...');
+        }
+      }
+      
+      await video.requestPictureInPicture();
       setIsNativePiPActive(true);
       hasUserGesture.current = true;
       onEnterNativePiP?.();
@@ -99,7 +132,7 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
       console.error('[NativePiP] Error entering PiP:', err);
       return false;
     }
-  }, [onEnterNativePiP]);
+  }, [onEnterNativePiP, waitForMetadata]);
 
   // Exit native PiP mode
   const exitPiP = useCallback(async () => {

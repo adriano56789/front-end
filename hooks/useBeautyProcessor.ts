@@ -50,7 +50,8 @@ export const useBeautyProcessor = (options: UseBeautyProcessorOptions = {}): Use
     whitening: 0,
     smoothing: 0,
     saturation: 0,
-    contrast: 0
+    contrast: 0,
+    babyFace: 0
   });
   const [error, setError] = useState<Error | null>(null);
 
@@ -184,7 +185,8 @@ export const useBeautyProcessor = (options: UseBeautyProcessorOptions = {}): Use
       whitening: 0,
       smoothing: 0,
       saturation: 0,
-      contrast: 0
+      contrast: 0,
+      babyFace: 0
     };
     
     updateSettings(defaultSettings);

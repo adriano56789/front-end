@@ -76,4 +76,14 @@ nginx.conf.bak*
 # Arquivos de ambiente sensíveis
 docker/livekit.yaml
 
+# Scripts de debug/inspeção local (não subir)
+build.pid
+check-vps.js
+deploy-*.cjs
+proto-test.cjs
+vps-*.cjs
+
+# Assets MediaPipe gerados no build (copy-mediapipe-assets.mjs)
+public/wasm/
+
 nul

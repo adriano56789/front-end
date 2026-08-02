@@ -36,7 +36,6 @@ export interface Streamer {
   // WebRTC and LiveGo compatibility fields
   webrtcUrl?: string;
   flvUrl?: string;
-  hlsUrl?: string; // URL HLS para reprodução no ExoPlayer (Android) e LivePlayer (Web)
   liveId?: string;
   pushUrl?: string;
   latitude?: number;
@@ -333,6 +332,8 @@ export interface LiveSessionState {
   isStreamMuted?: boolean;
   isAutoFollowEnabled?: boolean;
   isAutoPrivateInviteEnabled?: boolean;
+  isCoHostEnabled?: boolean;
+  isChatEnabled?: boolean;
 }
 
 export interface EndStreamSummary {
@@ -366,6 +367,7 @@ export interface BeautySettings {
     'Alisar a pele'?: number;
     'Ruborizar'?: number;
     'Contraste'?: number;
+    'Rosto Bebê'?: number;
     // Filtro pré-definido selecionado
     selectedFilter?: string;
     // Aba ativa do painel

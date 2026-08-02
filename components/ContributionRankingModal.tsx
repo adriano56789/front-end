@@ -141,13 +141,13 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
     };
 
     return (
-        <div className="absolute inset-0 z-[100] flex items-end justify-center" onClick={onClose}>
-            {/* Transparent Backdrop to close */}
-            <div className="absolute inset-0 bg-transparent" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
+            {/* Backdrop to close */}
+            <div className="absolute inset-0 bg-black/40" />
             
-            {/* Modal Content - Reduced height to 50% */}
+            {/* Modal Content */}
             <div
-                className="relative w-full max-w-md h-[50%] bg-[#0a0a0c]/95 backdrop-blur-xl rounded-t-[2rem] flex flex-col overflow-hidden shadow-2xl border-t border-white/10"
+                className="relative w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl bg-[#0a0a0c]/95 backdrop-blur-xl flex flex-col overflow-hidden shadow-2xl border border-white/10"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Decorative background gradients */}
