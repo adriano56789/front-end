@@ -1,5 +1,5 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-const CACHE_NAME = 'livenza-cache-v2';
+const CACHE_NAME = 'livenza-cache-v3';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
