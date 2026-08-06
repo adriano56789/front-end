@@ -11,6 +11,9 @@
 export const GIFT_ANIMATION_URLS: Record<string, string> = {
   // Categoria: Popular
   'Pirulito': '/uploads/animations/pirulito.webm',
+  'Rosa': '/animations/rosa_cristal.mp4',
+  'Champanhe': '/animations/champanhe_dourado.mp4',
+  'Anel': '/animations/anel_de_ouro.mp4',
 
   // Categoria: Efeito
   'Explosão de Confete': '/uploads/animations/explosao_confete.webm',
@@ -26,6 +29,9 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
  */
 export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
   'Pirulito': 4000,
+  'Rosa': 5500,
+  'Champanhe': 4500,
+  'Anel': 4500,
   'Explosão de Confete': 5000,
   'Coração Gigante': 5000,
   'Portal Galáctico': 5000,

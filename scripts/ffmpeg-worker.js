@@ -1,154 +1,195 @@
-// =============================================================================
-// FFmpeg Worker — Simple HTTP Server for FFmpeg Transcoding
-// Rodando dentro do container app-ffmpeg (node:20-alpine com ffmpeg instalado)
-// =============================================================================
+// FFmpeg Worker — HTTP server for FFmpeg transcoding
+// Runs inside the app-ffmpeg container (node:20-alpine with ffmpeg installed)
+// Deployed at /app/ffmpeg-worker.js on the VPS (bind-mounted into the container)
 
 const http = require('http');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
-// ── Store active FFmpeg processes ──
-const activeProcesses = new Map();
+function ensureFfmpeg() {
+  try { execSync('ffmpeg -version', { stdio: 'ignore' }); } catch {
+    console.log('Installing ffmpeg...');
+    execSync('apk add --no-cache ffmpeg', { stdio: 'inherit' });
+  }
+}
 
-// ── Helper: Execute FFmpeg command ──
-function runFfmpeg(commandString, streamId) {
-  return new Promise((resolve, reject) => {
-    // Kill existing process for same stream if any
-    if (activeProcesses.has(streamId)) {
-      activeProcesses.get(streamId).kill('SIGTERM');
-      activeProcesses.delete(streamId);
-    }
+const processes = new Map();
 
-    const args = commandString.split(' ').slice(1); // Remove 'ffmpeg' from args
-    const proc = spawn('ffmpeg', args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+// 🛡️ Proteção de CPU: acima deste nº de transcodes simultâneos, pula o ladder
+// (mantém só o transcode base) para não sobrecarregar o servidor.
+const MAX_LADDER_JOBS = 4;
 
-    activeProcesses.set(streamId, proc);
+// 🪫 Ladder padrão de qualidades leves (economia de dados/bateria dos espectadores).
+// Cada tier gera uma stream extra no SRS: {streamKey}_t360 e {streamKey}_t240.
+// O app escolhe a URL WHEP do tier conforme a velocidade da rede do espectador.
+// Formato: "ALTURA:bitrate_kbps" separado por vírgula. Ex: "360:500,240:300"
+const DEFAULT_LADDER = [
+  { height: 360, bitrate: 500 },
+  { height: 240, bitrate: 300 },
+];
 
-    let stderr = '';
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
+function parseLadder(ladder) {
+  if (!Array.isArray(ladder) || ladder.length === 0) return DEFAULT_LADDER;
+  const parsed = ladder
+    .map((t) => ({
+      height: parseInt(t.height, 10),
+      bitrate: parseInt(t.bitrate, 10),
+    }))
+    .filter((t) => t.height > 0 && t.bitrate > 0);
+  return parsed.length > 0 ? parsed : DEFAULT_LADDER;
+}
 
-    proc.on('close', (code) => {
-      activeProcesses.delete(streamId);
-      if (code === 0) {
-        resolve({ success: true });
-      } else {
-        reject(new Error(`FFmpeg exited with code ${code}: ${stderr.slice(-500)}`));
-      }
-    });
+function buildTierArgs(streamKey, tier, fps) {
+  return [
+    '-map', '0:v:0',
+    '-map', '0:a:0',
+    '-vf', 'scale=-2:' + tier.height,
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-tune', 'zerolatency',
+    '-b:v', tier.bitrate + 'k',
+    '-maxrate', Math.round(tier.bitrate * 1.2) + 'k',
+    '-bufsize', (tier.bitrate * 2) + 'k',
+    '-r', String(fps),
+    '-g', String(fps * 2),
+    '-af', 'aresample=async=1:first_pts=0',
+    '-c:a', 'aac',
+    '-b:a', '64k',
+    '-ar', '48000',
+    '-ac', '2',
+    '-f', 'flv',
+    'rtmp://srs:1935/live/' + streamKey + '_t' + tier.height,
+  ];
+}
 
-    proc.on('error', (err) => {
-      activeProcesses.delete(streamId);
-      reject(err);
-    });
+function startTranscode(streamKey, preset, filters, ladder) {
+  preset = preset || {};
+  filters = filters || {};
+  ladder = parseLadder(ladder);
+  if (processes.size >= MAX_LADDER_JOBS) {
+    console.log('⚠️ ' + processes.size + ' transcodes ativos — pulando ladder para ' + streamKey + ' (proteção de CPU)');
+    ladder = [];
+  }
+  if (processes.has(streamKey)) {
+    stopTranscode(streamKey);
+  }
 
-    // Return immediately — ffmpeg runs in background
-    resolve({ success: true, pid: proc.pid, message: 'FFmpeg started' });
+  const inputUrl = 'rtmp://srs:1935/live/' + streamKey;
+  const outputUrl = 'rtmp://srs:1935/live/' + streamKey + '_transcoded';
+
+  // Audio fixes for the buzz/static issue (SRS rtc->rtmp produces non-monotonic DTS):
+  // - use_wallclock_as_timestamps: rebuild monotonic timestamps from wall-clock
+  // - aresample=async=1:first_pts=0: fill gaps / drop overlaps, normalize audio start
+  const args = [
+    '-fflags', 'nobuffer+genpts',
+    '-use_wallclock_as_timestamps', '1',
+    '-i', inputUrl
+  ];
+
+  if (filters && filters.watermarkEnabled) {
+    const pos = filters.watermarkPosition || 'top-right';
+    var x, y;
+    if (pos.indexOf('right') >= 0) { x = 'W-w-10'; } else { x = '10'; }
+    if (pos.indexOf('bottom') >= 0) { y = 'H-h-10'; } else { y = '10'; }
+    args.push('-vf', 'drawtext=text=\'' + (filters.watermarkText || '') + '\':x=' + x + ':y=' + y + ':fontsize=24:fontcolor=white');
+  }
+
+  // Output base (compatibilidade): {streamKey}_transcoded
+  args.push(
+    '-map', '0:v:0',
+    '-map', '0:a:0',
+    '-c:v', preset.videoCodec || 'libx264',
+    '-preset', 'veryfast',
+    '-b:v', (preset.videoBitrate || 2000) + 'k',
+    '-maxrate', Math.round((preset.videoBitrate || 2000) * 1.2) + 'k',
+    '-bufsize', ((preset.videoBitrate || 2000) * 2) + 'k',
+    '-r', String(preset.fps || 30),
+    '-g', String((preset.fps || 30) * 2),
+    '-af', 'aresample=async=1:first_pts=0',
+    '-c:a', 'aac',
+    '-b:a', '128k',
+    '-ar', '48000',
+    '-ac', '2',
+    '-f', 'flv',
+    outputUrl
+  );
+
+  // 🪫 Ladder de qualidades leves: um único processo FFmpeg gera TODOS os
+  // tiers (lê a stream 1x, re-encode cada resolução, publica no SRS).
+  // Fonte de economia de dados: espectadores em rede lenta jogam nos tiers.
+  const fps = preset.fps || 30;
+  ladder.forEach((tier) => {
+    args.push.apply(args, buildTierArgs(streamKey, tier, fps));
+  });
+
+  console.log('Starting FFmpeg for ' + streamKey + ': ffmpeg ' + args.join(' '));
+  const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  processes.set(streamKey, proc);
+
+  proc.stdout.on('data', function(d) { process.stdout.write('[' + streamKey + '] ' + d); });
+  proc.stderr.on('data', function(d) { process.stderr.write('[' + streamKey + '] ' + d); });
+  proc.on('exit', function(code) {
+    console.log('FFmpeg for ' + streamKey + ' exited with code ' + code);
+    processes.delete(streamKey);
   });
 }
 
-// ── HTTP Server ──
-const server = http.createServer(async (req, res) => {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204);
-    res.end();
-    return;
+function stopTranscode(streamKey) {
+  var proc = processes.get(streamKey);
+  if (proc) {
+    proc.kill('SIGTERM');
+    setTimeout(function() { try { proc.kill('SIGKILL'); } catch(e) {} }, 5000);
+    processes.delete(streamKey);
   }
+}
 
-  // ── Health check ──
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      ffmpeg: await checkFfmpeg(),
-      activeProcesses: activeProcesses.size,
-      timestamp: new Date().toISOString(),
-    }));
-    return;
-  }
+ensureFfmpeg();
 
-  // ── List active processes ──
-  if (req.method === 'GET' && req.url === '/processes') {
-    const processes = [];
-    activeProcesses.forEach((proc, id) => {
-      processes.push({ streamId: id, pid: proc.pid, running: !proc.killed });
-    });
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ processes }));
-    return;
-  }
+var server = http.createServer(function(req, res) {
+  res.setHeader('Content-Type', 'application/json');
 
-  // ── Start transcode ──
-  if (req.method === 'POST' && req.url === '/transcode') {
-    let body = '';
-    req.on('data', (chunk) => { body += chunk; });
-    req.on('end', async () => {
+  if (req.method === 'POST' && req.url === '/transcode/start') {
+    var body = '';
+    req.on('data', function(c) { body += c; });
+    req.on('end', function() {
       try {
-        const { streamId, commandString } = JSON.parse(body);
-        if (!streamId || !commandString) {
-          res.writeHead(400);
-          res.end(JSON.stringify({ error: 'streamId and commandString required' }));
-          return;
-        }
-
-        const result = await runFfmpeg(commandString, streamId);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(result));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+        var data = JSON.parse(body);
+        startTranscode(data.streamKey, data.preset || data.options, data.filters, data.ladder);
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ success: false, error: e.message }));
       }
     });
     return;
   }
 
-  // ── Stop transcode ──
-  if (req.method === 'POST' && req.url?.startsWith('/stop/')) {
-    const streamId = req.url.split('/stop/')[1];
-    if (activeProcesses.has(streamId)) {
-      activeProcesses.get(streamId).kill('SIGTERM');
-      activeProcesses.delete(streamId);
-      res.writeHead(200);
-      res.end(JSON.stringify({ success: true, message: `Stream ${streamId} stopped` }));
-    } else {
-      res.writeHead(404);
-      res.end(JSON.stringify({ error: `No active process for stream ${streamId}` }));
-    }
+  if (req.method === 'POST' && req.url === '/transcode/stop') {
+    var body = '';
+    req.on('data', function(c) { body += c; });
+    req.on('end', function() {
+      try {
+        var data = JSON.parse(body);
+        stopTranscode(data.streamKey);
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ success: false, error: e.message }));
+      }
+    });
     return;
   }
 
-  // ── 404 ──
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found' }));
+  if (req.url === '/health') {
+    res.end(JSON.stringify({ status: 'ok', activeStreams: Array.from(processes.keys()) }));
+    return;
+  }
+
+  res.statusCode = 404;
+  res.end(JSON.stringify({ error: 'not found' }));
 });
 
-// ── Check if ffmpeg is available ──
-function checkFfmpeg() {
-  return new Promise((resolve) => {
-    const proc = spawn('ffmpeg', ['-version']);
-    let output = '';
-    proc.stdout.on('data', (d) => { output += d.toString(); });
-    proc.on('close', (code) => {
-      resolve({ available: code === 0, version: output.split('\n')[0] || 'unknown' });
-    });
-    proc.on('error', () => resolve({ available: false }));
-  });
-}
-
-// ── Start ──
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`[FFmpeg-Worker] Server running on port ${PORT}`);
-  checkFfmpeg().then((result) => {
-    console.log(`[FFmpeg-Worker] FFmpeg available: ${result.available}`);
-    if (result.available) console.log(`[FFmpeg-Worker] Version: ${result.version}`);
-  });
+server.listen(PORT, '0.0.0.0', function() {
+  console.log('FFmpeg worker listening on port ' + PORT);
 });

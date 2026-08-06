@@ -78,7 +78,7 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
                 isPremium ? 'border-2 border-yellow-400 animate-pulse' : 'border border-gray-700'
             }`}>
                 <img 
-                    src={fromUser.avatarUrl || (fromUser as any).avatar || `https://picsum.photos/seed/${fromUser.id || 'default'}/200/200.jpg`} 
+                    src={fromUser.avatarUrl || (fromUser as any).avatar || '/placeholders/avatar-placeholder.svg'} 
                     alt={fromUser.name} 
                     className="absolute inset-0 w-full h-full object-cover block rounded-full" 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -94,18 +94,11 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
                 </p>
             </div>
 
-            {/* Conteúdo de Animação de Vídeo ou Loop de Mídia */}
+            {/* Conteúdo de Animação — SEM VÍDEO: o presente exibe apenas o
+                ícone/componente animado (partículas e brilho), nunca o arquivo
+                de vídeo, mesmo quando o gift possui animationUrl/videoUrl. */}
             <div className="w-12 h-12 flex items-center justify-center relative z-10 shrink-0 transform group-hover:scale-110 transition-transform duration-200">
-                {gift.animationUrl || gift.videoUrl ? (
-                    <video 
-                        src={gift.animationUrl || gift.videoUrl} 
-                        autoPlay 
-                        loop 
-                        muted 
-                        playsInline 
-                        className="w-12 h-12 object-contain mix-blend-screen filter drop-shadow-[0_0_8px_rgba(255,215,0,0.8)]"
-                    />
-                ) : gift.component ? (
+                {gift.component ? (
                     React.cloneElement(gift.component as React.ReactElement<any>, { className: `w-10 h-10 ${isPremium ? 'animate-bounce drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]' : ''}` })
                 ) : (
                     <span className={`text-3xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] ${isPremium ? 'animate-bounce' : ''}`}>

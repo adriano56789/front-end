@@ -18,9 +18,14 @@ const DEFAULT_CONFIG: Required<Pick<PublishEngineConfig, 'videoCodec' | 'maxVide
 
 // ⏱ Timeout global do fluxo completo (getUserMedia → WHIP offer → answer).
 // Cada etapa tem erro próprio; este é só um teto de segurança.
-const PUBLISH_FLOW_TIMEOUT = 30000;
-const ICE_GATHER_TIMEOUT = 2500;
-const WHIP_HTTP_TIMEOUT = 10000;
+// 🔧 Vários celulares entrando ao vivo AO MESMO TEMPO sobrecarregam o
+// SRS/nginx: o WHIP POST e o ICE gathering demoram mais. NADA é fechado
+// antes da hora — o teto global só foi AUMENTADO (30s → 60s) para dar
+// tempo real ao fluxo sob carga. Sem timeout extra na captura (getUserMedia
+// nunca é abortado: fechar aqui derrubaria a live de celulares lentos).
+const PUBLISH_FLOW_TIMEOUT = 60000;
+const ICE_GATHER_TIMEOUT = 5000;
+const WHIP_HTTP_TIMEOUT = 20000;
 const ICE_CONNECT_TIMEOUT = 15000;
 
 function getUserMediaErrorMessage(err: any): string {
@@ -109,6 +114,9 @@ export class PublishEngine {
     let stream = preCapturedStream ?? null;
     const hasLiveTracks = !!stream && stream.getTracks().some(t => t.readyState === 'live');
     if (!stream || !hasLiveTracks) {
+      // 🎥 Captura SEM timeout próprio: se vários celulares estão entrando ao
+      // vivo ao mesmo tempo, a câmera/prompt pode demorar — nunca abortamos
+      // o getUserMedia (abortar aqui fecharia a live de celulares lentos).
       stream = await this._captureMedia();
     }
     if (this._destroyed) {

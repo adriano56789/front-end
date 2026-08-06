@@ -28,26 +28,27 @@ export const CoracaoGiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) 
   </svg>
 );
 
-// 2. Rosa (🌹)
+// 2. Rosa (🌹) — Rosa de Cristal: pétalas em azul/violeta translúcido (vidro)
 export const RosaGiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" {...props}>
     <defs>
       <linearGradient id="roseStem" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stopColor="#2E7D32" />
+        <stop offset="0%" stopColor="#4E9F3D" />
         <stop offset="100%" stopColor="#1B5E20" />
       </linearGradient>
       <linearGradient id="roseLeaves" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#4CAF50" />
+        <stop offset="0%" stopColor="#66BB6A" />
         <stop offset="100%" stopColor="#2E7D32" />
       </linearGradient>
       <radialGradient id="rosePetalCenter" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#FF1E56" />
-        <stop offset="60%" stopColor="#E3003B" />
-        <stop offset="100%" stopColor="#800020" />
+        <stop offset="0%" stopColor="#EAF3FF" />
+        <stop offset="45%" stopColor="#A5C8FF" />
+        <stop offset="100%" stopColor="#4A6CFF" />
       </radialGradient>
       <linearGradient id="rosePetalLip" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#FF85A1" />
-        <stop offset="100%" stopColor="#FF1E56" />
+        <stop offset="0%" stopColor="#FFFFFF" />
+        <stop offset="50%" stopColor="#C8DBFF" />
+        <stop offset="100%" stopColor="#5E8BFF" />
       </linearGradient>
     </defs>
     {/* Haste / Stem */}
@@ -66,7 +67,7 @@ export const RosaGiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
     <path d="M42,42 C45,55 75,55 78,42 C82,30 38,30 42,42 Z" fill="#2E7D32" />
     <path d="M47,48 C51,56 69,56 73,48 L60,58 Z" fill="#1B5E20" />
 
-    {/* Pétalas da Rosa (Modelo 3D sobreposto espiral) */}
+    {/* Pétalas da Rosa de Cristal (Modelo 3D sobreposto espiral) */}
     {/* Pétala grande externa de trás */}
     <path d="M32,38 C20,20 40,5 60,18 C80,5 100,20 88,38 C75,52 45,52 32,38 Z" fill="url(#rosePetalCenter)" />
     
@@ -74,9 +75,13 @@ export const RosaGiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => 
     <path d="M38,32 C30,18 45,14 60,25 C75,14 90,18 82,32 C74,44 46,44 38,32 Z" fill="url(#rosePetalLip)" opacity="0.95" />
     <path d="M44,28 C40,18 50,16 60,24 C70,16 80,18 76,28 C70,36 50,36 44,28 Z" fill="url(#rosePetalCenter)" />
     
+    {/* Reflexo de vidro na pétala superior */}
+    <path d="M40,24 C42,17 52,15 58,19 L52,27 C46,24 42,27 40,24 Z" fill="#FFFFFF" opacity="0.7" />
+    <path d="M64,20 C70,18 76,22 74,27 C72,31 67,30 64,27 Z" fill="#FFFFFF" opacity="0.5" />
+    
     {/* Miolo Espiral Realista */}
-    <path d="M52,24 C50,20 54,16 60,20 C66,16 70,20 68,24 C64,28 56,28 52,24 Z" fill="#FFA3B1" />
-    <path d="M57,22 C56,21 58,19 60,20 C62,19 64,21 63,22 C61,24 59,24 57,22 Z" fill="#990022" />
+    <path d="M52,24 C50,20 54,16 60,20 C66,16 70,20 68,24 C64,28 56,28 52,24 Z" fill="#DCE9FF" />
+    <path d="M57,22 C56,21 58,19 60,20 C62,19 64,21 63,22 C61,24 59,24 57,22 Z" fill="#2B4FC8" />
   </svg>
 );
 

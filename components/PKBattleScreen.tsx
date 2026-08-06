@@ -18,6 +18,7 @@ import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
+import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 // Socket.IO removido — comunicação PK via REST API + SRS (WebSocket/WebRTC)
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
@@ -136,7 +137,6 @@ export default function PKBattleScreen({
     const [effectsQueue, setEffectsQueue] = useState<GiftPayload[]>([]);
     const [currentEffect, setCurrentEffect] = useState<GiftPayload | null>(null);
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
-    const nextGiftId = useRef(0);
 
     const [isSendingGift, setIsSendingGift] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
@@ -193,27 +193,27 @@ export default function PKBattleScreen({
             }
             // 🎁 Presentes em tempo real (Socket.IO + polling REST)
             else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
-                const isSelf = data.from?.id === currentUser?.id || data.fromUser?.id === currentUser?.id;
-                if (!isSelf) {
-                    const giftEvtPayload: any = {
-                        fromUser: {
-                            id: data.from?.id || data.fromUser?.id,
-                            identification: data.from?.identification || data.fromUser?.identification || data.from?.id,
-                            name: data.from?.name || data.fromUser?.name || 'Usuário',
-                            avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '',
-                            level: data.from?.level || data.fromUser?.level || 1,
-                            fans: 0, following: 0, receptores: 0, enviados: 0,
-                            diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
-                        },
-                        toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
-                        gift: data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' },
-                        quantity: data.quantity || 1,
-                        roomId: streamer.id,
-                        id: String(data.id || Date.now() + Math.random()),
-                    };
-                    setEffectsQueue(prev => [...prev, giftEvtPayload]);
-                    postGiftChatMessage(giftEvtPayload);
-                }
+                const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
+                const animationUrl = getAnimationUrl(rawGift);
+                const duration = getAnimationDuration(rawGift);
+                const giftEvtPayload: any = {
+                    fromUser: {
+                        id: data.from?.id || data.fromUser?.id,
+                        identification: data.from?.identification || data.fromUser?.identification || data.from?.id,
+                        name: data.from?.name || data.fromUser?.name || 'Usuário',
+                        avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '',
+                        level: data.from?.level || data.fromUser?.level || 1,
+                        fans: 0, following: 0, receptores: 0, enviados: 0,
+                        diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
+                    },
+                    toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
+                    gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
+                    quantity: data.quantity || 1,
+                    roomId: streamer.id,
+                    id: String(data.id || Date.now() + Math.random()),
+                };
+                setEffectsQueue(prev => [...prev, giftEvtPayload]);
+                postGiftChatMessage(giftEvtPayload);
             }
             // Sync de estado PK (mantido para compatibilidade futura — via REST)
             else if (data.type === 'pk_state_sync') {
@@ -283,6 +283,10 @@ export default function PKBattleScreen({
             remoteVideoAttachedRef.current = false;
         };
     }, []);
+
+    // 🚫 REMOVIDO: encerramento automático ao o host sair da tela (mudar de aba,
+    // abrir outro app etc). A transmissão SÓ encerra quando o host clica em
+    // "Encerrar Transmissão" — sair da tela nunca derruba a live.
     
     // O LivePlayer monta a URL WHEP automaticamente a partir do streamId
     // (getWhepPlayUrl → /api/rtc/v1/whep/?app=live&stream=stream_{id})
@@ -375,25 +379,8 @@ export default function PKBattleScreen({
         if (isSendingGift) return;
         setIsSendingGift(true);
         try {
-            // Optimistic UI Update Payload
-            const giftPayload: GiftPayload = {
-                fromUser: currentUser,
-                toUser: { id: streamer.hostId, name: streamer.name },
-                gift,
-                quantity,
-                roomId: streamer.id,
-                id: Date.now() + Math.random() // Unique ID
-            };
-
-            // 1. Add to Chat immediately
-            postGiftChatMessage(giftPayload);
-
-            // 2. Queue Fullscreen Effect immediately
-            setEffectsQueue(prev => [...prev, giftPayload]);
-
-            // 3. Show Banner Notification immediately
-            const newBanner = { ...giftPayload, id: nextGiftId.current++ };
-            setBannerGifts(prev => [...prev, newBanner].slice(-5));
+            // 🚫 SEM optimistic UI: a animação do presente só aparece via socket
+            // (live_gift_received emitido pelo backend), para todos inclusive o remetente.
 
             // Sincronizar via REST API
             if (lkConnected) {
@@ -413,6 +400,7 @@ export default function PKBattleScreen({
             const { success, error, updatedSender, updatedReceiver } = await api.sendGift(currentUser.id, streamer.id, streamer.id, gift.name, quantity);
             
             if (success && updatedSender && updatedReceiver) {
+                // ✅ Sincronização dos dados reais do banco
                 updateUser(updatedSender);
                 updateUser(updatedReceiver);
 
@@ -984,7 +972,7 @@ export default function PKBattleScreen({
                 </div>
 
                 {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
-                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardInset }}>
+                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` }}>
                     {/* Chat messages */}
                     <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{
                         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'

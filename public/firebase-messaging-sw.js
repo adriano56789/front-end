@@ -1,5 +1,5 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-const CACHE_NAME = 'livenza-cache-v3';
+const CACHE_NAME = 'livenza-cache-v4';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -134,9 +134,11 @@ messaging.onBackgroundMessage((payload) => {
   console.log('[FCM-SW] Mensagem em background:', payload);
 
   const notificationTitle = payload.notification?.title || 'LiveGo';
+  // 🔔 Firebase/FCM serve SÓ para push na tela: ícone SEMPRE o favicon LOCAL
+  // (nunca icon/image remoto vindo do payload — zero fetch de imagem).
   const notificationOptions = {
     body: payload.notification?.body || '',
-    icon: payload.notification?.icon || '/favicon.svg',
+    icon: '/favicon.svg',
     badge: '/favicon.svg',
     data: payload.data || {},
   };

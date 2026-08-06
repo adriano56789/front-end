@@ -1,6 +1,9 @@
 import { cameraService } from './cameraService';
 
-type PublishEngineType = { replaceTrack: (kind: 'audio' | 'video', track: MediaStreamTrack | null) => Promise<void> };
+type PublishEngineType = {
+  replaceTrack: (kind: 'audio' | 'video', track: MediaStreamTrack | null) => Promise<void>;
+  stop?: () => void | Promise<void>;
+};
 
 export type PublishStateT = 'idle' | 'connecting' | 'publishing' | 'connected' | 'native';
 
@@ -172,6 +175,14 @@ class StreamPublishService {
     this.currentFacingMode = 'user';
     this.beautyProcessedStream = null;
     this._publishing = false;
+    // 🔧 Fechar a conexão WHIP: encerra a transmissão no SRS (on_unpublish).
+    // Sem isso, o SRS mantém o stream ativo e o backend recria o card da live.
+    if (this._publishEngine && typeof this._publishEngine.stop === 'function') {
+      try { this._publishEngine.stop(); } catch (err) {
+        console.warn('[PUBLISH_SERVICE] Erro ao parar engine:', err);
+      }
+    }
+    this._publishEngine = null;
   }
 
   async switchCamera(): Promise<void> {

@@ -99,25 +99,36 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
         // Conectar à sala da stream para receber atualizações em tempo real
         // Socket.IO joinRoom removido — presença via API
 
-        // Initial fetch - APENAS UMA CHAMADA
+        // Initial fetch + polling de atualização (isLoading só na primeira vez)
+        let isFirst = true;
         const fetchUsers = async () => {
             try {
                 if (!streamId || typeof streamId !== 'string') {
                     throw new Error('ID da stream inválido');
                 }
+                if (isFirst) setIsLoading(true);
                 
                 const data = await api.getStreamOnlineUsers(streamId);
                 
                 console.log('🔍 [ONLINE USERS MODAL] API retornou:', data);
                 
                 if (Array.isArray(data)) {
-                    // A API já retorna usuários únicos e válidos, não precisa filtrar duplicados
-                    setUsers(data);
+                    // 🔧 Deduplicar por id: garante que cada usuário real aparece UMA vez,
+                    // mesmo que o backend retorne documentos duplicados.
+                    const seen = new Set<string>();
+                    const uniqueUsers = (data as any[]).filter((u: any) => {
+                        const key = String(u?.id ?? '');
+                        if (!key || seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                    setUsers(uniqueUsers);
                 } else {
                     setUsers([]);
                 }
                 
                 setError(null);
+                isFirst = false;
             } catch (err) {
                 setError('Não foi possível carregar os usuários');
                 setUsers([]);
@@ -128,7 +139,13 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
 
         fetchUsers();
         
+        // 🔄 Atualização em tempo real: refetch periódico enquanto o modal
+        // estiver aberto para refletir entradas/saídas de usuários reais.
+        // 🪫 Economia: 10s em vez de 5s (lista de usuários não precisa de frescor de 5s)
+        const interval = setInterval(fetchUsers, 10000);
+        
         return () => {
+            clearInterval(interval);
             // Cleanup: Socket.IO removido
         };
     }, [streamId]);

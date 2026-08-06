@@ -15,7 +15,6 @@ import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import ResolutionPanel from './live/ResolutionPanel';
 import GiftModal from './live/GiftModal';
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
-import GiftQueueManager from './live/GiftQueueManager';
 import WalletScreen from './WalletScreen';
 import ConfirmPurchaseScreen from './ConfirmPurchaseScreen';
 import { useTranslation } from '../i18n';
@@ -25,6 +24,7 @@ import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import { streamPublishService } from '../services/streamPublishService';
+import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 // Chat e presença via Socket.IO (useStreamChat) com sync inicial REST
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
@@ -148,6 +148,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [onlineUsersInterval, setOnlineUsersInterval] = useState<NodeJS.Timeout | null>(null);
     const [isResolutionPanelOpen, setResolutionPanelOpen] = useState(false);
     const [currentResolution, setCurrentResolution] = useState(streamer.quality || '480p');
+    // 🪫 Qualidade do ESPECTADOR (auto/480p/360p/240p) — economiza dados em rede lenta
+    const [viewerQuality, setViewerQuality] = useState<'auto' | '480p' | '360p' | '240p'>('auto');
+    const [isViewerQualityOpen, setIsViewerQualityOpen] = useState(false);
     const [isGiftModalOpen, setGiftModalOpen] = useState(false);
     const [isWalletOpen, setIsWalletOpen] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState<{ diamonds: number; price: number } | null>(null);
@@ -185,6 +188,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // State to track if video is actually playing to hide the cover image
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
+    // 🔴 Live encerrada pelo broadcaster: mantém a sala aberta e o chat visível
+    const [streamEnded, setStreamEnded] = useState(false);
 
     // Native PiP (out-of-app) hook — ZEGO's pipButton + enableWhenBackground
     const [nativePiPActive, setNativePiPActive] = useState(false);
@@ -210,10 +215,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     });
 
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
-    const nextGiftId = useRef(0);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
-    const [giftQueue, setGiftQueue] = useState<GiftPayload[]>([]); // Nova fila para GiftQueueManager
     const [activeLiveInvite, setActiveLiveInvite] = useState<{ inviteId: string; type: string; from: string; fromName: string; streamId: string } | null>(null);
 
     // Estado para monitoramento de publish SRS
@@ -261,6 +264,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     disabled: false, // host e viewers conectam na mesma live (Socket.IO)
     onMessage: (data: any) => {
       if (!data || !data.type) return;
+      // 🛑 Live encerrada: ignora TODOS os eventos da sala (entradas, mensagens,
+      // presentes, likes) — nada da live antiga pode continuar aparecendo.
+      if (streamEnded) return;
       if (data.type === 'chat_message' || data.type === 'chat') {
         setMessages(prev => {
           const stableId = String(data.id || Date.now() + Math.random());
@@ -279,18 +285,19 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           addToast(ToastType.Info, `👋 ${entryName} entrou na sala`);
         }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
-        const isSelf = data.from?.id === currentUser?.id || data.fromUser?.id === currentUser?.id;
-        if (!isSelf) {
-          const giftEvtPayload: any = {
-            fromUser: { id: data.from?.id || data.fromUser?.id, identification: data.from?.identification || data.fromUser?.identification || data.from?.id, name: data.from?.name || data.fromUser?.name || 'Usuário', avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '', level: data.from?.level || data.fromUser?.level || 1, fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [] },
-            toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
-            gift: data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' },
-            quantity: data.quantity || 1, roomId: streamer.id,id: String(data.id || Date.now() + Math.random()),
+        const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
+        const animationUrl = getAnimationUrl(rawGift);
+        const duration = getAnimationDuration(rawGift);
+        const giftEvtPayload: any = {
+          fromUser: { id: data.from?.id || data.fromUser?.id, identification: data.from?.identification || data.fromUser?.identification || data.from?.id, name: data.from?.name || data.fromUser?.name || 'Usuário', avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '', level: data.from?.level || data.fromUser?.level || 1, fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [] },
+          toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
+          gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
+          quantity: data.quantity || 1, roomId: streamer.id,id: String(data.id || Date.now() + Math.random()),
         };
-        setGiftQueue(prev => [...prev, giftEvtPayload]);
-          setFullscreenGiftQueue(prev => [...prev, giftEvtPayload]);
-          postGiftChatMessage(giftEvtPayload);
-        }
+        // 🎁 Presente exibido UMA única vez, na animação em tela cheia (sem overlay
+        // lateral duplicado e sem re-exibição). Nada de duas filas para o mesmo evento.
+        setFullscreenGiftQueue(prev => [...prev, giftEvtPayload]);
+        postGiftChatMessage(giftEvtPayload);
       } else if (data.type === 'stream_liked' && data.streamId === streamer.id) {
         setLikes(data.totalLikes);
         if (data.userId === currentUser?.id) setIsLiked(true);
@@ -348,12 +355,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     onDisconnected: (reason?: any) => {
       const reasonCode = typeof reason === 'number' ? reason : (reason?.code ?? -1);
       console.log('[CHAT] Chat REST desconectado! Reason:', reasonCode);
-      // 🔴 Code 5 = live encerrada (404 na API)
+      // 🔴 Code 5 = live encerrada (404 na API ou evento socket stream_ended)
       if (reasonCode === 5 && !isBroadcaster) {
-        console.log('[CHAT] 🔴 Live encerrada pelo broadcaster. Redirecionando para MainScreen...');
-        setTimeout(() => {
-          onLeaveStreamView();
-        }, 1000);
+        console.log('[CHAT] 🔴 Live encerrada pelo broadcaster. Limpando chat da tela...');
+        // 🧹 Chat morre com a transmissão: apaga TODAS as mensagens da tela.
+        // A sala continua aberta (sem auto-redirecionamento), mas fica zerada.
+        setStreamEnded(true);
+        setMessages([]);
+        setBannerGifts([]);
+        setFullscreenGiftQueue([]);
+        setCurrentFullscreenGift(null);
       }
     },
   });
@@ -467,6 +478,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             console.log('[HOST] StreamRoom desmontado — publish NÃO interrompido (mantido ativo)');
         };
     }, []);
+
+    // 🚫 REMOVIDO: encerramento automático ao o host sair da tela (mudar de aba,
+    // abrir outro app etc). A transmissão SÓ encerra quando o host clica em
+    // "Encerrar Transmissão" — sair da tela nunca derruba a live.
 
     // Escutar mensagens de chat via evento global (window CustomEvent)
     useEffect(() => {
@@ -660,9 +675,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 level: fromUser.level || 1,
                 message: (
                     <span className="inline-flex items-center gap-1">
-                        <span className="font-extrabold text-[#c084fc] hover:underline text-[11px]">{fromUser.name}</span>
-                        <span className="text-purple-250 text-[11px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
-                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-4 h-4 inline-block" }) : <span className="text-sm">{gift.icon || '🎁'}</span>}
+                        <span className="font-extrabold text-[#c084fc] hover:underline text-[10px]">{fromUser.name}</span>
+                        <span className="text-purple-250 text-[10px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
+                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-3 h-3 inline-block" }) : <span className="text-xs">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
                 // 🔧 Fallback de avatar para garantir renderização (msg.avatar obrigatório no chat)
@@ -682,10 +697,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     const handleFullscreenGiftAnimationEnd = () => {
-        if (currentFullscreenGift) {
-            // 🔥 Adicionar à fila lateral após a animação em tela cheia terminar
-            setGiftQueue(prev => [...prev, currentFullscreenGift]);
-        }
+        // 🔥 A animação em tela cheia NÃO re-enfileira o presente no overlay lateral:
+        // cada presente é exibido exatamente uma vez (evita o envio duplicado).
         setCurrentFullscreenGift(null);
     };
 
@@ -702,7 +715,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
         console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id, 'isBroadcaster:', isBroadcaster, 'lkChatConnected:', lkChatConnected);
-        if (chatInput.trim() === '' || !currentUser) { console.log('[CHAT] handleSendMessage ignorado - input vazio ou sem user'); return; }
+        if (chatInput.trim() === '' || !currentUser) return;
         const messagePayload: ChatMessageType = {
             id: String(Date.now()),
             type: 'chat',
@@ -867,8 +880,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         };
 
-        // Verificar status a cada 3 segundos (API SRS)
-        const interval = setInterval(checkPublishStatus, 3000);
+        // 🪫 Economia: 5s em vez de 3s (API SRS não precisa de checagem tão frequente)
+        const interval = setInterval(checkPublishStatus, 5000);
         checkPublishStatus(); // Verificar imediatamente
 
         return () => {
@@ -1020,26 +1033,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 return;
             }
 
-            // Optimistic UI Update for sender
-            const stableGiftId = String(Date.now() + Math.random());
-            const giftPayload: GiftPayload = {
-                fromUser: currentUser,
-                toUser: { id: streamer.hostId, name: streamer.name || 'Streamer' },
-                gift,
-                quantity,
-                roomId: streamer.id,
-                id: stableGiftId // string única
-            };
-
-            // Enviar presente imediatamente (optimistic UI)
-            postGiftChatMessage(giftPayload);
-            setFullscreenGiftQueue(prev => [...prev, giftPayload]);
-
-            // 🔧 Presente agora propagado em tempo real via Socket.IO:
+            // 🔧 Presente propagado em tempo real via Socket.IO:
             // a rota POST /streams/:id/gift do backend emite live_gift_received
             // para a sala da stream — todos (inclusive o remetente) recebem.
-            // O broadcast REST via lkChatSendMessage foi removido (payload sem
-            // texto era ignorado pelo sendMessage).
+            // SEM optimistic UI: o presente só aparece via socket, após o servidor
+            // validar e emitir o evento. Isso garante animação única e sincronizada.
 
             // Now, call the API in the background
             try {
@@ -1097,8 +1095,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 }
             } catch (apiError) {
                 console.error('Erro na API ao enviar presente:', apiError);
-                // O presente já foi enviado via WebSocket, só loga o erro
-                // Não mostra erro para usuário para não atrapalhar experiência
+                addToast(ToastType.Error, "Falha ao enviar o presente. Tente novamente.");
             }
         } catch (error) {
             console.error('Erro geral em handleSendGift:', error);
@@ -1265,6 +1262,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 <LivePlayer
                     streamId={streamer.streamKey || streamer.id}
                     isBroadcaster={isBroadcaster}
+                    quality={isBroadcaster ? 'auto' : viewerQuality}
                     userId={currentUser.id}
                     onPlaying={() => setIsVideoPlaying(true)}
                     onError={() => setIsVideoPlaying(false)}
@@ -1276,21 +1274,24 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
                 {/* Dark Gradient Overlay */}
                 <div className={`absolute inset-0 bg-gradient-to-b from-transparent to-black/70 pointer-events-none transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0'}`} style={{ zIndex: 15 }}></div>
+
+                {/* Live encerrada - mantém a sala aberta e o chat visível */}
+                {streamEnded && (
+                    <div className="absolute inset-0 z-[16] flex flex-col items-center justify-center gap-4 bg-black/60 pointer-events-none">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center">
+                                <svg className="w-7 h-7 text-white/80" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 0a10 10 0 100 20 10 10 0 000-20zm1 5a1 1 0 10-2 0v6a1 1 0 102 0V5zm-1 11.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" clipRule="evenodd" fillRule="evenodd"></path>
+                                </svg>
+                            </div>
+                            <span className="text-white font-bold text-lg">A transmissão terminou</span>
+                            <span className="text-white/60 text-sm">O chat continua disponível.</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* 2. Gift Animation Layers */}
-            <div className="absolute top-24 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
-                <GiftQueueManager
-                    gifts={giftQueue}
-                    onAnimationEnd={(id) => {
-                        // Remover da fila quando a animação terminar
-                        setGiftQueue(prev => prev.filter(g => g.id !== id));
-                    }}
-                    maxConcurrent={3}
-                    maxQueueSize={50}
-                />
-            </div>
-
+            {/* 2. Gift Animation Layer (única — tela cheia, sem overlay lateral duplicado) */}
             <FullScreenGiftAnimation
                 payload={currentFullscreenGift}
                 onEnd={handleFullscreenGiftAnimationEnd}
@@ -1373,7 +1374,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 className="flex items-center bg-black/40 hover:bg-black/60 rounded-full px-2.5 py-1.5 space-x-1.5 text-sm cursor-pointer transition-all border border-white/[0.02] active:scale-95 focus:outline-none"
                             >
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
-                                <span className="text-white font-bold select-none">{Math.max(1, onlineUsers.length)}</span>
+                                <span className="text-white font-bold select-none">{new Set(onlineUsers.map(u => String(u.id))).size}</span>
                             </button>
                             {/* PiP button (viewers only) - OUT-OF-APP native Picture-in-Picture, like ZEGO's pipButton */}
                             {!isBroadcaster && isPiPSupported && (
@@ -1396,6 +1397,35 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     </svg>
                                 </button>
                             )}
+                            {/* 🪫 Seletor de qualidade do espectador (economia de dados) */}
+                            {!isBroadcaster && (
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIsViewerQualityOpen(prev => !prev); }}
+                                        className="focus:outline-none cursor-pointer flex items-center gap-1 text-white/70 hover:text-white transition-all px-1.5 py-1 rounded-lg hover:bg-white/10 active:scale-95"
+                                        title="Qualidade do vídeo"
+                                    >
+                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
+                                        </svg>
+                                        <span className="text-[11px] font-bold">{viewerQuality === 'auto' ? 'Auto' : viewerQuality}</span>
+                                    </button>
+                                    {isViewerQualityOpen && (
+                                        <div className="absolute right-0 top-9 z-[60] bg-[#14121f]/95 backdrop-blur-xl border border-white/10 rounded-xl py-1.5 min-w-[120px] shadow-[0_12px_36px_rgba(0,0,0,0.6)]" onClick={(e) => e.stopPropagation()}>
+                                            {(['auto', '480p', '360p', '240p'] as const).map((q) => (
+                                                <button
+                                                    key={q}
+                                                    onClick={(e) => { e.stopPropagation(); setViewerQuality(q); setIsViewerQualityOpen(false); }}
+                                                    className={`w-full text-left px-3.5 py-2 text-xs font-medium transition-colors ${viewerQuality === q ? 'text-[#26e3ff] bg-white/[0.06]' : 'text-zinc-300 hover:bg-white/[0.05] hover:text-white'}`}
+                                                >
+                                                    {q === 'auto' ? 'Auto (recomendado)' : q === '480p' ? '480p — HD' : q === '360p' ? '360p — Economia' : '240p — Máx. economia'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Minimize button (viewers only) - always PiP, like ZEGO's minimizingButton */}
                             {!isBroadcaster && (
                                 <button
@@ -1482,7 +1512,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: keyboardInset }}>
+            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` }}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
@@ -1526,7 +1556,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         </div>
                     </div>
 
-                <footer className="p-3 pb-[env(safe-area-inset-bottom)] pointer-events-auto">
+                <footer className="p-3 pointer-events-auto">
                     {/* 📡 Typing indicator */}
                     {typingUsers.length > 0 && (
                       <div className="px-2 py-1 text-xs text-gray-400 italic">
@@ -1592,21 +1622,18 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             >
                                 <SendIcon className="w-5 h-5 text-white" />
                             </button>
-                            {/* Gift Action — 🔧 só para ESPECTADORES. O host não
-                                envia presente para si mesmo; o painel de presentes
-                                não aparece para o broadcaster. */}
-                            {!isBroadcaster && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
-                                    className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
-                                >
-                                    <img 
-                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
-                                        alt="Gift Icon" 
-                                        className="w-9 h-9 object-cover rounded-full shadow-lg" 
-                                    />
-                                </button>
-                            )}
+                            {/* Gift Action — host vê o histórico de presentes recebidos
+                                (Galeria); espectador vê os presentes para enviar. */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                                className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                            >
+                                <img 
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                    alt="Gift Icon" 
+                                    className="w-9 h-9 object-cover rounded-full shadow-lg" 
+                                />
+                            </button>
                             {/* Private Chat */}
                             {!isBroadcaster && (
                                 <button 
@@ -1693,22 +1720,23 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
 
-            {/* 🔧 Painel de presentes apenas para espectadores (host não envia presente) */}
-            {!isBroadcaster && (
-                <GiftModal
-                    isOpen={isGiftModalOpen}
-                    onClose={() => setGiftModalOpen(false)}
-                    userDiamonds={currentUser.diamonds ?? 0}
-                    onSendGift={handleSendGift}
-                    onRecharge={handleRecharge}
-                    gifts={gifts}
-                    receivedGifts={receivedGifts}
-                    isBroadcaster={isBroadcaster}
-                    onOpenVIPCenter={onOpenVIPCenter}
-                    isVIP={currentUser.isVIP || false}
-                    currentUser={currentUser}
-                />
-            )}
+            {/* 🔧 Painel de presentes: estrutura idêntica para todos (mesmas abas e
+                layout). O host (broadcaster) vê as áreas de envio vazias — não pode
+                presentear a si mesmo — e usa a aba Galeria para acompanhar os presentes
+                que recebe durante a live. */}
+            <GiftModal
+                isOpen={isGiftModalOpen}
+                onClose={() => setGiftModalOpen(false)}
+                userDiamonds={currentUser.diamonds ?? 0}
+                onSendGift={handleSendGift}
+                onRecharge={handleRecharge}
+                gifts={gifts}
+                receivedGifts={receivedGifts}
+                isBroadcaster={isBroadcaster}
+                onOpenVIPCenter={onOpenVIPCenter}
+                isVIP={currentUser.isVIP || false}
+                currentUser={currentUser}
+            />
             {isWalletOpen && (
                 <WalletScreen
                     onClose={() => setIsWalletOpen(false)}

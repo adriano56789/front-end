@@ -2129,10 +2129,10 @@ export const api = {
         const url = `/api/rtc/v1/whip/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
         return api.whipPublish(url, sdp);
       },
-      whep: (streamKey: string, sdp: string) => {
+      whep: (streamKey: string, sdp: string, signal?: AbortSignal) => {
         const normalizedKey = streamKey.startsWith('stream_') ? streamKey : `stream_${streamKey}`;
         const url = `/api/rtc/v1/whep/?app=live&stream=${encodeURIComponent(normalizedKey)}`;
-        return api.whepPlay(url, sdp);
+        return api.whepPlay(url, sdp, signal);
       },
       deleteWhip: (resourceUrl: string) => {
         return api.whipStop(resourceUrl);

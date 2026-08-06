@@ -31,6 +31,18 @@ export const getWhepPlayUrl = (streamId: string): string => {
 };
 
 /**
+ * WHEP URL por QUALIDADE do espectador (ladder do transcode FFmpeg).
+ * 'auto'/'480p'/'720p'/'source' → stream original (qualidade do transmissor).
+ * '360p'/'240p' → tiers leves {stream}_t360 / {stream}_t240 gerados pelo worker.
+ */
+export const getWhepPlayUrlForQuality = (streamId: string, quality: string): string => {
+  const q = (quality || 'auto').toLowerCase();
+  const tier = q === '360p' ? '_t360' : q === '240p' ? '_t240' : '';
+  const normalizedId = streamId.startsWith('stream_') ? streamId : `stream_${streamId}`;
+  return getWhepPlayUrl(tier ? `${normalizedId}${tier}` : normalizedId);
+};
+
+/**
  * Converte uma URL WHEP (geralmente relativa, ex: /api/rtc/v1/whep/?...) em URL
  * absoluta usando o origin atual da página.
  *

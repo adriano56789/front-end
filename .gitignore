@@ -82,6 +82,12 @@ check-vps.js
 deploy-*.cjs
 proto-test.cjs
 vps-*.cjs
+_patch_abr2.cjs
+_vps_analyze.sh
+_vps_bundle_check.sh
+_vps_check.sh
+_vps_diag21.cjs
+scripts/deploy-livego.sh
 
 # Assets MediaPipe gerados no build (copy-mediapipe-assets.mjs)
 public/wasm/

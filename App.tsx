@@ -182,7 +182,6 @@ import ConfirmPurchaseScreen from './components/ConfirmPurchaseScreen';
 
 import SearchScreen from './components/SearchScreen';
 
-import CameraPermissionModal from './components/CameraPermissionModal';
 
 import LocationPermissionModal from './components/LocationPermissionModal';
 
@@ -219,9 +218,12 @@ import VIPCenterScreen from './components/VIPCenterScreen';
 import PaymentSuccessScreen from './components/PaymentSuccessScreen';
 
 import LiveNotificationModal from './components/live/LiveNotificationModal';
+import InAppNotificationBanner, { InAppNotification } from './components/live/InAppNotificationBanner';
+import { useGlobalNotifications } from './hooks/useGlobalNotifications';
 import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
+import { connectSocket } from './services/socketService';
 
 // Dados iniciais vazios - tudo será carregado da API
 
@@ -392,7 +394,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [isRegionModalOpen, setIsRegionModalOpen] = useState<boolean>(false);
 
-  const [permissionStep, setPermissionStep] = useState<'idle' | 'camera' | 'microphone'>('idle');
 
   const [isLocationPermissionModalOpen, setIsLocationPermissionModalOpen] = useState(false);
 
@@ -404,6 +405,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [showLocationBanner, setShowLocationBanner] = useState(false);
 
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  // 🔔 CTA de permissão de notificação (PWA): o pedido precisa de gesto do usuário
+  const [showNotifCta, setShowNotifCta] = useState(false);
+  const notifDeniedShownRef = useRef(false);
+  const notifCtaShownRef = useRef(false);
 
   const [messageNotifications, setMessageNotifications] = useState<Array<{
 
@@ -500,6 +505,19 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [liveNotification, setLiveNotification] = useState<ExtendedLiveNotification | null>(null);
 
   const [privateInviteData, setPrivateInviteData] = useState<InviteData | null>(null);
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([]);
+
+  // 🔔 Fila de notificações flutuantes in-app (ao vivo / convite privado / PK)
+  const pushInAppNotification = useCallback((n: InAppNotification) => {
+    setInAppNotifications(prev => {
+      if (prev.some(p => p.id === n.id)) return prev;
+      return [...prev, n].slice(-3);
+    });
+    // Rede de segurança: se a animação da faixa não disparar, remove mesmo assim
+    setTimeout(() => {
+      setInAppNotifications(prev => prev.filter(p => p.id !== n.id));
+    }, 8000);
+  }, []);
   const [isPiPMode, setIsPiPMode] = useState(false);
   const [pipStreamer, setPipStreamer] = useState<Streamer | null>(null);
 
@@ -1114,6 +1132,88 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(INITIAL_DATA.notificationSettings);
 
+  // 🔔 Notificações in-app GLOBAIS (Socket.IO + bridge FCM): faixa de ao vivo,
+  // convite privado e convite PK aparecem mesmo fora da StreamRoom.
+  useGlobalNotifications({
+    enabled: isAuthenticated && !!currentUser?.id,
+    userId: currentUser?.id,
+    streamerLiveEnabled: notificationSettings?.streamerLive !== false,
+    skipInvitesWhenInStream: !!activeStream,
+    onNotification: pushInAppNotification,
+  });
+
+  // ⚡ CARD AO VIVO EM TEMPO REAL (WebSocket): quando o backend emite
+  // 'new_live'/'stream_started' (disparado pelo on_publish do SRS), o card
+  // do streamer aparece INSTANTANEAMENTE na lista — sem precisar recarregar.
+  // Preenche os detalhes completos via API em background; o card mínimo
+  // (nome/avatar) já entra na lista na hora.
+  const liveCardSeenRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
+    let disposed = false;
+    let socket: any = null;
+
+    const addLiveCard = (data: any) => {
+      if (!data || disposed) return;
+      const streamId = String(data.id || data.streamId || data.streamKey || '');
+      const hostId = String(data.hostId || data.userId || '');
+      if (!streamId && !hostId) return;
+
+      const key = streamId || hostId;
+      if (liveCardSeenRef.current.has(key)) return; // dedupe por evento
+      liveCardSeenRef.current.add(key);
+
+      // 1) Card MÍNIMO instantâneo (aparece na hora, sem esperar API)
+      const name = data.name || 'Transmissão ao vivo';
+      const avatar = data.avatar || '';
+      setStreamers(prev => {
+        const list = Array.isArray(prev) ? prev : [];
+        const exists = list.some(s => String(s.id) === streamId || String(s.hostId) === hostId);
+        if (exists) return list;
+        const newCard = {
+          id: streamId,
+          streamKey: streamId,
+          hostId: hostId || streamId,
+          name,
+          avatar,
+          isLive: true,
+          streamStatus: 'active',
+          country: data.country || 'BR',
+          viewers: data.viewers || 0,
+          category: data.category || 'popular',
+          diamonds: 0,
+        } as Streamer;
+        return [newCard, ...list];
+      });
+
+      // 2) Preencher detalhes completos do card em background (sem bloquear)
+      if (streamId) {
+        api.getLiveDetails(streamId).then((details: any) => {
+          if (disposed || !details) return;
+          setStreamers(prev => {
+            const list = Array.isArray(prev) ? prev : [];
+            return list.map(s => String(s.id) === streamId ? { ...s, ...details } : s);
+          });
+        }).catch(() => {/* card mínimo já está na tela */});
+      }
+    };
+
+    connectSocket().then(s => {
+      if (disposed || !s?.connected) return;
+      socket = s;
+      s.on('new_live', addLiveCard);
+      s.on('stream_started', addLiveCard);
+    });
+
+    return () => {
+      disposed = true;
+      if (socket) {
+        socket.off('new_live', addLiveCard);
+        socket.off('stream_started', addLiveCard);
+      }
+    };
+  }, [isAuthenticated, currentUser?.id]);
+
   const [lastPhotoLikeUpdate, setLastPhotoLikeUpdate] = useState<number>(0);
 
   // Refs para evitar loops no useEffect dos sockets
@@ -1159,6 +1259,26 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     }, 3000);
 
   }, []);
+
+  // 🔔 Ativa notificações via gesto do usuário — navegadores móveis ignoram
+  // requestPermission fora de um toque, então o CTA/botão é o gatilho correto.
+  const handleEnableNotifications = useCallback(async () => {
+    setShowNotifCta(false);
+    if (!currentUserRef.current) return;
+    try {
+      const { requestNotificationPermission } = await import('./services/notificationService');
+      const status = await requestNotificationPermission(currentUserRef.current.id);
+      if (status === 'granted') {
+        addToast(ToastType.Success, '🔔 Notificações ativadas! Você será avisado quando seus streamers entrarem ao vivo.');
+      } else if (status === 'denied') {
+        addToast(ToastType.Error, '🔕 Permissão negada. Ative nas configurações do navegador: 🔒 (endereço) → Permissões → Notificações → Permitir.');
+      } else if (status === 'unsupported') {
+        addToast(ToastType.Info, 'ℹ️ Seu navegador não suporta notificações. Instale o app pela tela de início para recebê-las.');
+      }
+    } catch (err) {
+      console.warn('[NOTIFICATION] Erro ao ativar notificações:', err);
+    }
+  }, [addToast]);
 
   const updateUserEverywhere = useCallback((updatedUser: User) => {
 
@@ -1468,8 +1588,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     }
 
     if (currentUserRef.current) {
-      import('./services/notificationService').then(({ initNotifications }) => {
-        initNotifications(currentUserRef.current.id);
+      import('./services/notificationService').then(async ({ initNotifications }) => {
+        const notifStatus = await initNotifications(currentUserRef.current.id);
+        if (notifStatus === 'denied') {
+          if (!notifDeniedShownRef.current) {
+            notifDeniedShownRef.current = true;
+            addToast(ToastType.Error, '🔕 Notificações bloqueadas no navegador. Para ativar, toque no 🔒 do endereço → Permissões → Notificações → Permitir.');
+          }
+        } else if (notifStatus === 'default' && !notifCtaShownRef.current) {
+          notifCtaShownRef.current = true;
+          setShowNotifCta(true);
+        }
       });
       import('./services/firebase').then(({ onForegroundMessage }) => {
         onForegroundMessage((payload) => {
@@ -1479,7 +1608,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           if (type === 'new_message') {
             addToast(ToastType.Info, `${title}: ${body}`);
           } else if (type === 'live_started') {
-            addToast(ToastType.Info, `🔴 ${title} está ao vivo!`);
+            // 🔔 Firebase/FCM serve SÓ para push na tela: NUNCA carrega avatar,
+            // foto ou ícone. A faixa in-app usa apenas os dados de roteamento
+            // (ids) — o avatar vem exclusivamente do Socket.IO em tempo real.
+            window.dispatchEvent(new CustomEvent('app:show_in_app_notification', {
+              detail: {
+                type: 'live_started',
+                streamerId: payload.data?.streamerId || payload.data?.hostId || '',
+                streamerName: title,
+                streamId: payload.data?.streamId || payload.data?.streamKey || '',
+              }
+            }));
           } else if (body) {
             addToast(ToastType.Info, `${title}: ${body}`);
           }
@@ -2304,77 +2443,99 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
-  const checkMicrophonePermission = async () => {
-    setPermissionStep('microphone');
-    // A navegação já foi feita ou será feita pelo chamador
-  };
-
-
-
-  const checkCameraPermission = async () => {
-    setPermissionStep('camera');
-  };
-
-
-
+  // 🎥 Permissão NATIVA do sistema — sem tela personalizada:
+  // getUserMedia dispara o prompt oficial do Android/iOS/desktop.
+  // Aqui só validamos a permissão; a captura real é feita no GoLiveScreen.
   const handleOpenGoLive = async () => {
-    // Iniciamos o fluxo de permissões primeiro na tela atual (ex: MainScreen)
-    await checkCameraPermission();
-  };
-
-
-
-  const handlePermissionAllow = async () => {
-
-    if (permissionStep === 'camera') {
-
-      try {
-
-        await navigator.mediaDevices.getUserMedia({ video: true });
-
-        await checkMicrophonePermission();
-
-      } catch (err) {
-
-        addToast(ToastType.Error, t('toasts.permissionsNeeded'));
-
-        setPermissionStep('idle');
-
-      }
-
-    } else if (permissionStep === 'microphone') {
-
-      try {
-
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        navigate('/golive');
-
-        setPermissionStep('idle');
-
-      } catch (err) {
-
-        addToast(ToastType.Error, t('toasts.permissionsNeeded'));
-
-        setPermissionStep('idle');
-
-      }
-
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      navigate('/golive');
+      return;
     }
-
+    try {
+      const testStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Libera o teste — a tela Ao Vivo captura de novo (já autorizado)
+      testStream.getTracks().forEach(t => t.stop());
+      navigate('/golive');
+    } catch (err: any) {
+      const name = err?.name;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        addToast(ToastType.Error, '🔕 Permissão de câmera/microfone negada. Para ativar: toque no 🔒 do endereço → Permissões → Câmera e Microfone → Permitir.');
+      } else if (name === 'NotFoundError') {
+        addToast(ToastType.Error, 'Câmera ou microfone não encontrados neste dispositivo.');
+      } else if (name === 'NotReadableError') {
+        addToast(ToastType.Error, 'Câmera em uso por outro aplicativo. Feche o outro app e tente de novo.');
+      } else {
+        addToast(ToastType.Error, 'Não foi possível acessar câmera/microfone. Verifique as permissões no navegador (🔒).');
+      }
+    }
   };
 
 
 
-  const handlePermissionDeny = async () => {
+  // 🔔 Ações das notificações in-app
+  const handleInAppAction = useCallback(async (n: InAppNotification) => {
+    if (n.type === 'live_started') {
+      const d = n.data || {};
+      const targetId = d.streamId || `stream_${d.streamerId}`;
+      let target: Streamer | null = streamers.find((s: Streamer) => s.id === targetId || s.hostId === d.streamerId) || null;
+      if (!target) {
+        try {
+          const data = await api.getLiveDetails(targetId);
+          if (data) target = data;
+        } catch { /* live pode ter acabado */ }
+      }
+      if (target) {
+        handleSelectStreamRef.current?.(target);
+      } else {
+        addToast(ToastType.Error, 'Transmissão não encontrada ou já encerrada.');
+      }
+      return;
+    }
+    if (n.type === 'private_invite') {
+      const d = n.data || {};
+      setPrivateInviteData({
+        streamId: d.streamId,
+        hostId: d.fromUserId || d.hostId || '',
+        streamName: d.streamName || d.message || 'Transmissão privada',
+        hostName: d.fromUserName || d.fromName || 'Usuário',
+        hostAvatar: d.fromUserAvatar || '',
+      });
+      navigate('/golive');
+      return;
+    }
+    if (n.type === 'pk_invite') {
+      const d = n.data || {};
+      addToast(ToastType.Info, 'Aceitando convite da batalha PK...');
+      try {
+        await api.respondToLiveInvite(d.inviteId, 'accepted');
+        const streamId = d.streamId;
+        if (streamId) {
+          let target = streamers.find((s: any) => s.id === streamId || s.hostId === (d.fromUserId || d.from)) || null;
+          if (!target) {
+            try { const data = await api.getLiveDetails(streamId); if (data) target = data; } catch { /* segue */ }
+          }
+          if (target) handleSelectStreamRef.current?.(target);
+          else addToast(ToastType.Success, 'Convite aceito! Entre na live do oponente pela lista.');
+        } else {
+          addToast(ToastType.Success, 'Convite aceito!');
+        }
+      } catch (err) {
+        console.error('[PK-INVITE] Erro ao aceitar:', err);
+        addToast(ToastType.Error, 'Falha ao aceitar o desafio.');
+      }
+    }
+  }, [streamers, navigate, addToast]);
 
-    addToast(ToastType.Error, t('toasts.permissionsNeeded'));
-
-    setPermissionStep('idle');
-
-  };
-
-
+  const handleInAppSecondaryAction = useCallback(async (n: InAppNotification) => {
+    if (n.type !== 'pk_invite') return;
+    const d = n.data || {};
+    try {
+      await api.respondToLiveInvite(d.inviteId, 'declined');
+      addToast(ToastType.Info, 'Convite recusado.');
+    } catch (err) {
+      console.error('[PK-INVITE] Erro ao recusar:', err);
+    }
+  }, [addToast]);
 
   const handleSelectStream = async (streamer: Streamer) => {
 
@@ -2626,39 +2787,44 @@ const logLiveEvent = (type: string, data: any) => {
 
       setIsEndStreamSummaryOpen(true);
 
-      // 🔧 CORREÇÃO: Primeiro executar as chamadas de API (que usam activeStream e liveSession)
-      // DEPOIS limpar o estado e navegar para fora
+      // 🔧 CORREÇÃO: encerrar a live no backend e remover o card. Cada chamada
+      // secundária é isolada para NUNCA mostrar toast de erro — o encerramento
+      // e a navegação sempre acontecem, mesmo se alguma etapa falhar.
+      console.log('[LIVE-END] Encerrando live - chamando backend...');
       try {
-        // 1. Chamar backend para registrar fim da live (controle de status)
-        try {
-          console.log('[LIVE-END] Encerrando live - chamando backend...');
-          const endResponse = await api.endLive();
-          if (endResponse.success) {
-            console.log('[LIVE-END] Live encerrada no backend');
-          } else {
-            console.warn('[LIVE-END] Falha ao encerrar live no backend');
-          }
-        } catch (backendError) {
-          console.warn('[LIVE-END] Erro ao chamar endLiveStream:', backendError);
-        }
-
-        const response = await api.endLiveSession(activeStream.id, liveSession);
-
-        // 2. Remover o card especificamente
-        console.log('[LIVE-END] Removendo card da live...');
-        const removeResponse = await api.removeLiveCard(activeStream.id, currentUser?.id || '');
-
-        if (!removeResponse.success) {
-          console.warn('[LIVE-END] ⚠️ Card da live não foi removido no backend');
+        const endResponse = await api.endLive();
+        if (endResponse?.success) {
+          console.log('[LIVE-END] Live encerrada no backend');
         } else {
-          console.log('[LIVE-END] ✅ Card removido com sucesso');
+          console.warn('[LIVE-END] Falha ao encerrar live no backend');
         }
+      } catch (backendError) {
+        console.warn('[LIVE-END] Erro ao chamar endLive:', backendError);
+      }
 
-        // 3. Recarregar a lista de streams para atualizar os cards
+      try {
+        await api.endLiveSession(activeStream.id, liveSession);
+      } catch (sessionErr) {
+        console.warn('[LIVE-END] endLiveSession falhou (ignorado):', sessionErr);
+      }
+
+      // Remover o card especificamente
+      try {
+        const removeResponse = await api.removeLiveCard(activeStream.id, currentUser?.id || '');
+        if (removeResponse?.success) {
+          console.log('[LIVE-END] ✅ Card removido com sucesso');
+        } else {
+          console.warn('[LIVE-END] ⚠️ Card da live não foi removido no backend');
+        }
+      } catch (removeErr) {
+        console.warn('[LIVE-END] removeLiveCard falhou (ignorado):', removeErr);
+      }
+
+      // Recarregar a lista de streams para atualizar os cards
+      try {
         await loadStreams();
-      } catch (error) {
-        console.error('[LIVE-END] ❌ Erro ao encerrar transmissão:', error);
-        addToast(ToastType.Error, 'Erro ao encerrar transmissão');
+      } catch (loadErr) {
+        console.warn('[LIVE-END] loadStreams falhou (ignorado):', loadErr);
       }
 
       // ✅ SEMPRE limpar estado e navegar, independente de erros nas chamadas de API
@@ -3765,7 +3931,6 @@ const logLiveEvent = (type: string, data: any) => {
 
       {/* Updated GoLiveScreen usage to accept inviteData */}
 
-      <CameraPermissionModal isOpen={permissionStep !== 'idle'} permissionType={permissionStep} onAllowAlways={handlePermissionAllow} onAllowOnce={handlePermissionAllow} onDeny={handlePermissionDeny} onClose={() => setPermissionStep('idle')} />
 
       <LocationPermissionModal isOpen={isLocationPermissionModalOpen} onAllow={handleAllowLocation} onAllowOnce={handleAllowLocation} onDeny={handleDenyLocation} permissionStatus={locationPermissionStatus} />
 
@@ -3877,6 +4042,14 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
+      {/* 🔔 Faixa de notificações in-app (ao vivo / convite privado / PK) */}
+      <InAppNotificationBanner
+        notifications={inAppNotifications}
+        onDismiss={(id) => setInAppNotifications(prev => prev.filter(p => p.id !== id))}
+        onAction={handleInAppAction}
+        onSecondaryAction={handleInAppSecondaryAction}
+      />
+
       {/* LiveNotificationModal rendered for standard notifications, but private invite uses GoLiveScreen directly */}
 
       <LiveNotificationModal
@@ -3892,6 +4065,37 @@ const logLiveEvent = (type: string, data: any) => {
       />
 
 
+
+      {/* 🔔 CTA único: pedir permissão de notificação com gesto do usuário (PWA) */}
+      {showNotifCta && (
+        <div className="fixed bottom-24 left-3 right-3 z-[100] animate-fade-in">
+          <div className="bg-[#14121f]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-[0_16px_50px_rgba(0,0,0,0.6)]">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#26e3ff]/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-lg">🔔</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-bold text-sm">Ative as notificações</p>
+                <p className="text-zinc-400 text-xs mt-1 leading-relaxed">Saiba quando seus streamers favoritos entram ao vivo, mesmo com o app fechado.</p>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={handleEnableNotifications}
+                    className="flex-1 bg-gradient-to-r from-[#26e3ff] to-sky-500 text-black font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform"
+                  >
+                    Ativar
+                  </button>
+                  <button
+                    onClick={() => setShowNotifCta(false)}
+                    className="px-4 bg-white/[0.06] text-zinc-300 text-xs py-2.5 rounded-xl active:scale-95 transition-transform"
+                  >
+                    Agora não
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="absolute top-4 right-4 left-4 sm:left-auto space-y-2 z-[9999] pointer-events-none">
 

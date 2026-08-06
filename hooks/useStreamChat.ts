@@ -66,10 +66,11 @@ export function useStreamChat(options: StreamChatOptions) {
   const optionsRef = useRef(options);
   const knownMessageIdsRef = useRef<Set<string>>(new Set());
   const knownOnlineIdsRef = useRef<Set<string>>(new Set());
-  const knownGiftIdsRef = useRef<Set<string>>(new Set());
+  const knownGiftIdsRef = useRef<Map<string, number>>(new Map()); // key → timestamp (dedupe com janela de tempo)
   const knownEntryIdsRef = useRef<Set<string>>(new Set()); // dedupe entradas (user:join + user_joined_stream duplicados no backend)
   const lastLikesRef = useRef<number>(-1);
   const firstPollDoneRef = useRef(false);
+  const deadRoomRef = useRef(false); // live encerrada (404) — não emitir eventos da sala morta
 
   useEffect(() => {
     optionsRef.current = options;
@@ -86,6 +87,7 @@ export function useStreamChat(options: StreamChatOptions) {
     knownOnlineIdsRef.current.clear();
     knownGiftIdsRef.current.clear();
     lastLikesRef.current = -1;
+    deadRoomRef.current = false;
     console.log('[StreamChat] Sincronização inicial REST para stream', streamId);
 
     let cancelled = false;
@@ -120,6 +122,7 @@ export function useStreamChat(options: StreamChatOptions) {
       } catch (err: any) {
         // 404 = live não existe mais / foi encerrada
         if (err?.response?.status === 404 || err?.status === 404) {
+          deadRoomRef.current = true; // 🛑 sala morta — bloqueia replay de presentes/online
           optionsRef.current.onDisconnected?.({ code: 5 }); // análogo ROOM_DELETED
         }
       }
@@ -134,47 +137,19 @@ export function useStreamChat(options: StreamChatOptions) {
         users.forEach((u: any) => {
           if (!knownOnlineIdsRef.current.has(u.id)) {
             knownOnlineIdsRef.current.add(u.id);
-            optionsRef.current.onMessage?.({ type: 'viewer_joined', user: u });
+            if (!deadRoomRef.current) {
+              optionsRef.current.onMessage?.({ type: 'viewer_joined', user: u });
+            }
           }
         });
         knownOnlineIdsRef.current = currentIds;
       } catch { /* silencioso */ }
     };
 
-    const syncGifts = async () => {
-      try {
-        const res: any = await api.get(`/api/gifts/stream/${streamId}`);
-        const groups = Array.isArray(res?.gifts) ? res.gifts : [];
-        // A API retorna presentes agrupados por usuário:
-        // { userId, userName, userAvatar, gifts: [{ id, giftName, giftIcon, giftPrice, quantity, totalValue }] }
-        for (const g of groups) {
-          const userId = g.userId || '';
-          const giftList = Array.isArray(g.gifts) ? g.gifts : [];
-          for (const item of giftList) {
-            const giftId = String(item.id || item.giftName || '');
-            // 🔑 Chave compartilhada com o socket (dedupe entre fontes)
-            const key = `${userId}_${String(item.giftName || giftId)}_${item.quantity || 1}`;
-            if (!giftId) continue;
-            if (!knownGiftIdsRef.current.has(key)) {
-              knownGiftIdsRef.current.add(key);
-              optionsRef.current.onMessage?.({
-                type: 'live_gift_received',
-                from: {
-                  id: userId,
-                  name: g.userName || 'Usuário',
-                  avatarUrl: g.userAvatar || '',
-                  level: 1,
-                },
-                gift: { name: item.giftName || 'Presente', icon: item.giftIcon || '🎁', price: item.giftPrice || 0 },
-                quantity: item.quantity || 1,
-                toUser: { id: optionsRef.current.userId, name: optionsRef.current.userName || 'Streamer' },
-                roomId: streamId,
-              });
-            }
-          }
-        }
-      } catch { /* silencioso */ }
-    };
+    // 🚫 REMOVIDO: syncGifts — presentes NÃO são reexibidos ao entrar na sala.
+    // O "envio de presente" só deve aparecer em tempo real (via Socket.IO),
+    // quando um usuário REALMENTE envia um presente. Replay de presentes
+    // antigos gerava notificações falsas na entrada da sala.
 
     const syncLikes = async () => {
       try {
@@ -197,7 +172,7 @@ export function useStreamChat(options: StreamChatOptions) {
     };
 
     (async () => {
-      await Promise.all([syncMessages(), syncOnlineUsers(), syncGifts(), syncLikes()]);
+      await Promise.all([syncMessages(), syncOnlineUsers(), syncLikes()]);
       if (!cancelled && !firstPollDoneRef.current) {
         firstPollDoneRef.current = true;
         setConnected(true);
@@ -222,6 +197,8 @@ export function useStreamChat(options: StreamChatOptions) {
     knownSentInviteIdsRef.current.clear();
 
     const pollInvites = async () => {
+      // 🪫 Economia de bateria: sem polling com o app em background
+      if (typeof document !== 'undefined' && document.hidden) return;
       // Convites RECEBIDOS (sou o invitee) → disparar janela de convite
       try {
         const res: any = await api.get(`/api/live/invites/pending?username=${encodeURIComponent(userId)}`);
@@ -263,7 +240,8 @@ export function useStreamChat(options: StreamChatOptions) {
     };
 
     pollInvites();
-    const interval = setInterval(pollInvites, 3000);
+    // 🪫 10s em vez de 3s: menos requisições REST e menos bateria
+    const interval = setInterval(pollInvites, 10000);
 
     return () => clearInterval(interval);
   }, [streamId, userId, disabled]);
@@ -388,10 +366,14 @@ export function useStreamChat(options: StreamChatOptions) {
         if (!giftName) return;
         const fromId = data.from?.id || data.fromUser?.id || '';
         const quantity = data.quantity || 1;
-        // 🔑 Mesma chave do polling → dedupe entre as duas fontes
+        // 🔑 Chave de dedupe com JANELA DE TEMPO (2s): o backend emite o mesmo
+        // evento duas vezes (live_gift_received + gift_received) — dedupe esses,
+        // MAS permite presentes idênticos repetidos do mesmo usuário (ex: x2 Coração).
+        const now = Date.now();
         const key = `${fromId}_${giftName}_${quantity}`;
-        if (!knownGiftIdsRef.current.has(key)) {
-          knownGiftIdsRef.current.add(key);
+        const lastAt = knownGiftIdsRef.current.get(key) || 0;
+        if (!deadRoomRef.current && now - lastAt > 2000) {
+          knownGiftIdsRef.current.set(key, now);
           optionsRef.current.onMessage?.({
             type: 'live_gift_received',
             from: {
@@ -442,6 +424,19 @@ export function useStreamChat(options: StreamChatOptions) {
         });
       };
       unsubs.push(onSocketEvent('stream_unliked', handleUnlike));
+
+      // 🛑 LIVE ENCERRADA — o host finalizou a transmissão (backend emite stream_ended).
+      // Marca a sala como morta e avisa a UI (onDisconnected code 5) para limpar o
+      // chat da tela. Sem isso, espectadores que já estão na sala não saberiam que
+      // a live acabou (o 404 do REST só dispara para quem entra depois).
+      const handleStreamEnded = (data: any) => {
+        if (!data || disposed) return;
+        const evRoom = data.streamId || data.roomId;
+        if (evRoom && String(evRoom) !== String(streamId)) return;
+        deadRoomRef.current = true;
+        optionsRef.current.onDisconnected?.({ code: 5 });
+      };
+      unsubs.push(onSocketEvent('stream_ended', handleStreamEnded));
 
       // 💎 Saldo de diamantes / ganhos do usuário em tempo real
       unsubs.push(onSocketEvent('diamonds_updated', (data: any) => {

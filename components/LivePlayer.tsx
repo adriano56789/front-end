@@ -1,7 +1,6 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
 import { SrsPlayerEngine } from "../services/SrsPlayerEngine";
 import { streamPublishService } from "../services/streamPublishService";
-import { getWhepPlayUrl, resolveAbsoluteUrl } from "../services/mediaConfig";
 
 interface LivePlayerProps {
   url?: string;
@@ -12,27 +11,10 @@ interface LivePlayerProps {
   onError?: () => void;
   muted?: boolean;
   onVideoRef?: (el: HTMLVideoElement | null) => void;
-}
-
-/**
- * Tenta chamar video.play() tratando AbortError silenciosamente.
- * O AbortError é esperado quando:
- *   - O componente desmonta durante a reprodução
- *   - React StrictMode causa mount/unmount/mount
- *   - srcObject é reatribuído antes do play() resolver
- */
-function safePlay(video: HTMLVideoElement): Promise<void> {
-  return video.play().catch((e: DOMException) => {
-    if (e.name === 'AbortError') {
-      // AbortError é esperado — ignorar silenciosamente
-      return;
-    }
-    console.warn('[LivePlayer] Erro ao reproduzir vídeo:', e);
-  });
+  quality?: string;
 }
 
 export default function LivePlayer({
-  url,
   streamId,
   isBroadcaster = false,
   onPlaying,
@@ -41,12 +23,6 @@ export default function LivePlayer({
   onVideoRef,
 }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [playerError, setPlayerError] = useState<string | null>(null);
-
-  // ─── Refs de proteção contra dupla inicialização (React StrictMode) ───
-  const engineRef = useRef<SrsPlayerEngine | null>(null);
-  const startedRef = useRef(false);
-  const destroyKeyRef = useRef(0); // Incrementado a cada destroy para detectar stale closures
 
   // Expose video element to parent
   useEffect(() => {
@@ -58,129 +34,74 @@ export default function LivePlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    const instanceKey = ++destroyKeyRef.current;
-
     if (isBroadcaster) {
-      // ═══ MODO BROADCASTER ═══
       console.log("[LivePlayer] Modo Broadcaster ativo. Registrando vídeo local...");
-
+      
+      // 1. Register with streamPublishService so we get the mirrored style classes and state updates
       streamPublishService.registerVideoRef(videoRef);
 
-      // Fetch and assign the current stream
+      // 2. Fetch and assign the current stream
       const localStream = streamPublishService.getCurrentStream();
-      if (localStream && !startedRef.current) {
-        startedRef.current = true;
+      if (localStream) {
         video.srcObject = localStream;
-        safePlay(video).then(() => onPlaying?.());
+        video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local:', e));
+        onPlaying?.();
       }
 
       // Check periodically in case stream wasn't ready on first mount
       const checkInterval = setInterval(() => {
-        // Proteção contra closures stale (React StrictMode)
-        if (instanceKey !== destroyKeyRef.current) {
-          clearInterval(checkInterval);
-          return;
-        }
-        if (!startedRef.current) {
-          const currentLocal = streamPublishService.getCurrentStream();
-          if (currentLocal) {
-            startedRef.current = true;
-            video.srcObject = currentLocal;
-            safePlay(video).then(() => onPlaying?.());
-          }
+        if (video.srcObject) return;
+        const currentLocal = streamPublishService.getCurrentStream();
+        if (currentLocal) {
+          video.srcObject = currentLocal;
+          video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local (retrying):', e));
+          onPlaying?.();
         }
       }, 1000);
 
       return () => {
         clearInterval(checkInterval);
         streamPublishService.registerVideoRef(null);
-        startedRef.current = false;
-        // Limpar srcObject apenas se esta é a última instância
-        if (instanceKey === destroyKeyRef.current || destroyKeyRef.current <= 1) {
-          if (video) {
-            video.srcObject = null;
-          }
+        if (video) {
+          video.srcObject = null;
         }
       };
     } else {
-      // ═══ MODO VIEWER ═══
       if (!streamId) return;
 
-      console.log(`[LivePlayer] Iniciando player WHEP (WebRTC) para stream ID: ${streamId}`);
+      console.log(`📡 [LivePlayer] [SRS] Iniciando player para stream ID: ${streamId}`);
+      console.log('📡 [SRS] Conectando ao SRS...');
 
-      if (engineRef.current) {
-        console.log('[LivePlayer] Engine já existe, ignorando dupla inicialização');
-        return;
-      }
+      const engine = new SrsPlayerEngine({
+        autoMuteRetry: true,
+        userMuted: muted,
+      });
 
-      // Variáveis para cleanup - declaradas no escopo do useEffect
-      let unsubState: (() => void) | undefined;
-      let unsubError: (() => void) | undefined;
-      let unsubPlaying: (() => void) | undefined;
-
-      const startWhepPlayer = () => {
-        if (instanceKey !== destroyKeyRef.current) return;
-
-        const engine = new SrsPlayerEngine({
-          autoMuteRetry: true,
-          reconnectRetries: 5,
-          connectTimeout: 15000,
-          verboseLogs: true,
-        });
-        engineRef.current = engine;
-
-        unsubState = engine.on('stateChanged', (prev: string, next: string) => {
-          if (instanceKey !== destroyKeyRef.current) return;
-          console.log(`[LivePlayer] Estado mudou: ${prev} -> ${next}`);
-          if (next === 'playing') {
-            setPlayerError(null);
-            console.log('[LivePlayer] WebRTC/WHEP playback iniciado');
-            onPlaying?.();
-          } else if (next === 'error') {
-            onError?.();
-          }
-        });
-
-        // Escutar erros detalhados do engine
-        unsubError = engine.on('error', (code: string, msg: string) => {
-          console.error(`[LivePlayer] SRS error ${code}:`, msg);
-          setPlayerError(msg || 'Erro ao conectar na transmissão');
+      const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
+        console.log(`[LivePlayer] [SRS] Estado mudou: ${prev} -> ${next}`);
+        if (next === 'loading') {
+          console.log('⏳ [LivePlayer] Conectando à live (WHEP)...');
+        } else if (next === 'playing') {
+          console.log('✅ [LivePlayer] CONECTADO — reprodução ao vivo iniciada');
+          console.log('✅ [LivePlayer] [SRS] SRS conectado');
+          console.log('✅ [LivePlayer] [SRS] stream ativo');
+          console.log('🎬 [LivePlayer] [SRS] playback iniciado');
+          onPlaying?.();
+        } else if (next === 'error') {
+          console.error('❌ [LivePlayer] FALHA ao conectar na live (verifique se o streamer está transmitindo)');
           onError?.();
-        });
+        }
+      });
 
-        // 🔧 Usar URL WHEP do backend se disponível, senão gerar com getWhepPlayUrl()
-        // A URL do backend já tem o prefixo 'stream_' correto (ex: /api/rtc/v1/whep/?app=live&stream=stream_1951388)
-        // ⚠️ Sempre ABSOLUTA: o srs.sdk.js constrói URLs internas com base na URL passada;
-        // URLs relativas disparam 'Failed to construct URL: Invalid base URL' no WHEP.
-        const finalUrl = resolveAbsoluteUrl(url || getWhepPlayUrl(streamId));
-        engine.start(streamId, video, finalUrl).catch(err => {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          console.error('[LivePlayer] Error running SrsPlayerEngine:', errMsg);
-          setPlayerError(errMsg || 'Falha ao carregar transmissão');
-          onError?.();
-        });
-
-        // Limpar erro quando começar a tocar
-        unsubPlaying = engine.on('playing', () => {
-          setPlayerError(null);
-        });
-      };
-
-      // Iniciar WHEP player IMEDIATAMENTE — sem validação de URL.
-      console.log('[LivePlayer] Iniciando WHEP player imediatamente (WebRTC)...');
-      startWhepPlayer();
+      engine.start(streamId, video).catch(err => {
+        console.error('[LivePlayer] Error running SrsPlayerEngine:', err);
+        onError?.();
+      });
 
       return () => {
-        if (instanceKey !== destroyKeyRef.current) return;
-        if (unsubState) unsubState();
-        if (unsubError) unsubError();
-        if (unsubPlaying) unsubPlaying();
-        if (engineRef.current) {
-          engineRef.current.destroy();
-          engineRef.current = null;
-        }
+        unsubState();
+        engine.destroy();
       };
-
     }
   }, [streamId, isBroadcaster, muted]);
 
@@ -198,15 +119,6 @@ export default function LivePlayer({
         controls={false}
         className="w-full h-full object-cover"
       />
-      {playerError && !isBroadcaster && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
-          <div className="text-center px-6">
-            <div className="text-red-400 text-4xl mb-3">📡</div>
-            <p className="text-white font-semibold text-sm mb-1">Stream indisponível</p>
-            <p className="text-gray-400 text-xs max-w-[250px]">{playerError}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -16,7 +16,9 @@
   "name": "Rosa",
   "price": 10,
   "icon": "🌹",
-  "category": "Popular"
+  "category": "Popular",
+  "animationUrl": "/animations/rosa_cristal.mp4",
+  "duration": 5500
 },
 {
   "_id": {
@@ -138,7 +140,9 @@
   "name": "Champanhe",
   "price": 1200,
   "icon": "🍾",
-  "category": "Luxo"
+  "category": "Luxo",
+  "animationUrl": "/animations/champanhe_dourado.mp4",
+  "duration": 4500
 },
 {
   "_id": {
@@ -369,7 +373,6 @@
   "price": 500,
   "icon": "🚀",
   "category": "VIP",
-  "videoUrl": "https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
   "triggersAutoFollow": true
 },
 {
@@ -390,7 +393,9 @@
   "name": "Anel",
   "price": 750,
   "icon": "💍",
-  "category": "VIP"
+  "category": "VIP",
+  "animationUrl": "/animations/anel_de_ouro.mp4",
+  "duration": 4500
 },
 {
   "_id": {

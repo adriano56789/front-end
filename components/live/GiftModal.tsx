@@ -30,6 +30,16 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     const dragItem = useRef<Gift | null>(null);
     const dragOverItem = useRef<Gift | null>(null);
 
+    // Renderiza o visual de um presente: componente SVG (enriquecido), URL de imagem
+    // ou emoji como fallback.
+    const renderGiftVisual = (gift: any) => {
+        if (gift.component) return gift.component;
+        if (typeof gift.icon === 'string' && gift.icon.startsWith('http')) {
+            return <img src={gift.icon} alt={gift.name} className="w-10 h-10 object-cover rounded-lg" />;
+        }
+        return gift.icon;
+    };
+
     const giftCategories = useMemo(() => {
         const categories: (Gift['category'] | 'Galeria')[] = ['Popular', 'Luxo', 'Atividade', 'VIP', 'Efeito', 'Entrada', 'Galeria'];
         return categories;
@@ -38,22 +48,27 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     const [activeTab, setActiveTab] = useState<(Gift['category'] | 'Galeria')>(giftCategories[0]);
 
     // Função para buscar presentes por categoria da API
-    const fetchGiftsByCategory = async (category: string) => {
+    // silent: não mostra o estado de carregamento (usado para refresh em segundo plano)
+    const fetchGiftsByCategory = async (category: string, silent = false) => {
         if (category === 'Galeria') {
             // Buscar presentes recebidos pelo usuário
-            setLoadingCategories(prev => new Set(prev).add(category));
+            if (!silent) setLoadingCategories(prev => new Set(prev).add(category));
             try {
                 // Usar o ID do usuário atual real
                 const userId = currentUser.id;
                 const receivedGifts = await api.getReceivedGifts(userId);
-                setReceivedGiftsData(receivedGifts);
+                // Adicionar componentes SVG aos presentes recebidos para exibir
+                // os mesmos ícones do painel de envio (fallback para o emoji/URL).
+                setReceivedGiftsData(enrichGiftsWithComponents(receivedGifts));
             } catch (error) {
             } finally {
-                setLoadingCategories(prev => {
-                    const newSet = new Set(prev);
-                    newSet.delete(category);
-                    return newSet;
-                });
+                if (!silent) {
+                    setLoadingCategories(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(category);
+                        return newSet;
+                    });
+                }
             }
             return;
         }
@@ -107,6 +122,22 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
         }
     }, [isOpen, activeTab]);
 
+    // 🔧 Host: manter a Galeria sempre atualizada durante a live — conforme novos
+    // presentes chegam, a lista acumula automaticamente enquanto o painel está aberto.
+    useEffect(() => {
+        if (!isOpen || activeTab !== 'Galeria') return;
+        const intervalId = setInterval(() => {
+            fetchGiftsByCategory('Galeria', true);
+        }, 8000);
+        return () => clearInterval(intervalId);
+    }, [isOpen, activeTab]);
+
+    // 🔧 Sincronizar a aba ativa quando o papel muda (espectador → host) para
+    // garantir que o painel sempre começa no mesmo estado para os dois.
+    useEffect(() => {
+        setActiveTab(giftCategories[0]);
+    }, [isBroadcaster]);
+
     const [selectedGift, setSelectedGift] = useState<Gift | null>(null);
     const [quantity, setQuantity] = useState(1);
     const presetQuantities = [1, 10, 99, 188, 520, 1314];
@@ -123,8 +154,11 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
 
     const filteredGifts = useMemo(() => {
         if (activeTab === 'Galeria') return [];
+        // Host não envia presente para si mesmo: as áreas de envio ficam vazias,
+        // mas o painel mantém toda a estrutura/abas normalmente.
+        if (isBroadcaster) return [];
         return giftsByTab[activeTab as string] || [];
-    }, [activeTab, giftsByTab]);
+    }, [activeTab, giftsByTab, isBroadcaster]);
     
     const maxCanSend = useMemo(() => {
         if (!selectedGift || !selectedGift.price || selectedGift.price === 0) return 0;
@@ -132,7 +166,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     }, [selectedGift, userDiamonds]);
 
     const handleSend = () => {
-        if (isEditMode || !selectedGift || isSendingGift) {
+        if (isEditMode || !selectedGift || isSendingGift || isBroadcaster) {
             return;
         }
 
@@ -257,7 +291,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                                 {receivedGiftsData.map(gift => (
                                     <div key={gift.name} className="relative flex flex-col items-center justify-center space-y-1 p-2 rounded-xl bg-white/[0.02] border border-white/[0.04]">
                                         <div className="w-12 h-12 flex items-center justify-center text-3xl">
-                                            {gift.component ? gift.component : gift.icon}
+                                            {renderGiftVisual(gift)}
                                         </div>
                                         <div className="h-6 w-full flex items-center justify-center px-0.5 overflow-hidden">
                                           <p className="text-[10px] text-gray-300 text-center truncate font-medium">{gift.name}</p>

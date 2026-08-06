@@ -3,6 +3,7 @@ import { useTranslation } from '../../i18n';
 import { User, NotificationSettings } from '../../types';
 import { api } from '../../services/api';
 import { LoadingSpinner } from '../Loading';
+import { requestNotificationPermission, NotifPermissionStatus } from '../../services/notificationService';
 
 // Crisp `<` Chevron Left Back Icon matching the screenshot exactly
 const ChevronLeftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
@@ -74,6 +75,8 @@ interface NotificationSettingsScreenProps {
 const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({ onBack, navigateTo, currentUser }) => {
   const { t } = useTranslation();
   const [toggles, setToggles] = useState<NotificationSettings | null>(null);
+  // 🔔 Status da permissão de notificação do navegador (PWA)
+  const [permStatus, setPermStatus] = useState<NotifPermissionStatus | 'unknown'>('unknown');
 
   useEffect(() => {
     if (currentUser) {
@@ -92,6 +95,15 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
     }
   }, [currentUser]);
 
+  // Lê a permissão atual do navegador (PWA)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setPermStatus('unsupported');
+    } else {
+      setPermStatus(Notification.permission);
+    }
+  }, []);
+
   const handleToggle = (key: keyof NotificationSettings) => {
     if (!currentUser || !toggles) return;
     
@@ -103,6 +115,13 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
         // Revert on failure
         setToggles(toggles);
       });
+  };
+
+  // 🔔 Pede permissão de notificação dentro do gesto do usuário (obrigatório no celular)
+  const handleEnableNotifications = async () => {
+    if (!currentUser) return;
+    const status = await requestNotificationPermission(currentUser.id);
+    setPermStatus(status);
   };
 
   return (
@@ -124,6 +143,37 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
 
       {/* Main Form Fields Container */}
       <main className="flex-grow overflow-y-auto no-scrollbar px-4 py-2 z-10">
+        {/* 🔔 Status da permissão de notificação (PWA) */}
+        <div className="mb-5">
+          {permStatus === 'granted' ? (
+            <div className="flex items-center gap-3 bg-green-500/[0.08] border border-green-500/20 rounded-2xl px-4 py-3">
+              <span className="text-lg">✅</span>
+              <p className="text-[13px] text-green-200 leading-snug">Notificações ativadas neste dispositivo. Você recebe avisos de live mesmo com o app fechado.</p>
+            </div>
+          ) : permStatus === 'denied' ? (
+            <div className="flex items-start gap-3 bg-red-500/[0.08] border border-red-500/20 rounded-2xl px-4 py-3">
+              <span className="text-lg">🔕</span>
+              <p className="text-[13px] text-red-200 leading-snug flex-1">Permissão negada no navegador. Para ativar: toque no 🔒 do endereço → Permissões → Notificações → Permitir.</p>
+            </div>
+          ) : permStatus === 'unsupported' ? (
+            <div className="flex items-start gap-3 bg-zinc-500/[0.08] border border-white/10 rounded-2xl px-4 py-3">
+              <span className="text-lg">📲</span>
+              <p className="text-[13px] text-zinc-300 leading-snug flex-1">Seu navegador não suporta notificações. Instale o app pela tela de início (Adicionar à tela de início) para recebê-las.</p>
+            </div>
+          ) : (
+            <button
+              onClick={handleEnableNotifications}
+              className="w-full flex items-center gap-3 bg-[#26e3ff]/[0.1] border border-[#26e3ff]/25 rounded-2xl px-4 py-3 active:scale-[0.98] transition-all text-left"
+            >
+              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-[#26e3ff]/25 to-purple-500/25 flex items-center justify-center text-lg">🔔</span>
+              <span className="flex-1">
+                <span className="block text-[13px] font-semibold text-white">Ativar notificações neste dispositivo</span>
+                <span className="block text-[11px] text-zinc-400 mt-0.5">Saiba quando seus streamers entram ao vivo</span>
+              </span>
+              <span className="text-[#26e3ff] text-xs font-bold">Ativar</span>
+            </button>
+          )}
+        </div>
         {!toggles ? (
           <div className="flex justify-center items-center h-48">
             <LoadingSpinner />

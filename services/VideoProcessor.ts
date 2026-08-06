@@ -310,13 +310,15 @@ export class VideoProcessor {
       // Preserva contornos de olhos, boca, nariz
       float edgeDetection(vec2 uv, vec2 texelSize) {
         float lum[9];
-        int idx = 0;
-        for (int y = -1; y <= 1; y++) {
-          for (int x = -1; x <= 1; x++) {
-            vec2 offset = vec2(float(x), float(y)) * texelSize;
-            lum[idx++] = luminance(texture2D(u_texture, uv + offset).rgb);
-          }
-        }
+        lum[0] = luminance(texture2D(u_texture, uv + vec2(-1.0, -1.0) * texelSize).rgb);
+        lum[1] = luminance(texture2D(u_texture, uv + vec2(0.0, -1.0) * texelSize).rgb);
+        lum[2] = luminance(texture2D(u_texture, uv + vec2(1.0, -1.0) * texelSize).rgb);
+        lum[3] = luminance(texture2D(u_texture, uv + vec2(-1.0, 0.0) * texelSize).rgb);
+        lum[4] = luminance(texture2D(u_texture, uv + vec2(0.0, 0.0) * texelSize).rgb);
+        lum[5] = luminance(texture2D(u_texture, uv + vec2(1.0, 0.0) * texelSize).rgb);
+        lum[6] = luminance(texture2D(u_texture, uv + vec2(-1.0, 1.0) * texelSize).rgb);
+        lum[7] = luminance(texture2D(u_texture, uv + vec2(0.0, 1.0) * texelSize).rgb);
+        lum[8] = luminance(texture2D(u_texture, uv + vec2(1.0, 1.0) * texelSize).rgb);
         // Sobel horizontal
         float gx = lum[6] + 2.0 * lum[7] + lum[8] - (lum[0] + 2.0 * lum[1] + lum[2]);
         // Sobel vertical
