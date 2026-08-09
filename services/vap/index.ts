@@ -6,7 +6,7 @@
  *
  *   - `createVap(options)`  → instancia e já inicia o play (canvas transparente)
  *   - `canWebGL()`          → detecta suporte a WebGL antes de instanciar
- *   - `buildGiftVapConfig()`→ gera o config JSON na geometria dos gifts (700×3248)
+ *   - `buildGiftVapConfig()`→ gera o config JSON na geometria dos gifts (1500×1624 side-by-side)
  *
  * Fonte original (MIT): https://github.com/Tencent/vap — arquivos sob services/vap/.
  */

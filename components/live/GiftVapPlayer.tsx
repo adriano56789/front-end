@@ -5,12 +5,11 @@ import type VapPlayer from '../../services/vap/vapWebglRender';
 
 // 🎞️ Player de animação de presente com TRANSPARÊNCIA REAL — VAP da Tencent.
 //
-// Os .mp4 de presentes embutem o canal ALPHA dentro do próprio frame, numa
-// das duas divisões:
-//   - STACKED (cima/baixo): conteúdo RGB y [0, 1624), máscara y [1624, 3248)
-//     (ex.: rosa_cristal.mp4, anel_de_ouro.mp4 — mp4 700×3248)
-//   - SIDE-BY-SIDE (lado a lado): conteúdo x [0, 750), máscara x [750, 1500)
-//     (ex.: musicbox.mp4 — mp4 1500×1624)
+// Os .mp4 de presentes embutem o canal ALPHA dentro do próprio frame, todos
+// agora em SIDE-BY-SIDE 1500×1624:
+//   - conteúdo RGB em x [0, 750) · máscara alfa em x [750, 1500)
+//   (ex.: coracao.mp4, rosa_cristal.mp4 — mp4 1500×1624)
+// A exceção é a Caixa de Música (musicbox.webm ZEGO 752×304).
 // A geometria exata de cada gift vem de `getGiftVapSpec`.
 //
 // O HTML5 player não reconstrói essa transparência. O VAP (player oficial da
@@ -141,8 +140,8 @@ const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, onDuration
         className="relative"
         style={{
           // 📏 ANIMAÇÃO GRANDE centralizada: mantém a proporção do conteúdo
-          // (700×1624 ≈ 0.431 · 750×1624 ≈ 0.462), limitada a ~72% da altura e
-          // 90% da largura — NUNCA corta, sempre inteira no meio da tela.
+          // (750×1624 ≈ 0.462), limitada a ~72% da altura e 90% da largura —
+          // NUNCA corta, sempre inteira no meio da tela.
           //
           // 🎬 O wrapper é centralizado por flex (o pai é fixed inset-0 +
           // flex), então os keyframes NÃO precisam de translate — só

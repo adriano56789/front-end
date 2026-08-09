@@ -10,21 +10,22 @@
  */
 export const GIFT_ANIMATION_URLS: Record<string, string> = {
   // Categoria: Popular — TODOS os 9 presentes têm vídeo de animação mp4
-  // (formato alpha-strip: máscara de transparência + cores no mesmo frame).
+  // (formato VAP side-by-side 1500×1624: conteúdo + máscara alfa no mesmo frame).
+  // ?v=2 quebra o cache do browser após a troca dos mp4 para o formato novo.
   // Servidos estaticamente por nginx a partir de /var/www/livego.store/animations.
-  'Coração': '/animations/coracao.mp4',
-  'Rosa': '/animations/rosa_cristal.mp4',
-  'Pirulito': '/animations/pirulito.mp4',
-  'Planta': '/animations/planta.mp4',
-  'Sorvete': '/animations/sorvete.mp4',
-  'Anel': '/animations/anel_de_ouro.mp4',
-  'Champanhe': '/animations/champanhe_dourado.mp4',
-  'Caixa de Presente Rosa': '/animations/caixa_de_presente_rosa.mp4',
-  'Meu coração palpita por você': '/animations/meu_coracao_palpita_por_voce.mp4',
+  'Coração': '/animations/coracao.mp4?v=2',
+  'Rosa': '/animations/rosa_cristal.mp4?v=2',
+  'Pirulito': '/animations/pirulito.mp4?v=2',
+  'Planta': '/animations/planta.mp4?v=2',
+  'Sorvete': '/animations/sorvete.mp4?v=2',
+  'Anel': '/animations/anel_de_ouro.mp4?v=2',
+  'Champanhe': '/animations/champanhe_dourado.mp4?v=2',
+  'Caixa de Presente Rosa': '/animations/caixa_de_presente_rosa.mp4?v=2',
+  'Meu coração palpita por você': '/animations/meu_coracao_palpita_por_voce.mp4?v=2',
   // 🎵 Caixa de Música: mp4 antigo substituído pelo webm ZEGO VAP
   // (musicbox.webm — mesmo pacote da animação lottie).
   'Caixa de Música': '/animations/musicbox.webm',
-  'Foguete': '/animations/foguete.mp4',
+  'Foguete': '/animations/foguete.mp4?v=2',
 };
 
 /**

@@ -3,24 +3,19 @@ import { VapConfig } from './vapTypes';
 /**
  * Especificação de geometria VAP de cada presente.
  *
- * 📐 Dois formatos de mp4 existem no projeto:
+ * 📐 Os 10 presentes padrão (os 9 + Foguete) usam mp4 SIDE-BY-SIDE 1500×1624:
  *
- *   A) STACKED TOP/BOTTOM (os 9 presentes atuais) — 700×3248:
- *      ┌────────────────────────────┐
- *      │  700 × 1624  CONTEÚDO RGB  │  ← y [0, 1624)   (cores, JÁ premultiplicadas)
- *      ├────────────────────────────┤
- *      │  700 × 1624  MÁSCARA ALFA  │  ← y [1624, 3248) (escala de cinza)
- *      └────────────────────────────┘
- *
- *   B) SIDE-BY-SIDE (antiga Caixa de Música / musicbox.mp4) — 1500×1624:
+ *   SIDE-BY-SIDE — 1500×1624 (esquerda = conteúdo, direita = máscara):
  *      ┌───────────────┬────────────────┐
  *      │  750 × 1624   │  750 × 1624    │
  *      │ CONTEÚDO RGB  │ MÁSCARA ALFA   │
  *      │ x [0, 750)    │ x [750, 1500)  │
  *      └───────────────┴────────────────┘
- *      (substituído pelo webm ZEGO — VAP, vide GIFT_VAP_MUSIC_BOX)
  *
- *   C) ZEGO VAP (Caixa de Música / musicbox.webm) — 752×304:
+ *   Esse é o formato nativo dos pacotes ZEGO VAP (conteúdo + alfa no mesmo
+ *   frame). Aqui o conteúdo fica à ESQUERDA e a máscara à DIREITA.
+ *
+ *   A Caixa de Música usa o webm ZEGO (musicbox.webm) 752×304:
  *      conteúdo RGB em [0, 0, 750, 200] e alfa em [0, 204, 375, 100]
  *      (coordenadas do vapc.json da ZEGO: v=2, w=750, h=200, fps=15).
  *
@@ -43,12 +38,12 @@ export interface VapGiftSpec {
 }
 
 export const GIFT_VAP_STANDARD: VapGiftSpec = {
-  w: 700,
+  w: 750,
   h: 1624,
-  videoW: 700,
-  videoH: 3248,
-  rgbFrame: [0, 0, 700, 1624],
-  aFrame: [0, 1624, 700, 1624],
+  videoW: 1500,
+  videoH: 1624,
+  rgbFrame: [0, 0, 750, 1624],
+  aFrame: [750, 0, 750, 1624],
   fps: 24,
 };
 
@@ -64,13 +59,16 @@ export const GIFT_VAP_MUSIC_BOX: VapGiftSpec = {
   fps: 15,
 };
 
+// 🚀 Foguete — side-by-side 1500×1624 igual aos demais. fps do placeholder
+// (antigo foguete 750×3248 @25). Quando o NOVO foguete (750×1624 @30, canal
+// único) for convertido, atualizar aqui para fps: 30.
 export const GIFT_VAP_FOGUETE: VapGiftSpec = {
   w: 750,
   h: 1624,
-  videoW: 750,
-  videoH: 3248,
+  videoW: 1500,
+  videoH: 1624,
   rgbFrame: [0, 0, 750, 1624],
-  aFrame: [0, 1624, 750, 1624],
+  aFrame: [750, 0, 750, 1624],
   fps: 25,
 };
 
@@ -87,7 +85,7 @@ export const GIFT_VAP_FPS: Record<string, number> = {
   'Meu coração palpita por você': 24,
 };
 
-/** Presentes com geometria própria (fora do padrão top/bottom). */
+/** Presentes com geometria própria (fora do padrão side-by-side). */
 const GIFT_VAP_SPECIAL: Record<string, VapGiftSpec> = {
   'Caixa de Música': GIFT_VAP_MUSIC_BOX,
   'Foguete': GIFT_VAP_FOGUETE,
