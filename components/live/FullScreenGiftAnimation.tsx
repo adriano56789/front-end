@@ -15,7 +15,7 @@ import { getAnimationUrl } from '../../services/GiftAnimationUrls';
 // Usado como fallback quando a duração real ainda não foi carregada pelo
 // metadata do vídeo (o tempo exato sempre vem do arquivo em execução).
 const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
-    'Coração': 5033,
+    'Coração': 4033,
     'Rosa': 5000,
     'Pirulito': 4967,
     'Planta': 6033,

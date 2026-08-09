@@ -13,7 +13,7 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
   // (formato VAP side-by-side 1500×1624: conteúdo + máscara alfa no mesmo frame).
   // ?v=2 quebra o cache do browser após a troca dos mp4 para o formato novo.
   // Servidos estaticamente por nginx a partir de /var/www/livego.store/animations.
-  'Coração': '/animations/coracao.mp4?v=2',
+  'Coração': '/animations/coracao.mp4?v=3',
   'Rosa': '/animations/rosa_cristal.mp4?v=2',
   'Pirulito': '/animations/pirulito.mp4?v=2',
   'Planta': '/animations/planta.mp4?v=2',
@@ -33,7 +33,7 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
  * Usado como fallback quando `gift.duration` não está definido.
  */
 export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
-  'Coração': 5033,
+  'Coração': 4033,
   'Rosa': 5000,
   'Pirulito': 4967,
   'Planta': 6033,
