@@ -92,7 +92,7 @@
     "id": "foguete",
     "name": "Foguete",
     "price": 1200,
-    "icon": "/gifts/foguete.png",
+    "icon": "/gifts/foguete.svg",
     "category": "Popular",
     "triggersAutoFollow": true,
     "animationUrl": "/animations/foguete.mp4",

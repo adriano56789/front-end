@@ -24,8 +24,9 @@ const GIFT_LOTTIE_DIMENSIONS: Record<string, { w: number; h: number }> = {
 
 // 🔊 O lottie-web NÃO toca áudio por padrão: sem `audioFactory` ele usa um stub
 // mudo. Este factory devolve um wrapper sobre um <Audio> REAL, que reproduz o
-// som EMBUTIDO no próprio JSON (camada ty:6 → asset data URI `main_火箭.mp3`)
-// em sincronia EXATA com os frames da animação — "o som que faz parte do efeito".
+// som da camada de áudio (ty:6) do próprio JSON — EMBUTIDO como data URI
+// (foguete antigo) OU arquivo externo (`aud_0.mp3`, pacote ZEGO 火箭, resolvido
+// pelo assetsPath) — em sincronia EXATA com os frames da animação.
 //
 // O lottie chama: play(), pause(), seek(t)/seek(), playing(), volume(v)/volume(),
 // rate(r). O volume vem em % (lv padrão = 100), então divide por 100.

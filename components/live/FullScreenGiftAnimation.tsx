@@ -35,12 +35,11 @@ const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
 const GIFT_ANIMATION_NAMES = new Set(['Coração', 'Rosa', 'Pirulito', 'Planta', 'Sorvete', 'Anel', 'Champanhe', 'Caixa de Presente Rosa', 'Meu coração palpita por você', 'Caixa de Música', 'Foguete']);
 
 // 🎞️ Presentes renderizados via LOTTIE (JSON direto no navegador — sem mp4):
-// o foguete.json (exportado com fundo transparente) é carregado pelo
-// lottie-web em SVG. O som do efeito fica EMBUTIDO no próprio JSON (camada
-// de áudio ty:6) e toca em sincronia via audioFactory do lottie-web.
-// A Caixa de Música usa o musicbox.json do pacote ZEGO (1500×1334, 30fps,
-// 212 imagens webp no MESMO diretório do .json) — SEM camada de áudio no
-// JSON, então a melodia (gift-musicbox.mp3) toca em separado.
+// o foguete.json (pacote ZEGO 火箭, 750×1624, 25fps, 100 frames = 4000ms) é
+// carregado pelo lottie-web em SVG; imagens (img_*.png) e som (aud_0.mp3) são
+// arquivos externos no MESMO diretório do .json. A Caixa de Música usa o
+// musicbox.json do pacote ZEGO (1500×1334, 30fps, 212 imagens webp) — SEM
+// camada de áudio no JSON, então a melodia (gift-musicbox.mp3) toca em separado.
 const GIFT_LOTTIE_URLS: Record<string, string> = {
     'Foguete': '/animations/foguete.json',
     'Caixa de Música': '/animations/musicbox.json',
@@ -262,8 +261,9 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
         // O mp4 do presente não é mais baixado/renderizado (economia de banda).
         // 🎵 Som PRÓPRIO do gift (ex.: melodia da Caixa de Música) tem
         // prioridade; senão, usa o campo do gift → o asset → o chime padrão.
-        // 🚀 Gifts LOTTIE com SOM EMBUTIDO no JSON (Foguete) NÃO usam áudio
-        // em separado (toca em sincronia via audioFactory do lottie-web).
+        // 🚀 Gifts LOTTIE com SOM na camada de áudio do JSON (Foguete) NÃO
+        // usam áudio em separado (toca em sincronia via audioFactory — aud_0.mp3
+        // externo ou data URI embutido).
         // A Caixa de Música é lottie SEM camada de áudio no JSON → a melodia
         // própria (gift-musicbox.mp3) toca em separado, como os gifts mp4.
         const audioUrl = (isLottieGift(gift) && gift.name === 'Foguete')

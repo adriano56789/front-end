@@ -51,8 +51,8 @@ const NAME_TO_SVG_MAP: Record<string, React.ComponentType<any>> = {
   'Pirulito': PirulitoGiftIcon,
 
   // Luxury / Premium Gifts
-  // 'Foguete' fica SEM componente SVG de propósito: usa a imagem PNG real
-  // (/gifts/foguete.png) no painel e a animação Lottie em tela cheia.
+  // 'Foguete' fica SEM componente SVG de propósito: usa o SVG vetorial real
+  // (/gifts/foguete.svg) no painel e a animação Lottie em tela cheia.
   'Jato Privado': JatoJetIconWrapper, // wrapper below
   'Anel': RingGiftIcon,
   'Fênix': PhoenixGiftIcon,
@@ -80,12 +80,15 @@ function JatoJetIconWrapper(props: any) {
 }
 
 // 🎵 Ícones de presente que vêm do PACOTE ZEGO (arquivos reais em public/):
-// o ícone é o SVG ANIMADO self-contained (212 frames embutidos) — substitui
-// o PNG estático do banco. O `animationUrl` do banco (musicbox.mp4) é
-// descartado: a animação é o lottie (musicbox.json) e o fallback de vídeo é
-// o webm (musicbox.webm), resolvidos pelo mapa local.
+// o ícone é o SVG VETORIAL self-contained do pacote — substitui o PNG
+// estático do banco. O `animationUrl` do banco (musicbox.mp4) é descartado:
+// a animação é o lottie (musicbox.json) e o fallback de vídeo é o webm
+// (musicbox.webm), resolvidos pelo mapa local.
 const GIFT_SVG_ICON_OVERRIDES: Record<string, string> = {
   'caixa_de_musica': '/gifts/caixa_de_musica.svg',
+  // 🚀 Foguete: pacote 火箭 (NO.10686) — SVG vetorial do ícone; a animação é o
+  // lottie novo (foguete.json + imagens + aud_0.mp3), som via audioFactory.
+  'foguete': '/gifts/foguete.svg',
 };
 
 /**
