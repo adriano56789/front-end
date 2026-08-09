@@ -25,6 +25,7 @@ export class VideoProcessor {
   private gl: WebGLRenderingContext | null = null;
   private stream: MediaStream | null = null;
   private processedStream: MediaStream | null = null;
+  private processingVideoElement: HTMLVideoElement | null = null;
   
   private animationId: number | null = null;
   private isProcessing = false;
@@ -156,29 +157,70 @@ export class VideoProcessor {
     if (!this.videoElement) {
       throw new Error('Elemento de vídeo não disponível');
     }
-    
+
+    let sourceStream: MediaStream;
+
     // Se o vídeo já tem um stream, usar ele
     if (this.videoElement.srcObject instanceof MediaStream) {
-      return this.videoElement.srcObject;
+      sourceStream = this.videoElement.srcObject;
+    } else {
+      // Caso contrário, capturar da câmera
+      const constraints = {
+        video: {
+          width: { ideal: this.config.width },
+          height: { ideal: this.config.height },
+          frameRate: { ideal: this.config.fps }
+        },
+        audio: true
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Aplicar ao elemento de vídeo
+      this.videoElement.srcObject = stream;
+      await this.videoElement.play();
+
+      sourceStream = stream;
     }
-    
-    // Caso contrário, capturar da câmera
-    const constraints = {
-      video: {
-        width: { ideal: this.config.width },
-        height: { ideal: this.config.height },
-        frameRate: { ideal: this.config.fps }
-      },
-      audio: true
-    };
-    
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    
-    // Aplicar ao elemento de vídeo
-    this.videoElement.srcObject = stream;
-    await this.videoElement.play();
-    
-    return stream;
+
+    // ⚠️ Criar um elemento de vídeo DEDICADO (oculto) alimentado pela track de vídeo
+    // ORIGINAL. O WebGL/Canvas 2D deve amostrar SEMPRE a câmera original, nunca o
+    // elemento de preview compartilhado — porque quando a beleza é ativada a track
+    // do preview é substituída pela stream processada (canvas), o que criava um
+    // loop de feedback que convergia para tela PRETA ao abrir o painel de beleza.
+    const videoTrack = sourceStream.getVideoTracks()[0];
+    if (videoTrack) {
+      this.cleanupProcessingVideo();
+      const processingStream = new MediaStream([videoTrack]);
+      const processingVideo = document.createElement('video');
+      processingVideo.autoplay = true;
+      processingVideo.muted = true;
+      processingVideo.playsInline = true;
+      processingVideo.setAttribute('playsinline', '');
+      processingVideo.srcObject = processingStream;
+      await processingVideo.play().catch((e) => {
+        console.warn('[VIDEO_PROCESSOR] Não foi possível reproduzir vídeo dedicado de processamento:', e);
+      });
+      this.processingVideoElement = processingVideo;
+    }
+
+    return sourceStream;
+  }
+
+  /**
+   * Obter a fonte de vídeo a ser amostrada pelo renderer (dedicada ou original)
+   */
+  private getVideoSource(): CanvasImageSource | null {
+    return (this.processingVideoElement || this.videoElement) as CanvasImageSource | null;
+  }
+
+  private cleanupProcessingVideo(): void {
+    if (this.processingVideoElement) {
+      try {
+        this.processingVideoElement.srcObject = null;
+      } catch { /* ignore */ }
+      this.processingVideoElement = null;
+    }
   }
 
   /**
@@ -563,11 +605,11 @@ export class VideoProcessor {
    * Processamento com WebGL
    */
   private startWebGLProcessing(): void {
-    if (!this.gl || !this.canvas || !this.videoElement || !this.program || !this.videoTexture || !this.positionBuffer || !this.textureBuffer) return;
+    const source = this.getVideoSource();
+    if (!this.gl || !this.canvas || !source || !this.program || !this.videoTexture || !this.positionBuffer || !this.textureBuffer) return;
     
     const gl = this.gl;
     const canvas = this.canvas;
-    const videoElement = this.videoElement;
     const program = this.program;
     const videoTexture = this.videoTexture;
     const positionBuffer = this.positionBuffer;
@@ -589,12 +631,22 @@ export class VideoProcessor {
       
       // Atualizar textura do vídeo (com warp de "Rosto Bebê" se ativo)
       gl.bindTexture(gl.TEXTURE_2D, videoTexture);
-      let source: CanvasImageSource = videoElement;
+      let imageSource: TexImageSource = this.getVideoSource() as TexImageSource;
+      if (!imageSource) {
+        this.animationId = requestAnimationFrame(render);
+        return;
+      }
       if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
         const warped = this.babyFaceProcessor.render();
-        if (warped) source = warped;
+        if (warped) imageSource = warped;
       }
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+      try {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageSource);
+      } catch (e) {
+        // Textura ainda não disponível (vídeo sem frame) — tentar no próximo frame
+        this.animationId = requestAnimationFrame(render);
+        return;
+      }
       
       // Configurar uniforms
       if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
@@ -640,10 +692,10 @@ export class VideoProcessor {
    * Fallback Canvas 2D processing
    */
   private startCanvas2DProcessing(): void {
-    if (!this.canvas || !this.videoElement) return;
+    const source = this.getVideoSource();
+    if (!this.canvas || !source) return;
     
     const canvas = this.canvas;
-    const videoElement = this.videoElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
@@ -651,14 +703,18 @@ export class VideoProcessor {
       if (!this.isProcessing) return;
 
       // Com "Rosto Bebê" ativo, usa o frame warpeado como base
-      let source: CanvasImageSource = videoElement;
+      let imageSource: CanvasImageSource | null = this.getVideoSource();
+      if (!imageSource) {
+        this.animationId = requestAnimationFrame(render);
+        return;
+      }
       if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
         const warped = this.babyFaceProcessor.render();
-        if (warped) source = warped;
+        if (warped) imageSource = warped;
       }
 
       // Desenhar vídeo no canvas
-      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageSource, 0, 0, canvas.width, canvas.height);
       
       // Aplicar filtros CSS básicos como fallback
       ctx.filter = this.getCSSFilterString();
@@ -815,6 +871,8 @@ export class VideoProcessor {
       this.babyFaceProcessor = null;
     }
     this.babyFaceActive = false;
+    
+    this.cleanupProcessingVideo();
     
     console.log('🗑️ [VIDEO_PROCESSOR] Recursos liberados');
   }

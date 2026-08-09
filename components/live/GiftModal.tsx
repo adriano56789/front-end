@@ -22,6 +22,9 @@ interface GiftModalProps {
 
 const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, onSendGift, onRecharge, gifts, receivedGifts, isBroadcaster = false, isSendingGift = false, isVIP, onOpenVIPCenter, currentUser }) => {
     const { t } = useTranslation();
+    // 🔑 Dono do app (Adriano): único que, ao transmitir (host), pode enviar
+    // presente para si mesmo. Hosts comuns não podem.
+    const isAppOwner = currentUser?.id === 'adriano' || currentUser?.id === '98501723' || currentUser?.id === '65384127' || currentUser?.id === ':98501723' || currentUser?.name?.toLowerCase() === 'adriano';
     const [isEditMode, setIsEditMode] = useState(false);
     const [giftsByTab, setGiftsByTab] = useState<Record<string, Gift[]>>({});
     const [loadingCategories, setLoadingCategories] = useState<Set<string>>(new Set());
@@ -31,17 +34,17 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     const dragOverItem = useRef<Gift | null>(null);
 
     // Renderiza o visual de um presente: componente SVG (enriquecido), URL de imagem
-    // ou emoji como fallback.
+    // (http ou caminho relativo /gifts/...) ou emoji como fallback.
     const renderGiftVisual = (gift: any) => {
         if (gift.component) return gift.component;
-        if (typeof gift.icon === 'string' && gift.icon.startsWith('http')) {
+        if (typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/'))) {
             return <img src={gift.icon} alt={gift.name} className="w-10 h-10 object-cover rounded-lg" />;
         }
         return gift.icon;
     };
 
     const giftCategories = useMemo(() => {
-        const categories: (Gift['category'] | 'Galeria')[] = ['Popular', 'Luxo', 'Atividade', 'VIP', 'Efeito', 'Entrada', 'Galeria'];
+        const categories: (Gift['category'] | 'Galeria')[] = ['Popular', 'Luxo', 'VIP', 'Efeito', 'Entrada', 'Galeria'];
         return categories;
     }, []);
 
@@ -154,11 +157,12 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
 
     const filteredGifts = useMemo(() => {
         if (activeTab === 'Galeria') return [];
-        // Host não envia presente para si mesmo: as áreas de envio ficam vazias,
-        // mas o painel mantém toda a estrutura/abas normalmente.
-        if (isBroadcaster) return [];
+        // Host comum não envia presente para si mesmo: grade vazia (mantém
+        // estrutura/abas, só o Galeria funciona). O DONO do app (host) envia
+        // normalmente e vê todas as abas.
+        if (isBroadcaster && !isAppOwner) return [];
         return giftsByTab[activeTab as string] || [];
-    }, [activeTab, giftsByTab, isBroadcaster]);
+    }, [activeTab, giftsByTab, isBroadcaster, isAppOwner]);
     
     const maxCanSend = useMemo(() => {
         if (!selectedGift || !selectedGift.price || selectedGift.price === 0) return 0;
@@ -166,7 +170,11 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     }, [selectedGift, userDiamonds]);
 
     const handleSend = () => {
-        if (isEditMode || !selectedGift || isSendingGift || isBroadcaster) {
+        if (isEditMode || !selectedGift || isSendingGift) {
+            return;
+        }
+        // Host comum não envia presente para si mesmo; só o dono do app.
+        if (isBroadcaster && !isAppOwner) {
             return;
         }
 
@@ -190,7 +198,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
     };
 
     const canReorderCurrentTab = useMemo(() => {
-        return ['Popular', 'Luxo', 'Atividade', 'VIP', 'Efeito'].includes(activeTab);
+        return ['Popular', 'Luxo', 'VIP', 'Efeito'].includes(activeTab);
     }, [activeTab]);
     
     const handleDragStart = (gift: Gift) => {
@@ -323,7 +331,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                                     className={`group relative flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all border outline-none ${isSelected ? 'border-[#FFD700] bg-[#FFD700]/5 shadow-[0_0_12px_rgba(255,215,0,0.15)] scale-[1.02]' : 'border-transparent bg-transparent hover:bg-white/[0.03]'} ${isEditMode ? 'cursor-move border-dashed border-purple-500/40 bg-purple-500/5' : ''}`}
                                 >
                                     <div className="w-12 h-12 flex items-center justify-center text-3xl transition-transform duration-200 group-hover:scale-105 active:scale-95">
-                                        {gift.component ? gift.component : gift.icon}
+                                        {renderGiftVisual(gift)}
                                     </div>
                                     <div className="w-full flex items-center justify-center px-0.5 mt-1 overflow-hidden">
                                         <p className="text-[11px] text-gray-300 text-center truncate font-medium group-hover:text-white transition-colors">{gift.name}</p>
@@ -354,7 +362,9 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                         <div className="flex items-center justify-between w-full">
                             <div className="flex flex-col">
                                 <div className="text-[11px] text-gray-400 mb-1.5 uppercase font-semibold tracking-wider">
-                                    {selectedGift ? `Enviar ${selectedGift.name} (Max: ${maxCanSend})` : "Selecione um presente"}
+                                    {isBroadcaster && !isAppOwner
+                                        ? "Você não pode enviar presentes para si mesmo"
+                                        : selectedGift ? `Enviar ${selectedGift.name} (Max: ${maxCanSend})` : "Selecione um presente"}
                                 </div>
                                 <div className="flex items-center space-x-1.5">
                                     {presetQuantities.map((q) => (
@@ -370,7 +380,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                             </div>
                             <button 
                                 onClick={handleSend} 
-                                disabled={!selectedGift || (selectedGift.price || 0) * quantity > userDiamonds || isSendingGift}
+                                disabled={(isBroadcaster && !isAppOwner) || !selectedGift || (selectedGift.price || 0) * quantity > userDiamonds || isSendingGift}
                                 className="h-12 px-6 rounded-2xl bg-[#FFD700] hover:bg-[#E6BE00] disabled:bg-gray-800 disabled:text-gray-500 font-black text-black text-xs tracking-wider uppercase transition-all active:scale-95 flex items-center justify-center shadow-lg shadow-[#FFD700]/5 min-w-[95px] shrink-0 font-sans"
                             >
                                 {isSendingGift ? "..." : "Enviar"}

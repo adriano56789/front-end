@@ -43,6 +43,7 @@ interface ChatMessageType {
     isModerator?: boolean;
     activeFrameId?: string | null;
     frameExpiration?: string | null;
+    timestamp?: string | number;
 }
 
 interface PKBattleScreenProps {
@@ -331,7 +332,7 @@ export default function PKBattleScreen({
     const totalScore = myScore + opponentScore;
     const myProgress = totalScore > 0 ? (myScore / totalScore) * 100 : 50;
     
-    const isStreamerFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
+    const isStreamerFollowed = useMemo(() => followingUsers.some(u => String(u.id) === String(streamer.hostId)), [followingUsers, streamer.hostId]);
 
     const streamerUser = useMemo(() => ({
         id: streamer.hostId, identification: streamer.hostId, name: streamer.name, avatarUrl: streamer.avatar,
@@ -365,12 +366,13 @@ export default function PKBattleScreen({
             message: (
                 <span className="inline-flex items-center">
                     {t(messageKey, messageOptions)}
-                    {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon}</span>}
+                    {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-5 h-5 inline-block ml-1.5 object-contain" /> : <span className="ml-1.5">{gift.icon}</span>}
                 </span>
             ),
             avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
             activeFrameId: fromUser.activeFrameId,
             frameExpiration: fromUser.frameExpiration,
+            timestamp: Date.now(),
         };
         setMessages(prev => [...prev, giftMessage]);
     };
@@ -404,7 +406,7 @@ export default function PKBattleScreen({
                 updateUser(updatedSender);
                 updateUser(updatedReceiver);
 
-                if (gift.triggersAutoFollow && !isStreamerFollowed) {
+                if (gift.triggersAutoFollow && !isStreamerFollowed && !isBroadcaster) {
                     onFollowUser(streamerUser, streamer.id);
                 }
         
@@ -475,6 +477,7 @@ export default function PKBattleScreen({
             id: Date.now() + Math.random(),
             type: 'entry',
             fullUser: currentUser,
+            timestamp: Date.now(),
         };
         setMessages([currentUserEntryMessage]);
     
@@ -500,6 +503,7 @@ export default function PKBattleScreen({
                             id: Date.now() + Math.random(),
                             type: 'entry',
                             fullUser: user,
+                            timestamp: Date.now(),
                         }));
                         setMessages(prev => [...prev, ...entryMessages]);
                     }
@@ -523,8 +527,8 @@ export default function PKBattleScreen({
             const { follower, followed } = payload;
             
             const newMessage: ChatMessageType = (followed.id === currentUser.id)
-                ? { id: Date.now() + Math.random(), type: 'friend_request', follower: follower }
-                : { id: Date.now() + Math.random(), type: 'follow', user: follower.name, followedUser: followed.name, avatar: follower.avatarUrl };
+                ? { id: Date.now() + Math.random(), type: 'friend_request', follower: follower, timestamp: Date.now() }
+                : { id: Date.now() + Math.random(), type: 'follow', user: follower.name, followedUser: followed.name, avatar: follower.avatarUrl, timestamp: Date.now() };
 
             setMessages(prev => [...prev, newMessage]);
         };
@@ -670,6 +674,7 @@ export default function PKBattleScreen({
             activeFrameId: currentUser.activeFrameId,
             frameExpiration: currentUser.frameExpiration,
             fullUser: currentUser,
+            timestamp: Date.now(),
         };
         
         const safePayload = {
@@ -985,7 +990,8 @@ export default function PKBattleScreen({
                                     currentUser={currentUser}
                                     onClick={onViewProfile}
                                     onFollow={onFollowUser}
-                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
+                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)}
+                                    timestamp={msg.timestamp} />;
                             }
                             if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
                                 const chatUser = constructUserFromMessage(msg);
@@ -999,6 +1005,7 @@ export default function PKBattleScreen({
                                     isFollowed={followingUsers.some(f => f.id === chatUser.id)}
                                     onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
                                     isModerator={msg.isModerator}
+                                    timestamp={msg.timestamp}
                                 />;
                             }
                             if (msg.type === 'follow' && msg.user && msg.followedUser) {

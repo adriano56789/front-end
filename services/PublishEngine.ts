@@ -1,5 +1,6 @@
 import { getWhipPublishUrl } from './mediaConfig';
 import { cameraService } from './cameraService';
+import { audioCleaner } from './audioCleanerService';
 
 export type PublishState = 'idle' | 'connecting' | 'publishing' | 'reconnecting' | 'failed';
 
@@ -125,11 +126,23 @@ export class PublishEngine {
     }
     this._mediaStream = stream;
 
+    // 🔇 Redução de chiado: processa o áudio via Web Audio (highpass + lowpass
+    // + compressor + noise gate) e publica o track limpo no lugar do bruto.
+    const cleanedAudioTrack = await this._cleanAudio(stream);
+    if (this._destroyed) {
+      stream.getTracks().forEach(t => t.stop());
+      throw new Error('Engine destruído durante a limpeza de áudio');
+    }
+
     const pc = new RTCPeerConnection(null);
     this._pc = pc;
 
     stream.getTracks().forEach(track => {
-      pc.addTrack(track, stream);
+      if (track.kind === 'audio' && cleanedAudioTrack) {
+        pc.addTrack(cleanedAudioTrack, stream);
+      } else {
+        pc.addTrack(track, stream);
+      }
     });
 
     if (this._config.videoCodec) {
@@ -173,6 +186,16 @@ export class PublishEngine {
         if (fallback && fallback.getTracks().length > 0) return fallback;
       } catch { /* mantém erro original */ }
       throw new Error(getUserMediaErrorMessage(err));
+    }
+  }
+
+  private async _cleanAudio(stream: MediaStream): Promise<MediaStreamTrack | null> {
+    try {
+      const cleaned = await audioCleaner.process(stream);
+      return cleaned;
+    } catch (err) {
+      console.warn('[PublishEngine] ⚠️ Falha ao limpar áudio, usando original:', err);
+      return null;
     }
   }
 
@@ -300,6 +323,7 @@ export class PublishEngine {
       try { this._mediaStream.getTracks().forEach(t => t.stop()); } catch { /* ignore */ }
       this._mediaStream = null;
     }
+    audioCleaner.destroy();
   }
 
   destroy(): void {

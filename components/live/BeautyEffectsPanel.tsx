@@ -127,6 +127,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
     const [isLoading, setIsLoading] = useState(true);
     const saveTimeout = useRef<number | null>(null);
     const currentFilters = useRef<string>('');
+    const initializingRef = useRef(false);
 
     // Fallback automatic calculation to locate the local video preview if videoRef is not provided
     const fallbackVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -224,6 +225,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
 
     // Inicializar processamento de beleza e conectar ao pipeline de publicação
     const initializeBeautyProcessing = async () => {
+        if (initializingRef.current) return;
+        initializingRef.current = true;
         try {
             const video = activeVideoRef?.current;
             if (!video) return;
@@ -261,6 +264,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         } catch (error) {
             console.error('❌ [BEAUTY_PANEL] Erro ao inicializar processamento:', error);
             addToast(ToastType.Error, "Falha ao inicializar efeitos de beleza.");
+        } finally {
+            initializingRef.current = false;
         }
     };
 

@@ -49,6 +49,7 @@ interface ChatMessageType {
     isModerator?: boolean;
     activeFrameId?: string | null;
     frameExpiration?: string | null;
+    timestamp?: string | number;
 }
 
 interface StreamRoomProps {
@@ -277,7 +278,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setMessages(prev => {
           const stableId = String(data.id || Date.now() + Math.random());
           if (prev.some(m => String(m.id) === stableId)) return prev;
-          return [...prev, { id: stableId, type: 'entry', user: data.user || data.userName, fullUser: data.fullUser || null }];
+          return [...prev, { id: stableId, type: 'entry', user: data.user || data.userName, fullUser: data.fullUser || null, timestamp: data.timestamp || Date.now() }];
         });
         // 🔔 Notificar o host quando um espectador entra na sala (além da msg no chat)
         if (isBroadcaster) {
@@ -502,6 +503,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
                 message: text,
                 avatar: message.avatarUrl || message.avatar || '',
                 level: message.level || 1,
+                timestamp: message.timestamp || Date.now(),
             };
 
             // Não adicionar se já existe (evitar duplicatas com o polling REST)
@@ -526,7 +528,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
     }, [streamer.id]);
 
-    const isFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
+    const isFollowed = useMemo(() => followingUsers.some(u => String(u.id) === String(streamer.hostId)), [followingUsers, streamer.hostId]);
 
     const [streamerUser, setStreamerUser] = useState<User | null>(null);
 
@@ -592,6 +594,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             id: String(Date.now()),
             type: 'entry',
             fullUser: currentUser,
+            timestamp: Date.now(),
         };
         setMessages([currentUserEntryMessage]);
 
@@ -622,6 +625,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     level: m.level || 1,
                     activeFrameId: m.activeFrameId || null,
                     frameExpiration: null,
+                    timestamp: m.timestamp || Date.now(),
                 }));
                 setMessages(prev => [...history, ...prev]);
             }
@@ -677,13 +681,14 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     <span className="inline-flex items-center gap-1">
                         <span className="font-extrabold text-[#c084fc] hover:underline text-[10px]">{fromUser.name}</span>
                         <span className="text-purple-250 text-[10px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
-                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-3 h-3 inline-block" }) : <span className="text-xs">{gift.icon || '🎁'}</span>}
+                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-3 h-3 inline-block" }) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-3 h-3 inline-block object-contain" /> : <span className="text-xs">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
                 // 🔧 Fallback de avatar para garantir renderização (msg.avatar obrigatório no chat)
                 avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
                 activeFrameId: fromUser.activeFrameId || null,
                 frameExpiration: fromUser.frameExpiration || null,
+                timestamp: Date.now(),
             };
             setMessages(prev => [...prev, giftMessage]);
         } catch (error) {
@@ -728,6 +733,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             activeFrameId: currentUser.activeFrameId,
             frameExpiration: currentUser.frameExpiration,
             fullUser: currentUser,
+            timestamp: Date.now(),
         };
         // Garantir que avatar sempre tenha um valor para ser renderizado no chat
         const stableId = String(Date.now() + Math.random());
@@ -763,6 +769,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     const handleFollowStreamer = () => {
+        // 🛡️ Não permite seguir a si mesmo (própria stream)
+        if (!streamerUser || String(streamerUser.id) === String(currentUser?.id)) return;
         if (streamerUser) {
             onFollowUser(streamerUser, streamer.id);
         }
@@ -1067,7 +1075,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         }
                     }
 
-                    if (gift.triggersAutoFollow && !isFollowed && streamerUser) {
+                    if (gift.triggersAutoFollow && !isFollowed && streamerUser && !isBroadcaster) {
                         onFollowUser(streamerUser, streamer.id);
                     }
 
@@ -1346,7 +1354,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </div>
                             </div>
                         </button>
-                        {!isFollowed && currentUser.id !== streamer.hostId && (
+                        {!isFollowed && String(currentUser.id) !== String(streamer.hostId) && (
                             <button onClick={(e) => { e.stopPropagation(); handleFollowStreamer(); }} className="w-7 h-7 bg-gradient-to-br from-[#bd00ff] to-[#e7006e] rounded-full flex items-center justify-center text-white shrink-0 transition-all transform active:scale-90 cursor-pointer ml-1">
                                 <PlusIcon className="w-3.5 h-3.5" />
                              </button>
@@ -1527,7 +1535,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                         onFollow: onFollowUser,
                                         isFollowed: followingUsers.some(u => u.id === msg.fullUser!.id),
                                         isBroadcaster: isBroadcaster,
-                                        isModerator: msg.fullUser.id ? moderatorIds.includes(msg.fullUser.id) : false
+                                        isModerator: msg.fullUser.id ? moderatorIds.includes(msg.fullUser.id) : false,
+                                        timestamp: msg.timestamp,
                                     };
                                     return <EntryChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} {...entryProps} />;
                                 }
@@ -1543,6 +1552,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                         isFollowed={followedUsers.has(chatUser.id)}
                                         onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
                                         isModerator={msg.isModerator || moderatorIds.includes(chatUser.id)}
+                                        timestamp={msg.timestamp}
                                     />;
                                 }
                                 if (msg.type === 'follow' && msg.user && msg.followedUser) {

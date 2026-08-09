@@ -45,7 +45,6 @@ const GiftEffectCanvas: React.FC<GiftEffectCanvasProps> = ({ gift }) => {
             switch (gift.category) {
                 case 'Luxo': return ['#FFD700', '#FDB931', '#FFFACD', '#DAA520', '#FFFFFF']; // Gold/White
                 case 'VIP': return ['#FF00FF', '#BC13FE', '#00FFFF', '#E0AAFF', '#F0ABFC']; // Neon Purple/Cyan
-                case 'Atividade': return ['#00FF00', '#7CFF01', '#FFFF00', '#32CD32', '#FFFFFF']; // Lime/Green
                 case 'Entrada': return ['#FF4500', '#FF6347', '#FFD700', '#FFFFFF']; // Fire colors
                 case 'Efeito': return ['#FF1493', '#00BFFF', '#FFD700', '#FFFFFF', '#FF69B4']; // Magic mix
                 default: return ['#FF0099', '#493240', '#FF00CC', '#9900FF', '#FFFFFF', '#00FFFF']; // Vibrant Mix

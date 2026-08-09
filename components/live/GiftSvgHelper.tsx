@@ -16,7 +16,6 @@ import {
   PirulitoGiftIcon,
   
   // Premium Luxury Icons already existing
-  RocketGiftIcon,
   PrivateJetGiftIcon,
   RingGiftIcon,
   LionGiftIcon,
@@ -52,7 +51,8 @@ const NAME_TO_SVG_MAP: Record<string, React.ComponentType<any>> = {
   'Pirulito': PirulitoGiftIcon,
 
   // Luxury / Premium Gifts
-  'Foguete': RocketGiftIcon,
+  // 'Foguete' fica SEM componente SVG de propósito: usa a imagem PNG real
+  // (/gifts/foguete.png) no painel e a animação Lottie em tela cheia.
   'Jato Privado': JatoJetIconWrapper, // wrapper below
   'Anel': RingGiftIcon,
   'Fênix': PhoenixGiftIcon,

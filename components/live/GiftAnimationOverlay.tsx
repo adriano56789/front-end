@@ -100,6 +100,12 @@ const GiftAnimationOverlay: React.FC<GiftAnimationOverlayProps> = ({ giftPayload
             <div className="w-12 h-12 flex items-center justify-center relative z-10 shrink-0 transform group-hover:scale-110 transition-transform duration-200">
                 {gift.component ? (
                     React.cloneElement(gift.component as React.ReactElement<any>, { className: `w-10 h-10 ${isPremium ? 'animate-bounce drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]' : ''}` })
+                ) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? (
+                    <img
+                        src={gift.icon}
+                        alt={gift.name}
+                        className={`w-10 h-10 object-contain ${isPremium ? 'animate-bounce drop-shadow-[0_0_8px_rgba(250,204,21,0.7)]' : ''}`}
+                    />
                 ) : (
                     <span className={`text-3xl filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] ${isPremium ? 'animate-bounce' : ''}`}>
                         {gift.icon}

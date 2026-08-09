@@ -6,6 +6,7 @@ import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { LoadingSpinner } from './Loading';
+import { formatMessageTime } from '../utils/formatMessageTime';
 // Socket.IO removido — chat gerenciado via REST API
 
 interface ChatScreenProps {
@@ -44,9 +45,7 @@ const MessageStatus: React.FC<{ status: Message['status'] }> = ({ status }) => {
 };
 
 const formatTimestamp = (timestamp: string) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    return formatMessageTime(timestamp);
 };
 
 const ChatMessageBubble: React.FC<{ 
@@ -188,7 +187,14 @@ const BecameFriendsIndicator: React.FC<{ onNavigate: () => void }> = ({ onNaviga
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages, sendFile: propSendFile }) => {
     const [messages, setMessages] = useState<Message[]>([]);
-    const effectiveMessages = propMessages || messages;
+    const effectiveMessages = useMemo(() => {
+        const base = propMessages || messages;
+        const sortTime = (m: any) => {
+            const t = new Date(m?.timestamp).getTime();
+            return Number.isNaN(t) ? 0 : t;
+        };
+        return [...base].sort((a, b) => sortTime(a) - sortTime(b));
+    }, [propMessages, messages]);
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [userStatus, setUserStatus] = useState<{ isOnline?: boolean; lastSeen?: string } | null>(null);

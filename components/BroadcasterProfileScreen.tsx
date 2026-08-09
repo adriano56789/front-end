@@ -546,7 +546,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                     {/* Stats divided beautifully in 4 columns like in the photo */}
                     <div className="grid grid-cols-4 gap-2 my-5 text-center bg-[#1c1c1e]/20 py-3 rounded-2xl border border-white/[0.02]">
                         <StatItem value={formatNumber(freshUser.fans || 0)} label={t('profile.fans')} onClick={onOpenFans} />
-                        <StatItem value={formatNumber(freshUser.following || 0)} label={t('profile.following')} onClick={onOpenFollowing} />
+                        <StatItem value={formatNumber(Math.max(0, freshUser.following || 0))} label={t('profile.following')} onClick={onOpenFollowing} />
                         <StatItem value={formatNumber(freshUser.receptores || 0)} label={t('profile.receivers')} />
                         <StatItem value={formatNumber(freshUser.enviados || 0)} label={t('profile.senders')} />
                     </div>

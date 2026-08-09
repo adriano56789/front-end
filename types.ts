@@ -161,7 +161,7 @@ export interface Gift {
   price?: number;
   icon: string;
   component?: ReactElement<SVGProps<SVGSVGElement>>;
-  category: 'Popular' | 'Luxo' | 'Atividade' | 'VIP' | 'Efeito' | 'Entrada';
+  category: 'Popular' | 'Luxo' | 'VIP' | 'Efeito' | 'Entrada';
   triggersAutoFollow?: boolean;
   videoUrl?: string;
   audioUrl?: string;

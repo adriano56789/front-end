@@ -67,24 +67,17 @@ class StreamPublishService {
 
     const newVideoTrack = processedVideoTracks[0];
 
-    this.currentStream.getVideoTracks().forEach(track => {
-      this.currentStream!.removeTrack(track);
-      track.stop();
-    });
-    this.currentStream.addTrack(newVideoTrack);
-
+    // 🔧 NÃO parar a track original da câmera nem trocar o srcObject do preview:
+    // a track original alimenta o vídeo dedicado de processamento (VideoProcessor)
+    // e o preview local. Parar/remover essa track cortava o feed do processamento e
+    // deixava a tela PRETA ao abrir o painel de embelezamento. O SRS recebe a stream
+    // processada via replaceTrack; o preview continua exibindo a câmera normalmente
+    // (com filtros CSS aplicados pelo painel).
     if (this._publishing && this._publishEngine) {
       try {
         await this._publishEngine.replaceTrack('video', newVideoTrack);
       } catch (e) {
         console.warn('[PUBLISH_SERVICE] Falha ao atualizar track de beleza no SRS:', e);
-      }
-    }
-
-    if (this.currentVideoRef?.current) {
-      const videoEl = this.currentVideoRef.current;
-      if (videoEl.srcObject) {
-        videoEl.srcObject = this.currentStream;
       }
     }
   }

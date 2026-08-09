@@ -52,6 +52,8 @@ interface GiftAlphaVideoPlayerProps {
     onDuration?: (ms: number) => void;
     /** Disparado quando o vídeo termina (fim REAL da animação). */
     onVideoEnd?: () => void;
+    /** Disparado se o vídeo não puder ser carregado/reproduzido (fallback para partículas/ícone). */
+    onLoadError?: () => void;
 }
 
 /**
@@ -65,12 +67,14 @@ interface GiftAlphaVideoPlayerProps {
  * Reporta a duração REAL do arquivo via onDuration (onLoadedMetadata) para que
  * o timer de encerramento seja exatamente o tempo do vídeo.
  */
-const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDuration, onVideoEnd }) => {
+const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDuration, onVideoEnd, onLoadError }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const onDurationRef = useRef(onDuration);
     useEffect(() => { onDurationRef.current = onDuration; }, [onDuration]);
     const onVideoEndRef = useRef(onVideoEnd);
     useEffect(() => { onVideoEndRef.current = onVideoEnd; }, [onVideoEnd]);
+    const onLoadErrorRef = useRef(onLoadError);
+    useEffect(() => { onLoadErrorRef.current = onLoadError; }, [onLoadError]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -84,40 +88,95 @@ const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDura
             }
         };
 
+        // 🎞️ <video> FONTE DE FRAMES APENAS — nunca visível na tela.
+        //
+        // IMPORTANTE (Safari iOS / WebViews Android): NÃO usar `hidden=true`
+        // (display:none) nem opacity:0 — nesses navegadores o elemento não é
+        // composto e `texImage2D(video)`/`drawImage(video)` devolvem frame
+        // preto, fazendo a animação sumir (presente "só com a animação").
+        // O vídeo fica RENDERIZADO porém FORA DA VIEWPORT (offscreen), com
+        // tamanho real — assim o frame é sempre extraível, sem nenhum
+        // elemento de vídeo aparecer na tela.
         const video = document.createElement('video');
-        video.src = url;
-        video.muted = true;
+        video.muted = true; // ✅ mudo (sem autoplay-block, sem som na live)
         video.loop = false; // 🔚 Sem loop: o fim do vídeo é o fim real da animação.
         video.playsInline = true;
         video.autoplay = true;
         video.preload = 'auto';
-        video.hidden = true; // 🚫 SEM elemento de vídeo visível na tela
+        video.src = url;
         video.style.position = 'fixed';
-        video.style.opacity = '0';
+        video.style.left = '-2000px';
+        video.style.top = '0';
+        video.style.width = `${FRAME_W}px`;
+        video.style.height = `${FRAME_H}px`;
+        video.style.opacity = '1';
         video.style.pointerEvents = 'none';
-        video.style.width = '1px';
-        video.style.height = '1px';
+        video.style.zIndex = '-1';
+        video.setAttribute('aria-hidden', 'true');
+        video.setAttribute('tabindex', '-1');
         document.body.appendChild(video);
+
+        // 🔄 Garante o play: alguns navegadores precisam de play() após o
+        // carregamento dos dados (autoplay muted é sempre permitido).
+        let playAttempt = 0;
+        const ensurePlay = () => {
+            const p = video.play();
+            if (p && typeof p.then === 'function') {
+                p.catch(() => {
+                    playAttempt += 1;
+                    if (playAttempt < 3) {
+                        setTimeout(ensurePlay, 250);
+                    } else if (onLoadErrorRef.current) {
+                        onLoadErrorRef.current();
+                    }
+                });
+            }
+        };
+
+        // 🛑 Fallback: se o arquivo não existir ou falhar ao carregar, avisa o
+        // FullScreenGiftAnimation para exibir o efeito de partículas/ícone.
+        let reportedError = false;
+        const onVideoError = () => {
+            if (!reportedError) {
+                reportedError = true;
+                onLoadErrorRef.current?.();
+            }
+        };
 
         const onMeta = () => reportDuration(video.duration);
         const onProgress = () => reportDuration(video.duration);
+        const onLoadedData = () => { reportDuration(video.duration); ensurePlay(); };
+        const onCanPlay = () => ensurePlay();
+        const onPlaying = () => { ensurePlay(); };
         const onEnded = () => onVideoEndRef.current?.();
         video.addEventListener('loadedmetadata', onMeta);
         video.addEventListener('durationchange', onProgress);
+        video.addEventListener('loadeddata', onLoadedData);
+        video.addEventListener('canplay', onCanPlay);
+        video.addEventListener('playing', onPlaying);
         video.addEventListener('ended', onEnded);
+        video.addEventListener('error', onVideoError);
+
+        // ⏰ Se em 2.5s nada carregou (rede/recurso) → fallback para animação.
+        const loadTimeout = window.setTimeout(() => {
+            if (video.readyState === 0 || !video.videoWidth) {
+                onVideoError();
+            }
+        }, 2500);
 
         let raf = 0;
         let stop = false;
         let usingFallback = false;
 
         const resizeCanvas = () => {
-            // 📏 O backing store segue o TAMANHO REAL da caixa (pequena e
-            // centralizada), não a janela inteira — o conteúdo mantém a
-            // proporção e nunca cobre a transmissão.
+            // 📏 O backing store segue o TAMANHO DE LAYOUT da caixa
+            // (clientWidth/clientHeight), que NÃO é afetado por transform de
+            // escala. Durante o pop-in (scale 0.35→1) o canvas mantém a
+            // resolução final de layout — sem ficar borrado enquanto cresce.
             const dpr = window.devicePixelRatio || 1;
             const rect = canvas.getBoundingClientRect();
-            const w = Math.max(1, Math.round(rect.width * dpr));
-            const h = Math.max(1, Math.round(rect.height * dpr));
+            const w = Math.max(1, Math.round((canvas.clientWidth || rect.width) * dpr));
+            const h = Math.max(1, Math.round((canvas.clientHeight || rect.height) * dpr));
             if (canvas.width !== w || canvas.height !== h) {
                 canvas.width = w;
                 canvas.height = h;
@@ -370,15 +429,20 @@ const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDura
             draw2D();
         }
 
-        video.play().catch(() => {/* autoplay muted — sem erro visível */});
+        ensurePlay();
 
         return () => {
             stop = true;
             cancelAnimationFrame(raf);
+            window.clearTimeout(loadTimeout);
             window.removeEventListener('resize', resizeCanvas);
             video.removeEventListener('loadedmetadata', onMeta);
             video.removeEventListener('durationchange', onProgress);
+            video.removeEventListener('loadeddata', onLoadedData);
+            video.removeEventListener('canplay', onCanPlay);
+            video.removeEventListener('playing', onPlaying);
             video.removeEventListener('ended', onEnded);
+            video.removeEventListener('error', onVideoError);
             try { video.pause(); } catch { /* ignore */ }
             try { video.src = ''; video.load(); } catch { /* ignore */ }
             try { video.remove(); } catch { /* ignore */ }
@@ -386,27 +450,40 @@ const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDura
     }, [url]);
 
     return (
-        <div
-            className="absolute pointer-events-none select-none"
-            style={{
-                // 📏 ANIMAÇÃO PEQUENA e centralizada: mantém a proporção do
-                // conteúdo (700×1624 ≈ 0.431), limitada a ~46% da altura da
-                // tela (e 72% da largura em telas estreitas) — o fundo da live
-                // continua visível ao redor (não cobre a tela inteira).
-                left: '50%',
-                top: '38%',
-                transform: 'translate(-50%, -50%)',
-                width: 'min(72vw, calc(46vh * 0.431034))',
-                aspectRatio: `${CONTENT_W} / ${FRAME_H}`,
-                zIndex: 1,
-                filter: 'drop-shadow(0 0 26px rgba(255, 215, 0, 0.30))',
-            }}
-        >
-            <canvas
-                ref={canvasRef}
-                className="w-full h-full block"
-                style={{ zIndex: 1 }}
-            />
+        <div className="fixed inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 1 }}>
+            <div
+                className="relative"
+                style={{
+                    // 📏 ANIMAÇÃO GRANDE centralizada: mantém a proporção do
+                    // conteúdo (700×1624 ≈ 0.431), limitada a ~72% da altura e
+                    // 90% da largura — NUNCA corta, sempre inteira no meio da
+                    // tela da transmissão.
+                    //
+                    // 🎬 O wrapper é centralizado por flex (o pai é fixed
+                    // inset-0 + flex), então os keyframes NÃO precisam de
+                    // translate — só escala/rotação em torno do próprio centro.
+                    width: 'min(90vw, calc(72vh * 0.431034))',
+                    maxWidth: '90vw',
+                    maxHeight: '72vh',
+                    aspectRatio: '700 / 1624',
+                    animation: 'gift-video-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                    willChange: 'transform, opacity',
+                }}
+            >
+                <canvas
+                    ref={canvasRef}
+                    className="w-full h-full block"
+                    style={{ zIndex: 1 }}
+                />
+                <style>{`
+                    @keyframes gift-video-pop-impact {
+                        0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
+                        15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
+                        22% { transform: scale(0.95) rotate(-2deg); }
+                        30% { transform: scale(1) rotate(0deg); }
+                    }
+                `}</style>
+            </div>
         </div>
     );
 };

@@ -915,6 +915,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           setFollowingUsers(following.value);
 
+          setCurrentUser(prev => prev ? { ...prev, following: following.value.length } : prev);
+
         }
         if (fans.status === 'fulfilled' && Array.isArray(fans.value)) {
 
@@ -2893,6 +2895,9 @@ const logLiveEvent = (type: string, data: any) => {
       return;
     }
 
+    setConversations(prev => prev.map(c =>
+      c.friend?.id === user.id ? { ...c, unreadCount: 0 } : c
+    ));
     setChattingWith(user);
   };
 
@@ -2912,6 +2917,9 @@ const logLiveEvent = (type: string, data: any) => {
       }
     }
 
+    setConversations(prev => prev.map(c =>
+      c.friend?.id === user.id ? { ...c, unreadCount: 0 } : c
+    ));
     setChattingWith(user);
   };
 
@@ -2993,6 +3001,10 @@ const logLiveEvent = (type: string, data: any) => {
 
     if (!currentUser) return;
 
+    // 🛡️ Não permite seguir a si mesmo (evita 400 "Cannot follow yourself"
+    // vindo do backend quando o próprio dono da live toca no botão seguir)
+    if (String(userToFollow.id) === String(currentUser.id)) return;
+
 
 
     try {
@@ -3007,7 +3019,7 @@ const logLiveEvent = (type: string, data: any) => {
 
         const updatedFollowed = { ...userToFollow, isFollowed: isNowFollowing };
 
-        const updatedFollower = { ...currentUserRef.current, following: (currentUser.following || 0) + (isNowFollowing ? 1 : -1) };
+        const updatedFollower = { ...currentUserRef.current, following: Math.max(0, (currentUser.following || 0) + (isNowFollowing ? 1 : -1)) };
 
 
 

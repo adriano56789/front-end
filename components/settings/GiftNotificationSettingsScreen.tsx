@@ -11,7 +11,7 @@ const GiftItem: React.FC<{ gift: Gift, isEnabled: boolean, onToggle: () => void,
      <div className={`flex items-center justify-between w-full p-3 bg-[#1C1C1E] ${disabled ? 'opacity-50' : ''}`}>
         <div className="flex items-center space-x-3">
             <div className="w-10 h-10 flex items-center justify-center">
-                {gift.component ? gift.component : <span className="text-3xl">{gift.icon}</span>}
+                {gift.component ? gift.component : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-10 h-10 object-contain" /> : <span className="text-3xl">{gift.icon}</span>}
             </div>
             <div>
                 <p className="text-white">{gift.name} {gift.category === 'Efeito' && <span className="text-xs text-yellow-400 font-bold ml-1">VIP</span>}</p>

@@ -1,9 +1,10 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { GiftPayload } from './GiftAnimationOverlay';
 import { Gift } from '../../types';
-import GiftEffectCanvas from './GiftEffectCanvas';
-import GiftAlphaVideoPlayer from './GiftAlphaVideoPlayer';
+import GiftVapPlayer from './GiftVapPlayer';
+import GiftLottiePlayer from './GiftLottiePlayer';
+import { preloadLottieJson } from '../../services/LottiePreloader';
 import { giftCacheService } from '../../services/GiftCacheService';
 import { getAnimationUrl } from '../../services/GiftAnimationUrls';
 
@@ -14,16 +15,39 @@ import { getAnimationUrl } from '../../services/GiftAnimationUrls';
 // Usado como fallback quando a duração real ainda não foi carregada pelo
 // metadata do vídeo (o tempo exato sempre vem do arquivo em execução).
 const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
+    'Coração': 5033,
     'Rosa': 5000,
-    'Champanhe': 4033,
+    'Pirulito': 4967,
+    'Planta': 6033,
+    'Sorvete': 10042,
     'Anel': 4367,
+    'Champanhe': 4033,
+    'Caixa de Presente Rosa': 5042,
+    'Meu coração palpita por você': 7208,
+    'Caixa de Música': 7067,
+    'Foguete': 4000,
 };
 
-// 🎯 APENAS estes 3 presentes têm animação mp4 real (arquivos na pasta
+// 🎞️ APENAS estes presentes têm animação mp4 real (arquivos na pasta
 // public/animations). NÃO usar getAnimationUrl genérico: ele também cobre
 // outros gifts (.webm de /uploads/animations) que NÃO devem ir para o
 // caminho de canvas — eles mantêm o efeito de partículas/ícone atual.
-const GIFT_ANIMATION_NAMES = new Set(['Rosa', 'Champanhe', 'Anel']);
+const GIFT_ANIMATION_NAMES = new Set(['Coração', 'Rosa', 'Pirulito', 'Planta', 'Sorvete', 'Anel', 'Champanhe', 'Caixa de Presente Rosa', 'Meu coração palpita por você', 'Caixa de Música', 'Foguete']);
+
+// 🎞️ Presentes renderizados via LOTTIE (JSON direto no navegador — sem mp4):
+// o foguete.json (exportado com fundo transparente) é carregado pelo
+// lottie-web em SVG. O som do efeito fica EMBUTIDO no próprio JSON (camada
+// de áudio ty:6) e toca em sincronia via audioFactory do lottie-web.
+const GIFT_LOTTIE_URLS: Record<string, string> = {
+    'Foguete': '/animations/foguete.json',
+};
+
+// 🚀 Pré-carrega o JSON do Foguete assim que este módulo é importado (quando a
+// sala de live/PK abre) — com os dados em memória, a animação aparece no
+// instante em que o presente chega, sem atraso de download/parse.
+Object.values(GIFT_LOTTIE_URLS).forEach(preloadLottieJson);
+
+const isLottieGift = (gift: Gift): boolean => Boolean(GIFT_LOTTIE_URLS[gift.name]);
 
 const hasRealAnimationFile = (gift: Gift): boolean => {
     return GIFT_ANIMATION_NAMES.has(gift.name);
@@ -67,9 +91,19 @@ const getAnimationClass = (gift: Gift): string => {
 // 🔊 Som dos presentes (gerados com ffmpeg — chimes sem royalties):
 //   - /sounds/gift-luxury.mp3  → arpejo rico para presentes PREMIUM
 //   - /sounds/gift-sparkle.mp3 → brilho curto para os demais
+//   - /sounds/gift-musicbox.mp3 → MELODIA ORIGINAL da Caixa de Música
+//     (extraída com ffmpeg do próprio musicbox.mp4 — mesmo som da animação).
 // Os mp4 de animação NÃO têm trilha de áudio, então o efeito sonoro é tocado
 // em separado (FullScreenGiftAnimation → efeito de áudio), como TikTok Live.
+// Gifts com som PRÓPRIO (o som do arquivo de animação, não um chime genérico).
+// Obs.: o Foguete NÃO está aqui — o som dele fica EMBUTIDO no próprio JSON
+// Lottie (camada ty:6) e toca em sincronia via audioFactory do lottie-web.
+const GIFT_SPECIAL_SOUNDS: Record<string, string> = {
+    'Caixa de Música': '/sounds/gift-musicbox.mp3',
+};
+
 const getSoundUrl = (giftName: string): string => {
+    if (GIFT_SPECIAL_SOUNDS[giftName]) return GIFT_SPECIAL_SOUNDS[giftName];
     return LUXURY_ASSETS_MAP[giftName] ? '/sounds/gift-luxury.mp3' : '/sounds/gift-sparkle.mp3';
 };
 
@@ -123,18 +157,67 @@ const getFallbackAsset = (gift: Gift): LuxuryAsset => {
     };
 };
 
+// 🎵 Notas musicais que sobem da caixinha durante a animação da Caixa de
+// Música. O mp4 não embute notas — este overlay adiciona o efeito musical
+// flutuante (aumento de escala + subida + balanço lateral + fade).
+const MUSIC_NOTE_CHARS = ['♪', '♫', '♩', '♬', '♫', '♪'];
+const MusicNotesOverlay: React.FC = () => {
+    const notes = useMemo(() =>
+        MUSIC_NOTE_CHARS.map((ch, i) => ({
+            id: i,
+            ch,
+            left: 12 + ((i * 17) % 76),          // posição horizontal variada
+            delay: i * 0.35,                     // saem em sequência
+            dur: 4 + (i % 3) * 0.7,              // durações diferentes
+            size: 28 + ((i * 13) % 34),          // tamanhos variados
+            sway: ((i % 5) - 2) * 30,            // balanço lateral
+            color: i % 2 === 0 ? '#FFD700' : '#ffffff',
+        })), []);
+
+    return (
+        <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 2 }}>
+            {notes.map(n => (
+                <span
+                    key={n.id}
+                    className="absolute bottom-[38vh]"
+                    style={{
+                        left: `${n.left}%`,
+                        color: n.color,
+                        fontSize: `${n.size}px`,
+                        opacity: 0,
+                        textShadow: '0 2px 12px rgba(0,0,0,0.6)',
+                        animation: `gift-music-note-rise ${n.dur}s ease-in-out ${n.delay}s infinite`,
+                        '--sway': `${n.sway}px`,
+                    } as React.CSSProperties}
+                >
+                    {n.ch}
+                </span>
+            ))}
+            <style>{`
+                @keyframes gift-music-note-rise {
+                    0%   { transform: translate(0, 40px) scale(0.4) rotate(-8deg); opacity: 0; }
+                    12%  { opacity: 1; }
+                    40%  { transform: translate(var(--sway), -20px) scale(1) rotate(6deg); opacity: 1; }
+                    100% { transform: translate(calc(var(--sway) * 1.6), -48vh) scale(1.15) rotate(-10deg); opacity: 0; }
+                }
+            `}</style>
+        </div>
+    );
+};
+
 /**
- * 🎞️ Player de animação de presente com TRANSPARÊNCIA REAL.
+ * 🎞️ Player de animação de presente com TRANSPARÊNCIA REAL (VAP da Tencent).
  *
- * Os mp4 de presentes embutem o canal ALPHA no próprio frame (faixa esquerda
- * em escala de cinza) e o conteúdo RGB na faixa direita. O HTML5 player não
- * reconstrói essa transparência — por isso o GiftAlphaVideoPlayer desenha a
- * animação num <canvas> WebGL com shader que combina RGB + Alpha, deixando o
- * fundo preto invisível sobre a transmissão (mesmo efeito de TikTok Live /
- * Bigo Live). O <video> fica OCULTO no DOM — nenhum player aparece na tela.
+ * Os mp4 de presentes embutem o canal ALPHA no próprio frame: conteúdo RGB na
+ * metade superior e a máscara (escala de cinza) na metade inferior. O HTML5
+ * player não reconstrói essa transparência — por isso o GiftVapPlayer desenha a
+ * animação num <canvas> WebGL com o shader do VAP (amostra rgbFrame + aFrame e
+ * emite vec4(rgb, alpha)), deixando o fundo preto invisível sobre a transmissão
+ * (mesmo efeito de TikTok Live / Bigo Live). O <video> fica OCULTO no DOM —
+ * nenhum player aparece na tela.
  *
- * Reporta a duração REAL do arquivo via onDuration (onLoadedMetadata) para
- * que o timer de encerramento seja exatamente o tempo do vídeo.
+ * Reporta a duração REAL do arquivo via onDuration (loadedmetadata) para que o
+ * timer de encerramento seja exatamente o tempo do vídeo.
  */
 const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: () => void; }> = ({ payload, onEnd }) => {
     const animationTimeoutRef = useRef<number | null>(null);
@@ -142,6 +225,9 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
     const [resolvedAudio, setResolvedAudio] = useState<string>('');
     // ⏱ Duração real do arquivo de animação (reportada pelo metadata do vídeo).
     const [realAnimDurationMs, setRealAnimDurationMs] = useState<number | null>(null);
+    // 🛑 Fallback: se o mp4 falhar ao carregar/reproduzir, exibe o efeito de
+    // partículas/ícone (GiftEffectCanvas) em vez de um espaço vazio.
+    const [videoFailed, setVideoFailed] = useState(false);
     // NOVO: a animação NÃO espera o pré-load dos assets — renderiza na hora
     // (instante). 🚫 SEM VÍDEO: o presente exibe apenas a animação (partículas
     // + ícone + banner), nunca o arquivo de vídeo — isso é o comportamento correto.
@@ -167,7 +253,13 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
         const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
         // 🚫 VÍDEO DESATIVADO: o presente exibe apenas a animação em tela.
         // O mp4 do presente não é mais baixado/renderizado (economia de banda).
-        const audioUrl = gift.audioUrl || assetConfig.audioSrc || getSoundUrl(gift.name);
+        // 🎵 Som PRÓPRIO do gift (ex.: melodia da Caixa de Música) tem
+        // prioridade; senão, usa o campo do gift → o asset → o chime padrão.
+        // 🚀 Gifts LOTTIE (Foguete) NÃO usam áudio em separado: o som está
+        // EMBUTIDO no JSON e toca em sincronia via audioFactory do lottie-web.
+        const audioUrl = isLottieGift(gift)
+            ? ''
+            : (GIFT_SPECIAL_SOUNDS[gift.name] || gift.audioUrl || assetConfig.audioSrc || getSoundUrl(gift.name));
 
         let active = true;
         const t0 = performance.now();
@@ -213,6 +305,8 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
         };
         cleanup();
         hasEndedRef.current = false;
+        setVideoFailed(false);
+        setRealAnimDurationMs(null);
 
         if (!payload || !payload.gift) {
             return;
@@ -225,9 +319,17 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
             ? (GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000)
             : Number(gift.duration || assetConfig.duration || 5000);
 
-        animationTimeoutRef.current = window.setTimeout(() => {
-            onEndRef.current();
-        }, baseDuration + 250);
+        // ⏰ Timer BACKUP: começa na montagem para nunca travar a tela, mas
+        // REINICIA quando o vídeo realmente começa a tocar (onPlaying) com a
+        // duração real — assim o atraso de carregamento nunca corta a animação
+        // no meio ("sai antes de mostrar a animação toda").
+        const startTimer = () => {
+            cleanup();
+            animationTimeoutRef.current = window.setTimeout(() => {
+                onEndRef.current();
+            }, baseDuration + 250);
+        };
+        startTimer();
 
         return cleanup;
     }, [payload]);
@@ -265,16 +367,18 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
     const { gift, fromUser, quantity } = payload;
     const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
     const uniqueKey = payload.id ? `gift-fs-${payload.id}` : `gift-fs-${Date.now()}`;
-    // 🎞️ Gifts com ANIMAÇÃO real (Rosa, Champanhe, Anel): o mp4 é desenhado
-    // frame a frame num <canvas> WebGL com alpha mask (RGB + Alpha embutidos
+    // 🎞️ Gifts com ANIMAÇÃO real (Rosa, Champanhe, Anel, ...): o mp4 é desenhado
+    // frame a frame num <canvas> WebGL com o shader do VAP (RGB + Alpha embutidos
     // no mesmo vídeo) — o elemento <video> fica OCULTO no DOM, então NENHUM
     // player/moldura de vídeo aparece na tela, só a animação em si, com a
     // duração EXATA do arquivo (Rosa 5s | Champanhe 4.03s | Anel 4.37s).
-    // A transparência é REAL: o fundo preto não é exibido (GiftAlphaVideoPlayer).
-    const realAnimationUrl = hasRealAnimationFile(gift) ? getAnimationUrl(gift) : undefined;
+    // A transparência é REAL: o fundo preto não é exibido (GiftVapPlayer).
+    // Foguete usa LOTTIE (JSON direto no navegador) — sem mp4/canvas.
+    const lottieUrl = isLottieGift(gift) ? GIFT_LOTTIE_URLS[gift.name] : undefined;
+    const realAnimationUrl = !lottieUrl && hasRealAnimationFile(gift) ? getAnimationUrl(gift) : undefined;
     // ⏱ Duração de exibição: o tempo REAL do arquivo (metadata → realAnimDurationMs)
     // ou o fallback medido (GIFT_ANIMATION_DURATIONS_MS) enquanto o metadata carrega.
-    const displayDurationMs = realAnimationUrl
+    const displayDurationMs = (lottieUrl || realAnimationUrl)
         ? (realAnimDurationMs ?? GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000)
         : null;
 
@@ -284,12 +388,26 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
             className="fixed inset-0 z-[9990] flex flex-col items-center justify-center pointer-events-none animate-gift-screen-container"
             style={{ animationDuration: displayDurationMs ? `${displayDurationMs}ms` : '5.5s' }}
         >
-            {/* 1. ANIMAÇÃO REAL (mp4 → canvas WebGL com alpha mask transparente) */}
-            {realAnimationUrl ? (
-                <GiftAlphaVideoPlayer
+            {/* 1. ANIMAÇÃO REAL (mp4 → canvas WebGL com shader VAP transparente) */}
+            {lottieUrl && !videoFailed ? (
+                <GiftLottiePlayer
                     key={`anim-${uniqueKey}`}
-                    url={realAnimationUrl}
+                    url={lottieUrl}
+                    giftName={gift.name}
                     onDuration={setRealAnimDurationMs}
+                    onPlaying={() => {
+                        // Reinicia o timer a partir do momento em que a animação
+                        // de fato começou (a duração já veio do JSON/duracao real).
+                        const durMs = realAnimDurationMs ?? GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000;
+                        if (animationTimeoutRef.current) {
+                            clearTimeout(animationTimeoutRef.current);
+                            animationTimeoutRef.current = null;
+                        }
+                        animationTimeoutRef.current = window.setTimeout(() => {
+                            onEndRef.current();
+                        }, durMs + 250);
+                    }}
+                    onLoadError={() => setVideoFailed(true)}
                     onVideoEnd={() => {
                         if (hasEndedRef.current) return;
                         hasEndedRef.current = true;
@@ -300,41 +418,69 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                         onEndRef.current();
                     }}
                 />
-            ) : (
-                <GiftEffectCanvas key={`canvas-${uniqueKey}`} gift={gift} />
-            )}
-
-            {/* 2. Animação central (partículas + ícone + banner) — para gifts sem mp4 */}
-            <div className="flex flex-col items-center justify-center relative z-10 w-full h-full max-w-4xl px-4 select-none">
-                
-                {/* Efeito Glow Neon no fundo da visualização */}
-                <div 
-                    className="absolute w-72 h-72 rounded-full blur-[80px] opacity-40 animate-pulse scale-125"
-                    style={{ backgroundColor: assetConfig.glowColor }}
+            ) : realAnimationUrl && !videoFailed ? (
+                <GiftVapPlayer
+                    key={`anim-${uniqueKey}`}
+                    url={realAnimationUrl}
+                    giftName={gift.name}
+                    onDuration={setRealAnimDurationMs}
+                    onPlaying={() => {
+                        // Reinicia o timer a partir do momento em que o vídeo
+                        // de fato começou (a duração já veio do metadata).
+                        const durMs = realAnimDurationMs ?? GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000;
+                        if (animationTimeoutRef.current) {
+                            clearTimeout(animationTimeoutRef.current);
+                            animationTimeoutRef.current = null;
+                        }
+                        animationTimeoutRef.current = window.setTimeout(() => {
+                            onEndRef.current();
+                        }, durMs + 250);
+                    }}
+                    onLoadError={() => setVideoFailed(true)}
+                    onVideoEnd={() => {
+                        if (hasEndedRef.current) return;
+                        hasEndedRef.current = true;
+                        if (animationTimeoutRef.current) {
+                            clearTimeout(animationTimeoutRef.current);
+                            animationTimeoutRef.current = null;
+                        }
+                        onEndRef.current();
+                    }}
                 />
+            ) : null}
 
-                {/* 🎭 ANIMAÇÃO do presente (ícone/componente SVG gigante + brilho).
-                    Para gifts COM animação (mp4), o ícone NÃO é renderizado:
-                    a animação em canvas cobre a tela inteira. Para os demais,
-                    é o elemento central. (Nunca usar opacity-0 aqui: a animação
-                    CSS gift-pop-impact anima a própria opacity até 1 e
-                    sobrescreve a classe, deixando o ícone visível sobre o
-                    vídeo — duplicando o presente na tela.) */}
-                {!realAnimationUrl && (
-                    <div className="relative flex items-center justify-center transform animate-gift-pop-impact w-[450px] h-[450px]">
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none transform animate-gift-bounce-subtle">
-                            {gift.component ? (
-                                React.cloneElement(gift.component as React.ReactElement<any>, {
-                                    className: "w-28 h-28 filter drop-shadow-[0_0_20px_rgba(255,215,0,0.8)]"
-                                })
-                            ) : (
-                                <span className="text-[8rem] leading-none filter drop-shadow-[0_0_25px_rgba(255,215,0,0.85)] select-none">
-                                    {gift.icon}
-                                </span>
-                            )}
-                        </div>
+            {/* 1b. 🎵 NOTAS MUSICAIS FLUTUANTES — exclusivo da Caixa de Música.
+            O mp4 da caixinha NÃO embute notas (só a caixa + janela de foto);
+            estas notas sobem da caixa como overlay, dando o efeito musical. */}
+        {gift.name === 'Caixa de Música' && realAnimationUrl && !videoFailed && (
+            <MusicNotesOverlay />
+        )}
+
+        {/* 2. Apresentação LIMPA para presentes SEM vídeo mp4 (ou se o vídeo
+                falhou): apenas o ícone do presente + quem enviou. SEM explosão
+                de partículas, SEM glow de fundo. Os vídeos mp4 já trazem os
+                próprios efeitos e são exibidos sozinhos acima. */}
+            {((!lottieUrl && !realAnimationUrl) || videoFailed) && (
+            <div className="flex flex-col items-center justify-center relative z-10 w-full h-full max-w-4xl px-4 select-none">
+                <div className="relative flex items-center justify-center transform animate-gift-pop-impact w-[300px] h-[300px]">
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none transform animate-gift-bounce-subtle">
+                        {gift.component ? (
+                            React.cloneElement(gift.component as React.ReactElement<any>, {
+                                className: "w-28 h-28 filter drop-shadow-[0_0_20px_rgba(255,215,0,0.8)]"
+                            })
+                        ) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? (
+                            <img
+                                src={gift.icon}
+                                alt={gift.name}
+                                className="w-28 h-28 object-contain filter drop-shadow-[0_0_20px_rgba(255,215,0,0.8)]"
+                            />
+                        ) : (
+                            <span className="text-[8rem] leading-none filter drop-shadow-[0_0_25px_rgba(255,215,0,0.85)] select-none">
+                                {gift.icon}
+                            </span>
+                        )}
                     </div>
-                )}
+                </div>
 
                 {/* 3. Banners de Texto Enormes e Brilhantes com efeito carrossel e carinho */}
                 <div className="mt-4 text-center z-20 flex flex-col items-center space-y-1 transform animate-gift-text-bounce">
@@ -366,13 +512,15 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                 </div>
             </div>
             
+            )}
+
             {/* CSS Global Embebido para Transições Fluídas e Pulsos Tridimensionais */}
             <style>{`
                 @keyframes gift-screen-container-fade {
                     0% { opacity: 0; }
-                    12% { opacity: 1; }
-                    88% { opacity: 1; filter: blur(0); }
-                    100% { opacity: 0; filter: blur(12px); }
+                    10% { opacity: 1; }
+                    96% { opacity: 1; filter: blur(0); }
+                    100% { opacity: 0; }
                 }
                 @keyframes gift-pop-impact {
                     0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
