@@ -19,6 +19,7 @@ interface GiftLottiePlayerProps {
 // o container sem distorção (mesma geometria dos mp4 VAP).
 const GIFT_LOTTIE_DIMENSIONS: Record<string, { w: number; h: number }> = {
   'Foguete': { w: 750, h: 1624 },
+  'Caixa de Música': { w: 1500, h: 1334 },
 };
 
 // 🔊 O lottie-web NÃO toca áudio por padrão: sem `audioFactory` ele usa um stub
@@ -133,6 +134,10 @@ const GiftLottiePlayer: React.FC<GiftLottiePlayerProps> = ({ url, giftName, onDu
           loop: false,
           autoplay: true,
           animationData: data,
+          // 🖼️ Imagens do JSON (assets com `u`/`p`) são servidas do MESMO
+          // diretório do .json (ex.: /animations/musicbox.json → imagens em
+          // /animations/musicbox/1.webp …). Foguete é 100% vetorial/embutido.
+          assetsPath: url.replace(/\.json$/, '') + '/',
           rendererSettings: {
             preserveAspectRatio: 'xMidYMid meet',
           },

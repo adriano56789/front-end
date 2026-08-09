@@ -12,12 +12,17 @@ import { VapConfig } from './vapTypes';
  *      │  700 × 1624  MÁSCARA ALFA  │  ← y [1624, 3248) (escala de cinza)
  *      └────────────────────────────┘
  *
- *   B) SIDE-BY-SIDE (Caixa de Música / musicbox.mp4) — 1500×1624:
+ *   B) SIDE-BY-SIDE (antiga Caixa de Música / musicbox.mp4) — 1500×1624:
  *      ┌───────────────┬────────────────┐
  *      │  750 × 1624   │  750 × 1624    │
  *      │ CONTEÚDO RGB  │ MÁSCARA ALFA   │
  *      │ x [0, 750)    │ x [750, 1500)  │
  *      └───────────────┴────────────────┘
+ *      (substituído pelo webm ZEGO — VAP, vide GIFT_VAP_MUSIC_BOX)
+ *
+ *   C) ZEGO VAP (Caixa de Música / musicbox.webm) — 752×304:
+ *      conteúdo RGB em [0, 0, 750, 200] e alfa em [0, 204, 375, 100]
+ *      (coordenadas do vapc.json da ZEGO: v=2, w=750, h=200, fps=15).
  *
  * O shader do VAP amostra o conteúdo em `rgbFrame` e a luminância em
  * `aFrame`, emitindo `vec4(rgb, alpha)` — o fundo nunca é exibido.
@@ -47,14 +52,16 @@ export const GIFT_VAP_STANDARD: VapGiftSpec = {
   fps: 24,
 };
 
+// 🎵 Caixa de Música — webm ZEGO VAP (pacote 6756-测试): conteúdo 750×200,
+// vídeo 752×304, regiões RGB/alfa lidas do vapc.json (v=2, fps=15).
 export const GIFT_VAP_MUSIC_BOX: VapGiftSpec = {
   w: 750,
-  h: 1624,
-  videoW: 1500,
-  videoH: 1624,
-  rgbFrame: [0, 0, 750, 1624],
-  aFrame: [750, 0, 750, 1624],
-  fps: 30,
+  h: 200,
+  videoW: 752,
+  videoH: 304,
+  rgbFrame: [0, 0, 750, 200],
+  aFrame: [0, 204, 375, 100],
+  fps: 15,
 };
 
 export const GIFT_VAP_FOGUETE: VapGiftSpec = {

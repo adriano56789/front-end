@@ -79,6 +79,15 @@ function JatoJetIconWrapper(props: any) {
   return <PrivateJetGiftIcon {...props} />;
 }
 
+// 🎵 Ícones de presente que vêm do PACOTE ZEGO (arquivos reais em public/):
+// o ícone é o SVG ANIMADO self-contained (212 frames embutidos) — substitui
+// o PNG estático do banco. O `animationUrl` do banco (musicbox.mp4) é
+// descartado: a animação é o lottie (musicbox.json) e o fallback de vídeo é
+// o webm (musicbox.webm), resolvidos pelo mapa local.
+const GIFT_SVG_ICON_OVERRIDES: Record<string, string> = {
+  'caixa_de_musica': '/gifts/caixa_de_musica.svg',
+};
+
 /**
  * Enriches a gift array by attaching React SVG components based on the gift's name.
  * This can be run on lists fetched from the API.
@@ -87,6 +96,15 @@ export function enrichGiftsWithComponents(gifts: Gift[]): Gift[] {
   if (!gifts || !Array.isArray(gifts)) return gifts;
   
   return gifts.map(g => {
+    const iconOverride = g.id ? GIFT_SVG_ICON_OVERRIDES[g.id] : undefined;
+    if (iconOverride) {
+      return {
+        ...g,
+        icon: iconOverride,
+        animationUrl: undefined,
+        component: undefined,
+      };
+    }
     // Retain existing component if already present, otherwise match by name
     if (g.component) return g;
     
@@ -107,6 +125,15 @@ export function enrichGiftsWithComponents(gifts: Gift[]): Gift[] {
  */
 export function enrichSingleGift(gift: Gift): Gift {
   if (!gift) return gift;
+  const iconOverride = gift.id ? GIFT_SVG_ICON_OVERRIDES[gift.id] : undefined;
+  if (iconOverride) {
+    return {
+      ...gift,
+      icon: iconOverride,
+      animationUrl: undefined,
+      component: undefined,
+    };
+  }
   if (gift.component) return gift;
   
   const Component = NAME_TO_SVG_MAP[gift.name];

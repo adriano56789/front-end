@@ -21,7 +21,9 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
   'Champanhe': '/animations/champanhe_dourado.mp4',
   'Caixa de Presente Rosa': '/animations/caixa_de_presente_rosa.mp4',
   'Meu coração palpita por você': '/animations/meu_coracao_palpita_por_voce.mp4',
-  'Caixa de Música': '/animations/musicbox.mp4',
+  // 🎵 Caixa de Música: mp4 antigo substituído pelo webm ZEGO VAP
+  // (musicbox.webm — mesmo pacote da animação lottie).
+  'Caixa de Música': '/animations/musicbox.webm',
   'Foguete': '/animations/foguete.mp4',
 };
 
@@ -45,11 +47,14 @@ export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
 
 /**
  * Retorna a URL de animação para um gift pelo nome.
- * Primeiro verifica se o gift já tem animationUrl, senão busca no mapa local.
+ * O mapa local tem PRIORIDADE para os presentes com arquivo controlado no
+ * repo (o banco ainda pode apontar um arquivo antigo, ex.: musicbox.mp4);
+ * o `animationUrl` da API vale apenas para gifts fora desse mapa
+ * (ex.: /uploads/animations/*.webm).
  */
 export function getAnimationUrl(gift: { name: string; animationUrl?: string }): string | undefined {
-  if (gift.animationUrl) return gift.animationUrl;
-  return GIFT_ANIMATION_URLS[gift.name];
+  if (GIFT_ANIMATION_URLS[gift.name]) return GIFT_ANIMATION_URLS[gift.name];
+  return gift.animationUrl;
 }
 
 /**

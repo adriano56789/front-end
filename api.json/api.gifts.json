@@ -213,9 +213,9 @@
     "id": "caixa_de_musica",
     "name": "Caixa de Música",
     "price": 4500,
-    "icon": "/gifts/caixa_de_musica.png",
+    "icon": "/gifts/caixa_de_musica.svg",
     "category": "Popular",
-    "animationUrl": "/animations/musicbox.mp4",
+    "animationUrl": "/animations/musicbox.webm",
     "duration": 7067
   }
 ]
