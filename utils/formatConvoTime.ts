@@ -6,6 +6,9 @@
 // Aceita ISO string, número, Date ou objeto MongoDB ({ $date } / { date } /
 // { createdAt }). Fallback createdAt: se o horário da última mensagem não veio,
 // usa a hora real de criação. Nunca exibe lixo por timestamp inválido.
+// Usa o relógio do SERVIDOR (getServerNow), não o do celular.
+import { getServerNow } from './serverTime';
+
 export function formatConvoTime(timestamp?: any): string {
     if (!timestamp) return '';
     try {
@@ -29,7 +32,8 @@ export function formatConvoTime(timestamp?: any): string {
 
         // 🕐 Lógica por dia do calendário (estilo WhatsApp): mensagem de ontem à
         // noite vista hoje de madrugada mostra "Ontem", não a hora de ontem.
-        const now = new Date();
+        // Relógio do SERVIDOR para não depender do horário do celular.
+        const now = getServerNow();
         const isSameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
         if (isSameDay) {
             return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
