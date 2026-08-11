@@ -204,7 +204,13 @@
         "title": "Who can message me",
         "everyone": "Everyone",
         "followersOnly": "Followers only",
-        "followersOnlyDesc": "No longer receive messages from strangers, but can still receive gifts"
+        "followersOnlyDesc": "No longer receive messages from strangers, but can still receive gifts",
+        "followingOnly": "People I follow",
+        "followingOnlyDesc": "Only people you follow can send you messages.",
+        "friendsOnly": "My friends",
+        "friendsOnlyDesc": "Only your friends can send you messages.",
+        "none": "Nobody",
+        "noneDesc": "You won't receive messages from anyone, but can still receive gifts."
     },
     "appVersion": {
         "title": "App version",

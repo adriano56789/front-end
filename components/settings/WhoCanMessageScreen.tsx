@@ -5,7 +5,7 @@ import { User, ToastType } from '../../types';
 import { api } from '../../services/api';
 import { LoadingSpinner } from '../Loading';
 
-type MessagePreference = 'all' | 'followers' | 'none';
+type MessagePreference = 'all' | 'followers' | 'following' | 'friends' | 'none';
 
 interface WhoCanMessageScreenProps {
     onBack: () => void;
@@ -137,6 +137,44 @@ const WhoCanMessageScreen: React.FC<WhoCanMessageScreenProps> = ({ onBack, curre
                             <ToggleSwitch 
                                 checked={selectedPref === 'followers'} 
                                 onChange={() => setSelectedPref('followers')} 
+                            />
+                        </div>
+
+                        {/* Option: Following Only */}
+                        <div 
+                            onClick={() => setSelectedPref('following')} 
+                            className="flex justify-between items-start p-4 cursor-pointer hover:bg-white/[0.02] active:bg-white/[0.04] transition-colors"
+                        >
+                            <div className="flex-grow pr-4">
+                                <span className="text-base text-zinc-100 font-normal block">
+                                    {t('settings.whoCanMessageScreen.followingOnly')}
+                                </span>
+                                <span className="text-[13px] text-zinc-500 font-light leading-relaxed mt-1 block">
+                                    {t('settings.whoCanMessageScreen.followingOnlyDesc')}
+                                </span>
+                            </div>
+                            <ToggleSwitch 
+                                checked={selectedPref === 'following'} 
+                                onChange={() => setSelectedPref('following')} 
+                            />
+                        </div>
+
+                        {/* Option: Friends Only */}
+                        <div 
+                            onClick={() => setSelectedPref('friends')} 
+                            className="flex justify-between items-start p-4 cursor-pointer hover:bg-white/[0.02] active:bg-white/[0.04] transition-colors"
+                        >
+                            <div className="flex-grow pr-4">
+                                <span className="text-base text-zinc-100 font-normal block">
+                                    {t('settings.whoCanMessageScreen.friendsOnly')}
+                                </span>
+                                <span className="text-[13px] text-zinc-500 font-light leading-relaxed mt-1 block">
+                                    {t('settings.whoCanMessageScreen.friendsOnlyDesc')}
+                                </span>
+                            </div>
+                            <ToggleSwitch 
+                                checked={selectedPref === 'friends'} 
+                                onChange={() => setSelectedPref('friends')} 
                             />
                         </div>
 

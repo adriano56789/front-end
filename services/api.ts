@@ -1111,7 +1111,7 @@ export const api = {
 
     updateLocationPermission: (userId: string, status: string) => callApi<{ success: boolean, user: User }>('POST', `/api/users/${userId}/location-permission`, { status }),
 
-    getChatPermissionStatus: (userId: string) => callApi<{ permission: 'all' | 'followers' | 'none' }>('GET', `/api/chat-permission/status/${userId}`),
+    getChatPermissionStatus: (userId: string) => callApi<{ permission: 'all' | 'followers' | 'following' | 'friends' | 'none' }>('GET', `/api/chat-permission/status/${userId}`),
 
     canSendMessage: (fromId: string, toId: string) => callApi<{ allowed: boolean; reason: string | null }>('GET', `/api/can-send-message/${fromId}/${toId}`),
 

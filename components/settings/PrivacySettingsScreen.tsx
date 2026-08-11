@@ -131,6 +131,12 @@ const PrivacySettingsScreen: React.FC<PrivacySettingsScreenProps> = ({ onBack, n
     };
 
     const getChatPermissionText = () => {
+        if (currentUser.chatPermission === 'following') {
+            return t('settings.whoCanMessageScreen.followingOnly') || 'Apenas quem eu sigo';
+        }
+        if (currentUser.chatPermission === 'friends') {
+            return t('settings.whoCanMessageScreen.friendsOnly') || 'Apenas meus amigos';
+        }
         if (currentUser.chatPermission === 'followers') {
             return t('common.followers') || 'Apenas seguidores';
         }

@@ -234,7 +234,7 @@ export interface User {
   isAvatarProtected?: boolean;
   activeFrameId?: string | null;
   ownedFrames: { frameId: string; expirationDate: string; }[];
-  chatPermission?: 'all' | 'followers' | 'none';
+  chatPermission?: 'all' | 'followers' | 'following' | 'friends' | 'none';
   pipEnabled?: boolean;
   enableWhenBackground?: boolean; // ZEGO-style auto PiP on background
   locationPermission?: 'granted' | 'denied' | 'prompt';
