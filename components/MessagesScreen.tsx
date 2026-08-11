@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { Conversation, User, Streamer } from '../types';
 import { useTranslation } from '../i18n';
 import { FriendRequestListIcon, MaleIcon, FemaleIcon, RankIcon } from './icons';
+import { formatConvoTime } from '../utils/formatConvoTime';
+import LiveBadge from './ui/LiveBadge';
 
 interface MessagesScreenProps {
     onStartChat: (friend: User) => void;
@@ -15,6 +17,7 @@ interface MessagesScreenProps {
     followingUsers: User[];
     liveStreamers?: Streamer[];
     onSelectStreamer?: (streamer: Streamer) => void;
+    onOpenLive?: (user: User) => void;
 }
 
 const AgeBadge: React.FC<{ user: User }> = ({ user }) => (
@@ -71,52 +74,19 @@ const LevelBadge: React.FC<{ level: number }> = ({ level }) => {
     );
 };
 
-const formatConvoTimestamp = (timestamp: any) => {
-    if (!timestamp) return '';
-    try {
-        let dateVal = timestamp;
-        if (timestamp && typeof timestamp === 'object') {
-            if ('$date' in timestamp) {
-                dateVal = timestamp.$date;
-            } else if ('date' in timestamp) {
-                dateVal = timestamp.date;
-            } else {
-                return '';
-            }
-        }
-        const date = new Date(dateVal);
-        if (isNaN(date.getTime())) {
-            return typeof timestamp === 'object' ? '' : String(timestamp);
-        }
-        
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) {
-            return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        } else if (diffDays === 1) {
-            return 'Ontem';
-        } else if (diffDays < 7) {
-            const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            return dias[date.getDay()];
-        } else {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-        }
-    } catch {
-        return typeof timestamp === 'object' ? '' : String(timestamp);
-    }
-};
-
 interface ConversationItemProps {
     conversation: Conversation;
     onStartChat: (user: User) => void;
     onViewProfile: (user: User) => void;
+    onOpenLive?: (user: User) => void;
 }
 
-const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onStartChat, onViewProfile }) => {
+const isUserLive = (u: User) => !!u.isLive || (u as any).streamStatus === 'active' || !!(u as any).currentStreamId;
+
+const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onStartChat, onViewProfile, onOpenLive }) => {
     const friend = conversation.friend;
     if (!friend) return null; // Guard: never render without a friend object
+    const live = isUserLive(friend);
     
     return (
         <div className="flex items-center pl-4 pr-3 pt-3 cursor-pointer hover:bg-gray-800/50 transition-colors" onClick={() => onStartChat(friend)}>
@@ -129,9 +99,18 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onSta
                         e.currentTarget.src = `https://picsum.photos/seed/${friend.id || 'default'}/200/200.jpg`;
                     }}
                 />
-                {friend.isOnline && (
+                {live ? (
+                    /* 🔴 Mesmo indicador AO VIVO (verde) sobre o avatar — clicável → entra na live */
+                    <LiveBadge
+                        label=""
+                        showLabel={false}
+                        iconClassName="w-[15px] h-[15px]"
+                        className="absolute -bottom-1.5 -right-1.5 z-10 rounded-full p-[3px] shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                        onClick={(e) => { e.stopPropagation(); onOpenLive?.(friend); }}
+                    />
+                ) : friend.isOnline ? (
                     <div className="absolute bottom-[2px] right-[2px] w-[13px] h-[13px] bg-[#4CAF50] rounded-full border-[2.5px] border-black"></div>
-                )}
+                ) : null}
             </button>
             <div className="flex-grow min-w-0 border-b border-[#1c1c1e] pb-3.5 pr-1">
                 <div className="flex justify-between items-start mb-0.5">
@@ -141,7 +120,7 @@ const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onSta
                         <LevelBadge level={friend.level || 1} />
                     </div>
                     <span className="text-[12px] text-[#A0A0A5] flex-shrink-0 ml-2 mt-0.5 whitespace-nowrap">
-                        {formatConvoTimestamp(conversation.timestamp)}
+                        {formatConvoTime(conversation.timestamp)}
                     </span>
                 </div>
                 <div className="flex justify-between items-center mt-1">
@@ -188,10 +167,12 @@ interface FriendItemProps {
     friend: User;
     onStartChat: (user: User) => void;
     onViewProfile: (user: User) => void;
+    onOpenLive?: (user: User) => void;
 }
 
-const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProfile }) => {
+const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProfile, onOpenLive }) => {
     const { t } = useTranslation();
+    const live = isUserLive(friend);
 
     return (
         <div className="flex items-center pl-4 pr-3 pt-3 cursor-pointer hover:bg-gray-800/50 transition-colors" onClick={() => onStartChat(friend)}>
@@ -204,9 +185,18 @@ const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProf
                         e.currentTarget.src = `https://picsum.photos/seed/${friend.id || 'default'}/200/200.jpg`;
                     }}
                 />
-                {friend.isOnline && (
+                {live ? (
+                    /* 🔴 Mesmo indicador AO VIVO (verde) sobre o avatar — clicável → entra na live */
+                    <LiveBadge
+                        label=""
+                        showLabel={false}
+                        iconClassName="w-[15px] h-[15px]"
+                        className="absolute -bottom-1.5 -right-1.5 z-10 rounded-full p-[3px] shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                        onClick={(e) => { e.stopPropagation(); onOpenLive?.(friend); }}
+                    />
+                ) : friend.isOnline ? (
                     <div className="absolute bottom-[2px] right-[2px] w-[13px] h-[13px] bg-[#4CAF50] rounded-full border-[2.5px] border-black"></div>
-                )}
+                ) : null}
             </button>
             <div className="flex-grow min-w-0 border-b border-[#1c1c1e] pb-3.5 pr-1 flex justify-between items-center">
                 <div className="flex-grow min-w-0">
@@ -233,7 +223,7 @@ const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProf
     );
 };
 
-const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer }) => {
+const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer, onOpenLive }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'messages');
     const { t } = useTranslation();
 
@@ -317,7 +307,7 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
                         {safeConversations.length > 0 && safeConversations
                             .filter(convo => convo && convo.friend) // guard against missing friend
                             .map(convo => (
-                                <ConversationItem key={convo.id} conversation={convo} onStartChat={onStartChat} onViewProfile={onViewProfile} />
+                                <ConversationItem key={convo.id} conversation={convo} onStartChat={onStartChat} onViewProfile={onViewProfile} onOpenLive={onOpenLive} />
                             ))}
 
                         {safeConversations.length === 0 && safeFriends.length > 0 && (
@@ -326,7 +316,7 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
                                     Comece uma nova conversa
                                 </div>
                                 {safeFriends.map(friend => (
-                                    <FriendItem key={friend.id} friend={friend} onStartChat={onStartChat} onViewProfile={onViewProfile} />
+                                    <FriendItem key={friend.id} friend={friend} onStartChat={onStartChat} onViewProfile={onViewProfile} onOpenLive={onOpenLive} />
                                 ))}
                             </>
                         )}
@@ -334,7 +324,7 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
                 ) : (
                     <div>
                         {safeFriends.map(friend => (
-                            <FriendItem key={friend.id} friend={friend} onStartChat={onStartChat} onViewProfile={onViewProfile} />
+                            <FriendItem key={friend.id} friend={friend} onStartChat={onStartChat} onViewProfile={onViewProfile} onOpenLive={onOpenLive} />
                         ))}
                     </div>
                 )}

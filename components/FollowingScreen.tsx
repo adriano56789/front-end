@@ -3,10 +3,12 @@ import { User } from '../types';
 import { BackIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
+import LiveBadge from './ui/LiveBadge';
 
 interface FollowingScreenProps {
   onBack: () => void;
   onViewProfile: (user: User) => void;
+  onOpenLive?: (user: User) => void;
   users: User[];
   onFollowUser: (user: User) => void;
   currentUser?: { id: string };
@@ -16,7 +18,8 @@ const UserItem: React.FC<{
   user: User; 
   onRowClick: () => void; 
   onFollowClick: () => void; 
-}> = ({ user, onRowClick, onFollowClick }) => {
+  onOpenLive?: (user: User) => void; 
+}> = ({ user, onRowClick, onFollowClick, onOpenLive }) => {
     const { t } = useTranslation();
     const handleTag = user.name.toLowerCase().replace(/\s+/g, '');
     
@@ -33,9 +36,7 @@ const UserItem: React.FC<{
                         </div>
                     </div>
                     {user.isLive && (
-                        <span className="absolute -bottom-1 -right-1 bg-red-600 text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border border-black animate-pulse">
-                            Ao Vivo
-                        </span>
+                        <LiveBadge label="" showLabel={false} iconClassName="w-[13px] h-[13px]" className="absolute -bottom-1 -right-1 rounded-full p-[2px]" onClick={(e) => { e.stopPropagation(); onOpenLive?.(user); }} />
                     )}
                 </div>
                 <div>
@@ -60,7 +61,7 @@ const UserItem: React.FC<{
     );
 };
 
-const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile, users, onFollowUser, currentUser }) => {
+const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile, onOpenLive, users, onFollowUser, currentUser }) => {
     const { t } = useTranslation();
     const [localUsers, setLocalUsers] = useState<User[]>(users);
     const [isLoading, setIsLoading] = useState(false);
@@ -130,6 +131,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                                 user={user} 
                                 onRowClick={() => handleItemClick(user)} 
                                 onFollowClick={() => handleUnfollowUser(user)} 
+                                onOpenLive={onOpenLive} 
                             />
                         ))}
                     </div>

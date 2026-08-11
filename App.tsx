@@ -136,7 +136,7 @@ import { enrichGiftsWithComponents } from './components/live/GiftSvgHelper';
 
 import PKBattleScreen from './components/PKBattleScreen';
 
-import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSessionState, RankedUser, Conversation, Country, NotificationSettings, BeautySettings, FeedPhoto, StreamHistoryEntry, Visitor, PurchaseRecord, Message, EndStreamSummary } from './types';
+import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSessionState, RankedUser, Conversation, Country, NotificationSettings, BeautySettings, FeedPhoto, StreamHistoryEntry, Visitor, PurchaseRecord, Message, EndStreamSummary, PurchaseCurrency, PurchasePackage } from './types';
 
 import Toast from './components/Toast';
 
@@ -179,6 +179,8 @@ import FAQScreen from './components/FAQScreen';
 import SettingsScreen from './components/settings/SettingsScreen';
 
 import ConfirmPurchaseScreen from './components/ConfirmPurchaseScreen';
+
+import CadastralDataScreen from './components/CadastralDataScreen';
 
 import SearchScreen from './components/SearchScreen';
 
@@ -223,7 +225,7 @@ import { useGlobalNotifications } from './hooks/useGlobalNotifications';
 import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
-import { connectSocket } from './services/socketService';
+import { connectSocket, initPrivateChatSocket } from './services/socketService';
 
 // Dados iniciais vazios - tudo será carregado da API
 
@@ -280,6 +282,8 @@ interface PaymentSuccessData {
   diamonds: number;
 
   method?: 'pix' | 'credit_card';
+
+  currency?: PurchaseCurrency;
 
   transactionId?: string;
 
@@ -446,7 +450,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [isConfirmingPurchase, setIsConfirmingPurchase] = useState<boolean>(false);
 
-  const [selectedPackage, setSelectedPackage] = useState<{ diamonds: number; price: number; } | null>(null);
+  const [selectedPackage, setSelectedPackage] = useState<PurchasePackage | null>(null);
+
+  const [isCadastralScreenOpen, setIsCadastralScreenOpen] = useState<boolean>(false);
+
+  const [pendingPurchase, setPendingPurchase] = useState<PurchasePackage | null>(null);
 
   const [isFollowingScreenOpen, setIsFollowingScreenOpen] = useState<boolean>(false);
 
@@ -531,6 +539,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [streamers, setStreamers] = useState<Streamer[]>([]);
 
   const [isLoadingStreamers, setIsLoadingStreamers] = useState(false);
+
+  const [invitedStreamIds, setInvitedStreamIds] = useState<string[]>([]);
 
   const [countries, setCountries] = useState<Country[]>([]);
 
@@ -965,6 +975,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       
 
+      // Não notificar sobre as próprias mensagens (eco de confirmação do socket)
+
+      if (message.from === currentUser?.id) {
+
+        return;
+
+      }
+
+      
+
       // Não mostrar notificação se estiver no chat com o remetente
 
       if (chattingWith && chattingWith.id === message.from) {
@@ -1205,6 +1225,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       socket = s;
       s.on('new_live', addLiveCard);
       s.on('stream_started', addLiveCard);
+      // 💬 Chat privado: o socket conectado já entra na sala `user_{id}` do
+      // backend; a ponte repassa `newChatMessage` para o window (tempo real).
+      initPrivateChatSocket();
     });
 
     return () => {
@@ -1212,6 +1235,48 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       if (socket) {
         socket.off('new_live', addLiveCard);
         socket.off('stream_started', addLiveCard);
+      }
+    };
+  }, [isAuthenticated, currentUser?.id]);
+
+  // 🔑 Lives privadas para as quais o usuário foi convidado (cadeado na lista)
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      setInvitedStreamIds([]);
+      return;
+    }
+    let disposed = false;
+
+    const refreshInvitedStreams = () => {
+      api.getInvitedStreams(currentUser.id)
+        .then(data => {
+          if (disposed) return;
+          const ids = Array.isArray(data?.streamIds) ? data.streamIds.map(String) : [];
+          setInvitedStreamIds(prev => {
+            const merged = new Set([...prev, ...ids]);
+            return Array.from(merged);
+          });
+        })
+        .catch(() => {/* segue sem a lista de convidados */});
+    };
+
+    refreshInvitedStreams();
+
+    // Atualizar em tempo real quando um novo convite chegar
+    let socket: any = null;
+    connectSocket().then(s => {
+      if (disposed || !s?.connected) return;
+      socket = s;
+      const onInvite = () => refreshInvitedStreams();
+      s.on('private_stream_invite', onInvite);
+      s.on('invite_sent', onInvite);
+    });
+
+    return () => {
+      disposed = true;
+      if (socket) {
+        socket.off('private_stream_invite');
+        socket.off('invite_sent');
       }
     };
   }, [isAuthenticated, currentUser?.id]);
@@ -1248,11 +1313,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-  const addToast = useCallback((type: ToastType, message: string) => {
+  const addToast = useCallback((type: ToastType, message: string, options?: { title?: string; avatar?: string }) => {
 
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    setToasts(prev => [...prev, { id, type, message }]);
+    setToasts(prev => [...prev, { id, type, message, title: options?.title, avatar: options?.avatar }]);
 
     setTimeout(() => {
 
@@ -1589,6 +1654,62 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       });
     }
 
+    // ⌨️ Ajusta o container do app à área visível. Na tela de LIVE o container
+    // NUNCA encolhe com o teclado (--app-height = maior altura de layout já
+    // vista enquanto um input está focado) — assim a tela da live não sobe nem
+    // se move: a barra de mensagem fica fixa no fundo e um composer flutua
+    // acima do teclado. Nas demais telas, mantém o comportamento adjustResize
+    // (--app-height = visualViewport.height) para o input ficar acima do teclado.
+    const vv = window.visualViewport;
+    let maxLayoutRef = Math.max(
+      document.documentElement?.clientHeight || 0,
+      window.innerHeight || 0
+    );
+    const isInputFocused = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      return (
+        el.tagName === 'INPUT' ||
+        el.tagName === 'TEXTAREA' ||
+        el.isContentEditable ||
+        el.getAttribute?.('contenteditable') === 'true'
+      );
+    };
+    const setAppHeight = () => {
+      const cur = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
+      const container = document.querySelector<HTMLElement>('.app-container');
+      const isLiveFixed = !!container?.classList.contains('live-fixed');
+      if (isLiveFixed) {
+        // Live: trava a maior altura de layout enquanto o teclado está aberto
+        // (input focado) e re-sincroniza ao fechar/girar a tela.
+        if (isInputFocused()) {
+          maxLayoutRef = Math.max(maxLayoutRef, cur);
+        } else {
+          maxLayoutRef = cur;
+        }
+        const h = Math.max(maxLayoutRef, vv ? vv.height : 0);
+        document.documentElement.style.setProperty('--app-height', `${h}px`);
+      } else {
+        const h = vv ? vv.height : cur;
+        document.documentElement.style.setProperty('--app-height', `${h}px`);
+      }
+    };
+    if (vv) {
+      vv.addEventListener('resize', setAppHeight);
+      vv.addEventListener('scroll', setAppHeight);
+    }
+    window.addEventListener('resize', setAppHeight);
+    const heightTimers: number[] = [];
+    const lateHeight = () => {
+      heightTimers.push(window.setTimeout(setAppHeight, 120));
+      heightTimers.push(window.setTimeout(setAppHeight, 400));
+    };
+    document.addEventListener('focus', lateHeight, true);
+    document.addEventListener('blur', lateHeight, true);
+    setAppHeight();
+    // (não cleanup: o var persiste para toda a vida do app;
+    //  se o componente desmontar, o var permanece com o último valor — inócuo)
+
     if (currentUserRef.current) {
       import('./services/notificationService').then(async ({ initNotifications }) => {
         const notifStatus = await initNotifications(currentUserRef.current.id);
@@ -1608,7 +1729,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           const body = payload.notification?.body || payload.data?.body || '';
           const type = payload.data?.type;
           if (type === 'new_message') {
-            addToast(ToastType.Info, `${title}: ${body}`);
+            // 🚫 REMOVIDO: o CHAT PRIVADO não usa mais Firebase. As mensagens
+            // em tempo real (e o banner de notificação) chegam EXCLUSIVAMENTE
+            // via WebSocket (socketService → evento window 'newChatMessage').
           } else if (type === 'live_started') {
             // 🔔 Firebase/FCM serve SÓ para push na tela: NUNCA carrega avatar,
             // foto ou ícone. A faixa in-app usa apenas os dados de roteamento
@@ -2571,11 +2694,29 @@ const logLiveEvent = (type: string, data: any) => {
 
       if (streamer.isPrivate && streamer.hostId !== currentUser.id) {
 
-        addToast(ToastType.Error, "Você não tem permissão para entrar nesta sala privada.");
+        try {
 
-        setIsEnteringStream(false);
+          const access = await api.checkPrivateStreamAccess(streamer.id, currentUser.id);
 
-        return;
+          if (!access?.canJoin) {
+
+            addToast(ToastType.Error, access?.reason || "Você não tem permissão para entrar nesta sala privada.");
+
+            setIsEnteringStream(false);
+
+            return;
+
+          }
+
+        } catch (err) {
+
+          addToast(ToastType.Error, "Falha ao verificar permissão de acesso.");
+
+          setIsEnteringStream(false);
+
+          return;
+
+        }
 
       }
 
@@ -2609,6 +2750,31 @@ const logLiveEvent = (type: string, data: any) => {
 
   };
   handleSelectStreamRef.current = handleSelectStream;
+
+  // 🔴 Indicador AO VIVO (LiveBadge): clicou em qualquer avatar ao vivo → entra na transmissão
+  const handleOpenUserLive = async (user: User) => {
+    if (!currentUser) return;
+    // 1) Procurar nas streams carregadas (hostId = userId)
+    const found = (streamers || []).find(s => s.hostId === user.id || s.id === user.id);
+    if (found) {
+      handleSelectStream(found);
+      return;
+    }
+    // 2) Fallback: consultar a API de live do usuário
+    try {
+      const data = await api.getUserStream(user.id);
+      if (data && data.isLive && data.streamId) {
+        const details = await api.getLiveDetails(data.streamId);
+        if (details) {
+          handleSelectStream(details as Streamer);
+          return;
+        }
+      }
+      addToast(ToastType.Info, `${user.name || 'Essa pessoa'} não está ao vivo no momento.`);
+    } catch (err) {
+      addToast(ToastType.Info, 'Não foi possível entrar na transmissão.');
+    }
+  };
 
 
 
@@ -3133,7 +3299,20 @@ const logLiveEvent = (type: string, data: any) => {
 
 
 
-  const handlePurchase = (pkg: { diamonds: number; price: number }) => {
+  const hasCadastralData = (user: User | null): boolean => {
+    return !!user?.cadastral?.document && !!user.cadastral?.address?.zipCode;
+  };
+
+  const handlePurchase = (pkg: PurchasePackage) => {
+
+    if (pkg.isFreeDev) return;
+
+    // Exigência legal: dados cadastrais (nome, CPF/CNPJ e endereço) pedidos antes do pagamento
+    if (!hasCadastralData(currentUser)) {
+      setPendingPurchase(pkg);
+      setIsCadastralScreenOpen(true);
+      return;
+    }
 
     setSelectedPackage(pkg);
 
@@ -3143,9 +3322,23 @@ const logLiveEvent = (type: string, data: any) => {
 
   };
 
+  const handleCadastralSaved = () => {
+
+    setIsCadastralScreenOpen(false);
+
+    if (pendingPurchase) {
+      const pkg = pendingPurchase;
+      setPendingPurchase(null);
+      setSelectedPackage(pkg);
+      setIsWalletScreenOpen(false);
+      setIsConfirmingPurchase(true);
+    }
+
+  };
 
 
-  const handleConfirmPurchase = async (pkg: { diamonds: number; price: number }) => {
+
+  const handleConfirmPurchase = async (pkg: PurchasePackage) => {
 
     if (!currentUser) return;
 
@@ -3160,6 +3353,7 @@ const logLiveEvent = (type: string, data: any) => {
           price: pkg.price,
           diamonds: pkg.diamonds,
           method: 'pix',
+          currency: pkg.currency,
           timestamp: new Date()
         });
 
@@ -3454,7 +3648,7 @@ const logLiveEvent = (type: string, data: any) => {
 
 
   return (
-    <div className="app-container bg-black text-white font-sans">
+    <div className={`app-container bg-black text-white font-sans ${activeStream && streamRoomData && currentUser ? 'live-fixed' : ''}`}>
 
 
       {/* PK Invite Pop-up Modal */}
@@ -3565,7 +3759,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {chattingWith && currentUser && (
 
-        <div className="fixed inset-0 z-[999999]">
+        <div className="fixed top-0 left-0 right-0 z-[999999]" style={{ height: 'var(--app-height, 100vh)' }}>
 
           <ChatScreen
 
@@ -3590,6 +3784,8 @@ const logLiveEvent = (type: string, data: any) => {
                 setPhotoViewerData({ photos, initialIndex: index });
 
             }}
+
+            onOpenLive={handleOpenUserLive}
 
             onOpenProfile={setViewingProfile}
 
@@ -3773,6 +3969,7 @@ const logLiveEvent = (type: string, data: any) => {
                     onTabChange={handleTabChange}
                     showLocationBanner={showLocationBanner}
                     unreadCount={totalUnreadMessages}
+                    invitedStreamIds={invitedStreamIds}
                 />
               ) : location.pathname.startsWith('/live/') && location.pathname !== '/live' ? (
                 <LiveLoadingRedirect />
@@ -3795,6 +3992,7 @@ const logLiveEvent = (type: string, data: any) => {
                   followingUsers={followingUsers}
                   liveStreamers={streamers}
                   onSelectStreamer={handleSelectStream}
+                  onOpenLive={handleOpenUserLive}
                 />
               ) : location.pathname === '/profile' ? (
                 <ProfileScreen
@@ -3950,7 +4148,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {isEndStreamSummaryOpen && streamSummaryData && <EndStreamSummaryScreen data={streamSummaryData} onClose={() => { setIsEndStreamSummaryOpen(false); setStreamSummaryData(null); navigate('/'); }} />}
 
-      {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={handleStartChat} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} />}
+      {viewingProfile && <UserProfileScreen user={viewingProfile} isCurrentUser={viewingProfile.id === currentUser?.id} onBack={() => setViewingProfile(null)} onEdit={handleEditProfile} onOpenTopFans={() => { setViewingProfile(null); handleOpenListScreen('topFans'); }} onOpenFollowing={() => { setViewingProfile(null); handleOpenListScreen('following'); }} onOpenFans={() => { setViewingProfile(null); handleOpenListScreen('fans'); }} onFollow={handleFollowUser} onStartChat={handleStartChat} onBlockUser={handleBlockUser} onReportUser={handleReportUser} onOpenPhotoViewer={(photos, index) => setPhotoViewerData({ photos, initialIndex: index })} lastPhotoLikeUpdate={lastPhotoLikeUpdate} onPhotoLiked={() => setLastPhotoLikeUpdate(Date.now())} onPhotoRemoved={(u) => { updateUserEverywhere(u); setViewingProfile(u); }} onOpenLive={handleOpenUserLive} />}
 
       {isEditingProfile && <EditProfileScreen user={currentUser} onBack={() => setIsEditingProfile(false)} onSave={handleSaveProfile} />}
 
@@ -3958,9 +4156,11 @@ const logLiveEvent = (type: string, data: any) => {
 
       {isConfirmingPurchase && selectedPackage && <ConfirmPurchaseScreen onClose={() => setIsConfirmingPurchase(false)} packageDetails={selectedPackage} onConfirmPurchase={handleConfirmPurchase} addToast={addToast} currentUser={currentUser} />}
 
-      {isFollowingScreenOpen && <FollowingScreen onBack={() => setIsFollowingScreenOpen(false)} onViewProfile={handleViewProfile} users={listScreenUsers} onFollowUser={handleFollowUser} currentUser={currentUser} />}
+      {isCadastralScreenOpen && pendingPurchase && currentUser && <CadastralDataScreen onClose={() => { setIsCadastralScreenOpen(false); setPendingPurchase(null); }} onSaved={handleCadastralSaved} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />}
 
-      {isFansScreenOpen && <FansScreen onBack={() => setIsFansScreenOpen(false)} onViewProfile={handleViewProfile} users={listScreenUsers} onFollowUser={handleFollowUser} currentUser={currentUser} />}
+      {isFollowingScreenOpen && <FollowingScreen onBack={() => setIsFollowingScreenOpen(false)} onViewProfile={handleViewProfile} onOpenLive={handleOpenUserLive} users={listScreenUsers} onFollowUser={handleFollowUser} currentUser={currentUser} />}
+
+      {isFansScreenOpen && <FansScreen onBack={() => setIsFansScreenOpen(false)} onViewProfile={handleViewProfile} onOpenLive={handleOpenUserLive} users={listScreenUsers} onFollowUser={handleFollowUser} currentUser={currentUser} />}
 
       {isFriendRequestsScreenOpen && <FriendRequestsScreen onBack={() => setIsFriendRequestsScreenOpen(false)} onViewProfile={handleViewProfile} users={(followingUsers || []).filter(followed => followed && (fans || []).some(fan => fan && fan.id === followed.id))} onFollowUser={handleFollowUser} />}
 

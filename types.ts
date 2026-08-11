@@ -139,6 +139,10 @@ export interface ToastData {
   id: string;
   type: ToastType;
   message: string;
+  // 🖼️ Suporte a notificações com foto de perfil (ex.: "X entrou na sala")
+  // estilo app de mensagens: avatar + título em destaque + corpo.
+  title?: string;
+  avatar?: string;
 }
 
 export interface Like {
@@ -215,6 +219,7 @@ export interface User {
     method: string;
     details: any;
   };
+  cadastral?: CadastralData;
   bio?: string;
   obras?: Obra[];
   curtidas?: Like[];
@@ -456,6 +461,31 @@ export interface SRSStreamInfo {
 }
 
 // --- Checkout & Payment Types ---
+
+export type PurchaseCurrency = 'BRL' | 'EUR' | 'USD';
+
+export interface PurchasePackage {
+    diamonds: number;
+    price: number;
+    isFreeDev?: boolean;
+    currency?: PurchaseCurrency;
+}
+
+export interface CadastralAddress {
+    street: string;
+    number: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+}
+
+export interface CadastralData {
+    documentType: 'cpf' | 'cnpj';
+    document: string;
+    address: CadastralAddress;
+}
 
 export interface DiamondPackage {
     id: string;

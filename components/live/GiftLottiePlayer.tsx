@@ -20,7 +20,16 @@ interface GiftLottiePlayerProps {
 const GIFT_LOTTIE_DIMENSIONS: Record<string, { w: number; h: number }> = {
   'Foguete': { w: 750, h: 1624 },
   'Caixa de Música': { w: 1500, h: 1334 },
+  'Coração': { w: 750, h: 1624 },
 };
+
+// 🎨 Presentes LOTTIE cujos FRAMES são OPAÇOS — fundo PRETO embutido no frame
+// (webp yuv420p sem canal alfa — Caixa de Música e Coração vieram de pacotes
+// .lottie exportados sem transparência). O lottie-web renderiza o frame
+// inteiro, então aplicamos `mix-blend-mode: screen` no container: o preto
+// some sobre a transmissão (blend aditivo) e só o conteúdo brilhante aparece
+// — mesma técnica de animações de gift sobre vídeo. Nada de WebGL/mp4.
+const SCREEN_BLEND_GIFTS = new Set(['Caixa de Música', 'Coração']);
 
 // 🔊 O lottie-web NÃO toca áudio por padrão: sem `audioFactory` ele usa um stub
 // mudo. Este factory devolve um wrapper sobre um <Audio> REAL, que reproduz o
@@ -171,10 +180,11 @@ const GiftLottiePlayer: React.FC<GiftLottiePlayerProps> = ({ url, giftName, onDu
 
     start();
 
-    // ⏰ Se em 2.5s nada carregou (rede/recurso) → fallback para animação.
+    // ⏰ Se em 10s nada carregou (rede/recurso — a Caixa de Música tem 212
+    // imagens, precisa de mais tempo) → fallback para animação.
     const loadTimeout = window.setTimeout(() => {
       if (!loaded && !destroyed) onLoadErrorRef.current?.();
-    }, 2500);
+    }, 10000);
 
     return () => {
       destroyed = true;
@@ -196,6 +206,9 @@ const GiftLottiePlayer: React.FC<GiftLottiePlayerProps> = ({ url, giftName, onDu
           maxWidth: '90vw',
           maxHeight: '72vh',
           aspectRatio: `${dims.w} / ${dims.h}`,
+          // 🎨 Fundo preto embutido nos frames (Caixa de Música/Coração) some
+          // com blend screen — só a animação aparece, sem parecer vídeo.
+          mixBlendMode: SCREEN_BLEND_GIFTS.has(giftName) ? 'screen' : undefined,
           animation: 'gift-lottie-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           willChange: 'transform, opacity',
         }}

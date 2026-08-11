@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CloseIcon, ClockIcon, FilterIcon, SearchIcon, BellOffIcon, QuestionMarkIcon, UserIcon, LiveIndicatorIcon } from './icons';
+import { CloseIcon, ClockIcon, FilterIcon, SearchIcon, BellOffIcon, QuestionMarkIcon, UserIcon } from './icons';
+import LiveBadge from './ui/LiveBadge';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from './Loading';
@@ -346,8 +347,8 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
                         <div className="relative">
                           <img src={user.avatarUrl} alt={user.name} className="w-11 h-11 rounded-full object-cover ring-1 ring-gray-800" />
                           {isLive ? (
-                            <div className="absolute -bottom-1 -right-1 bg-black p-0.5 rounded-full ring-1 ring-[#131124]">
-                              <LiveIndicatorIcon className="w-[14px] h-[14px] text-red-500 animate-pulse" />
+                            <div className="absolute -bottom-1 -right-1">
+                              <LiveBadge label="" showLabel={false} iconClassName="w-[14px] h-[14px]" className="rounded-full p-[3px] ring-1 ring-[#131124]" />
                             </div>
                           ) : (
                             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border border-[#131124]"></div>
@@ -358,7 +359,6 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
                           <div className="flex items-center space-x-1 text-gray-400 text-xs font-medium mt-0.5">
                             <UserIcon className="w-3 h-3 text-gray-500"/>
                             <span>@{user.name}</span>
-                            {isLive && <span className="text-red-400 ml-1">● AO VIVO</span>}
                           </div>
                         </div>
                       </div>

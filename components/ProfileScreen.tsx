@@ -40,8 +40,6 @@ import {
 
     ShieldIcon,
 
-    LiveIndicatorIcon,
-
     BankIcon
 
 } from './icons';
@@ -53,6 +51,7 @@ import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 
 import AvatarWithFrame from './ui/AvatarWithFrame';
+import LiveBadge from './ui/LiveBadge';
 
 // Modern, premium 3D-gradient custom icons
 const CustomWalletIcon = () => (
@@ -602,9 +601,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
               )}
 
               {displayUser.isLive && ((displayUser as any).streamStatus === 'active' || displayUser.currentStreamId) ? (
-                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/60 rounded-md px-2 py-1 flex items-center space-x-1.5 backdrop-blur-sm z-20 pointer-events-none">
-                    <LiveIndicatorIcon className="w-4 h-4 text-green-400" />
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">{t('footer.live')}</span>
+                  <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20">
+                    <LiveBadge
+                      label={t('footer.live')}
+                      onClick={(e) => { e.stopPropagation(); onEnterMyStream(); }}
+                    />
                   </div>
               ) : (displayUser.isOnline || (displayUser as any).is_online) ? (
                   <div className="absolute bottom-1 right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-black z-20 pointer-events-none shadow-[0_0_8px_rgba(34,197,94,0.6)]" title="Online"></div>

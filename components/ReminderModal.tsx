@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Streamer } from '../types';
-import { ClockIcon, PlayIcon, PlusIcon, LiveIndicatorIcon } from './icons';
+import { ClockIcon, PlayIcon, PlusIcon } from './icons';
 import { useTranslation } from '../i18n';
 
 interface ReminderModalProps {

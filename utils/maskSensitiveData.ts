@@ -57,8 +57,9 @@ const maskSensitiveObject = (obj: any): any => {
     
     // Lista de campos sensíveis para mascarar
     const sensitiveFields = [
-        'email', 'userId', 'user_id', 'pixKey', 'pix_key', 
-        'identification', 'id', 'token', 'password'
+        'email', 'userId', 'user_id', 'pixKey', 'pix_key',
+        'identification', 'id', 'token', 'password',
+        'document', 'cpf', 'cnpj', 'iban', 'accountNumber', 'routingNumber', 'cardNumber', 'cvv'
     ];
     
     // Mascarar campos diretos

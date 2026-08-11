@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useKeyboardInset } from '../hooks/useKeyboardInset';
+import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
+
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
@@ -113,7 +114,19 @@ export default function PKBattleScreen({
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const keyboardInset = useKeyboardInset();
+    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
+    // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
+    // abre um SEGUNDO campo de digitação (composer) colado acima do teclado.
+    const chatInputRef = useRef<HTMLButtonElement>(null);
+    const {
+        isComposerOpen,
+        openComposer,
+        closeComposer,
+        composerInputRef,
+        composerRef,
+        keyboardInset,
+        bottom: chatBarBottom,
+    } = useComposerKeyboard();
     
     const [myScore, setMyScore] = useState(0);
     const [opponentScore, setOpponentScore] = useState(0);
@@ -977,9 +990,9 @@ export default function PKBattleScreen({
                 </div>
 
                 {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
-                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` }}>
+                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` : `env(safe-area-inset-bottom, 0px)`, transition: 'opacity 0.3s ease, bottom 0.15s ease-out' }}>
                     {/* Chat messages */}
-                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{
+                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar overscroll-contain px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{ maxHeight: '40lvh',
                         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'
                     }}>
                         {messages.map((msg) => {
@@ -1017,19 +1030,24 @@ export default function PKBattleScreen({
                             return null;
                         })}
                     </div>
+                </div>
 
                     {/* Chat input footer */}
-                    <footer className="px-3 pb-3 pt-1 pointer-events-auto">
+                    <footer className={`absolute left-0 right-0 bottom-0 z-20 px-3 pb-3 pt-1 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                         <div className="flex items-center gap-2">
                             <div className="flex-grow">
-                                <input 
-                                    type="text"
-                                    placeholder={t('streamRoom.sayHi')}
-                                    value={chatInput}
-                                    onChange={(e) => setChatInput(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                                    className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                                />
+                                <button
+                                    type="button"
+                                    ref={chatInputRef}
+                                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2.5 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
+                                >
+                                    {chatInput ? (
+                                        <span className="text-white">{chatInput}</span>
+                                    ) : (
+                                        <span className="text-gray-400">{t('streamRoom.sayHi')}</span>
+                                    )}
+                                </button>
                             </div>
                             {/* 📡 Reaction buttons */}
                             <div className="flex items-center gap-0.5 mr-1">
@@ -1081,7 +1099,51 @@ export default function PKBattleScreen({
                             </div>
                         </div>
                     </footer>
-                </div>
+
+                {/* ⌨️ Composer flutuante (TikTok-style): abre COLADO no teclado quando
+                    o usuário toca na barra de mensagem fixa. A tela da live não se mexe. */}
+                {isComposerOpen && (
+                    <div
+                        ref={composerRef}
+                        className="fixed left-0 right-0 z-40"
+                        style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
+                    >
+                        <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317]/95 backdrop-blur-md border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-grow">
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder={t('streamRoom.sayHi')}
+                                        value={chatInput}
+                                        enterKeyHint="send"
+                                        autoComplete="off"
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onBlur={() => {
+                                            // Só fecha se o foco saiu do composer por completo.
+                                            // Não fecha em blur transitório do navegador (mobile).
+                                            setTimeout(() => {
+                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                    closeComposer();
+                                                }
+                                            }, 120);
+                                        }}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
+                                        className="w-full bg-white/10 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                    />
+                                </div>
+                                <button
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
+                                    className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                                >
+                                    <SendIcon className="w-4 h-4 text-white" />
+                                </button>
+                            </div>
+                        </footer>
+                    </div>
+                )}
 
                 {/* ─── LAYER 6: Gift notifications ─── */}
                 <div className="absolute top-24 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">

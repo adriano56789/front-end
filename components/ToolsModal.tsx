@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { Gift } from '../types';
 import { streamPublishService } from '../services/streamPublishService';
 
 // Custom high-fidelity SVGs matching the mockup screenshots perfectly
@@ -154,6 +155,9 @@ interface ToolsModalProps {
   onOpenVideoCall?: (e: React.MouseEvent) => void;
   isHost?: boolean;
   addToast?: (type: any, message: string) => void;
+  gifts?: Gift[];
+  pinnedGift?: Gift | null;
+  onSavePinnedGift?: (gift: Gift | null, label?: string) => void;
 }
 
 interface ToolButtonProps {
@@ -208,9 +212,51 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
     onToggleAutoPrivateInvite, 
     onOpenVideoCall,
     isHost = true,
-    addToast
+    addToast,
+    gifts = [],
+    pinnedGift = null,
+    onSavePinnedGift
 }) => {
     
+    const [selectedPinnedGift, setSelectedPinnedGift] = React.useState<Gift | null>(null);
+    const [pinnedGiftLabel, setPinnedGiftLabel] = React.useState<string>('');
+
+    useEffect(() => {
+        if (isOpen) {
+            setSelectedPinnedGift(pinnedGift);
+            setPinnedGiftLabel(pinnedGift?.name || '');
+        }
+    }, [isOpen, pinnedGift]);
+
+    const renderGiftVisual = (gift: any) => {
+        if (gift.component) return gift.component;
+        if (typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/'))) {
+            return <img src={gift.icon} alt={gift.name} className="w-10 h-10 object-cover rounded-lg" />;
+        }
+        return <span className="text-3xl">{gift.icon}</span>;
+    };
+
+    const handleSavePinnedGift = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!selectedPinnedGift) {
+            if (addToast) addToast('error', 'Selecione um presente para fixar na tela.');
+            return;
+        }
+        const label = pinnedGiftLabel.trim() || selectedPinnedGift.name;
+        if (onSavePinnedGift) onSavePinnedGift(selectedPinnedGift, label);
+        if (addToast) addToast('success', `Presente "${label}" fixado na tela!`);
+        onClose();
+    };
+
+    const handleRemovePinnedGift = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (onSavePinnedGift) onSavePinnedGift(null);
+        setSelectedPinnedGift(null);
+        setPinnedGiftLabel('');
+        if (addToast) addToast('info', 'Presente fixado removido da tela.');
+        onClose();
+    };
+
     const createAndCloseHandler = (action?: (e: React.MouseEvent) => void) => {
         if (!action) return undefined;
         return (e: React.MouseEvent) => {
@@ -356,6 +402,67 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                             <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Âncora</h3>
                             <div className="grid grid-cols-4 gap-y-5 gap-x-2.5 justify-items-center">
                                 {anchorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
+                            </div>
+                        </div>
+
+                        <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
+                            <h3 className="text-[13px] font-semibold text-gray-400 mb-1 px-1.5 tracking-wide">Presente Fixado na Tela</h3>
+                            <p className="text-[11px] text-gray-500 px-1.5 mb-3">Selecione um presente para fixá-lo no canto da transmissão, como no Guzzcast.</p>
+                            {gifts.length === 0 ? (
+                                <p className="text-[11px] text-gray-500 px-1.5 py-2">Nenhum presente disponível.</p>
+                            ) : (
+                                <div className="grid grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1 no-scrollbar">
+                                    {gifts.map(gift => {
+                                        const isSelected = selectedPinnedGift && (selectedPinnedGift.id || selectedPinnedGift.name) === (gift.id || gift.name);
+                                        const isPinned = pinnedGift && (pinnedGift.id || pinnedGift.name) === (gift.id || gift.name);
+                                        return (
+                                            <button
+                                                key={gift.id || gift.name}
+                                                onClick={(e) => { e.stopPropagation(); setSelectedPinnedGift(gift); setPinnedGiftLabel(prev => (prev && prev !== (selectedPinnedGift?.name || '')) ? prev : gift.name); }}
+                                                className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all border outline-none cursor-pointer ${isSelected ? 'border-[#00e5ff] bg-[#00e5ff]/5 shadow-[0_0_12px_rgba(0,229,255,0.2)] scale-[1.02]' : 'border-transparent bg-transparent hover:bg-white/[0.03]'}`}
+                                            >
+                                                <div className="w-11 h-11 flex items-center justify-center">
+                                                    {renderGiftVisual(gift)}
+                                                </div>
+                                                <p className="w-full text-[10px] text-gray-300 text-center truncate font-medium mt-1">{gift.name}</p>
+                                                {isPinned && (
+                                                    <span className="absolute top-0.5 right-0.5 text-[9px]">📌</span>
+                                                )}
+                                                {isSelected && (
+                                                    <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#00e5ff] rounded-full flex items-center justify-center shadow-md">
+                                                        <svg className="w-2 h-2 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="4">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            <input
+                                type="text"
+                                value={pinnedGiftLabel}
+                                onChange={(e) => setPinnedGiftLabel(e.target.value)}
+                                placeholder={selectedPinnedGift ? `Nome: ${selectedPinnedGift.name}` : 'Nome do presente fixado'}
+                                maxLength={40}
+                                className="w-full h-10 rounded-xl bg-white/[0.06] border border-white/10 px-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#00e5ff]"
+                            />
+                            <div className="flex items-center gap-2 mt-3">
+                                <button
+                                    onClick={handleSavePinnedGift}
+                                    disabled={!selectedPinnedGift}
+                                    className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#00e5ff] to-[#bd00ff] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold tracking-wide uppercase transition-all active:scale-95 cursor-pointer"
+                                >
+                                    Fixar na Tela
+                                </button>
+                                <button
+                                    onClick={handleRemovePinnedGift}
+                                    disabled={!pinnedGift}
+                                    className="h-10 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] disabled:opacity-40 disabled:cursor-not-allowed text-gray-300 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+                                >
+                                    Remover
+                                </button>
                             </div>
                         </div>
                     </>

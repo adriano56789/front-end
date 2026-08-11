@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
-import { CloseIcon, LiveIndicatorIcon } from '../icons';
+import { CloseIcon } from '../icons';
+import LiveBadge from '../ui/LiveBadge';
 import { useTranslation } from '../../i18n';
 
 interface LiveNotificationModalProps {
@@ -66,8 +67,8 @@ const LiveNotificationModal: React.FC<LiveNotificationModalProps> = ({ isOpen, o
                 className="w-full h-full rounded-full object-cover border-2 border-[#2b2b2b]" 
             />
           </div>
-          <div className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5">
-             <LiveIndicatorIcon className="w-3 h-3 text-green-500" />
+          <div className="absolute -bottom-1 -right-1">
+             <LiveBadge label="" showLabel={false} iconClassName="w-3 h-3" className="rounded-full p-[2px]" />
           </div>
         </div>
 

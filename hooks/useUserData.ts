@@ -66,6 +66,24 @@ const maskSensitiveData = (data: any): any => {
                     }
                 }
             }
+            if (masked.withdrawal_method.details?.iban) {
+                const iban = masked.withdrawal_method.details.iban;
+                if (typeof iban === 'string' && iban.length > 6) {
+                    masked.withdrawal_method.details.iban = iban.slice(0, 4) + '*'.repeat(iban.length - 6) + iban.slice(-2);
+                }
+            }
+            if (masked.withdrawal_method.details?.accountNumber) {
+                const acc = masked.withdrawal_method.details.accountNumber;
+                if (typeof acc === 'string' && acc.length > 4) {
+                    masked.withdrawal_method.details.accountNumber = acc.slice(0, 2) + '*'.repeat(acc.length - 4) + acc.slice(-2);
+                }
+            }
+            if (masked.withdrawal_method.details?.routingNumber) {
+                const rt = masked.withdrawal_method.details.routingNumber;
+                if (typeof rt === 'string' && rt.length > 4) {
+                    masked.withdrawal_method.details.routingNumber = rt.slice(0, 3) + '*'.repeat(rt.length - 5) + rt.slice(-2);
+                }
+            }
         }
         
         return masked;

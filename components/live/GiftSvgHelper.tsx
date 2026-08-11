@@ -2,7 +2,6 @@ import React from 'react';
 import { Gift } from '../../types';
 import {
   // Popular Icons we just created
-  CoracaoGiftIcon,
   RosaGiftIcon,
   FlorGiftIcon,
   RoscaGiftIcon,
@@ -37,7 +36,6 @@ import {
 // Map of names to SVG Components
 const NAME_TO_SVG_MAP: Record<string, React.ComponentType<any>> = {
   // Popular Gifts
-  'Coração': CoracaoGiftIcon,
   'Rosa': RosaGiftIcon,
   'Flor': FlorGiftIcon,
   'Rosca': RoscaGiftIcon,
@@ -89,6 +87,13 @@ const GIFT_SVG_ICON_OVERRIDES: Record<string, string> = {
   // 🚀 Foguete: pacote 火箭 (NO.10686) — SVG vetorial do ícone; a animação é o
   // lottie novo (foguete.json + imagens + aud_0.mp3), som via audioFactory.
   'foguete': '/gifts/foguete.svg',
+  // ❤️ Coração (id coracao): SVG animado novo do pacote — substitui o
+  // CoracaoGiftIcon; a animação em tela cheia é o Lottie coracao.json.
+  'coracao': '/gifts/coracao.svg',
+  // 🪽 Asas de Anjo (id asas_de_anjo): ícone ORIGINAL do pacote 翅膀
+  // (NO.102834 主页特效-翅膀.png); a animação em tela cheia é o VAP
+  // asas_de_anjo.mp4 (convertido do próprio .svga).
+  'asas_de_anjo': '/gifts/asas_de_anjo.png',
 };
 
 /**

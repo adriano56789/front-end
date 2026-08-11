@@ -16,6 +16,7 @@ import { getAuthToken } from './api';
 let socket: Socket | null = null;
 let connected = false;
 let listeners = new Set<() => void>(); // callbacks de mudança de estado
+let chatBridgeRegistered = false; // ponte do chat privado registrada (idempotente)
 
 // Usa a mesma URL base da API (mesmo servidor Express do backend)
 const API_BASE = import.meta.env.VITE_API_URL ||
@@ -74,6 +75,7 @@ export function connectSocket(): Promise<Socket | null> {
             socket.on('connect', () => {
                 connected = true;
                 console.log('[SocketIO] Conectado');
+                initPrivateChatSocket();
                 listeners.forEach(cb => cb());
                 resolve(socket);
             });
@@ -169,6 +171,29 @@ export async function emitJoinStream(payload: {
     } catch (err) {
         console.warn('[SocketIO] Erro ao emitir join_stream:', err);
         return false;
+    }
+}
+
+/**
+ * 💬 Ponte do CHAT PRIVADO (exclusivamente WebSocket — NÃO usa Firebase):
+ * recebe o evento `newChatMessage` que o backend emite para a sala
+ * `user_{id}` (chatRoutes.ts) e o repassa como CustomEvent no `window`.
+ * App.tsx e ChatScreen.tsx já escutam esse evento para atualizar o chat e
+ * mostrar o banner de notificação em tempo real.
+ *
+ * O usuário é inserido automaticamente na sala `user_{id}` ao conectar
+ * (backend/src/socket.ts), então basta o socket estar conectado enquanto o
+ * app está aberto/logado. Idempotente e re-registrado a cada reconnect.
+ */
+export function initPrivateChatSocket(): void {
+    const s = getSocket();
+    if (!s) return;
+    if (!chatBridgeRegistered) {
+        chatBridgeRegistered = true;
+        s.on('newChatMessage', (data: any) => {
+            window.dispatchEvent(new CustomEvent('newChatMessage', { detail: data }));
+        });
+        console.log('[SocketIO] Ponte do chat privado conectada (newChatMessage → window)');
     }
 }
 

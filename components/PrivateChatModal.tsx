@@ -1,6 +1,7 @@
 import React from 'react';
 import { Conversation, User } from '../types';
 import { CloseIcon } from './icons';
+import { formatConvoTime } from '../utils/formatConvoTime';
 
 interface PrivateChatModalProps {
   isOpen: boolean;
@@ -40,42 +41,6 @@ const LevelBadge: React.FC<{ level: number }> = ({ level }) => {
     );
 };
 
-const formatConvoTimestamp = (timestamp: any) => {
-    if (!timestamp) return '';
-    try {
-        let dateVal = timestamp;
-        if (timestamp && typeof timestamp === 'object') {
-            if ('$date' in timestamp) {
-                dateVal = timestamp.$date;
-            } else if ('date' in timestamp) {
-                dateVal = timestamp.date;
-            } else {
-                return '';
-            }
-        }
-        const date = new Date(dateVal);
-        if (isNaN(date.getTime())) {
-            return typeof timestamp === 'object' ? '' : String(timestamp);
-        }
-        
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) {
-            return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        } else if (diffDays === 1) {
-            return 'Ontem';
-        } else if (diffDays < 7) {
-            const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-            return dias[date.getDay()];
-        } else {
-            return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-        }
-    } catch {
-        return typeof timestamp === 'object' ? '' : String(timestamp);
-    }
-};
 
 const ConversationItem: React.FC<{ conversation: Conversation; onClick: () => void }> = ({ conversation, onClick }) => {
     return (
@@ -114,7 +79,7 @@ const ConversationItem: React.FC<{ conversation: Conversation; onClick: () => vo
             {/* Right Section: Time & Unread bubble */}
             <div className="flex flex-col items-end flex-shrink-0 space-y-1.5">
                 <span className="text-[11px] text-zinc-500 font-mono tracking-tighter">
-                    {formatConvoTimestamp(conversation.timestamp)}
+                    {formatConvoTime(conversation.timestamp)}
                 </span>
                 {conversation.unreadCount && conversation.unreadCount > 0 ? (
                     <span className="h-[18px] min-w-[18px] px-1 rounded-full bg-red-600 text-white font-extrabold text-[9px] flex items-center justify-center shadow-lg shadow-red-600/30">

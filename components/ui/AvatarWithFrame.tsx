@@ -21,6 +21,7 @@ const frameComponentMap: Record<string, React.ComponentType<any>> = {
   'FrameMysticalWings': FrameIcons.FrameMysticalWings,
   'FrameCosmicFire': FrameIcons.FrameCosmicFire,
   'FrameCelestialCrown': FrameIcons.FrameCelestialCrown,
+  'Frame20275': FrameIcons.Frame20275,
 };
 
 // Função para verificar se o frame ainda é válido

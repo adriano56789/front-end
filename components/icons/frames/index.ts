@@ -10,3 +10,4 @@ export { FrameBaroqueElegance } from './FrameBaroqueElegance';
 export { FrameMysticalWings } from './FrameMysticalWings';
 export { FrameCosmicFire } from './FrameCosmicFire';
 export { FrameCelestialCrown } from './FrameCelestialCrown';
+export { Frame20275 } from './Frame20275';

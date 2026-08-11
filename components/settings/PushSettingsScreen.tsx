@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { useTranslation } from '../../i18n';
 import { User } from '../../types';
 import { LoadingSpinner } from '../Loading';
+import LiveBadge from '../ui/LiveBadge';
 
 interface PushSettingsScreenProps {
   onBack: () => void;
@@ -176,18 +177,13 @@ const PushSettingsScreen: React.FC<PushSettingsScreenProps> = ({ onBack, current
                           referrerPolicy="no-referrer"
                         />
                         {user.isLive && (
-                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-red-500 border-2 border-black rounded-full" />
+                          <LiveBadge label="" showLabel={false} iconClassName="w-3 h-3" className="absolute bottom-0 right-0 rounded-full p-[1.5px]" />
                         )}
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[15px] font-medium text-zinc-100 leading-snug">
                           {user.name}
                         </span>
-                        {user.isLive && (
-                          <span className="text-[11px] text-red-500 font-semibold uppercase tracking-wider mt-0.5 animate-pulse">
-                            Ao Vivo
-                          </span>
-                        )}
                       </div>
                     </div>
                     

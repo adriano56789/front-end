@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Streamer } from '../types';
 import { SrsPlayerEngine } from '../services/SrsPlayerEngine';
+import LiveBadge from './ui/LiveBadge';
 
 interface FloatingPlayerProps {
   streamer: Streamer;
@@ -160,11 +161,8 @@ const FloatingPlayer: React.FC<FloatingPlayerProps> = ({ streamer, onClose, onRe
                 <span className="text-white text-[10px] font-bold truncate max-w-[70px] drop-shadow-lg">
                   {streamer.name}
                 </span>
-                {/* Live Badge */}
-                <span className="bg-red-600 text-white text-[7px] font-extrabold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 shadow-lg animate-pulse">
-                  <span className="w-1.5 h-1.5 bg-white rounded-full" />
-                  LIVE
-                </span>
+                {/* Live Badge — MESMO LiveBadge verde de todos os lugares */}
+                <LiveBadge label="LIVE" className="px-1.5 py-0.5 shadow-lg" />
               </div>
 
               {/* Close button */}

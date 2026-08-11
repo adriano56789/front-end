@@ -1,7 +1,6 @@
 import React from 'react';
 import { User } from '../../types';
 import { PlusIcon, RankIcon, MaleIcon, FemaleIcon } from '../icons';
-import { formatMessageTime } from '../../utils/formatMessageTime';
 
 interface EntryChatMessageProps {
     user: User;
@@ -25,7 +24,7 @@ const AgeBadge: React.FC<{ gender?: 'male' | 'female' | 'not_specified'; age?: n
     );
 };
 
-const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, onClick, onFollow, isFollowed, isBroadcaster, isModerator, timestamp }) => {
+const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, onClick, onFollow, isFollowed, isBroadcaster, isModerator }) => {
     const showFollowButton = !isBroadcaster && !isFollowed;
 
     return (
@@ -61,11 +60,7 @@ const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, 
             >
                 entrou na sala.
             </span>
-            
-            {timestamp ? (
-                <span className="text-[8px] text-white/35 font-mono shrink-0 leading-none self-center">{formatMessageTime(timestamp)}</span>
-            ) : null}
-            
+
             {showFollowButton && (
                  <button
                     onClick={(e) => {

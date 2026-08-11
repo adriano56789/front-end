@@ -12,6 +12,33 @@
 const dataCache = new Map<string, any>();
 const inflight = new Map<string, Promise<any>>();
 
+const warmed = new Set<string>();
+
+/**
+ * Pré-aquece as imagens externas do JSON (ex.: musicbox.json → 212 webps em
+ * /animations/musicbox/). O fetch em background popula o cache HTTP do
+ * navegador, então quando o presente chega o lottie-web encontra as imagens
+ * já em cache e a animação aparece INSTANTANEAMENTE (sem esperar download).
+ * Segue a MESMA resolução de path do lottie-web: assetsPath + asset.p
+ * (o prefixo "images/" é removido quando o assetsPath está setado).
+ */
+function warmImages(url: string, data: any): void {
+    const base = url.replace(/\.json$/, '') + '/';
+    const assets: any[] = (data && data.assets) || [];
+    assets.forEach((a) => {
+        if (!a || a.e || typeof a.p !== 'string' || a.p.indexOf('data:') === 0) return;
+        let p = a.p;
+        if (p.indexOf('images/') !== -1) p = p.split('/')[1];
+        if (!p) return;
+        const imgUrl = base + p;
+        if (warmed.has(imgUrl)) return;
+        warmed.add(imgUrl);
+        try {
+            fetch(imgUrl).catch(() => { /* cache falhou — lottie baixa na hora */ });
+        } catch { /* ignore */ }
+    });
+}
+
 /** Inicia o download do JSON em segundo plano (idempotente). */
 export function preloadLottieJson(url: string): void {
     if (dataCache.has(url) || inflight.has(url)) return;
@@ -23,6 +50,7 @@ export function preloadLottieJson(url: string): void {
         })
         .then(data => {
             dataCache.set(url, data);
+            warmImages(url, data);
             return data;
         })
         .finally(() => {

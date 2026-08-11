@@ -1,7 +1,6 @@
 import React from 'react';
 import { PlusIcon, SettingsIcon, IdBadgeIcon, MaleIcon, FemaleIcon } from '../icons';
 import { User } from '../../types';
-import { formatMessageTime } from '../../utils/formatMessageTime';
 
 interface ChatMessageProps {
     userObject: User;
@@ -45,7 +44,7 @@ const getUsernameColor = (username: string, level?: number) => {
     return colors[index];
 };
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatarClick, onFollow, isFollowed, onModerationClick, isModerator, timestamp }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatarClick, onFollow, isFollowed, onModerationClick, isModerator }) => {
     const { name: user, level } = userObject;
 
     const isSystemMessage = user === 'Sistema';
@@ -76,7 +75,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
                 >
                     <span className="font-extrabold text-[#c084fc] font-sans tracking-wide text-[10px]">Sistema:</span>
                     <span className="text-purple-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed text-[10px]">{message}</span>
-                    {timestamp ? <span className="text-[8px] text-purple-300/50 font-mono shrink-0 leading-none">{formatMessageTime(timestamp)}</span> : null}
                 </div>
             );
         } else {
@@ -87,7 +85,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
                 >
                     <span className="font-extrabold text-[#fbbf24] font-sans tracking-wide text-[10px]">Sistema:</span>
                     <span className="text-amber-100 font-sans font-semibold tracking-wide flex items-center gap-1 leading-relaxed text-[10px]">{message}</span>
-                    {timestamp ? <span className="text-[8px] text-amber-300/50 font-mono shrink-0 leading-none">{formatMessageTime(timestamp)}</span> : null}
                 </div>
             );
         }
@@ -132,10 +129,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             >
                 {message}
             </span>
-
-            {timestamp ? (
-                <span className="text-[8px] text-white/35 font-mono shrink-0 leading-none self-center">{formatMessageTime(timestamp)}</span>
-            ) : null}
 
             {onModerationClick && (
                 <button 

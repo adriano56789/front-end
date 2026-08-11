@@ -5,7 +5,7 @@ import { User, ToastType } from '../types';
 import { shopAPI, ShopItem, UserInventory, UserAvatar } from '../services/shopAPI';
 import { api } from '../services/api';
 // Importar os frames novos
-import { avatarFrames, getRemainingDays } from '../utils/chatUtils';
+import { avatarFrames, getRemainingDays, getRemainingDaysLabel } from '../utils/chatUtils';
 
 // FIX: Add missing props to interface
 interface MarketScreenProps {
@@ -119,6 +119,12 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
   const isSelectedFrameEquipped = isFrameOwned && selectedItem && (user as any).activeFrameId === selectedItem.id;
   const selectedOwnedFrame = selectedItem && ((user as any).ownedFrames || []).find((f: any) => f.frameId === selectedItem.id);
   const remainingDays = getRemainingDays(selectedOwnedFrame?.expirationDate);
+  // Rótulo derivado dos dias (um único parse da data): Permanente > 365 dias.
+  const remainingLabel = remainingDays > 365
+    ? 'Permanente'
+    : remainingDays > 0
+      ? remainingDays === 1 ? '1 dia' : `${remainingDays} dias`
+      : '';
 
   let buttonText: string = '';
   let buttonAction: (() => void) | undefined = undefined;
@@ -216,6 +222,8 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
                    const isOwned = ((user as any).ownedFrames || []).some((f: any) => f.frameId === frame.id && getRemainingDays(f.expirationDate) > 0);
                    const isEquipped = isOwned && (user as any).activeFrameId === frame.id;
                    const isSelected = selectedItem?.id === frame.id;
+                   const frameOwnedEntry = ((user as any).ownedFrames || []).find((f: any) => f.frameId === frame.id);
+                   const frameRemainingLabel = getRemainingDaysLabel(frameOwnedEntry?.expirationDate);
 
                    return (
                      <button
@@ -251,6 +259,17 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
                        {isEquipped && (
                          <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#2ebc5b]" />
                        )}
+
+                       {/* ⏳ Validade: dias restantes do frame (3 dias após a compra) */}
+                       {isOwned && frameRemainingLabel && (
+                         <span className={`absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-semibold px-1.5 py-[1px] rounded-full whitespace-nowrap ${
+                           frameRemainingLabel === 'Permanente'
+                             ? 'bg-[#2ebc5b]/20 text-[#2ebc5b]'
+                             : 'bg-amber-500/20 text-amber-400'
+                         }`}>
+                           {frameRemainingLabel}
+                         </span>
+                       )}
                      </button>
                    );
                  })}
@@ -265,6 +284,18 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
       {/* Footer Area */}
       {activeTab === 'Quadro de avatar' && (
         <footer className="flex-shrink-0 px-4 pt-3 pb-8 z-20 bg-gradient-to-t from-black via-black to-transparent">
+          {/* ⏳ Validade do quadro selecionado (3 dias após a compra; dono = permanente) */}
+          {isFrameOwned && remainingLabel && (
+            <div className="flex items-center justify-center mb-2">
+              <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full ${
+                remainingLabel === 'Permanente'
+                  ? 'bg-[#2ebc5b]/15 text-[#2ebc5b]'
+                  : 'bg-amber-500/15 text-amber-400'
+              }`}>
+                {remainingLabel === 'Permanente' ? '♾️ Uso permanente (dono)' : `⏳ Expira em ${remainingLabel}`}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             {/* Diamond Balance */}
             <div className="flex items-center space-x-2 bg-transparent">

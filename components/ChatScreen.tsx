@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { User, Message, FeedPhoto } from '../types';
-import { BackIcon, ThreeDotsIcon, SendIcon, GalleryIcon, CheckIcon, DoubleCheckIcon, UserIcon, CloseIcon, LiveIndicatorIcon, ClockIcon, WarningTriangleIcon } from './icons';
+import { BackIcon, ThreeDotsIcon, SendIcon, GalleryIcon, CheckIcon, DoubleCheckIcon, UserIcon, CloseIcon, ClockIcon, WarningTriangleIcon } from './icons';
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-import { useKeyboardInset } from '../hooks/useKeyboardInset';
+import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
+
 import { LoadingSpinner } from './Loading';
+import LiveBadge from './ui/LiveBadge';
 import { formatMessageTime } from '../utils/formatMessageTime';
-// Socket.IO removido — chat gerenciado via REST API
+import { syncServerTime } from '../utils/serverTime';
+// 💬 Chat privado via WebSocket (Socket.IO): o socketService faz a ponte do
+// evento `newChatMessage` do backend para o window (abaixo). A busca inicial
+// usa REST e o envio usa REST (persiste no banco); a entrega em tempo real é
+// via WebSocket — sem Firebase.
 
 interface ChatScreenProps {
     user: User;
@@ -23,6 +29,8 @@ interface ChatScreenProps {
     messages?: any[];
     // 📡 Byte Streams: envio de imagens em tempo real (se disponível)
     sendFile?: (file: File, onProgress?: (pct: number) => void) => Promise<boolean>;
+    // 🔴 Indicador AO VIVO clicável → entra na transmissão
+    onOpenLive?: (user: User) => void;
 }
 
 const MessageStatus: React.FC<{ status: Message['status'] }> = ({ status }) => {
@@ -185,7 +193,7 @@ const BecameFriendsIndicator: React.FC<{ onNavigate: () => void }> = ({ onNaviga
 };
 
 
-const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages, sendFile: propSendFile }) => {
+const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages, sendFile: propSendFile, onOpenLive }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const effectiveMessages = useMemo(() => {
         const base = propMessages || messages;
@@ -201,8 +209,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
-    const chatInputRef = useRef<HTMLInputElement>(null);
-    const keyboardInset = useKeyboardInset();
+    const chatInputRef = useRef<HTMLButtonElement>(null);
+    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
+    // FIXA no fundo (bottom = safe-area, nunca sai do lugar). Ao tocar nela,
+    // a barra fica INVISÍVEL (sem ser movida nem apagada) e abre um SEGUNDO
+    // campo de digitação (composer) colado acima do teclado.
+    // `keyboardInset` (altura real do teclado) é usado para rolar até a última
+    // mensagem quando o teclado abre; `bottom` é a posição do composer.
+    const {
+        isComposerOpen,
+        openComposer,
+        closeComposer,
+        composerInputRef,
+        composerRef,
+        keyboardInset,
+        bottom,
+    } = useComposerKeyboard();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const blobUrlsRef = useRef<string[]>([]);
     const { t } = useTranslation();
@@ -232,6 +254,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         return `Visto por último em ${lastSeenDate.toLocaleDateString()}`;
     };
 
+    // ⏰ Sincroniza o relógio do SERVIDOR a partir da mensagem mais recente.
+    // Só usa como referência se for recente ("agora" no servidor) — conversas
+    // antigas não servem de referência de relógio.
+    const syncFromMessages = (list: any[]) => {
+        let newest = 0;
+        list.forEach((m: any) => {
+            const t = m?.timestamp ? new Date(m.timestamp).getTime() : 0;
+            if (!Number.isNaN(t) && t > newest) newest = t;
+        });
+        if (!newest) return;
+        if (Math.abs(Date.now() - newest) < 60 * 60 * 1000) syncServerTime(newest);
+    };
+
     const fetchInitialData = useCallback(async () => {
         setIsLoading(true);
         
@@ -244,6 +279,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             // Usar dados em cache
             setMessages(cached.data.messages || []);
             setUserStatus(cached.data.status);
+            syncFromMessages(cached.data.messages || []);
             setIsLoading(false);
             return;
         }
@@ -267,6 +303,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             
             setMessages(data.messages);
             setUserStatus(data.status);
+            syncFromMessages(data.messages);
         } catch (error) {
         } finally {
             setIsLoading(false);
@@ -323,8 +360,24 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         }
     }, [effectiveMessages.length]);
 
+    // ⌨️ Quando o teclado abre (keyboardInset sobe), rolar para a última
+    // mensagem para que ela fique visível logo acima do input — igual WhatsApp.
+    const prevInsetRef = useRef(0);
+    useEffect(() => {
+        const opened = keyboardInset > 0 && prevInsetRef.current === 0;
+        prevInsetRef.current = keyboardInset;
+        if (opened && effectiveMessages.length > 0) {
+            // Delay: espera a animação do teclado (e do re-layout) estabilizar
+            setTimeout(() => {
+                chatEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+            }, 120);
+        }
+    }, [keyboardInset, effectiveMessages.length]);
+
     useEffect(() => {
         const handleNewMessage = (message: Message & { tempId?: string }) => {
+            // ⏰ Mensagem recebida em tempo real (socket): timestamp = "agora" no servidor
+            syncServerTime(message.timestamp);
             const msgChatId = message.chatId || `chat_private_${message.from < message.to ? message.from + '_' + message.to : message.to + '_' + message.from}`;
             if (msgChatId === chatKey || (message.from === user.id && message.to === currentUser.id) || (message.from === currentUser.id && message.to === user.id)) {
                 if (!propMessages) {
@@ -456,6 +509,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             const result = await api.sendChatMessage(currentUser.id, user.id, textToSend, finalImageUrl, tempId);
 
             if (result && result.message) {
+                // ⏰ Confirmado pelo servidor: timestamp de envio = horário do servidor
+                syncServerTime(result.message.timestamp);
                 setMessages(prev =>
                     prev.map(msg =>
                         msg.id === tempId
@@ -543,7 +598,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         : "absolute inset-0 z-50 bg-[#131317] text-white flex flex-col";
 
     const contentClasses = isModal
-        ? "bg-[#131317] text-white flex flex-col w-full max-w-md h-[75%] rounded-t-2xl relative"
+        ? "bg-[#131317] text-white flex flex-col w-full max-w-md h-[75%] rounded-t-2xl relative overflow-hidden"
         : "text-white flex flex-col w-full h-full relative overflow-hidden";
 
     const backdropClick = isModal ? onBack : undefined;
@@ -574,7 +629,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     <svg className="w-3.5 h-3.5 text-[#b91bff]" viewBox="0 0 24 24" fill="currentColor">
                                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                                     </svg>
-                                    {user.isLive && <LiveIndicatorIcon className="w-4 h-4 text-red-500" />}
+                                    {user.isLive && (
+                                        <span onClick={(e) => { e.stopPropagation(); onOpenLive?.(user); }}>
+                                            <LiveBadge label="" showLabel={false} iconClassName="w-4 h-4" className="rounded-full p-[3px]" />
+                                        </span>
+                                    )}
                                 </h1>
                                 <span className="text-[12px] text-[#00e5ff] flex items-center font-medium">
                                     <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] mr-1.5"></span>
@@ -589,7 +648,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     </button>
                 </header>
                 <main className="relative flex-1 min-h-0 overflow-hidden">
-                    <div className="absolute inset-0 overflow-y-auto no-scrollbar">
+                    {/* overscroll-contain: a rolagem existe SÓ aqui (mensagens);
+                        não propaga para a tela/página de jeito nenhum */}
+                    <div className="absolute inset-0 overflow-y-auto no-scrollbar overscroll-contain">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-full">
                             <LoadingSpinner />
@@ -614,7 +675,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             </button>
                         </div>
                     ) : (
-                        <div className="space-y-3 px-4 pt-2 pb-28">
+                        <div className="space-y-3 px-4 pt-2">
                             {effectiveMessages.map((msg) => {
                                 if (msg.type === 'system-friend-notification') {
                                     return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
@@ -631,12 +692,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     />
                                 );
                             })}
-                            <div ref={chatEndRef} />
+                            <div ref={chatEndRef} style={{ height: `calc(4.5rem + ${isComposerOpen ? keyboardInset : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                         </div>
                     )}
                     </div>
                 </main>
-                <footer className="flex-shrink-0 z-10 bg-[#131317] px-4 pt-3 border-t border-[#232128]" style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + ${keyboardInset}px + 12px)` }}>
+                {/* ⌨️ Barra de mensagem 100% FIXA: bottom é SEMPRE
+                    safe-area-inset-bottom — o teclado NUNCA a move. Ao digitar,
+                    ela fica apenas INVISÍVEL (opacity) e o composer (SEGUNDA
+                    barra) aparece colado acima do teclado, por cima dela. */}
+                <footer className={`fixed left-0 right-0 z-10 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128] transition-all duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     {selectedImage && (
                         <div className="relative mb-2 w-fit">
                             <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
@@ -666,21 +731,22 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             <GalleryIcon className="w-5 h-5" />
                         </button>
                         <div className="flex-grow h-10">
-                            <input
+                            <button
+                                type="button"
                                 ref={chatInputRef}
-                                type="text"
-                                placeholder="Diga oi..."
-                                value={newMessage}
-                                onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); setTimeout(() => chatInputRef.current?.focus(), 0); } }}
-                                enterKeyHint="send"
-                                autoComplete="off"
-                                className="w-full h-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 focus:outline-none"
-                            />
+                                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
+                                className="w-full h-full bg-transparent text-[14px] px-2 text-left focus:outline-none cursor-pointer select-none"
+                            >
+                                {newMessage ? (
+                                    <span className="text-white">{newMessage}</span>
+                                ) : (
+                                    <span className="text-[#5a5860]">Diga oi...</span>
+                                )}
+                            </button>
                         </div>
                         <button
                             onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { handleSendMessage(); setTimeout(() => chatInputRef.current?.focus(), 0); }}
+                            onClick={() => { handleSendMessage(); }}
                             className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
                             disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
                         >
@@ -694,6 +760,57 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         </button>
                     </div>
                 </footer>
+
+                {/* ⌨️ Composer (SEGUNDA barra): aparece SÓ na hora de digitar,
+                    colado acima do teclado, sem mexer na barra fixa. */}
+                {isComposerOpen && (
+                    <div
+                        ref={composerRef}
+                        className="fixed left-0 right-0 z-50"
+                        style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
+                    >
+                        <footer className="bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]">
+                            <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
+                                <div className="flex-grow h-10">
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder="Diga oi..."
+                                        value={newMessage}
+                                        enterKeyHint="send"
+                                        autoComplete="off"
+                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        onBlur={() => {
+                                            // Só fecha se o foco saiu do composer por completo.
+                                            // Não fecha em blur transitório do navegador (mobile).
+                                            setTimeout(() => {
+                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                    closeComposer();
+                                                }
+                                            }, 120);
+                                        }}
+                                        onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
+                                        className="w-full h-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 focus:outline-none"
+                                    />
+                                </div>
+                                <button
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => { handleSendMessage(); }}
+                                    className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
+                                    disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
+                                >
+                                    {effectiveMessages.some(m => m.status === 'sending') ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                    ) : (
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M2.01 21L23 12L2.01 3L2 10l15 2-15 2z" fill="currentColor"/>
+                                        </svg>
+                                    )}
+                                </button>
+                            </div>
+                        </footer>
+                    </div>
+                )}
             </div>
             <BlockReportModal
                 isOpen={isActionsModalOpen}

@@ -1,5 +1,31 @@
 # Deploy Completo LiveGo — VPS
 
+## 🚀 Deploy do Frontend (livego.store)
+
+Da máquina local (pasta `front-end`):
+
+```bash
+npm run deploy
+# ou: node deploy-frontend.cjs
+```
+
+O script faz tudo automaticamente:
+1. Build local (`npm run build`)
+2. Empacota `dist/` em um tarball
+3. Envia para a VPS via SFTP (`2.25.192.154`)
+4. Extrai em `/var/www/livego.store`
+5. 🔥 **Limpeza automática**: apaga assets antigos (`index-*.js` / `index-*.css`)
+   que o novo `index.html` NÃO referencia — evita acúmulo no disco. A limpeza
+   roda DEPOIS da extração, então nunca apaga arquivo em uso (se a extração
+   falhar, o site antigo continua íntegro).
+
+> ⚠️ O frontend NÃO roda no Docker: é servido pelo nginx do host diretamente
+> de `/var/www/livego.store` (o `livego-nginx` do Docker é só o proxy 80/443
+> para a API). Para forçar a atualização do PWA instalado, o script também
+> precisa subir um `firebase-messaging-sw.js` novo (bump `livenza-cache-vN`).
+
+---
+
 ## 🔧 Deploy Automático (recomendado)
 
 ```bash

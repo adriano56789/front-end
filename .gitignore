@@ -82,6 +82,10 @@ check-vps.js
 deploy-*.cjs
 proto-test.cjs
 vps-*.cjs
+scripts/ssh-run.cjs
+scripts/ssh-upload.cjs
+scripts/test-roulette-api.cjs
+scripts/verify-vps.cjs
 _patch_abr2.cjs
 _vps_analyze.sh
 _vps_bundle_check.sh

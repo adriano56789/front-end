@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { BackIcon, ShareIcon, CheckCircleIcon, PixIcon, CreditCardIcon, CopyIcon, DownloadIcon } from './icons';
+import { PurchaseCurrency } from '../types';
+import { CURRENCY_SYMBOL, convertBRLTo } from '../utils/currency';
 
 interface PaymentSuccessScreenProps {
   onClose: () => void;
@@ -8,6 +10,7 @@ interface PaymentSuccessScreenProps {
     price: number;
     diamonds: number;
     method?: 'pix' | 'credit_card';
+    currency?: PurchaseCurrency;
     transactionId?: string;
     timestamp?: Date;
   };
@@ -15,6 +18,8 @@ interface PaymentSuccessScreenProps {
 }
 
 const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({ onClose, data, addToast }) => {
+  const displayCurrency = data.currency || 'BRL';
+  const displayPrice = convertBRLTo(data.price, displayCurrency);
   const transactionId = data.transactionId || `#${Math.floor(Math.random() * 100000000)}`;
   let rawDate = data.timestamp || new Date();
   let date = rawDate;
@@ -82,7 +87,7 @@ const PaymentSuccessScreen: React.FC<PaymentSuccessScreenProps> = ({ onClose, da
             {/* Value */}
             <div className="text-center pb-6 border-b border-gray-700/50">
                 <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Valor Total</p>
-                <p className="text-4xl font-bold text-white">R$ {data.price.toFixed(2).replace('.', ',')}</p>
+                <p className="text-4xl font-bold text-white">{CURRENCY_SYMBOL[displayCurrency]} {displayPrice.toFixed(2).replace('.', ',')}</p>
             </div>
 
             {/* Details Grid */}

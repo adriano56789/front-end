@@ -1236,7 +1236,9 @@ export const api = {
 
     inviteUserToPrivateStream: (streamId: string, userId: string) => callApi<{ success: boolean }>('POST', `/api/interactions/streams/${streamId}/private-invite`, { userId }),
 
-    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean }>('GET', `/api/streams/${streamId}/access-check?userId=${userId}`),
+    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean, reason?: string }>('GET', `/api/interactions/streams/${streamId}/access-check?userId=${userId}`),
+
+    getInvitedStreams: (userId: string) => callApi<{ success: boolean, streamIds: string[] }>('GET', `/api/interactions/streams/invited-streams?userId=${userId}`),
 
     inviteFriendForCoHost: (streamId: string, inviteeId: string, inviteType: 'co-host' | 'pk-battle' = 'pk-battle') => {
       const fromUserId = (() => {

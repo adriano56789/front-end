@@ -31,6 +31,47 @@ const Toast: React.FC<ToastProps> = ({ data, onClose }) => {
     icon: <InfoIcon className="w-5 h-5 mr-3 flex-shrink-0" />
   };
 
+  // 🖼️ Notificação com foto de perfil (ex.: "X entrou na sala") — estilo app de
+  // mensagens: avatar circular + título em destaque + corpo. Usa o fundo escuro
+  // translúcido do banner in-app em vez do card colorido padrão.
+  if (data.avatar || data.title) {
+    return (
+      <div className="flex items-center gap-3 p-3 rounded-2xl border border-white/10 bg-[#121218]/95 backdrop-blur-xl shadow-[0_10px_36px_rgba(0,0,0,0.5)] min-w-[260px] max-w-sm">
+        {data.avatar ? (
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-black ring-2 ring-white/15">
+              <img
+                src={data.avatar}
+                alt={data.title || 'Usuário'}
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.currentTarget).style.display = 'none'; }}
+              />
+            </div>
+            {/* Pontinho verde de "entrou agora" */}
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#121218] animate-pulse" />
+          </div>
+        ) : (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 flex-shrink-0">
+            <span className="text-white/80 text-sm font-bold">{data.title?.charAt(0)?.toUpperCase() || '•'}</span>
+          </div>
+        )}
+
+        <div className="flex-1 min-w-0">
+          {data.title && (
+            <p className="text-white font-semibold text-sm leading-tight truncate">{data.title}</p>
+          )}
+          <p className={`text-[13px] leading-snug ${data.title ? 'text-white/70' : config.textColor}`}>
+            {data.message}
+          </p>
+        </div>
+
+        <button onClick={onClose} className="ml-1 text-gray-400/70 hover:text-gray-200 flex-shrink-0 p-0.5 rounded-full hover:bg-white/10 transition-colors">
+          <CloseIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex items-center justify-between p-3 rounded-lg border backdrop-blur-sm ${config.bgColor} ${config.textColor}`}>
       <div className="flex items-center">

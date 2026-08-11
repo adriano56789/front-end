@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BackIcon, PixIcon, MercadoPagoIcon, CheckCircleIcon } from './icons';
+import { BackIcon, PixIcon, MercadoPagoIcon, BankIcon, CheckCircleIcon, BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
@@ -12,26 +12,62 @@ interface ConfigureWithdrawalMethodScreenProps {
   addToast: (type: ToastType, message: string) => void;
 }
 
-type PaymentMethod = 'pix' | 'mercado_pago';
+type PaymentMethod = 'pix' | 'mercado_pago' | 'bank_eur' | 'bank_usd';
 
 const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenProps> = ({ onClose, currentUser, updateUser, addToast }) => {
   const { t } = useTranslation();
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('pix');
   const [pixKey, setPixKey] = useState('');
   const [mercadoPagoEmail, setMercadoPagoEmail] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountHolder, setAccountHolder] = useState('');
+  const [iban, setIban] = useState('');
+  const [swiftBic, setSwiftBic] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [routingNumber, setRoutingNumber] = useState('');
+  const [addrStreet, setAddrStreet] = useState('');
+  const [addrNumber, setAddrNumber] = useState('');
+  const [addrNeighborhood, setAddrNeighborhood] = useState('');
+  const [addrCity, setAddrCity] = useState('');
+  const [addrState, setAddrState] = useState('');
+  const [addrZip, setAddrZip] = useState('');
+  const [addrCountry, setAddrCountry] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const userCountry = (currentUser.country || 'br').toLowerCase();
   
   useEffect(() => {
     if (currentUser.withdrawal_method) {
         const { method, details } = currentUser.withdrawal_method;
-        setSelectedMethod(method as PaymentMethod);
         if (method === 'pix' && details.pixKey) {
+            setSelectedMethod('pix');
             setPixKey(details.pixKey);
         } else if (method === 'mercado_pago' && details.email) {
+            setSelectedMethod('mercado_pago');
             setMercadoPagoEmail(details.email);
+        } else if (method === 'bank') {
+            if ((details.currency || '').toUpperCase() === 'USD') {
+                setSelectedMethod('bank_usd');
+            } else {
+                setSelectedMethod('bank_eur');
+            }
+            setBankName(details.bankName || '');
+            setAccountHolder(details.accountHolder || '');
+            setIban(details.iban || '');
+            setSwiftBic(details.swiftBic || '');
+            setAccountNumber(details.accountNumber || '');
+            setRoutingNumber(details.routingNumber || '');
+            const addr = details.address || {};
+            setAddrStreet(addr.street || '');
+            setAddrNumber(addr.number || '');
+            setAddrNeighborhood(addr.neighborhood || '');
+            setAddrCity(addr.city || '');
+            setAddrState(addr.state || '');
+            setAddrZip(addr.zipCode || '');
+            setAddrCountry(addr.country || '');
         }
     } else {
-        setSelectedMethod('pix');
+        setSelectedMethod(userCountry === 'us' || userCountry === 'pt' ? 'bank_eur' : 'pix');
         setPixKey('');
         setMercadoPagoEmail('');
     }
@@ -48,13 +84,70 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
         }
         method = 'pix';
         details = { pixKey };
-    } else {
+    } else if (selectedMethod === 'mercado_pago') {
         if (!mercadoPagoEmail.trim() || !/\S+@\S+\.\S+/.test(mercadoPagoEmail)) {
             addToast(ToastType.Error, "Por favor, insira um e-mail válido do Mercado Pago.");
             return;
         }
         method = 'mercado_pago';
         details = { email: mercadoPagoEmail };
+    } else {
+        if (!accountHolder.trim()) {
+            addToast(ToastType.Error, "Por favor, insira o nome do titular da conta.");
+            return;
+        }
+        if (!bankName.trim()) {
+            addToast(ToastType.Error, "Por favor, insira o nome do banco.");
+            return;
+        }
+        method = 'bank';
+        const addrComplete = addrStreet.trim() && addrCity.trim() && addrCountry.trim() &&
+            addrNumber.trim() && addrNeighborhood.trim() && addrState.trim() && addrZip.trim();
+        if (!addrComplete) {
+            addToast(ToastType.Error, "Saque internacional exige endereço fiscal completo (rua, número, bairro, cidade, estado, CEP e país).");
+            return;
+        }
+        const address = {
+            street: addrStreet.trim(),
+            number: addrNumber.trim(),
+            neighborhood: addrNeighborhood.trim(),
+            city: addrCity.trim(),
+            state: addrState.trim(),
+            zipCode: addrZip.trim(),
+            country: addrCountry.trim(),
+        };
+        if (selectedMethod === 'bank_usd') {
+            if (!accountNumber.trim()) {
+                addToast(ToastType.Error, "Por favor, insira o número da conta.");
+                return;
+            }
+            if (!routingNumber.trim()) {
+                addToast(ToastType.Error, "Por favor, insira o routing number.");
+                return;
+            }
+            details = {
+                currency: 'USD',
+                bankName,
+                accountHolder,
+                accountNumber,
+                routingNumber,
+                swiftBic,
+                address,
+            };
+        } else {
+            if (!iban.trim()) {
+                addToast(ToastType.Error, "Por favor, insira o IBAN.");
+                return;
+            }
+            details = {
+                currency: 'EUR',
+                bankName,
+                accountHolder,
+                iban,
+                swiftBic,
+                address,
+            };
+        }
     }
 
     setIsSaving(true);
@@ -106,6 +199,9 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
     );
   };
 
+  const isBank = selectedMethod === 'bank_eur' || selectedMethod === 'bank_usd';
+  const isUS = selectedMethod === 'bank_usd';
+
   return (
     <div className="absolute inset-0 bg-[#0f1015] z-50 flex flex-col text-white">
       <header className="flex items-center p-4 py-5 flex-shrink-0">
@@ -122,9 +218,16 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
           Selecione como você gostaria de receber seu dinheiro.
         </p>
 
-        <div className="flex gap-4">
-          <PaymentMethodButton method="pix" label="PIX" icon={<PixIcon className="w-[45px] h-[45px]" />} />
-          <PaymentMethodButton method="mercado_pago" label="Mercado Pago" icon={<MercadoPagoIcon className="w-[45px] h-[45px]" />} />
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <PaymentMethodButton method="pix" label="PIX" icon={<PixIcon className="w-[45px] h-[45px]" />} />
+            <PaymentMethodButton method="mercado_pago" label="Mercado Pago" icon={<MercadoPagoIcon className="w-[45px] h-[45px]" />} />
+          </div>
+
+          <div className="flex gap-4">
+            <PaymentMethodButton method="bank_eur" label="Euro (PT)" icon={<PortugalFlagIcon className="w-[45px] h-[45px] rounded-sm object-cover" />} />
+            <PaymentMethodButton method="bank_usd" label="Dólar (US)" icon={<USAFlagIcon className="w-[45px] h-[45px] rounded-sm object-cover" />} />
+          </div>
         </div>
 
         {selectedMethod === 'pix' && (
@@ -153,6 +256,182 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
                     className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
                 />
             </div>
+        )}
+
+        {isBank && (
+          <div className="space-y-4 mt-8">
+            <div className="flex items-center gap-2 mb-2">
+              {isUS ? <USAFlagIcon className="w-5 h-5 rounded-sm object-cover" /> : <PortugalFlagIcon className="w-5 h-5 rounded-sm object-cover" />}
+              <span className="text-[13px] font-bold text-white">
+                {isUS ? 'Conta Bancária — Dólar (Estados Unidos)' : 'Conta Bancária — Euro (Portugal)'}
+              </span>
+            </div>
+            <div className="space-y-2">
+                <label htmlFor="bank-holder" className="text-[12px] font-bold text-[#8e9196] block ml-1">Nome do Titular</label>
+                <input
+                    id="bank-holder"
+                    type="text"
+                    value={accountHolder}
+                    onChange={(e) => setAccountHolder(e.target.value)}
+                    placeholder="Nome completo do titular"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                />
+            </div>
+            <div className="space-y-2">
+                <label htmlFor="bank-name" className="text-[12px] font-bold text-[#8e9196] block ml-1">Nome do Banco</label>
+                <input
+                    id="bank-name"
+                    type="text"
+                    value={bankName}
+                    onChange={(e) => setBankName(e.target.value)}
+                    placeholder="Ex.: Nubank, Banco do Brasil, Caixa"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                />
+            </div>
+            {isUS ? (
+              <>
+                <div className="space-y-2">
+                    <label htmlFor="bank-account" className="text-[12px] font-bold text-[#8e9196] block ml-1">Número da Conta</label>
+                    <input
+                        id="bank-account"
+                        type="text"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        placeholder="Número da conta bancária"
+                        className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label htmlFor="bank-routing" className="text-[12px] font-bold text-[#8e9196] block ml-1">Routing Number</label>
+                    <input
+                        id="bank-routing"
+                        type="text"
+                        value={routingNumber}
+                        onChange={(e) => setRoutingNumber(e.target.value)}
+                        placeholder="Routing number do banco (9 dígitos)"
+                        className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                    <label htmlFor="bank-iban" className="text-[12px] font-bold text-[#8e9196] block ml-1">IBAN</label>
+                    <input
+                        id="bank-iban"
+                        type="text"
+                        value={iban}
+                        onChange={(e) => setIban(e.target.value)}
+                        placeholder="Código IBAN da sua conta"
+                        className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label htmlFor="bank-swift" className="text-[12px] font-bold text-[#8e9196] block ml-1">SWIFT / BIC <span className="text-[#5a5c63] font-medium">(opcional)</span></label>
+                    <input
+                        id="bank-swift"
+                        type="text"
+                        value={swiftBic}
+                        onChange={(e) => setSwiftBic(e.target.value)}
+                        placeholder="Código SWIFT/BIC do banco"
+                        className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                </div>
+              </>
+            )}
+
+            <div className="pt-2">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[#d97745] text-[13px] font-bold">Endereço Fiscal (obrigatório)</span>
+              </div>
+              <p className="text-[#8e9196] text-[12px] font-medium leading-relaxed mb-4">
+                Exigido pela Receita Federal/Banco Central para saques internacionais (EUR/USD).
+              </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="bank-addr-street" className="text-[12px] font-bold text-[#8e9196] block ml-1">Rua / Avenida</label>
+                  <input
+                    id="bank-addr-street"
+                    type="text"
+                    value={addrStreet}
+                    onChange={(e) => setAddrStreet(e.target.value)}
+                    placeholder="Nome da rua"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1 space-y-2">
+                    <label htmlFor="bank-addr-number" className="text-[12px] font-bold text-[#8e9196] block ml-1">Número</label>
+                    <input
+                      id="bank-addr-number"
+                      type="text"
+                      value={addrNumber}
+                      onChange={(e) => setAddrNumber(e.target.value)}
+                      placeholder="Nº"
+                      className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <label htmlFor="bank-addr-neighborhood" className="text-[12px] font-bold text-[#8e9196] block ml-1">Bairro</label>
+                    <input
+                      id="bank-addr-neighborhood"
+                      type="text"
+                      value={addrNeighborhood}
+                      onChange={(e) => setAddrNeighborhood(e.target.value)}
+                      placeholder="Bairro"
+                      className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="bank-addr-city" className="text-[12px] font-bold text-[#8e9196] block ml-1">Cidade</label>
+                  <input
+                    id="bank-addr-city"
+                    type="text"
+                    value={addrCity}
+                    onChange={(e) => setAddrCity(e.target.value)}
+                    placeholder="Cidade"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1 space-y-2">
+                    <label htmlFor="bank-addr-state" className="text-[12px] font-bold text-[#8e9196] block ml-1">Estado / UF</label>
+                    <input
+                      id="bank-addr-state"
+                      type="text"
+                      value={addrState}
+                      onChange={(e) => setAddrState(e.target.value)}
+                      placeholder="Ex.: SP"
+                      className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <label htmlFor="bank-addr-zip" className="text-[12px] font-bold text-[#8e9196] block ml-1">CEP / Postal Code</label>
+                    <input
+                      id="bank-addr-zip"
+                      type="text"
+                      value={addrZip}
+                      onChange={(e) => setAddrZip(e.target.value)}
+                      placeholder="00000-000"
+                      className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="bank-addr-country" className="text-[12px] font-bold text-[#8e9196] block ml-1">País</label>
+                  <input
+                    id="bank-addr-country"
+                    type="text"
+                    value={addrCountry}
+                    onChange={(e) => setAddrCountry(e.target.value)}
+                    placeholder="País de residência fiscal"
+                    className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 

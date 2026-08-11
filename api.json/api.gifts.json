@@ -6,7 +6,7 @@
     "id": "coracao",
     "name": "Coração",
     "price": 1,
-    "icon": "❤️",
+    "icon": "/gifts/coracao.svg",
     "category": "Popular"
   },
   {
@@ -215,7 +215,19 @@
     "price": 4500,
     "icon": "/gifts/caixa_de_musica.svg",
     "category": "Popular",
-    "animationUrl": "/animations/musicbox.webm",
+    "animationUrl": "/animations/musicbox.mp4",
     "duration": 7067
+  },
+  {
+    "_id": {
+      "$oid": "6a2a82e1086cabd1427ec01f"
+    },
+    "id": "asas_de_anjo",
+    "name": "Asas de Anjo",
+    "price": 5000,
+    "icon": "/gifts/asas_de_anjo.png",
+    "category": "Luxo",
+    "animationUrl": "/animations/asas_de_anjo.mp4",
+    "duration": 8000
   }
 ]

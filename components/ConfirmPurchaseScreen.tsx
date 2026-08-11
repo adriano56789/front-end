@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { DiamondPackage, ToastType } from '../types';
+import { DiamondPackage, ToastType, PurchaseCurrency, CadastralData } from '../types';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { BackIcon, GoldCoinWithGIcon, PixIcon, CreditCardIcon, CheckCircleIcon, CopyIcon, LockIcon, QuestionMarkIcon } from './icons';
+import { CURRENCY_SYMBOL, convertBRLTo } from '../utils/currency';
 
 interface ConfirmPurchaseScreenProps {
   onClose: () => void;
   packageDetails: {
     diamonds: number;
     price: number;
+    isFreeDev?: boolean;
+    currency?: PurchaseCurrency;
   };
-  onConfirmPurchase: (pkg: { diamonds: number; price: number }) => void;
+  onConfirmPurchase: (pkg: { diamonds: number; price: number; currency?: PurchaseCurrency }) => void;
   addToast: (type: ToastType, message: string) => void;
-  currentUser: { id: string };
+  currentUser: { id: string; email?: string; cadastral?: CadastralData };
 }
 
 const InputField: React.FC<{
@@ -93,6 +96,9 @@ const generatePixCode = (amount: number, transactionId: string, merchantKey: str
 const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, packageDetails, onConfirmPurchase, addToast, currentUser }) => {
   const { t } = useTranslation();
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'pix'>('pix');
+  
+  const displayCurrency = packageDetails.currency || 'BRL';
+  const displayPrice = convertBRLTo(packageDetails.price, displayCurrency);
   
   const [timeLeft, setTimeLeft] = useState(598); // 09:58
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -219,14 +225,15 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
             });
             
             // Gerar token seguro do cartão
+            const identificationNumber = (currentUser.cadastral?.document || '00000000000');
             const tokenResult = await mp.createCardToken({
                 cardNumber: cardNumber.replace(/\s/g, ''),
                 cardholderName: cardName,
                 cardExpirationMonth: cardExpiry.split('/')[0],
                 cardExpirationYear: '20' + cardExpiry.split('/')[1],
                 securityCode: cardCvv,
-                identificationType: 'CPF',
-                identificationNumber: '00000000000'
+                identificationType: (currentUser.cadastral?.documentType || 'cpf').toUpperCase(),
+                identificationNumber
             });
             
             if (!tokenResult.id) {
@@ -297,7 +304,7 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
                 <p className="text-zinc-500 text-xs mt-0.5 font-mono">Order #{orderId || '884502'}</p>
             </div>
             <div className="text-right">
-                 <span className="font-bold text-lg text-[#2ebd59] tracking-tight">R$ {packageDetails.price.toFixed(2).replace('.', ',')}</span>
+                 <span className="font-bold text-lg text-[#2ebd59] tracking-tight">{CURRENCY_SYMBOL[displayCurrency]} {displayPrice.toFixed(2).replace('.', ',')}</span>
             </div>
         </div>
 

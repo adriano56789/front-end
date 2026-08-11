@@ -13,7 +13,6 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
   // (formato VAP side-by-side 1500×1624: conteúdo + máscara alfa no mesmo frame).
   // ?v=2 quebra o cache do browser após a troca dos mp4 para o formato novo.
   // Servidos estaticamente por nginx a partir de /var/www/livego.store/animations.
-  'Coração': '/animations/coracao.mp4?v=3',
   'Rosa': '/animations/rosa_cristal.mp4?v=2',
   'Pirulito': '/animations/pirulito.mp4?v=2',
   'Planta': '/animations/planta.mp4?v=2',
@@ -22,10 +21,13 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
   'Champanhe': '/animations/champanhe_dourado.mp4?v=2',
   'Caixa de Presente Rosa': '/animations/caixa_de_presente_rosa.mp4?v=2',
   'Meu coração palpita por você': '/animations/meu_coracao_palpita_por_voce.mp4?v=2',
-  // 🎵 Caixa de Música: mp4 antigo substituído pelo webm ZEGO VAP
-  // (musicbox.webm — mesmo pacote da animação lottie).
-  'Caixa de Música': '/animations/musicbox.webm',
+  // 🎵 Caixa de Música: VAP ZEGO original do pacote 6756 (video.mp4 752×304,
+  // 15fps, 5s — conteúdo 750×200 + máscara alfa 375×100; transparência REAL).
+  'Caixa de Música': '/animations/musicbox.mp4?v=2',
   'Foguete': '/animations/foguete.mp4?v=2',
+  // 🪽 Asas de Anjo (pacote 翅膀 NO.102834): VAP dual-channel 1136×1632,
+  // conteúdo 750×1624 à esquerda + alfa 375×812 no topo-direita, 30fps, 8.0s.
+  'Asas de Anjo': '/animations/asas_de_anjo.mp4?v=1',
 };
 
 /**
@@ -33,7 +35,6 @@ export const GIFT_ANIMATION_URLS: Record<string, string> = {
  * Usado como fallback quando `gift.duration` não está definido.
  */
 export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
-  'Coração': 4033,
   'Rosa': 5000,
   'Pirulito': 4967,
   'Planta': 6033,
@@ -42,8 +43,9 @@ export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
   'Champanhe': 4033,
   'Caixa de Presente Rosa': 5042,
   'Meu coração palpita por você': 7208,
-  'Caixa de Música': 7067,
+  'Caixa de Música': 5000,
   'Foguete': 4000,
+  'Asas de Anjo': 8000,
 };
 
 /**

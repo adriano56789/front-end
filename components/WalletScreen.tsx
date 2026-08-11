@@ -3,13 +3,15 @@ import GanhosTab from './GanhosTab';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import ConfigureWithdrawalMethodScreen from './ConfigureWithdrawalMethodScreen';
 import { useTranslation } from '../i18n';
-import { User, ToastType, PurchaseRecord } from '../types';
+import { User, ToastType, PurchaseRecord, PurchaseCurrency, PurchasePackage } from '../types';
+import { BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
 import DiamanteDisplay from './DiamanteDisplay';
 import { api } from '../services/api';
+import { CURRENCY_SYMBOL, convertBRLTo } from '../utils/currency';
 
 interface WalletScreenProps {
   onClose: () => void;
-  onPurchase: (pkg: { diamonds: number; price: number }) => void;
+  onPurchase: (pkg: PurchasePackage) => void;
   initialTab?: 'Diamante' | 'Ganhos';
   isBroadcaster?: boolean;
   currentUser: User;
@@ -17,6 +19,12 @@ interface WalletScreenProps {
   addToast: (type: ToastType, message: string) => void;
   purchaseHistory: PurchaseRecord[];
 }
+
+const CURRENCY_OPTIONS: { code: PurchaseCurrency; flag: React.ReactNode; label: string; symbol: string }[] = [
+    { code: 'BRL', flag: <BrazilFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Real', symbol: CURRENCY_SYMBOL.BRL },
+    { code: 'EUR', flag: <PortugalFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Euro', symbol: CURRENCY_SYMBOL.EUR },
+    { code: 'USD', flag: <USAFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Dólar', symbol: CURRENCY_SYMBOL.USD },
+];
 
 const diamondPackages = [
   { diamonds: 800, price: 7.00 },
@@ -65,10 +73,12 @@ const Golden3DIdDiamondMini = () => (
   </svg>
 );
 
-const DiamanteTab: React.FC<{ onPurchase: (pkg: { diamonds: number; price: number; isFreeDev?: boolean }) => void; currentUser: User; }> = ({ onPurchase, currentUser }) => {
+const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; currentUser: User; }> = ({ onPurchase, currentUser }) => {
   const [freshDiamonds, setFreshDiamonds] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const countryCode = (currentUser?.country || '').trim().toLowerCase();
+  const [displayCurrency, setDisplayCurrency] = useState<PurchaseCurrency>(countryCode === 'pt' ? 'EUR' : countryCode === 'us' ? 'USD' : 'BRL');
 
   useEffect(() => {
     if (currentUser?.diamonds !== undefined && typeof currentUser.diamonds === 'number') {
@@ -106,11 +116,31 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: { diamonds: number; price: numbe
             </div>
           )}
           
+          <div className="flex justify-center gap-6 mb-2 mt-6">
+            {CURRENCY_OPTIONS.map((opt) => (
+              <button
+                key={opt.code}
+                onClick={() => setDisplayCurrency(opt.code)}
+                className={`flex flex-col items-center space-y-1.5 cursor-pointer transition-all outline-none ${
+                    displayCurrency === opt.code
+                        ? 'opacity-100 scale-105'
+                        : 'opacity-40 hover:opacity-80'
+                }`}
+                id={`flag-${opt.code}`}
+              >
+                {opt.flag}
+                <span className={`text-[11px] font-black uppercase tracking-wider ${displayCurrency === opt.code ? 'text-white' : 'text-[#8a8894]'}`}>
+                    {opt.label}
+                </span>
+              </button>
+            ))}
+          </div>
+          
           <div className="grid grid-cols-2 gap-4 mt-6">
             {diamondPackages.map((pkg) => (
               <div 
                 key={pkg.diamonds} 
-                onClick={() => onPurchase(pkg)} 
+                onClick={() => onPurchase({ ...pkg, currency: displayCurrency })} 
                 className="bg-[#17181c] border border-white/[0.03] rounded-xl p-4 flex flex-col items-center justify-center space-y-3.5 cursor-pointer hover:bg-[#1e2025] active:scale-[0.98] transition-all"
                 id={`pkg-${pkg.diamonds}`}
               >
@@ -121,7 +151,7 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: { diamonds: number; price: numbe
                   </span>
                 </div>
                 <div className={`w-full ${pkg.isFreeDev ? 'bg-gradient-to-r from-red-600 via-purple-600 to-indigo-600 border-white/20 animate-pulse' : 'bg-gradient-to-r from-[#2c1d17] to-[#251510] border border-[#d97706]/20'} rounded-lg py-1.5 flex items-center justify-center text-[14px] text-white font-extrabold shadow-sm active:opacity-90`}>
-                  {pkg.isFreeDev ? 'GRÁTIS (DEV)' : `R$ ${pkg.price.toFixed(2).replace('.', ',')}`}
+                  {pkg.isFreeDev ? 'GRÁTIS (DEV)' : `${CURRENCY_SYMBOL[displayCurrency]} ${convertBRLTo(pkg.price, displayCurrency).toFixed(2).replace('.', ',')}`}
                 </div>
               </div>
             ))}
@@ -142,7 +172,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ onClose, onPurchase, initia
   const [activeTab, setActiveTab] = useState(initialTab || 'Diamante');
   const [view, setView] = useState<WalletView>('main');
 
-  const handleWalletPurchase = async (pkg: { diamonds: number; price: number; isFreeDev?: boolean }) => {
+  const handleWalletPurchase = async (pkg: PurchasePackage) => {
     if (pkg.isFreeDev) {
       try {
         addToast(ToastType.Info, "Processando recarga gratuita de 100.000 diamantes...");

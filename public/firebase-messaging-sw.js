@@ -1,5 +1,7 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-const CACHE_NAME = 'livenza-cache-v4';
+// (v10: correção da ordem do teclado — campo sobe primeiro, nunca coberto;
+//  força o PWA instalado a baixar o bundle novo)
+const CACHE_NAME = 'livenza-cache-v10';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -133,14 +135,35 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[FCM-SW] Mensagem em background:', payload);
 
-  const notificationTitle = payload.notification?.title || 'LiveGo';
+  const d = payload.data || {};
+  const n = payload.notification || {};
+
+  // 💬 Mensagem de chat: título = NOME do remetente, corpo = texto da mensagem.
+  // Funciona tanto com notification({title,body}) quanto com data-only
+  // ({senderName, text}) — o SW monta a notificação sozinho.
+  let notificationTitle = n.title || 'LiveGo';
+  let notificationBody = n.body || '';
+  let notifTag = d.conversationId || '';
+
+  if (d.type === 'new_message') {
+    notificationTitle = d.senderName || n.title || 'Nova mensagem';
+    notificationBody = d.text || d.message || n.body || 'Enviou uma mensagem';
+    notifTag = d.conversationId || d.senderId || 'chat';
+  } else if (!notificationBody && d.title && d.message) {
+    // fallback genérico para payloads data-only de outros tipos
+    notificationTitle = d.title;
+    notificationBody = d.message;
+  }
+
   // 🔔 Firebase/FCM serve SÓ para push na tela: ícone SEMPRE o favicon LOCAL
   // (nunca icon/image remoto vindo do payload — zero fetch de imagem).
   const notificationOptions = {
-    body: payload.notification?.body || '',
+    body: notificationBody,
     icon: '/favicon.svg',
     badge: '/favicon.svg',
-    data: payload.data || {},
+    tag: notifTag, // agrupa/sobrescreve notificações do mesmo chat
+    renotify: false,
+    data: d,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
@@ -165,7 +188,9 @@ self.addEventListener('notificationclick', (event) => {
     const streamId = data.streamKey || data.streamId;
     urlToOpen = streamId ? `/stream/${streamId}` : '/';
   } else if (type === 'new_message') {
-    urlToOpen = data.conversationId ? `/chat/${data.conversationId}` : '/messages';
+    // 💬 Mensagem de chat: abre a LISTA de conversas (o chat específico é
+    // aberto pelo toque na conversa — o app não tem rota /chat/:id).
+    urlToOpen = '/messages';
   } else {
     urlToOpen = data.url || data.streamId ? `/${data.streamId || data.streamKey || ''}` : '/';
   }

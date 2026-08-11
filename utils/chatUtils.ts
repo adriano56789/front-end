@@ -24,9 +24,24 @@ export interface OwnedFrame {
 // These should come from API calls via api.getAvatarFrames()
 export const avatarFrames: AvatarFrame[] = [];
 
+// ⏳ REGRA: todo quadro de avatar comprado vale EXATAMENTE 3 dias de uso.
+// Dias restantes reais (arredondados para cima) até a data de expiração.
+// Retorna 0 se expirado/sem data. Valores > 365 = permanente (dono).
 export const getRemainingDays = (expirationDate?: string): number => {
-    // Sempre retorna 7 dias para padronização
-    return 7;
+    if (!expirationDate) return 0;
+    const exp = new Date(expirationDate);
+    if (isNaN(exp.getTime())) return 0;
+    const ms = exp.getTime() - Date.now();
+    if (ms <= 0) return 0;
+    return Math.ceil(ms / (24 * 60 * 60 * 1000));
+};
+
+// Rótulo curto de validade para a UI: "2 dias", "1 dia", "Permanente" (dono).
+export const getRemainingDaysLabel = (expirationDate?: string): string => {
+    const days = getRemainingDays(expirationDate);
+    if (days <= 0) return '';
+    if (days > 365) return 'Permanente';
+    return days === 1 ? '1 dia' : `${days} dias`;
 };
 
 export const getFrameGlowClass = (activeFrameId?: string | null): string => {

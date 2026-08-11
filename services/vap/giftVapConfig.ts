@@ -72,9 +72,21 @@ export const GIFT_VAP_FOGUETE: VapGiftSpec = {
   fps: 25,
 };
 
+// 🪽 Asas de Anjo — pacote 翅膀 (NO.102834), config lida do vapc.json:
+// vídeo 1136×1632 @30fps, conteúdo 750×1624 (esquerda) e alfa 375×812 em
+// [754,0] (topo-direita; o player escala a máscara para cobrir o conteúdo).
+export const GIFT_VAP_ASAS_DE_ANJO: VapGiftSpec = {
+  w: 750,
+  h: 1624,
+  videoW: 1136,
+  videoH: 1632,
+  rgbFrame: [0, 0, 750, 1624],
+  aFrame: [754, 0, 375, 812],
+  fps: 30,
+};
+
 /** fps real de cada arquivo (ffprobe). */
 export const GIFT_VAP_FPS: Record<string, number> = {
-  'Coração': 30,
   'Rosa': 24,
   'Pirulito': 30,
   'Planta': 30,
@@ -83,12 +95,33 @@ export const GIFT_VAP_FPS: Record<string, number> = {
   'Champanhe': 30,
   'Caixa de Presente Rosa': 24,
   'Meu coração palpita por você': 24,
+  'Asas de Anjo': 30,
+};
+
+// 🌸 Moldura de avatar "Primavera" — pacote ZEGO 20275 (20275_bmp.json):
+// vídeo 608×400 @15fps, conteúdo 400×400 à esquerda + máscara alfa 200×200
+// em [404,0] (o player escala a máscara 2× para cobrir o conteúdo), 60 frames
+// = 4.0s. Roda em LOOP ao redor do avatar.
+export const GIFT_VAP_FRAME_PRIMAVERA: VapGiftSpec = {
+  w: 400,
+  h: 400,
+  videoW: 608,
+  videoH: 400,
+  rgbFrame: [0, 0, 400, 400],
+  aFrame: [404, 0, 200, 200],
+  fps: 15,
 };
 
 /** Presentes com geometria própria (fora do padrão side-by-side). */
 const GIFT_VAP_SPECIAL: Record<string, VapGiftSpec> = {
   'Caixa de Música': GIFT_VAP_MUSIC_BOX,
   'Foguete': GIFT_VAP_FOGUETE,
+  'Asas de Anjo': GIFT_VAP_ASAS_DE_ANJO,
+};
+
+/** Molduras de avatar com geometria VAP própria (animação do pacote). */
+const FRAME_VAP_SPECS: Record<string, VapGiftSpec> = {
+  'Frame20275': GIFT_VAP_FRAME_PRIMAVERA,
 };
 
 export const GIFT_VAP_DEFAULT_FPS = 24;
@@ -111,6 +144,19 @@ export function getGiftVapSpec(giftName: string): VapGiftSpec {
  */
 export function buildGiftVapConfig(giftName: string): VapConfig {
   const spec = getGiftVapSpec(giftName);
+  return buildVapConfigFromSpec(spec);
+}
+
+/**
+ * Monta o config VAP para uma MOLDURA de avatar (id do frame).
+ */
+export function buildFrameVapConfig(frameId: string): VapConfig {
+  const spec = FRAME_VAP_SPECS[frameId];
+  if (!spec) throw new Error(`[VAP] sem spec de moldura: ${frameId}`);
+  return buildVapConfigFromSpec(spec);
+}
+
+function buildVapConfigFromSpec(spec: VapGiftSpec): VapConfig {
   return {
     info: {
       v: 2,

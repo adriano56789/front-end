@@ -8,15 +8,18 @@ import ChatScreen from './ChatScreen';
 import ToolsModal from './ToolsModal';
 const ToolsModalAny: any = ToolsModal;
 import ConnectionQualityIndicator from './live/ConnectionQualityIndicator';
-import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon } from './icons';
-import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState } from '../types';
+import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon, LockIcon } from './icons';
+import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState, PurchasePackage } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import ResolutionPanel from './live/ResolutionPanel';
 import GiftModal from './live/GiftModal';
+import RouletteModal from './RouletteModal';
+const RouletteModalAny: any = RouletteModal;
 import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import WalletScreen from './WalletScreen';
 import ConfirmPurchaseScreen from './ConfirmPurchaseScreen';
+import CadastralDataScreen from './CadastralDataScreen';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import UserActionModal from './UserActionModal';
@@ -30,7 +33,8 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useKeyboardInset } from '../hooks/useKeyboardInset';
+import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
+
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
 
@@ -78,7 +82,7 @@ interface StreamRoomProps {
     logLiveEvent: (type: string, data: any) => void;
     onStreamUpdate: (updates: Partial<Streamer>) => void;
     refreshStreamRoomData: (streamerId: string) => void;
-    addToast: (type: ToastType, message: string) => void;
+    addToast: (type: ToastType, message: string, options?: { title?: string; avatar?: string }) => void;
     followingUsers: User[];
     streamers: Streamer[];
     onSelectStream: (streamer: Streamer) => void;
@@ -153,17 +157,35 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [viewerQuality, setViewerQuality] = useState<'auto' | '480p' | '360p' | '240p'>('auto');
     const [isViewerQualityOpen, setIsViewerQualityOpen] = useState(false);
     const [isGiftModalOpen, setGiftModalOpen] = useState(false);
+    const [isRouletteOpen, setIsRouletteOpen] = useState(false);
     const [isWalletOpen, setIsWalletOpen] = useState(false);
-    const [selectedPackage, setSelectedPackage] = useState<{ diamonds: number; price: number } | null>(null);
+    const [selectedPackage, setSelectedPackage] = useState<PurchasePackage | null>(null);
+    const [isCadastralScreenOpen, setIsCadastralScreenOpen] = useState(false);
+    const [pendingPurchase, setPendingPurchase] = useState<PurchasePackage | null>(null);
     const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
-    const chatInputRef = useRef<HTMLInputElement>(null);
-    const keyboardInset = useKeyboardInset();
+    const chatInputRef = useRef<HTMLButtonElement>(null);
+    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
+    // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
+    // abre um SEGUNDO campo de digitação (composer) colado acima do teclado.
+    const {
+        isComposerOpen,
+        openComposer,
+        closeComposer,
+        composerInputRef,
+        composerRef,
+        keyboardInset,
+        bottom: chatBarBottom,
+    } = useComposerKeyboard();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
     const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
+    // 👥 Contagem REAL de online (fonte da verdade = API), igual ao modal de
+    // usuários online. O estado onlineUsers (socket) fica sujo quando o evento
+    // viewer_left não chega — então o sino usa este número.
+    const [onlineCount, setOnlineCount] = useState(0);
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,6 +203,38 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     useEffect(() => {
         updateLiveSession({ viewers: Math.max(1, onlineUsers.length) });
     }, [onlineUsers.length]);
+
+    // ═══ Contagem de usuários online via API (fonte da verdade) ═══
+    // Polling leve (15s) com a MESMA deduplicação do modal de usuários online,
+    // pra o número do sino bater com a lista que o modal mostra.
+    useEffect(() => {
+        let cancelled = false;
+        let interval: ReturnType<typeof setInterval> | null = null;
+        const fetchCount = async () => {
+            try {
+                const data = await api.getStreamOnlineUsers(streamer.id);
+                if (cancelled) return;
+                if (Array.isArray(data)) {
+                    const seen = new Set<string>();
+                    const unique = (data as any[]).filter((u: any) => {
+                        const key = String(u?.id ?? '');
+                        if (!key || seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                    setOnlineCount(unique.length);
+                }
+            } catch (err) {
+                // Mantém o último valor em caso de erro de rede
+            }
+        };
+        fetchCount();
+        interval = setInterval(fetchCount, 15000);
+        return () => {
+            cancelled = true;
+            if (interval) clearInterval(interval);
+        };
+    }, [streamer.id]);
 
     // Estado para likes da transmissão
     const [likes, setLikes] = useState(0);
@@ -218,6 +272,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
+    const [pinnedGift, setPinnedGift] = useState<Gift | null>(null);
+    const [pinnedGiftLabel, setPinnedGiftLabel] = useState<string>('');
     const [activeLiveInvite, setActiveLiveInvite] = useState<{ inviteId: string; type: string; from: string; fromName: string; streamId: string } | null>(null);
 
     // Estado para monitoramento de publish SRS
@@ -281,9 +337,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           return [...prev, { id: stableId, type: 'entry', user: data.user || data.userName, fullUser: data.fullUser || null, timestamp: data.timestamp || Date.now() }];
         });
         // 🔔 Notificar o host quando um espectador entra na sala (além da msg no chat)
+        // 🖼️ Com a FOTO DE PERFIL do usuário no banner — estilo app de mensagens.
         if (isBroadcaster) {
           const entryName = data.fullUser?.name || data.userName || data.user?.name || 'Alguém';
-          addToast(ToastType.Info, `👋 ${entryName} entrou na sala`);
+          const entryAvatar = data.fullUser?.avatarUrl || data.user?.avatarUrl || '';
+          addToast(ToastType.Info, 'entrou na sala', { title: entryName, avatar: entryAvatar });
         }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
         const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
@@ -752,9 +810,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         
         setChatInput('');
         
-        // 🔧 Manter foco no input para o teclado NÃO fechar após enviar (comportamento tipo app famoso)
+        // 🔧 Manter foco para o teclado NÃO fechar após enviar (comportamento tipo app famoso)
         requestAnimationFrame(() => {
-            chatInputRef.current?.focus();
+            if (isComposerOpen) {
+                composerInputRef.current?.focus();
+            } else {
+                chatInputRef.current?.focus();
+            }
         });
     };
 
@@ -1116,13 +1178,20 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         setIsWalletOpen(true);
     };
 
-    const handlePurchaseDiamonds = (pkg: { diamonds: number; price: number }) => {
+    const handlePurchaseDiamonds = (pkg: PurchasePackage) => {
+        // Exigência legal: dados cadastrais (nome, CPF/CNPJ e endereço) pedidos antes do pagamento
+        if (pkg.isFreeDev) return;
+        if (!currentUser?.cadastral?.document || !currentUser.cadastral?.address?.zipCode) {
+            setPendingPurchase(pkg);
+            setIsCadastralScreenOpen(true);
+            return;
+        }
         // Abre ConfirmPurchaseScreen com o pacote selecionado
         setSelectedPackage(pkg);
         setIsWalletOpen(false);
     };
 
-    const handleConfirmPurchase = async (pkg: { diamonds: number; price: number }) => {
+    const handleConfirmPurchase = async (pkg: PurchasePackage) => {
         try {
             // Confirmar compra após pagamento aprovado
             const updatedUser = await api.getCurrentUser();
@@ -1341,10 +1410,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </div>
                             </div>
                             <div className="flex flex-col min-w-0">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="font-bold text-sm truncate max-w-[100px] text-white select-none">{streamerDisplayUser?.name || streamer.name}</span>
-                                    <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} />
-                                </div>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-bold text-sm truncate max-w-[100px] text-white select-none">{streamerDisplayUser?.name || streamer.name}</span>
+                                {streamer.isPrivate && (
+                                    <LockIcon className="w-3 h-3 text-[#f2d7a2] flex-shrink-0 drop-shadow" />
+                                )}
+                                <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} />
+                            </div>
                                 <div className="flex items-center gap-1 text-[10px] text-gray-300 font-medium">
                                     <svg className="w-3 h-3 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
                                         <path d="M13 7H7v2h6V7z"></path>
@@ -1382,7 +1454,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 className="flex items-center bg-black/40 hover:bg-black/60 rounded-full px-2.5 py-1.5 space-x-1.5 text-sm cursor-pointer transition-all border border-white/[0.02] active:scale-95 focus:outline-none"
                             >
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
-                                <span className="text-white font-bold select-none">{new Set(onlineUsers.map(u => String(u.id))).size}</span>
+                                <span className="text-white font-bold select-none">{onlineCount}</span>
                             </button>
                             {/* PiP button (viewers only) - OUT-OF-APP native Picture-in-Picture, like ZEGO's pipButton */}
                             {!isBroadcaster && isPiPSupported && (
@@ -1520,11 +1592,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` }}>
+            <div className={`absolute left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` : `env(safe-area-inset-bottom, 0px)`, transition: 'opacity 0.3s ease, bottom 0.15s ease-out' }}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[min(33vh,38dvh)] h-full overflow-y-auto no-scrollbar flex flex-col pointer-events-auto px-3 pb-[env(safe-area-inset-bottom)] relative z-10">
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar overscroll-contain flex flex-col pointer-events-auto px-3 pb-[env(safe-area-inset-bottom)] relative z-10" style={{ maxHeight: '33lvh' }}>
                         <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
                             {messages.map((msg, index) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
@@ -1565,8 +1637,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             })}
                         </div>
                     </div>
+                </div>
 
-                <footer className="p-3 pointer-events-auto">
+                <footer className={`absolute left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     {/* 📡 Typing indicator */}
                     {typingUsers.length > 0 && (
                       <div className="px-2 py-1 text-xs text-gray-400 italic">
@@ -1594,33 +1667,18 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
-                            <input 
-                                ref={chatInputRef}
-                                type="text"
-                                placeholder={t('streamRoom.sayHi')}
-                                value={chatInput}
-                                onChange={(e) => {
-                                  setChatInput(e.target.value);
-                                  // 📡 Data Packet: sinalizar digitação
-                                  if (lkChatConnected && e.target.value.length > 0) {
-                                    lkSendTyping(true, currentUser.name);
-                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                    typingTimeoutRef.current = setTimeout(() => {
-                                      lkSendTyping(false, currentUser.name);
-                                    }, 2000);
-                                  }
-                                }}
-                                onBlur={() => {
-                                  if (lkChatConnected && typingTimeoutRef.current) {
-                                    clearTimeout(typingTimeoutRef.current);
-                                    lkSendTyping(false, currentUser.name);
-                                  }
-                                }}
-                                onKeyDown={(e) => { if (e.key === "Enter") { console.log("[CHAT] onKeyDown Enter disparado"); handleSendMessage(e); } }}
-                                enterKeyHint="send"
-                                autoComplete="off"
-                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                            />
+                                <button
+                                    type="button"
+                                    ref={chatInputRef}
+                                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
+                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
+                                >
+                                    {chatInput ? (
+                                        <span className="text-white">{chatInput}</span>
+                                    ) : (
+                                        <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
+                                    )}
+                                </button>
                         </div>
                         <div className="flex items-center gap-3">
                             {/* Share/Send Action */}
@@ -1643,6 +1701,18 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     alt="Gift Icon" 
                                     className="w-9 h-9 object-cover rounded-full shadow-lg" 
                                 />
+                            </button>
+                            {/* Roleta — alterna o widget FIXO na tela da live */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsRouletteOpen(v => !v); }} 
+                                className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                                title="Roleta"
+                            >
+                                <svg className="h-5 w-5 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+                                    <path d="M12 3v4M12 17v4M3 12h4M17 12h4" strokeLinecap="round" />
+                                </svg>
                             </button>
                             {/* Private Chat */}
                             {!isBroadcaster && (
@@ -1671,7 +1741,91 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         </div>
                     </div>
                 </footer>
-            </div>
+
+            {/* 📌 Presente Fixado — canto inferior direito da transmissão (estilo
+                Guzzcast). Só o host fixa via Ferramentas; todos veem o presente
+                fixado enquanto a live estiver no ar. O NOME aparece EM CIMA,
+                editável pelo host nas Ferramentas. Ao salvar, o presente SOBE
+                do fundo até o canto inferior direito. */}
+            {pinnedGift && (
+                <div className="absolute bottom-28 right-3 z-30 flex flex-col items-center gap-1 pointer-events-none select-none gift-pinned-rise">
+                    <div className="bg-black/55 backdrop-blur-md rounded-2xl px-3 py-2 border border-white/15 shadow-xl flex flex-col items-center gap-1">
+                        <p className="text-[10px] font-bold text-white truncate max-w-[90px]">{pinnedGiftLabel || pinnedGift.name}</p>
+                        <div className="w-14 h-14 flex items-center justify-center">
+                            {pinnedGift.component
+                                ? pinnedGift.component
+                                : (typeof pinnedGift.icon === 'string' && (pinnedGift.icon.startsWith('http') || pinnedGift.icon.startsWith('/')))
+                                    ? <img src={pinnedGift.icon} alt={pinnedGift.name} className="w-12 h-12 object-cover rounded-xl" />
+                                    : <span className="text-4xl">{pinnedGift.icon}</span>}
+                        </div>
+                    </div>
+                    <div className="w-6 h-6 rounded-full bg-[#FC10B8] flex items-center justify-center shadow-lg">
+                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M14 3l7 3v5c0 4.42-2.87 8.17-6 9.4V12l-1-4-1 4v8.4C7.87 19.17 5 15.42 5 11V6l9-3Z" />
+                        </svg>
+                    </div>
+                </div>
+            )}
+
+            {/* ⌨️ Composer flutuante (TikTok-style): abre COLADO no teclado quando
+                o usuário toca na barra de mensagem fixa. A tela da live não se mexe. */}
+            {isComposerOpen && (
+                <div
+                    ref={composerRef}
+                    className="fixed left-0 right-0 z-40"
+                    style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
+                >
+                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317]/95 backdrop-blur-md border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                        <div className="flex items-center gap-3">
+                            <div className="flex-grow">
+                                <input
+                                    ref={composerInputRef}
+                                    type="text"
+                                    placeholder={t('streamRoom.sayHi')}
+                                    value={chatInput}
+                                    enterKeyHint="send"
+                                    autoComplete="off"
+                                    onChange={(e) => {
+                                        setChatInput(e.target.value);
+                                        // 📡 Data Packet: sinalizar digitação
+                                        if (lkChatConnected && e.target.value.length > 0) {
+                                            lkSendTyping(true, currentUser.name);
+                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                            typingTimeoutRef.current = setTimeout(() => {
+                                                lkSendTyping(false, currentUser.name);
+                                            }, 2000);
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        // Só fecha se o foco saiu do composer por completo (teclado
+                                        // fechado / toque fora). Não fecha em blur transitório — ex.:
+                                        // o navegador tentando focar o input readOnly da 1ª barra.
+                                        setTimeout(() => {
+                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                if (lkChatConnected && typingTimeoutRef.current) {
+                                                    clearTimeout(typingTimeoutRef.current);
+                                                    lkSendTyping(false, currentUser.name);
+                                                }
+                                                closeComposer();
+                                            }
+                                        }, 120);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
+                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                />
+                            </div>
+                            <button
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
+                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                            >
+                                <SendIcon className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            )}
 
             {/* Native PiP Active Indicator */}
             {nativePiPActive && (
@@ -1723,6 +1877,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
                     isHost={isBroadcaster}
                     addToast={addToast}
+                    gifts={gifts}
+                    pinnedGift={pinnedGift}
+                    onSavePinnedGift={(g: Gift | null, label?: string) => {
+                        setPinnedGift(g);
+                        setPinnedGiftLabel(g ? (label || g.name) : '');
+                    }}
                 />
             )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
@@ -1747,6 +1907,18 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 isVIP={currentUser.isVIP || false}
                 currentUser={currentUser}
             />
+            {/* 🎡 Roleta — widget fixo na tela da live, SEM janela */}
+            <RouletteModalAny
+                isOpen={isRouletteOpen}
+                onClose={() => setIsRouletteOpen(false)}
+                currentUser={currentUser}
+                updateUser={updateUser}
+                addToast={addToast}
+                onOpenWallet={handleRecharge}
+                ownerId={streamer.id}
+                streamId={streamer.id}
+                canEdit={isBroadcaster}
+            />
             {isWalletOpen && (
                 <WalletScreen
                     onClose={() => setIsWalletOpen(false)}
@@ -1766,6 +1938,23 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onConfirmPurchase={handleConfirmPurchase}
                     addToast={addToast}
                     currentUser={currentUser}
+                />
+            )}
+            {isCadastralScreenOpen && pendingPurchase && (
+                <CadastralDataScreen
+                    onClose={() => { setIsCadastralScreenOpen(false); setPendingPurchase(null); }}
+                    onSaved={() => {
+                        setIsCadastralScreenOpen(false);
+                        if (pendingPurchase) {
+                            const pkg = pendingPurchase;
+                            setPendingPurchase(null);
+                            setSelectedPackage(pkg);
+                            setIsWalletOpen(false);
+                        }
+                    }}
+                    currentUser={currentUser}
+                    updateUser={updateUser}
+                    addToast={addToast}
                 />
             )}
             <UserActionModal

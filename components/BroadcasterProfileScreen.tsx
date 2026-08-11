@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, FeedPhoto } from '../types';
-import { BackIcon, MaleIcon, FemaleIcon, RankIcon, MoreVerticalIcon, PencilIcon, ChevronRightIcon, CopyIcon, PlayIcon, HeartIcon, DetailsIcon, VIPBadgeIcon, ShieldIcon, LiveIndicatorIcon, TrashIcon } from './icons';
+import { BackIcon, MaleIcon, FemaleIcon, RankIcon, MoreVerticalIcon, PencilIcon, ChevronRightIcon, CopyIcon, PlayIcon, HeartIcon, DetailsIcon, VIPBadgeIcon, ShieldIcon, TrashIcon } from './icons';
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 // Socket.IO removido — eventos de presente via API
 import { LoadingSpinner } from './Loading';
 import AvatarWithFrame from './ui/AvatarWithFrame';
+import LiveBadge from './ui/LiveBadge';
 import { useUserStatus, formatLastSeen } from '../hooks/useUserStatus';
 import { base64ConversionService, processUserImages, isValidImageUrl } from '../services/base64ConversionService';
 import { calculateDistanceInKm, formatDistance } from '../utils/location';
@@ -29,6 +30,7 @@ interface UserProfileScreenProps {
   onPhotoLiked: () => void;
   onPhotoRemoved?: (updatedUser: User) => void;
   onPhotoUploaded?: () => void; // Callback para quando nova foto é upload
+  onOpenLive?: (user: User) => void; // 🔴 Indicador AO VIVO no canto inferior direito
 }
 
 const IMAGE_PLACEHOLDER = '/placeholders/avatar-placeholder.svg';
@@ -143,7 +145,7 @@ const AgeBadge = ({ gender = 'female', age }: { gender?: 'male' | 'female' | 'no
     );
 };
 
-const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans, onOpenFollowing, onOpenFans, onFollow, onStartChat, onBlockUser, onReportUser, onOpenPhotoViewer, lastPhotoLikeUpdate, onPhotoLiked, onPhotoRemoved, onPhotoUploaded }: UserProfileScreenProps) => {
+const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans, onOpenFollowing, onOpenFans, onFollow, onStartChat, onBlockUser, onReportUser, onOpenPhotoViewer, lastPhotoLikeUpdate, onPhotoLiked, onPhotoRemoved, onPhotoUploaded, onOpenLive }: UserProfileScreenProps) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('Obras');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -461,12 +463,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                                 </div>
                             </div>
 
-                            {user.isLive && (user as any).streamStatus === 'active' && (
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/60 rounded-md px-2 py-1 flex items-center space-x-1.5 backdrop-blur-sm z-30">
-                                  <LiveIndicatorIcon className="w-4 h-4 text-green-400" />
-                                  <span className="text-xs font-bold text-white uppercase tracking-wider">{t('footer.live')}</span>
-                                </div>
-                            )}
+                            {/* (indicador AO VIVO fica no canto inferior direito da tela — renderizado no root abaixo) */}
                             
                             {/* Shield Verification emblem mark on the upper right edge */}
                             <div className="absolute -top-1 -right-1 bg-[#1a233d]/90 border border-[#00f0ff] rounded-full p-1 z-20 shadow-[0_0_8px_rgba(0,240,255,0.4)]">
@@ -721,6 +718,16 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                 </main>
             </div>
             
+            {/* 🔴 Indicador AO VIVO no canto inferior direito da TELA (clicável → entra na live)
+                MESMO LiveBadge verde usado em todos os lugares. Só aparece enquanto transmite. */}
+            {(user.isLive || (user as any).streamStatus === 'active' || (user as any).currentStreamId) && onOpenLive && (
+                <LiveBadge
+                    label={t('footer.live')}
+                    className="fixed bottom-[84px] right-4 z-[60]"
+                    onClick={(e) => { e.stopPropagation(); onOpenLive(user); }}
+                />
+            )}
+
             {!isCurrentUser && (
                 <footer className="absolute bottom-0 left-0 right-0 bg-black p-3 flex-shrink-0 z-10 border-t border-gray-800/50">
                     <div className="flex items-center space-x-3">

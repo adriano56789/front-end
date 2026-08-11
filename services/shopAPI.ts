@@ -39,15 +39,16 @@ export interface UserFrame {
 }
 
 const FALLBACK_FRAMES: Frame[] = [
-  { id: 'FrameBlueCrystal', name: 'Royal Gold', price: 500, duration: 7, image: '', description: '' },
-  { id: 'FrameRoseGarden', name: 'Cyber Neon', price: 300, duration: 7, image: '', description: '' },
-  { id: 'FrameCopperPearls', name: 'Emerald Elegance', price: 450, duration: 7, image: '', description: '' },
-  { id: 'FrameOrnateMagenta', name: 'Galaxy Spark', price: 350, duration: 7, image: '', description: '' },
-  { id: 'FrameNeonFeathers', name: 'Fire Dragon', price: 300, duration: 7, image: '', description: '' },
-  { id: 'FrameBaroqueElegance', name: 'Ice Crystal', price: 300, duration: 7, image: '', description: '' },
-  { id: 'FrameMysticalWings', name: 'Steampunk Gear', price: 450, duration: 7, image: '', description: '' },
-  { id: 'FrameCosmicFire', name: 'Sakura Bloom', price: 450, duration: 7, image: '', description: '' },
-  { id: 'FrameCelestialCrown', name: 'Cosmic Ring', price: 350, duration: 7, image: '', description: '' }
+  { id: 'FrameBlueCrystal', name: 'Royal Gold', price: 500, duration: 3, image: '', description: '' },
+  { id: 'FrameRoseGarden', name: 'Cyber Neon', price: 300, duration: 3, image: '', description: '' },
+  { id: 'FrameCopperPearls', name: 'Emerald Elegance', price: 450, duration: 3, image: '', description: '' },
+  { id: 'FrameOrnateMagenta', name: 'Galaxy Spark', price: 350, duration: 3, image: '', description: '' },
+  { id: 'FrameNeonFeathers', name: 'Fire Dragon', price: 300, duration: 3, image: '', description: '' },
+  { id: 'FrameBaroqueElegance', name: 'Ice Crystal', price: 300, duration: 3, image: '', description: '' },
+  { id: 'FrameMysticalWings', name: 'Steampunk Gear', price: 450, duration: 3, image: '', description: '' },
+  { id: 'FrameCosmicFire', name: 'Sakura Bloom', price: 450, duration: 3, image: '', description: '' },
+  { id: 'FrameCelestialCrown', name: 'Cosmic Ring', price: 350, duration: 3, image: '', description: '' },
+  { id: 'Frame20275', name: 'Primavera', price: 500, duration: 3, image: '', description: '' }
 ];
 
 export const shopAPI = {
@@ -163,7 +164,9 @@ export const shopAPI = {
       }
     },
     purchase: async (frameId: string, userId: string) => {
-      const response = await api.buyFrame(userId, frameId, 100, 7);
+      // ⏳ REGRA: quadro de avatar vale EXATAMENTE 3 dias (o backend ignora a
+      // duração enviada e aplica 3 dias — ou permanente para o dono).
+      const response = await api.buyFrame(userId, frameId, 100, 3);
       return {
         success: response.success,
         userDiamonds: response.user?.diamonds || 0

@@ -26,22 +26,31 @@ const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
     'Meu coração palpita por você': 7208,
     'Caixa de Música': 7067,
     'Foguete': 4000,
+    'Asas de Anjo': 8000,
 };
 
 // 🎞️ APENAS estes presentes têm animação mp4 real (arquivos na pasta
 // public/animations). NÃO usar getAnimationUrl genérico: ele também cobre
 // outros gifts (.webm de /uploads/animations) que NÃO devem ir para o
 // caminho de canvas — eles mantêm o efeito de partículas/ícone atual.
-const GIFT_ANIMATION_NAMES = new Set(['Coração', 'Rosa', 'Pirulito', 'Planta', 'Sorvete', 'Anel', 'Champanhe', 'Caixa de Presente Rosa', 'Meu coração palpita por você', 'Caixa de Música', 'Foguete']);
+// Coração e Caixa de Música ficam FORA da lista de VAP: usam só o Lottie
+// (e se o lottie falhar caem no ícone animado — nunca no VAP/vídeo).
+const GIFT_ANIMATION_NAMES = new Set(['Rosa', 'Pirulito', 'Planta', 'Sorvete', 'Anel', 'Champanhe', 'Caixa de Presente Rosa', 'Meu coração palpita por você', 'Foguete', 'Asas de Anjo']);
 
 // 🎞️ Presentes renderizados via LOTTIE (JSON direto no navegador — sem mp4):
 // o foguete.json (pacote ZEGO 火箭, 750×1624, 25fps, 100 frames = 4000ms) é
 // carregado pelo lottie-web em SVG; imagens (img_*.png) e som (aud_0.mp3) são
-// arquivos externos no MESMO diretório do .json. A Caixa de Música usa o
-// musicbox.json do pacote ZEGO (1500×1334, 30fps, 212 imagens webp) — SEM
-// camada de áudio no JSON, então a melodia (gift-musicbox.mp3) toca em separado.
+// arquivos externos no MESMO diretório do .json.
+// O Coração usa o coracao.json extraído do pacote .lottie (750×1624, 30fps,
+// 121 imagens webp = 4.033s) — sem camada de áudio, sem VAP de fallback.
+// A Caixa de Música usa o musicbox.json (1500×1334, 30fps, 212 webps). Os
+// frames são OPAÇOS (fundo preto embutido, yuv420p sem alfa) — por isso o
+// GiftLottiePlayer aplica `mix-blend-mode: screen` (o preto some sobre a
+// transmissão, deixando SÓ a animação — sem parecer vídeo, sem WebGL). A
+// melodia própria (gift-musicbox.mp3) toca em separado.
 const GIFT_LOTTIE_URLS: Record<string, string> = {
     'Foguete': '/animations/foguete.json',
+    'Coração': '/animations/coracao.json',
     'Caixa de Música': '/animations/musicbox.json',
 };
 
@@ -139,6 +148,8 @@ const LUXURY_ASSETS_MAP: Record<string, LuxuryAsset> = {
     'Rosa': { videoSrc: '', audioSrc: '', duration: 5500, glowColor: 'rgba(244, 63, 94, 0.85)' },
     'Champanhe': { videoSrc: '', audioSrc: '', duration: 4500, glowColor: 'rgba(234, 179, 8, 0.9)' },
     'Anel': { videoSrc: '', audioSrc: '', duration: 4500, glowColor: 'rgba(250, 204, 21, 0.9)' },
+    // 🪽 Asas de Anjo: animação VAP (asas_de_anjo.mp4) com som de espetáculo.
+    'Asas de Anjo': { videoSrc: '', audioSrc: '', duration: 8000, glowColor: 'rgba(255, 215, 0, 0.9)' },
     'Explosão de Confete': { videoSrc: '', audioSrc: '', duration: 5000, glowColor: 'rgba(234, 179, 8, 0.85)' },
     'Portal Galáctico': { videoSrc: '', audioSrc: '', duration: 6000, glowColor: 'rgba(139, 92, 246, 0.9)' },
     'Invocação de Dragão': { videoSrc: '', audioSrc: '', duration: 6500, glowColor: 'rgba(16, 185, 129, 0.85)' },
@@ -440,6 +451,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                     key={`anim-${uniqueKey}`}
                     url={realAnimationUrl}
                     giftName={gift.name}
+                    riseFromBottom={gift.name === 'Champanhe'}
                     onDuration={setRealAnimDurationMs}
                     onPlaying={() => {
                         // Reinicia o timer a partir do momento em que o vídeo
@@ -479,7 +491,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                 de partículas, SEM glow de fundo. Os vídeos mp4 já trazem os
                 próprios efeitos e são exibidos sozinhos acima. */}
             {showFallback && (
-            <div className="flex flex-col items-center justify-center relative z-10 w-full h-full max-w-4xl px-4 select-none">
+            <div className={`flex flex-col items-center justify-center relative z-10 w-full h-full max-w-4xl px-4 select-none ${gift.name === 'Champanhe' ? 'gift-champagne-rise-fallback' : ''}`}>
                 <div className="relative flex items-center justify-center transform animate-gift-pop-impact w-[300px] h-[300px]">
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none transform animate-gift-bounce-subtle">
                         {gift.component ? (
@@ -566,6 +578,9 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                 }
                 .animate-gift-text-bounce {
                     animation: gift-text-bounce-anim 2.5s ease-in-out infinite;
+                }
+                .gift-champagne-rise-fallback {
+                    animation: gift-champagne-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
                 }
 
                 .text-glow-ultimate {

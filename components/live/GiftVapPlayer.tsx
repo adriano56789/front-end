@@ -24,6 +24,8 @@ interface GiftVapPlayerProps {
   url: string;
   /** Nome do gift — usado para gerar o config VAP (fps/geometria corretos). */
   giftName: string;
+  /** 🥂 Champanhe: a animação SOBE do fundo até o meio da tela (fim = centro). */
+  riseFromBottom?: boolean;
   onDuration?: (ms: number) => void;
   /** Disparado quando o vídeo começa a rodar de verdade (reseta o timer de encerramento). */
   onPlaying?: () => void;
@@ -43,7 +45,7 @@ interface GiftVapPlayerProps {
  * Reporta a duração REAL do arquivo via onDuration (evento loadedmetadata) para
  * que o timer de encerramento seja exatamente o tempo do vídeo.
  */
-const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, onDuration, onPlaying, onVideoEnd, onLoadError }) => {
+const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, riseFromBottom = false, onDuration, onPlaying, onVideoEnd, onLoadError }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const onDurationRef = useRef(onDuration);
   useEffect(() => { onDurationRef.current = onDuration; }, [onDuration]);
@@ -150,7 +152,12 @@ const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, onDuration
           maxWidth: '90vw',
           maxHeight: '72vh',
           aspectRatio: `${CONTENT_W} / ${CONTENT_H}`,
-          animation: 'gift-video-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+          // 🥂 Champanhe: SOBE do fundo da tela até o centro (que é onde o
+          // wrapper flex a posiciona) e para lá. Demais presentes mantêm o
+          // pop-in centralizado original.
+          animation: riseFromBottom
+            ? 'gift-champagne-rise 1.8s cubic-bezier(0.22, 1, 0.36, 1) forwards'
+            : 'gift-video-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           willChange: 'transform, opacity',
         }}
       >
@@ -161,6 +168,13 @@ const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, onDuration
                 15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
                 22% { transform: scale(0.95) rotate(-2deg); }
                 30% { transform: scale(1) rotate(0deg); }
+            }
+            @keyframes gift-champagne-rise {
+                0%   { transform: translateY(60vh) scale(0.55); opacity: 0; }
+                16%  { transform: translateY(55vh) scale(1.08); opacity: 1; }
+                38%  { transform: translateY(-2vh) scale(0.96); opacity: 1; }
+                55%  { transform: translateY(0) scale(1); opacity: 1; }
+                100% { transform: translateY(0) scale(1); opacity: 1; }
             }
         `}</style>
       </div>

@@ -1,108 +1,132 @@
-[{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0f6"
+[
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0f6"
+    },
+    "name": "Blue Crystal",
+    "price": 150,
+    "duration": 3,
+    "description": "Ultra-detailed neon blue circular frame with crystalline diamonds, multi-layer pulsing glow, rotating diamond sparkles and floating particles",
+    "icon": "FrameBlueCrystal",
+    "image": "/frames/blue-crystal.svg",
+    "isActive": true,
+    "id": "FrameBlueCrystal"
   },
-  "name": "Blue Crystal",
-  "price": 150,
-  "duration": 30,
-  "description": "Ultra-detailed neon blue circular frame with crystalline diamonds, multi-layer pulsing glow, rotating diamond sparkles and floating particles",
-  "icon": "FrameBlueCrystal",
-  "image": "/frames/blue-crystal.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0f7"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0f7"
+    },
+    "name": "Rose Garden",
+    "price": 200,
+    "duration": 3,
+    "description": "Ultra-detailed ornate frame with blooming roses, golden ornaments, multi-layer petal bloom effects, rotating ornaments and twinkling gems",
+    "icon": "FrameRoseGarden",
+    "image": "/frames/rose-garden.svg",
+    "isActive": true,
+    "id": "FrameRoseGarden"
   },
-  "name": "Rose Garden",
-  "price": 200,
-  "duration": 30,
-  "description": "Ultra-detailed ornate frame with blooming roses, golden ornaments, multi-layer petal bloom effects, rotating ornaments and twinkling gems",
-  "icon": "FrameRoseGarden",
-  "image": "/frames/rose-garden.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0f8"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0f8"
+    },
+    "name": "Celestial Crown",
+    "price": 300,
+    "duration": 3,
+    "description": "Majestic frame with crown-like spikes, celestial elements, rotating crown spikes, twinkling stars and pulsing celestial glow",
+    "icon": "FrameCelestialCrown",
+    "image": "/frames/celestial-crown.svg",
+    "isActive": true,
+    "id": "FrameCelestialCrown"
   },
-  "name": "Celestial Crown",
-  "price": 300,
-  "duration": 30,
-  "description": "Majestic frame with crown-like spikes, celestial elements, rotating crown spikes, twinkling stars and pulsing celestial glow",
-  "icon": "FrameCelestialCrown",
-  "image": "/frames/celestial-crown.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0f9"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0f9"
+    },
+    "name": "Copper Pearls",
+    "price": 180,
+    "duration": 3,
+    "description": "Ultra-detailed warm copper frame adorned with pearl beads, golden ornaments, multi-layer pearl sequence and shimmer effects",
+    "icon": "FrameCopperPearls",
+    "image": "/frames/copper-pearls.svg",
+    "isActive": true,
+    "id": "FrameCopperPearls"
   },
-  "name": "Copper Pearls",
-  "price": 180,
-  "duration": 30,
-  "description": "Ultra-detailed warm copper frame adorned with pearl beads, golden ornaments, multi-layer pearl sequence and shimmer effects",
-  "icon": "FrameCopperPearls",
-  "image": "/frames/copper-pearls.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0fa"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0fa"
+    },
+    "name": "Cosmic Fire",
+    "price": 250,
+    "duration": 3,
+    "description": "Intense frame with cosmic flame-like elements, flickering flames, pulsing cosmic energy and rotating fire patterns",
+    "icon": "FrameCosmicFire",
+    "image": "/frames/cosmic-fire.svg",
+    "isActive": true,
+    "id": "FrameCosmicFire"
   },
-  "name": "Cosmic Fire",
-  "price": 250,
-  "duration": 30,
-  "description": "Intense frame with cosmic flame-like elements, flickering flames, pulsing cosmic energy and rotating fire patterns",
-  "icon": "FrameCosmicFire",
-  "image": "/frames/cosmic-fire.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0fb"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0fb"
+    },
+    "name": "Mystical Wings",
+    "price": 220,
+    "duration": 3,
+    "description": "Ethereal frame with flowing wing-like elements, fluttering wings, pulsing mystical aura and floating effects",
+    "icon": "FrameMysticalWings",
+    "image": "/frames/mystical-wings.svg",
+    "isActive": true,
+    "id": "FrameMysticalWings"
   },
-  "name": "Mystical Wings",
-  "price": 220,
-  "duration": 30,
-  "description": "Ethereal frame with flowing wing-like elements, fluttering wings, pulsing mystical aura and floating effects",
-  "icon": "FrameMysticalWings",
-  "image": "/frames/mystical-wings.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0fc"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0fc"
+    },
+    "name": "Neon Feathers",
+    "price": 170,
+    "duration": 3,
+    "description": "Vibrant frame with flowing feather elements, floating feathers, pulsing neon glow and wave effects",
+    "icon": "FrameNeonFeathers",
+    "image": "/frames/neon-feathers.svg",
+    "isActive": true,
+    "id": "FrameNeonFeathers"
   },
-  "name": "Neon Feathers",
-  "price": 170,
-  "duration": 30,
-  "description": "Vibrant frame with flowing feather elements, floating feathers, pulsing neon glow and wave effects",
-  "icon": "FrameNeonFeathers",
-  "image": "/frames/neon-feathers.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0fd"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0fd"
+    },
+    "name": "Ornate Magenta",
+    "price": 190,
+    "duration": 3,
+    "description": "Elaborate ornamental frame with baroque-inspired patterns, rotating ornaments, pulsing gems and flowing patterns",
+    "icon": "FrameOrnateMagenta",
+    "image": "/frames/ornate-magenta.svg",
+    "isActive": true,
+    "id": "FrameOrnateMagenta"
   },
-  "name": "Ornate Magenta",
-  "price": 190,
-  "duration": 30,
-  "description": "Elaborate ornamental frame with baroque-inspired patterns, rotating ornaments, pulsing gems and flowing patterns",
-  "icon": "FrameOrnateMagenta",
-  "image": "/frames/ornate-magenta.svg",
-  "isActive": true
-},
-{
-  "_id": {
-    "$oid": "6a03e9b585cf9d745c6af0fe"
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0fe"
+    },
+    "name": "Baroque Elegance",
+    "price": 280,
+    "duration": 3,
+    "description": "Luxurious baroque-inspired frame with ornate scrollwork, rotating ornaments, pulsing gems and flowing decorative patterns",
+    "icon": "FrameBaroqueElegance",
+    "image": "/frames/baroque-elegance.svg",
+    "isActive": true,
+    "id": "FrameBaroqueElegance"
   },
-  "name": "Baroque Elegance",
-  "price": 280,
-  "duration": 30,
-  "description": "Luxurious baroque-inspired frame with ornate scrollwork, rotating ornaments, pulsing gems and flowing decorative patterns",
-  "icon": "FrameBaroqueElegance",
-  "image": "/frames/baroque-elegance.svg",
-  "isActive": true
-}]
+  {
+    "_id": {
+      "$oid": "6a03e9b585cf9d745c6af0ff"
+    },
+    "name": "Primavera",
+    "price": 500,
+    "duration": 3,
+    "description": "Moldura animada Primavera — pacote ZEGO 20275 (春日达人头像框): flores e moldura em movimento real ao redor do avatar, transparência via VAP",
+    "icon": "Frame20275",
+    "id": "Frame20275",
+    "image": "/frames/primavera.png",
+    "isActive": true
+  }
+]

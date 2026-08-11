@@ -719,7 +719,19 @@ export const api = {
 
         brl_value: number;
 
+        eur_value: number;
+
+        usd_value: number;
+
+        local_value: number;
+
+        currency: string;
+
+        currency_symbol: string;
+
         conversion_rate: string;
+
+        rate_source: string;
 
         diamonds_purchased: number;
 
@@ -745,7 +757,7 @@ export const api = {
         // ⚠️ REMOVIDO: Logs duplicados que causam confusão
         // safeLog('[API] calculateWithdrawal called with amount: ' + amount);
         // safeLog('[API] Calculating withdrawal for amount: ' + amount + ' diamonds');
-        return callApi<{ diamonds: number; gross_brl: number; platform_fee_brl: number; net_brl: number; breakdown: { conversion: string; fee: string; final: string; } }>('POST', '/api/wallet/earnings/calculate', { amount, userId });
+        return callApi<{ diamonds: number; currency: string; currency_symbol: string; rate_source: string; gross_brl: number; platform_fee_brl: number; net_brl: number; gross_eur: number; platform_fee_eur: number; net_eur: number; gross_usd: number; platform_fee_usd: number; net_usd: number; local_gross: number; local_fee: number; local_net: number; breakdown: { conversion: string; fee: string; final: string; } }>('POST', '/api/wallet/earnings/calculate', { amount, userId });
     },
 
     confirmWithdrawal: (userId: string, amount: number) => {
@@ -969,6 +981,8 @@ export const api = {
     updatePushSettings: (userId: string, settings: Record<string, boolean>) => callApi<{ success: boolean, settings: Record<string, boolean> }>('POST', `/api/settings/push/${userId}`, { settings }),
 
     updatePrivateStreamSettings: (userId: string, settings: Partial<User['privateStreamSettings']>) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/private-stream/${userId}`, { settings }),
+
+    getInvitedStreams: (userId: string) => callApi<{ success: boolean, streamIds: string[] }>('GET', `/api/interactions/streams/invited-streams?userId=${userId}`),
 
     togglePip: (userId: string, enabled: boolean) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/pip/toggle/${userId}`, { enabled }),
 
@@ -1273,7 +1287,7 @@ export const api = {
 
     inviteUserToPrivateStream: (streamId: string, userId: string) => callApi<{ success: boolean }>('POST', `/api/interactions/streams/${streamId}/private-invite`, { userId }),
 
-    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean }>('GET', `/api/streams/${streamId}/access-check?userId=${userId}`),
+    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean, reason?: string }>('GET', `/api/interactions/streams/${streamId}/access-check?userId=${userId}`),
 
     inviteFriendForCoHost: (streamId: string, inviteeId: string, inviteType: 'co-host' | 'pk-battle' = 'pk-battle') => {
       const fromUserId = (() => {
@@ -1502,6 +1516,12 @@ export const api = {
     withdrawViaPix: (userId: string, amount: number, pixKey: string, pixKeyType: string) => {
 
         return callApi<any>('POST', '/api/withdrawals/pix', { userId, amount, pixKey, pixKeyType });
+
+    },
+
+    withdrawViaBank: (userId: string, amount: number) => {
+
+        return callApi<any>('POST', '/api/withdrawals/bank', { userId, amount });
 
     },
 
@@ -2286,6 +2306,54 @@ export const api = {
             aneis: Array<{ itemId: string }>;
             avatars: Array<{ avatarId: string; isCurrent: boolean }>;
         }>('GET', `/api/shop/user/${userId}/inventory`),
+    },
+
+
+    // --- 🎡 Roleta Editável (CRUD de itens + giros) — TODA chamada passa pelo api.ts ---
+    roulette: {
+        // Listar itens cadastrados de um dono (streamer)
+        getItems: (ownerId: string) => callApi<Array<{
+            _id: string;
+            label: string;
+            icon: string;
+            color: string;
+            textColor: string;
+            ownerId: string;
+            type: string;
+            amount: number;
+            isActive: boolean;
+            createdAt: string;
+            updatedAt: string;
+        }>>('GET', `/api/roulette/items?ownerId=${encodeURIComponent(ownerId)}`),
+
+        // Criar um item editável (label = dança, música, qualquer ação)
+        createItem: (data: { ownerId: string; label: string; icon?: string; color?: string; textColor?: string; type?: string; amount?: number }) =>
+            callApi<{ _id: string; label: string; icon: string; color: string; textColor: string; ownerId: string; type: string; amount: number; isActive: boolean; createdAt: string; updatedAt: string }>('POST', '/api/roulette/items', data),
+
+        // Atualizar um item
+        updateItem: (id: string, data: { label?: string; icon?: string; color?: string; textColor?: string; type?: string; amount?: number; isActive?: boolean }) =>
+            callApi<{ _id: string; label: string; icon: string; color: string; textColor: string; ownerId: string; type: string; amount: number; isActive: boolean; createdAt: string; updatedAt: string }>('PUT', `/api/roulette/items/${id}`, data),
+
+        // Remover um item
+        deleteItem: (id: string) => callApi<{ success: boolean; message: string }>('DELETE', `/api/roulette/items/${id}`),
+
+        // Girar a roleta — o backend sorteia entre os itens CADASTRADOS e registra no banco
+        spin: (data: { userId: string; streamId?: string; ownerId: string; cost?: number }) =>
+            callApi<{ success: boolean; item: { _id: string; label: string; icon: string; color: string; textColor: string; ownerId: string; type: string; amount: number; isActive: boolean; createdAt: string; updatedAt: string }; diamondsAfter: number | null }>('POST', '/api/roulette/spin', data),
+
+        // Custo FIXO para girar ("X DIAMANTES PRA RODAR") — definido pela host
+        getSpinCost: (ownerId: string) =>
+            callApi<{ ownerId: string; spinCost: number }>('GET', `/api/roulette/cost/${encodeURIComponent(ownerId)}`),
+
+        // Definir o custo fixo da roleta (só a host)
+        setSpinCost: (ownerId: string, cost: number) =>
+            callApi<{ ownerId: string; spinCost: number }>('PUT', '/api/roulette/cost', { ownerId, cost }),
+
+        // Histórico de giros do usuário
+        getUserSpins: (userId: string, limit?: number) => callApi<Array<{ _id: string; itemLabel: string; itemType: string; itemAmount: number; cost: number; diamondsAfter: number; createdAt: string }>>('GET', `/api/roulette/spins/user/${userId}${limit ? `?limit=${limit}` : ''}`),
+
+        // Histórico de giros da stream
+        getStreamSpins: (streamId: string, limit?: number) => callApi<Array<{ _id: string; itemLabel: string; itemType: string; itemAmount: number; cost: number; diamondsAfter: number; createdAt: string }>>('GET', `/api/roulette/spins/stream/${streamId}${limit ? `?limit=${limit}` : ''}`),
     },
 
     get: <T = any>(url: string) => callApi<T>('GET', url),

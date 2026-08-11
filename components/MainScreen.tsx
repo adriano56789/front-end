@@ -4,7 +4,7 @@ import Header from './Header';
 import { Streamer } from '../types';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from './Loading';
-import { ViewerIcon, LockIcon, LiveIndicatorIcon, ChevronRightIcon, LocationPinIcon } from './icons';
+import { ViewerIcon, LockIcon, ChevronRightIcon, LocationPinIcon } from './icons';
 import { calculateDistanceInKm, formatDistance } from '../utils/location';interface MainScreenProps {
   onOpenReminderModal: () => void;
   onOpenRegionModal: () => void;
@@ -16,10 +16,11 @@ import { calculateDistanceInKm, formatDistance } from '../utils/location';interf
   onTabChange: (tabKey: string) => void;
   showLocationBanner: boolean;
   unreadCount?: number;
+  invitedStreamIds?: string[];
 
 }
 
-const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void}> = ({ streamer, onSelect }) => {
+const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void; invited: boolean}> = ({ streamer, onSelect, invited }) => {
     const loggedInUser = (window as any).currentUser;
     
     // Get country code from streamer profile (always lowercase for flagcdn)
@@ -40,6 +41,9 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
         ? streamer.message 
         : "Acabei de chegar aqui";
 
+    // 🔒 Cadeado só para quem foi convidado a uma sala privada
+    const isInvitedToPrivate = !!streamer.isPrivate && invited;
+
     return (
         <div 
             className="relative aspect-[1/1.1] rounded-2xl overflow-hidden cursor-pointer group bg-zinc-950/40 select-none shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-300 border border-white/[0.03]" 
@@ -54,22 +58,10 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
             {/* Dynamic black-transparent gradient layers */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30"></div>
 
-            {/* Premium Concentric Gold Ring with Lock Icon for Private Rooms */}
-            {streamer.isPrivate && (
-                <div className="absolute top-[32%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none select-none z-10 scale-[1.1]">
-                    {/* Outer gold ring */}
-                    <div className="rounded-full p-[1px] bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c] shadow-lg shadow-black/80">
-                        {/* Spacing gap */}
-                        <div className="rounded-full p-[2px] bg-transparent">
-                            {/* Inner gold ring */}
-                            <div className="rounded-full p-[1px] bg-gradient-to-t from-[#ab873c] via-[#ead098] to-[#e1ba72]">
-                                {/* Central semi-transparent dark circle containing the lock icon */}
-                                <div className="w-[28px] h-[28px] rounded-full bg-black/30 flex items-center justify-center">
-                                    <LockIcon className="w-[12px] h-[12px] text-white drop-shadow" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            {/* 🔒 Padlock Badge for invited private rooms (ao lado do nome/ícone do usuário) */}
+            {isInvitedToPrivate && (
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-full bg-black/55 backdrop-blur-sm px-1.5 py-1 border border-[#e1ba72]/30 shadow-lg shadow-black/60">
+                    <LockIcon className="w-3 h-3 text-[#f2d7a2] drop-shadow" />
                 </div>
             )}
 
@@ -123,7 +115,7 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 };
 
 
-const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0 }) => {
+const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [] }) => {
   const { t } = useTranslation();
   const mainRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -333,7 +325,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                                 return true;
                             });
                             return unique.map(streamer => (
-                                <StreamerCard key={streamer.id} streamer={streamer} onSelect={onSelectStream} />
+                                <StreamerCard key={streamer.id} streamer={streamer} onSelect={onSelectStream} invited={invitedStreamIds.includes(streamer.id)} />
                             ));
                         })()}
                     </div>
