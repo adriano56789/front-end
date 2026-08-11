@@ -227,6 +227,9 @@ import GiftAdminPanel from './components/live/GiftAdminPanel';
 import { api } from './services/api';
 import { connectSocket, initPrivateChatSocket } from './services/socketService';
 
+import UpdateAvailableModal from './components/UpdateAvailableModal';
+import { useAppVersion } from './hooks/useAppVersion';
+
 // Dados iniciais vazios - tudo será carregado da API
 
 const INITIAL_DATA = {
@@ -4504,10 +4507,18 @@ const App: React.FC = () => {
             <Route path="/wallet" element={<AppContentWithRouter />} />
           </Routes>
         </Router>
+        <UpdateNotifier />
       </LanguageProvider>
     </ErrorBoundary>
   );
 
+};
+
+// 🔄 Aviso de versão nova: compara a versão do servidor com a do aparelho e
+// bloqueia o uso da versão antiga até o usuário atualizar.
+const UpdateNotifier: React.FC = () => {
+  const { updateAvailable, latestVersion } = useAppVersion();
+  return <UpdateAvailableModal open={updateAvailable} latestVersion={latestVersion} />;
 };
 
 

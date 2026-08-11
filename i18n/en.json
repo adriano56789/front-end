@@ -428,6 +428,11 @@
     "description": "Enable protection to prevent others from using your profile picture, preventing scams and fake profiles.",
     "toggle": "Enable Avatar Protection"
   },
+  "appUpdate": {
+    "title": "New version available",
+    "description": "A newer version of the app is available. Update now to use the latest version.",
+    "updateNow": "Update now"
+  },
   "search": {
     "placeholder": "Search by name or ID",
     "noResults": "No users found.",
