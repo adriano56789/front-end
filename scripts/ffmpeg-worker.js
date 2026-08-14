@@ -44,10 +44,18 @@ function buildTierArgs(streamKey, tier, fps) {
   return [
     '-map', '0:v:0',
     '-map', '0:a:0',
-    '-vf', 'scale=-2:' + tier.height,
+    // 🎨 Espaço de cor BT.709 explícito: a stream H264 do WebRTC (libwebrtc)
+    // costuma vir SEM metadado de cor no SPS. O FFmpeg assume BT.601 nesse caso
+    // e o libx264 re-marca o tier 360/240 como BT.601 → o player aplica matriz
+    // de conversão errada → TOM AMARELADO. Forçando BT.709 na entrada e saída
+    // o matiz fica consistente (cores vivas, sem amarelado).
+    '-vf', 'scale=-2:' + tier.height + ',format=yuv420p',
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
+    '-colorspace', 'bt709',
+    '-color_primaries', 'bt709',
+    '-color_trc', 'bt709',
     '-b:v', tier.bitrate + 'k',
     '-maxrate', Math.round(tier.bitrate * 1.2) + 'k',
     '-bufsize', (tier.bitrate * 2) + 'k',
@@ -81,9 +89,16 @@ function startTranscode(streamKey, preset, filters, ladder) {
   // Audio fixes for the buzz/static issue (SRS rtc->rtmp produces non-monotonic DTS):
   // - use_wallclock_as_timestamps: rebuild monotonic timestamps from wall-clock
   // - aresample=async=1:first_pts=0: fill gaps / drop overlaps, normalize audio start
+  // 🎨 Cor BT.709 explícita na ENTRADA: sem isso o FFmpeg assume BT.601 (SD) para
+  // streams H264 sem metadado de cor e o libx264 re-marca a saída como BT.601 →
+  // matriz YUV→RGB errada no player → TOM AMARELADO nas streams transcodificadas.
   const args = [
     '-fflags', 'nobuffer+genpts',
     '-use_wallclock_as_timestamps', '1',
+    '-color_range', 'tv',
+    '-colorspace', 'bt709',
+    '-color_primaries', 'bt709',
+    '-color_trc', 'bt709',
     '-i', inputUrl
   ];
 
@@ -101,6 +116,11 @@ function startTranscode(streamKey, preset, filters, ladder) {
     '-map', '0:a:0',
     '-c:v', preset.videoCodec || 'libx264',
     '-preset', 'veryfast',
+    // 🎨 BT.709 explícito na saída base (stream _transcoded) — mesma lógica dos
+    // tiers: evita o TOM AMARELADO por matriz de cor errada (BT.601 vs BT.709).
+    '-colorspace', 'bt709',
+    '-color_primaries', 'bt709',
+    '-color_trc', 'bt709',
     '-b:v', (preset.videoBitrate || 2000) + 'k',
     '-maxrate', Math.round((preset.videoBitrate || 2000) * 1.2) + 'k',
     '-bufsize', ((preset.videoBitrate || 2000) * 2) + 'k',

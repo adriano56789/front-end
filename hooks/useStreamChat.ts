@@ -300,6 +300,8 @@ export function useStreamChat(options: StreamChatOptions) {
           id: `entry_${entryKey}_${Date.now()}`, // timestamp evita colisão se o mesmo usuário sair e reentrar
           user: { id: joinedId, name: joinedName },
           userName: joinedName,
+          entranceEffect: data.entranceEffect || null, // efeito de entrada do VIP (URL/config do pacote)
+          isVip: !!data.entranceEffect,
           fullUser: {
             id: joinedId,
             name: joinedName,

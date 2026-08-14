@@ -149,7 +149,10 @@
       "zoomAdjustment": "Ajuste de Zoom",
       "deleteAccount": "Excluir Conta",
       "language": "Idioma",
-      "logout": "Sair"
+      "logout": "Sair",
+      "streamPreview": "Mostrar prévia das transmissões",
+      "streamPreviewDesc": "Ative para ver a transmissão passando direto nos cards, sem precisar entrar na live.",
+      "streamPreviewSaved": "Preferência de prévia atualizada."
     },
     "connected": {
         "title": "Contas Conectadas",
@@ -208,7 +211,7 @@
     },
     "appVersion": {
         "title": "Versão do aplicativo",
-        "current": "Sua versão atual é 1.0.0 do livenza",
+        "current": "Sua versão atual",
         "latest": "Última versão",
         "status": "Status",
         "upToDate": "Atualizado"

@@ -1,4 +1,5 @@
-import { cameraService } from './cameraService';
+import { cameraService, getVideoConstraints } from './cameraService';
+import { videoProcessor } from './VideoProcessor';
 
 type PublishEngineType = {
   replaceTrack: (kind: 'audio' | 'video', track: MediaStreamTrack | null) => Promise<void>;
@@ -46,9 +47,12 @@ class StreamPublishService {
     const processedVideoTracks = processed.getVideoTracks();
     if (processedVideoTracks.length === 0) return mediaStream;
 
+    // ⚠️ NÃO chamar track.stop() aqui: a track original da câmera é a MESMA que
+    // alimenta o vídeo dedicado de processamento (VideoProcessor.getVideoStream).
+    // Pará-la congelava o canvas WebGL → transmissão com tela preta/imagem parada.
+    // Só removemos do stream de publicação; a track continua viva p/ o processador.
     mediaStream.getVideoTracks().forEach(track => {
       mediaStream.removeTrack(track);
-      track.stop();
     });
 
     processedVideoTracks.forEach(track => {
@@ -211,11 +215,9 @@ class StreamPublishService {
 
     try {
       let newStream: MediaStream | null = null;
-      const baseVideoConfig = {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 }
-      };
+      // 📐 Constraints na orientação do aparelho (portrait no celular) — sem
+      // min/max que forçassem landscape e estranhassem o preview.
+      const baseVideoConfig = getVideoConstraints(nextFacing);
 
       const constraintAttempts = [
         { video: { ...baseVideoConfig, facingMode: { exact: nextFacing } }, audio: false },
@@ -272,6 +274,25 @@ class StreamPublishService {
           await this._publishEngine.replaceTrack('video', newVideoTrack);
         } catch (e) {
           console.warn('[PUBLISH_SERVICE] Falha ao atualizar camera no SRS:', e);
+        }
+      }
+
+      // 🎨 Re-liga o filtro de beleza à câmera NOVA (a track processada antiga
+      // ficaria congelada no feed). Mantém as configurações atuais do usuário.
+      // O preview continua exibindo a câmera original (srcObject = this.currentStream
+      // acima); só a track publicada é substituída pelo stream processado.
+      if (this.beautyProcessedStream && videoElement) {
+        try {
+          const proc = await videoProcessor.restartProcessing(videoElement);
+          if (proc) {
+            this.beautyProcessedStream = proc;
+            const procTrack = proc.getVideoTracks()[0];
+            if (procTrack && this._publishing && this._publishEngine) {
+              await this._publishEngine.replaceTrack('video', procTrack);
+            }
+          }
+        } catch (e) {
+          console.warn('[PUBLISH_SERVICE] Falha ao religar beleza à nova câmera:', e);
         }
       }
 

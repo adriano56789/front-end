@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { BackIcon, BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
-import { User, ToastType, CadastralData, CadastralAddress } from '../types';
+import { BackIcon, BrazilFlagIcon } from './icons';
+import { User, ToastType, CadastralData } from '../types';
 import { api } from '../services/api';
 import { safeLog } from '../utils/maskSensitiveData';
 
@@ -11,22 +11,6 @@ interface CadastralDataScreenProps {
   updateUser: (user: User) => void;
   addToast: (type: ToastType, message: string) => void;
 }
-
-const COUNTRY_NAMES: Record<string, string> = {
-  br: 'Brasil',
-  pt: 'Portugal',
-  us: 'Estados Unidos',
-  es: 'Espanha',
-  fr: 'França',
-  de: 'Alemanha',
-  it: 'Itália',
-  uk: 'Reino Unido',
-  ca: 'Canadá',
-  mx: 'México',
-  ar: 'Argentina',
-  jp: 'Japão',
-  cn: 'China',
-};
 
 const maskDocument = (value: string, type: 'cpf' | 'cnpj'): string => {
   const digits = value.replace(/\D/g, '').slice(0, type === 'cpf' ? 11 : 14);
@@ -41,11 +25,6 @@ const maskDocument = (value: string, type: 'cpf' | 'cnpj'): string => {
     .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3/$4')
     .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5');
-};
-
-const maskZip = (value: string): string => {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  return digits.replace(/^(\d{5})(\d)/, '$1-$2');
 };
 
 const isValidCPF = (cpf: string): boolean => {
@@ -107,25 +86,11 @@ const TextInput: React.FC<{
 
 const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSaved, currentUser, updateUser, addToast }) => {
   const existing = currentUser.cadastral;
-  const countryCode = (currentUser.country || 'br').toLowerCase();
 
   const [name, setName] = useState(existing ? currentUser.name : (currentUser.name || ''));
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>(existing?.documentType || 'cpf');
   const [document, setDocument] = useState(existing?.document || '');
-  const [address, setAddress] = useState<CadastralAddress>(existing?.address || {
-    street: '',
-    number: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    country: COUNTRY_NAMES[countryCode] || 'Brasil',
-  });
   const [isSaving, setIsSaving] = useState(false);
-
-  const updateAddress = (field: keyof CadastralAddress, value: string) => {
-    setAddress((prev) => ({ ...prev, [field]: value }));
-  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -146,24 +111,10 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
       addToast(ToastType.Error, "CNPJ inválido. Verifique os dígitos.");
       return;
     }
-    if (!address.street.trim() || !address.number.trim() || !address.neighborhood.trim() ||
-        !address.city.trim() || !address.state.trim() || !address.zipCode.trim() || !address.country.trim()) {
-      addToast(ToastType.Error, "Preencha o endereço completo (rua, número, bairro, cidade, estado, CEP e país).");
-      return;
-    }
 
     const cadastral: CadastralData = {
       documentType,
       document: digits,
-      address: {
-        street: address.street.trim(),
-        number: address.number.trim(),
-        neighborhood: address.neighborhood.trim(),
-        city: address.city.trim(),
-        state: address.state.trim(),
-        zipCode: address.zipCode.replace(/\D/g, ''),
-        country: address.country.trim(),
-      },
     };
 
     setIsSaving(true);
@@ -195,11 +146,10 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
       </header>
 
       <main className="flex-grow px-5 py-2 space-y-6 overflow-y-auto no-scrollbar">
-        <div className="bg-[#1b1c21] border border-[#d97745]/20 rounded-xl p-4">
-          <p className="text-[#d97745] text-[13px] font-bold">Obrigatório pela Receita Federal</p>
+        <div className="bg-[#1b1c21] border border-[#1cb15f]/20 rounded-xl p-4">
+          <p className="text-[#1cb15f] text-[13px] font-bold">Identificação</p>
           <p className="text-[#8e9196] text-[13px] font-medium leading-relaxed mt-1">
-            A identificação (nome, CPF/CNPJ e endereço completo) é exigida por lei para prevenção à fraude,
-            tanto em compras em reais quanto em dólar/euro. Solicitamos apenas uma vez e seus dados ficam protegidos.
+            Apenas nome e CPF/CNPJ. Sem endereço, CEP ou rua — dados pedidos uma única vez e protegidos.
           </p>
         </div>
 
@@ -242,57 +192,6 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
               inputMode="numeric"
               maxLength={documentType === 'cpf' ? 14 : 18}
             />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-[13px] font-black text-white uppercase tracking-wider">Endereço Completo</h2>
-          <div className="space-y-2">
-            <FieldLabel text="Rua / Avenida" required />
-            <TextInput value={address.street} onChange={(v) => updateAddress('street', v)} placeholder="Nome da rua" />
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1 space-y-2">
-              <FieldLabel text="Número" required />
-              <TextInput value={address.number} onChange={(v) => updateAddress('number', v)} placeholder="Nº" />
-            </div>
-            <div className="flex-1 space-y-2">
-              <FieldLabel text="Bairro" required />
-              <TextInput value={address.neighborhood} onChange={(v) => updateAddress('neighborhood', v)} placeholder="Bairro" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <FieldLabel text="Cidade" required />
-            <TextInput value={address.city} onChange={(v) => updateAddress('city', v)} placeholder="Cidade" />
-          </div>
-          <div className="flex gap-3">
-            <div className="flex-1 space-y-2">
-              <FieldLabel text="Estado / UF" required />
-              <TextInput value={address.state} onChange={(v) => updateAddress('state', v)} placeholder="Ex.: SP" />
-            </div>
-            <div className="flex-1 space-y-2">
-              <FieldLabel text="CEP" required />
-              <TextInput value={address.zipCode} onChange={(v) => updateAddress('zipCode', maskZip(v))} placeholder="00000-000" inputMode="numeric" maxLength={9} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <FieldLabel text="País" required />
-            <div className="flex items-center gap-3 bg-[#1b1c21] border border-white/[0.05] rounded-xl p-[16px] focus-within:border-[#1cb15f]/40 transition-colors">
-              {address.country.toLowerCase().includes('brasil') || address.country.toLowerCase() === 'br' ? (
-                <BrazilFlagIcon className="w-5 h-5 rounded-sm object-cover" />
-              ) : address.country.toLowerCase().includes('portugal') || address.country.toLowerCase() === 'pt' ? (
-                <PortugalFlagIcon className="w-5 h-5 rounded-sm object-cover" />
-              ) : address.country.toLowerCase().includes('estados') || address.country.toLowerCase() === 'us' ? (
-                <USAFlagIcon className="w-5 h-5 rounded-sm object-cover" />
-              ) : null}
-              <input
-                type="text"
-                value={address.country}
-                onChange={(e) => updateAddress('country', e.target.value)}
-                placeholder="País de residência fiscal"
-                className="flex-1 bg-transparent text-white placeholder-[#5a5c63] text-[14px] font-medium focus:outline-none"
-              />
-            </div>
           </div>
         </div>
       </main>

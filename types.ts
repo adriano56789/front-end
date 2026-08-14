@@ -237,6 +237,7 @@ export interface User {
   chatPermission?: 'all' | 'followers' | 'following' | 'friends' | 'none';
   pipEnabled?: boolean;
   enableWhenBackground?: boolean; // ZEGO-style auto PiP on background
+  streamPreviewEnabled?: boolean; // 'Mostrar prévia das transmissões' nos cards
   locationPermission?: 'granted' | 'denied' | 'prompt';
   showActivityStatus?: boolean;
   showLocation?: boolean;
@@ -373,6 +374,27 @@ export interface BeautySettings {
     'Ruborizar'?: number;
     'Contraste'?: number;
     'Rosto Bebê'?: number;
+    // Boca
+    'Clarear dentes'?: number;
+    'Preenchimento labial'?: number;
+    'Aumentar lábios'?: number;
+    'Ajuste de sorriso'?: number;
+    // Sobrancelha
+    'Espessura da sobrancelha'?: number;
+    'Curvatura da sobrancelha'?: number;
+    'Definição da sobrancelha'?: number;
+    'Cor da sobrancelha'?: string;
+    // Intensidade da cor da sobrancelha (chave interna, o painel exibe no slider)
+    'browColorIntensity'?: number;
+    // Rejuvenescimento
+    'Suavizar rugas'?: number;
+    'Clarear olheiras'?: number;
+    'Remover manchas'?: number;
+    'Reduzir brilho'?: number;
+    // Modelagem facial (malha MediaPipe)
+    'Ajuste de mandíbula e queixo'?: number;
+    'Refinamento de olhos'?: number;
+    'Refinar nariz'?: number;
     // Filtro pré-definido selecionado
     selectedFilter?: string;
     // Aba ativa do painel
@@ -484,7 +506,7 @@ export interface CadastralAddress {
 export interface CadastralData {
     documentType: 'cpf' | 'cnpj';
     document: string;
-    address: CadastralAddress;
+    address?: CadastralAddress;
 }
 
 export interface DiamondPackage {

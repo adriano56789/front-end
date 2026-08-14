@@ -213,7 +213,7 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
         <h1 className="text-[17px] font-bold text-white ml-2">Configurar Método de Saque</h1>
       </header>
 
-      <main className="flex-grow px-5 py-2 space-y-6">
+      <main className="flex-grow px-5 py-2 space-y-6 overflow-y-auto no-scrollbar">
         <p className="text-[#8e9196] text-[13px] font-medium leading-relaxed pr-8">
           Selecione como você gostaria de receber seu dinheiro.
         </p>

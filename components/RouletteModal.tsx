@@ -112,6 +112,23 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         }
     }, [isOpen, ownerId, loadItems]);
 
+    // 🔁 Mantém o custo SEMPRE igual ao valor salvo pela host: se a host mudar
+    // o preço com a roleta aberta, o valor exibido atualiza sozinho (assim o
+    // que o espectador vê é exatamente o que o backend vai debitar). Não
+    // sobrescreve o input enquanto o host estiver digitando.
+    useEffect(() => {
+        if (!isOpen || !ownerId) return;
+        const t = setInterval(() => {
+            api.roulette.getSpinCost(ownerId).then((r) => {
+                if (!r || typeof r.spinCost !== 'number') return;
+                const fresh = Math.max(0, r.spinCost);
+                setSpinCost(fresh);
+                setSpinCostInput((prev) => (editingCostInline ? prev : String(fresh)));
+            }).catch(() => { });
+        }, 8000);
+        return () => clearInterval(t);
+    }, [isOpen, ownerId, editingCostInline]);
+
     // Foca o input de edição quando um setor é selecionado
     useEffect(() => {
         if (editingItemId) editInputRef.current?.focus();
@@ -269,10 +286,13 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         try {
             // Sorteio FEITO NO BACKEND (fonte da verdade) — cobra o custo FIXO
             // definido pela host. Backend rejeita com 400 se o saldo for insuficiente.
+            // O custo exibido na roleta (costToSpin) é enviado junto pro backend
+            // confirmar que é exatamente o valor salvo pela host.
             const result = await api.roulette.spin({
                 userId: currentUser.id,
                 streamId: streamId || '',
                 ownerId,
+                cost: costToSpin,
             });
 
             if (!result || !result.success || !result.item) {
@@ -287,6 +307,13 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             // (evita que null/''/NaN de usuários não encontrados sobrescrevam o saldo)
             if (typeof result.diamondsAfter === 'number' && result.diamondsAfter >= 0) {
                 updateUser({ ...currentUser, diamonds: result.diamondsAfter });
+            }
+            // 💎 Sincroniza o custo exibido com o valor EXATAMENTE debitado pelo
+            // backend (result.cost) — display == host definiu == saldo descontado.
+            if (typeof result.cost === 'number' && Number.isFinite(result.cost)) {
+                const charged = Math.max(0, result.cost);
+                setSpinCost(charged);
+                setSpinCostInput(String(charged));
             }
 
             // Alinhar o setor do item sorteado com a agulha (no topo, 270°)
@@ -339,12 +366,13 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     const typedCost = Math.max(0, Math.floor(parseInt(spinCostInput) || 0));
     const costToSpin = (editing && spinCostInput !== '') ? typedCost : (spinCost || 0);
 
-    // Widget da roleta — fica FIXO direto na tela da live (canto inferior
-    // esquerdo). NÃO é uma janela/modal: sem fundo, sem tela extra. A host
-    // clica num NOME da roleta para editar e no VALOR para mudar o custo.
+    // Widget da roleta — fica FIXO direto na tela da live, BEM CENTRALIZADO
+    // no meio da tela. NÃO é uma janela/modal: sem fundo, sem tela extra.
+    // O overlay inset-0 usa pointer-events-none pra não bloquear os toques
+    // na live; só o widget em si é clicável (pointer-events-auto).
     return (
-        <div className="fixed bottom-36 left-3 z-40 flex flex-col items-center text-white animate-fade-in select-none">
-            <div className="relative w-[340px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2">
+        <div className="fixed inset-0 z-40 flex items-center justify-center text-white animate-fade-in select-none pointer-events-none">
+            <div className="relative w-[340px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2 pointer-events-auto">
                 {/* Header Actions — só título + fechar (sem minimizar) */}
                 <div className="w-full flex items-center justify-between z-10 mb-1 px-1">
                     <div className="flex items-center space-x-2 bg-purple-900/60 border border-purple-500/40 px-3 py-1 rounded-full backdrop-blur-sm">

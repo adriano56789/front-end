@@ -32,7 +32,7 @@ html, body {
 
 /* Container Principal do App */
 .app-container {
-  height: var(--app-height, 100vh);
+  height: var(--app-height, 100dvh);
   width: 100vw;
   display: flex;
   flex-direction: column;
@@ -52,7 +52,7 @@ html, body {
   .app-container {
     max-width: 480px !important;
     width: 100% !important;
-    height: var(--app-height, 100vh) !important;
+    height: var(--app-height, 100dvh) !important;
     margin: 0 auto !important;
     border-left: 1px solid rgba(255, 255, 255, 0.1);
     border-right: 1px solid rgba(255, 255, 255, 0.1);
@@ -89,7 +89,7 @@ html, body {
 
 /* Páginas Fixas - Sem scroll da página inteira */
 .page-container {
-  height: var(--app-height, 100vh);
+  height: var(--app-height, 100dvh);
   width: 100vw;
   display: flex;
   flex-direction: column;
@@ -327,7 +327,7 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0);
   padding-left: env(safe-area-inset-left, 0);
   padding-right: env(safe-area-inset-right, 0);
-  min-height: 100vh;
+  min-height: 100dvh; /* dynamic viewport height — acompanha a área visível */
   min-height: 100lvh; /* large viewport height — não encolhe com o teclado */
 }
 
@@ -363,7 +363,7 @@ body {
 
 /* Meta tag para viewport height correto */
 @viewport {
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
 }
 

@@ -10,6 +10,21 @@ export interface Point {
   y: number;
 }
 
+// Parâmetros dos efeitos de malha facial (todos normalizados 0-1)
+export interface FaceEffectParams {
+  babyFace: number;      // Rosto Bebê
+  lipFill: number;       // Preenchimento labial
+  lipAugment: number;    // Aumentar lábios
+  smileAdjust: number;   // Ajuste de sorriso
+  browThickness: number; // Espessura da sobrancelha
+  browCurve: number;     // Curvatura da sobrancelha
+  noseRefine: number;    // Refinar nariz (afina a ponte e as narinas)
+  jawChin: number;       // Mandíbula/queixo (V-line: afina a base do rosto e define o queixo)
+  eyeRefine: number;     // Refinamento de olhos (aumenta e clareia os olhos)
+  browColor: string;     // Cor da sobrancelha (hex, ex: '#4a2c17'; '' = desligado)
+  browColorStrength: number; // Intensidade da cor da sobrancelha (0-1)
+}
+
 // Índices do face mesh do MediaPipe (ordem do contorno do rosto)
 const FACE_OVAL = [
   10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377,
@@ -23,6 +38,9 @@ const RIGHT_EYE = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466, 388, 387, 3
 // Pontos internos fixos (não movem — mantêm nariz, boca e sobrancelhas estáveis)
 const LEFT_BROW = [70, 63, 105, 66, 107];
 const RIGHT_BROW = [300, 293, 334, 296, 336];
+// Fileira inferior das sobrancelhas (para compor o polígono de tintura de cor)
+const LEFT_BROW_BOTTOM = [55, 65, 52, 53, 46];
+const RIGHT_BROW_BOTTOM = [285, 295, 282, 283, 276];
 const NOSE = [1, 2, 168, 6, 197, 195, 5, 4, 98, 327];
 const MOUTH = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146];
 
@@ -143,9 +161,26 @@ export class BabyFaceProcessor {
   private triangles: number[][] = [];
   private transforms: Array<[number, number, number, number, number, number]> = [];
   private meshValid = false;
+  // Polígonos das sobrancelhas (coordenadas alvo) para tintura de cor
+  private browTintPolys: Point[][] = [];
 
   private intensity = 0;
   private intensitySmooth = 0;
+
+  // Parâmetros dos efeitos de malha
+  private params: FaceEffectParams = {
+    babyFace: 0,
+    lipFill: 0,
+    lipAugment: 0,
+    smileAdjust: 0,
+    browThickness: 0,
+    browCurve: 0,
+    noseRefine: 0,
+    jawChin: 0,
+    eyeRefine: 0,
+    browColor: '',
+    browColorStrength: 0
+  };
 
   private sourceWidth = 0;
   private sourceHeight = 0;
@@ -165,7 +200,28 @@ export class BabyFaceProcessor {
   }
 
   setIntensity(value: number): void {
-    this.intensity = Math.max(0, Math.min(1, value));
+    this.params.babyFace = Math.max(0, Math.min(1, value));
+    this.recomputeIntensity();
+  }
+
+  setParams(params: Partial<FaceEffectParams>): void {
+    this.params = { ...this.params, ...params };
+    this.recomputeIntensity();
+  }
+
+  /**
+   * A intensidade GLOBAL da malha = maior parâmetro ativo. Ela só controla se o
+   * render roda (gate) — cada efeito aplica o próprio deslocamento no mesh.
+   */
+  private recomputeIntensity(): void {
+    this.intensity = Math.max(
+      this.params.babyFace,
+      Math.max(this.params.lipFill, Math.max(this.params.lipAugment,
+        Math.max(this.params.smileAdjust, Math.max(this.params.browThickness,
+          Math.max(this.params.browCurve, Math.max(this.params.noseRefine,
+            Math.max(this.params.jawChin, Math.max(this.params.eyeRefine,
+              this.params.browColorStrength))))))))
+    );
   }
 
   async initialize(videoElement: HTMLVideoElement): Promise<boolean> {
@@ -178,6 +234,15 @@ export class BabyFaceProcessor {
       this.ctx = this.canvas.getContext('2d');
     }
 
+    return this.preload();
+  }
+
+  /**
+   * Pré-carrega o Face Landmarker (wasm + modelo) ANTES da câmera ficar pronta,
+   * para o efeito de malha começar sem atraso. Independente de elemento de vídeo.
+   */
+  async preload(): Promise<boolean> {
+    if (this.landmarkerReady) return true;
     if (!this.initPromise) {
       this.initPromise = this.loadLandmarker();
     }
@@ -216,6 +281,10 @@ export class BabyFaceProcessor {
     } catch (error) {
       console.error('❌ [BABY_FACE] Falha ao carregar Face Landmarker:', error);
       this.landmarkerReady = false;
+      // 🔁 Limpa o initPromise para permitir RETRY: se a 1ª tentativa falhar
+      // (rede lenta, WebView ocupada), o próximo initialize() tenta de novo em
+      // vez de ficar preso no resultado de falha para sempre.
+      this.initPromise = null;
       return false;
     }
   }
@@ -236,6 +305,7 @@ export class BabyFaceProcessor {
     this.targetPoints = [];
     this.triangles = [];
     this.transforms = [];
+    this.browTintPolys = [];
     this.videoElement = null;
     this.canvas = null;
     this.ctx = null;
@@ -298,7 +368,6 @@ export class BabyFaceProcessor {
   private updateMesh(landmarks: Array<{ x: number; y: number; z?: number }>): void {
     const W = this.sourceWidth || this.canvas?.width || 640;
     const H = this.sourceHeight || this.canvas?.height || 360;
-    const f = this.intensitySmooth || this.intensity;
 
     const pt = (i: number): Point => ({ x: landmarks[i].x * W, y: landmarks[i].y * H });
 
@@ -324,6 +393,12 @@ export class BabyFaceProcessor {
     mouthY += pt(61).y;
     mouthY += pt(291).y;
     mouthY /= 2;
+
+    const mouthCenter = { x: 0, y: mouthY };
+    for (const i of MOUTH) {
+      mouthCenter.x += pt(i).x;
+    }
+    mouthCenter.x /= MOUTH.length;
 
     let ovalMinX = Infinity, ovalMaxX = -Infinity, ovalMinY = Infinity, ovalMaxY = -Infinity, cxSum = 0, cySum = 0;
     for (const i of FACE_OVAL) {
@@ -352,7 +427,6 @@ export class BabyFaceProcessor {
     // --- Construir pontos e alvos ---
     const source: Point[] = [];
     const target: Point[] = [];
-    const f2 = f * f;
 
     const pushOval = (i: number) => {
       const p = pt(i);
@@ -363,37 +437,142 @@ export class BabyFaceProcessor {
       const dy = p.y - faceCY;
       const dist = Math.hypot(dx, dy) || 1;
 
-      // Queixo/parte inferior: encurta para cima e afina levemente
-      if (p.y > mouthY + 0.08 * faceH) {
-        const chinFactor = (p.y - mouthY) / Math.max(faceH * 0.5, 1);
-        ty -= f * chinFactor * faceH * 0.12; // sobe o queixo
-        tx += f * (-dx / Math.abs(dx || 1)) * Math.min(Math.abs(dx) * 0.12, faceW * 0.05); // afina
-        // A base do rosto (bochechas inferiores) ganha volume para fora
-        if (Math.abs(dx) > faceW * 0.22) {
-          tx += f * Math.sign(dx) * faceW * 0.03 * (1 - chinFactor);
+      // --- Rosto Bebê: arredonda o rosto (alarga bochechas, sobe testa/queixo) ---
+      const bf = this.params.babyFace;
+      if (bf > 0.001) {
+        // Queixo/parte inferior: encurta para cima e afina levemente
+        if (p.y > mouthY + 0.08 * faceH) {
+          const chinFactor = (p.y - mouthY) / Math.max(faceH * 0.5, 1);
+          ty -= bf * chinFactor * faceH * 0.19; // sobe o queixo
+          tx += bf * (-dx / Math.abs(dx || 1)) * Math.min(Math.abs(dx) * 0.16, faceW * 0.07); // afina
+          // A base do rosto (bochechas inferiores) ganha volume para fora
+          if (Math.abs(dx) > faceW * 0.22) {
+            tx += bf * Math.sign(dx) * faceW * 0.05 * (1 - chinFactor);
+          }
+        }
+        // Testa/parte superior: alarga levemente e sobe um pouco
+        else if (p.y < eyeLineY - 0.12 * faceH) {
+          const topFactor = (eyeLineY - p.y) / Math.max(faceH * 0.5, 1);
+          ty -= bf * topFactor * faceH * 0.09;
+          tx += bf * Math.sign(dx) * Math.min(Math.abs(dx) * 0.12, faceW * 0.06) * topFactor;
+        }
+        // Bochechas (meio): empurra para fora (rosto cheio/bebê)
+        else if (Math.abs(dx) > faceW * 0.3) {
+          const cheekBlend = Math.min((Math.abs(dx) - faceW * 0.3) / (faceW * 0.2), 1);
+          tx += bf * Math.sign(dx) * faceW * 0.085 * cheekBlend;
+          ty += bf * faceH * 0.025 * cheekBlend;
         }
       }
-      // Testa/parte superior: alarga levemente e sobe um pouco
-      else if (p.y < eyeLineY - 0.12 * faceH) {
-        const topFactor = (eyeLineY - p.y) / Math.max(faceH * 0.5, 1);
-        ty -= f * topFactor * faceH * 0.06;
-        tx += f * Math.sign(dx) * Math.min(Math.abs(dx) * 0.1, faceW * 0.04) * topFactor;
-      }
-      // Bochechas (meio): empurra para fora (rosto cheio/bebê)
-      else if (Math.abs(dx) > faceW * 0.3) {
-        const cheekBlend = Math.min((Math.abs(dx) - faceW * 0.3) / (faceW * 0.2), 1);
-        tx += f * Math.sign(dx) * faceW * 0.055 * cheekBlend;
-        ty += f * faceH * 0.015 * cheekBlend;
+
+      // --- Mandíbula/queixo (V-line): afina a base do rosto e define o queixo ---
+      // Independente do "Rosto Bebê" — só age na parte inferior do rosto.
+      const jc = this.params.jawChin;
+      if (jc > 0.001 && p.y > mouthY + 0.02 * faceH) {
+        const chinFactor = Math.min(Math.max((p.y - mouthY) / Math.max(faceH * 0.5, 1), 0), 1);
+        // Afunila para o centro quanto mais próximo do queixo
+        const narrow = jc * Math.min(Math.abs(dx) * 0.38, faceW * 0.13) * chinFactor;
+        tx -= Math.sign(dx) * narrow;
+        // Puxa o queixo levemente para cima (define o contorno)
+        if (p.y > mouthY + 0.28 * faceH) {
+          ty -= jc * chinFactor * faceH * 0.07;
+        }
       }
 
       source.push(p);
       target.push({ x: tx, y: ty });
     };
 
-    const pushFixed = (i: number) => {
+    // Boca: preenchimento labial / aumento de lábios (escala a partir do centro da boca)
+    // e ajuste de sorriso (levanta as comissuras)
+    const pushMouth = (i: number) => {
+      const p = pt(i);
+      let tx = p.x;
+      let ty = p.y;
+
+      const mouthScale = 1 + this.params.lipAugment * 0.14 + this.params.lipFill * 0.09;
+      if (mouthScale > 1.001) {
+        const dx = p.x - mouthCenter.x;
+        const dy = p.y - mouthCenter.y;
+        tx = mouthCenter.x + dx * mouthScale;
+        ty = mouthCenter.y + dy * mouthScale;
+      }
+
+      if (this.params.smileAdjust > 0.001) {
+        const isCorner = i === 61 || i === 291;
+        const nearCorner = i === 37 || i === 267 || i === 40 || i === 269 || i === 41 || i === 270 || i === 185 || i === 409;
+        if (isCorner || nearCorner) {
+          const w = isCorner ? 1.0 : 0.5;
+          ty -= this.params.smileAdjust * faceH * 0.06 * w;
+          if (i === 61 || i === 40 || i === 41 || i === 37) tx += this.params.smileAdjust * faceW * 0.03 * w;
+          else if (i === 291 || i === 269 || i === 270 || i === 267) tx -= this.params.smileAdjust * faceW * 0.03 * w;
+        }
+      }
+
+      source.push(p);
+      target.push({ x: tx, y: ty });
+    };
+
+    // Sobrancelha: espessura (expande para cima) e curvatura (arco do meio elevado)
+    // Retorna o ponto alvo (reaproveitado para o polígono de tintura de cor).
+    const browTarget = (i: number, side: 'left' | 'right'): Point => {
+      const p = pt(i);
+      let tx = p.x;
+      let ty = p.y;
+
+      if (this.params.browThickness > 0.001) {
+        ty -= this.params.browThickness * faceH * 0.030;
+      }
+
+      if (this.params.browCurve > 0.001) {
+        const midIdx = side === 'left' ? 105 : 334;
+        const innerIdx = side === 'left' ? 70 : 300;
+        const outerIdx = side === 'left' ? 107 : 336;
+        if (i === midIdx) {
+          ty -= this.params.browCurve * faceH * 0.07;
+        } else if (i === innerIdx) {
+          ty += this.params.browCurve * faceH * 0.018;
+        } else if (i === outerIdx) {
+          ty += this.params.browCurve * faceH * 0.034;
+        } else {
+          ty -= this.params.browCurve * faceH * 0.028;
+        }
+      }
+
+      return { x: tx, y: ty };
+    };
+
+    const pushBrow = (i: number, side: 'left' | 'right') => {
       const p = pt(i);
       source.push(p);
-      target.push({ x: p.x, y: p.y });
+      target.push(browTarget(i, side));
+    };
+
+    // Nariz: refinar — afina a ponte e as narinas, deixa a ponta mais definida
+    const pushNose = (i: number) => {
+      const p = pt(i);
+      let tx = p.x;
+      let ty = p.y;
+
+      const nr = this.params.noseRefine;
+      if (nr > 0.001) {
+        // Centro aproximado do nariz (base da ponte entre as narinas)
+        const noseCx = (pt(1).x + pt(2).x + pt(98).x + pt(327).x) / 4;
+        const sidePull = (i === 1 || i === 2) ? 0.55 : (i === 4 || i === 5 || i === 195 || i === 197) ? 0.75 : 1.0;
+        if (i === 98 || i === 327) {
+          // Narinas: puxa para dentro e sobe levemente
+          tx += (noseCx - p.x) * nr * 0.45;
+          ty -= nr * faceH * 0.02;
+        } else if (i === 168 || i === 6) {
+          // Ponta: afina um pouco (define o nariz)
+          tx += (noseCx - p.x) * nr * 0.20;
+        } else {
+          // Ponte do nariz: afina em direção ao centro
+          tx += (noseCx - p.x) * nr * 0.28 * sidePull;
+        }
+      }
+
+      source.push(p);
+      target.push({ x: tx, y: ty });
     };
 
     const pushEye = (ring: number[], center: Point, grow: number) => {
@@ -406,13 +585,37 @@ export class BabyFaceProcessor {
       }
     };
 
+    // Polígonos de tintura da sobrancelha (topo + base, por lado) — só se a cor estiver ativa
+    const tintActive = this.params.browColorStrength > 0.001 && !!this.params.browColor;
+    const browTintPolys: Point[][] = [];
+    if (tintActive) {
+      const buildPoly = (topIdx: number[], bottomIdx: number[], side: 'left' | 'right') => {
+        const pts = [
+          ...topIdx.map((i) => browTarget(i, side)),
+          ...bottomIdx.map((i) => browTarget(i, side))
+        ];
+        // Infla levemente para não deixar "cabelo solto" fora da tintura
+        const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+        const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+        const inflate = 1.06;
+        return pts.map((p) => ({ x: cx + (p.x - cx) * inflate, y: cy + (p.y - cy) * inflate }));
+      };
+      browTintPolys.push(buildPoly(LEFT_BROW, LEFT_BROW_BOTTOM, 'left'));
+      browTintPolys.push(buildPoly(RIGHT_BROW, RIGHT_BROW_BOTTOM, 'right'));
+    }
+    this.browTintPolys = browTintPolys;
+
+    const bfEye = this.params.babyFace;
+    const erEye = this.params.eyeRefine;
+    const growEye = (bfEye * bfEye * 0.10 + bfEye * 0.03) + erEye * 0.14;
+
     FACE_OVAL.forEach(pushOval);
-    pushEye(LEFT_EYE, eyeL, f2 * 0.07 + f * 0.02);
-    pushEye(RIGHT_EYE, eyeR, f2 * 0.07 + f * 0.02);
-    LEFT_BROW.forEach(pushFixed);
-    RIGHT_BROW.forEach(pushFixed);
-    NOSE.forEach(pushFixed);
-    MOUTH.forEach(pushFixed);
+    pushEye(LEFT_EYE, eyeL, growEye);
+    pushEye(RIGHT_EYE, eyeR, growEye);
+    LEFT_BROW.forEach((i) => pushBrow(i, 'left'));
+    RIGHT_BROW.forEach((i) => pushBrow(i, 'right'));
+    NOSE.forEach(pushNose);
+    MOUTH.forEach(pushMouth);
     anchors.forEach((a) => {
       source.push(a);
       target.push({ x: a.x, y: a.y });
@@ -442,7 +645,9 @@ export class BabyFaceProcessor {
     // Fundo: desenha o vídeo sem distorção; o warp cobre o rosto por cima.
     ctx.drawImage(this.videoElement, 0, 0, W, H);
 
-    const alpha = this.intensitySmooth;
+    // A intensidade de cada efeito já está codificada no deslocamento dos pontos;
+    // a sobreposição do warp é total para a magnitude do slider ser linear.
+    const alpha = 1.0;
 
     for (let t = 0; t < this.triangles.length; t++) {
       const [a, b, c] = this.triangles[t];
@@ -478,5 +683,37 @@ export class BabyFaceProcessor {
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
+
+    // Tintura da cor da sobrancelha (aplica MATIZ/croma sem mexer na luminância —
+    // o blend 'color' preserva a sombra dos fios, só troca a cor)
+    this.tintBrows(ctx);
+  }
+
+  /**
+   * Recolore as sobrancelhas com a cor escolhida, mantendo o brilho dos fios.
+   */
+  private tintBrows(ctx: CanvasRenderingContext2D): void {
+    if (this.browTintPolys.length === 0) return;
+    const strength = this.params.browColorStrength;
+    const color = this.params.browColor;
+    if (strength <= 0.001 || !color) return;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'color';
+    ctx.globalAlpha = Math.min(strength, 1) * 0.95;
+    ctx.fillStyle = color;
+
+    for (const poly of this.browTintPolys) {
+      if (poly.length < 3) continue;
+      ctx.beginPath();
+      ctx.moveTo(poly[0].x, poly[0].y);
+      for (let i = 1; i < poly.length; i++) {
+        ctx.lineTo(poly[i].x, poly[i].y);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.restore();
   }
 }

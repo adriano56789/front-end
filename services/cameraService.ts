@@ -13,6 +13,29 @@ export interface CameraStatus {
   error?: string;
 }
 
+/**
+ * 📐 Constraints de vídeo em 720p (HD) com enquadramento NATURAL. Apenas dicas
+ * `ideal` (sem min/max) para o navegador escolher o modo nativo mais próximo de
+ * 1280x720 — garante nitidez e nunca corta o sensor nem deixa o rosto colado.
+ * Para referência da Tencent Cloud (TRTC): a resolução é configurada via
+ * ideal/dicas (ex.: 720p = 1280x720) e o enquadramento via modo de preenchimento
+ * (FILL corta bordas = zoom; FIT cabe a imagem inteira = rosto no lugar certo).
+ */
+export function getVideoConstraints(facingMode: 'user' | 'environment'): MediaTrackConstraints {
+  // 📐 Enquadramento ORIGINAL (natural, sem zoom): apenas dicas `ideal`, SEM
+  // `min`/`max`. Forçar proporção 9:16 com max (ex.: 720x1280) obriga o navegador
+  // a CORTAR o sensor nativo (4:3/16:9) e deixa o rosto COLADO/zoomado. Com só
+  // `ideal` o navegador escolhe o modo nativo mais próximo de 720p — o rosto fica
+  // no lugar certo e o canvas (que segue a proporção da fonte) nunca estica nem
+  // corta. Mesmo enquadramento de referência: TRTC setLocalVideoFillMode FIT.
+  return {
+    facingMode,
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30 },
+  };
+}
+
 export class CameraService {
   private testStream: MediaStream | null = null;
 
@@ -33,11 +56,7 @@ export class CameraService {
 
       // Tentar acessar câmera e microfone
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        },
+        video: getVideoConstraints('user'),
         audio: true
       });
 
@@ -120,11 +139,7 @@ export class CameraService {
       console.log(`📷 [Camera] Iniciando captura de stream (facingMode: ${facingMode})...`);
 
       let stream: MediaStream | null = null;
-      const baseVideoConfig = {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 30 }
-      };
+      const baseVideoConfig = getVideoConstraints(facingMode);
 
       // Tenta Capturar Vídeo e Áudio Juntos com restrições ideais
       try {

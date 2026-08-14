@@ -1,11 +1,99 @@
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import Header from './Header';
 import { Streamer } from '../types';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from './Loading';
 import { ViewerIcon, LockIcon, ChevronRightIcon, LocationPinIcon } from './icons';
-import { calculateDistanceInKm, formatDistance } from '../utils/location';interface MainScreenProps {
+import { calculateDistanceInKm, formatDistance } from '../utils/location';
+import { SrsPlayerEngine } from '../services/SrsPlayerEngine';
+
+// ─── Prévia de transmissão nos cards ────────────────────────────────────
+// Limita conexões WHEP simultâneas para não estourar banda/CPU com uma grade
+// cheia de lives. Cards fora da tela param a prévia e liberam a vaga.
+const MAX_PREVIEWS = 4;
+let previewSlots = 0;
+const previewWaitQueue: Array<() => void> = [];
+
+function acquirePreviewSlot(): boolean {
+  if (previewSlots < MAX_PREVIEWS) {
+    previewSlots++;
+    return true;
+  }
+  return false;
+}
+
+function releasePreviewSlot() {
+  if (previewSlots > 0) previewSlots--;
+  const next = previewWaitQueue.shift();
+  if (next) next();
+}
+
+function useInView<T extends HTMLElement>(threshold = 0.15) {
+  const ref = useRef<T>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => setInView(e.isIntersecting));
+    }, { threshold });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [threshold]);
+  return { ref, inView };
+}
+
+const StreamPreviewVideo: React.FC<{ streamId: string; visible: boolean }> = ({ streamId, visible }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const engineRef = useRef<SrsPlayerEngine | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !streamId) return;
+    let cancelled = false;
+
+    const tryStart = () => {
+      if (cancelled || !mountedRef.current) return;
+      const video = videoRef.current;
+      if (!video) return;
+      if (!acquirePreviewSlot()) {
+        previewWaitQueue.push(tryStart);
+        return;
+      }
+      const engine = new SrsPlayerEngine({ autoMuteRetry: true, userMuted: true });
+      engineRef.current = engine;
+      engine.start(streamId, video).catch(() => {});
+    };
+    tryStart();
+
+    return () => {
+      cancelled = true;
+      if (engineRef.current) {
+        engineRef.current.destroy();
+        engineRef.current = null;
+        releasePreviewSlot();
+      }
+    };
+  }, [visible, streamId]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+    />
+  );
+};
+
+interface MainScreenProps {
   onOpenReminderModal: () => void;
   onOpenRegionModal: () => void;
   onSelectStream: (streamer: Streamer) => void;
@@ -22,6 +110,12 @@ import { calculateDistanceInKm, formatDistance } from '../utils/location';interf
 
 const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void; invited: boolean}> = ({ streamer, onSelect, invited }) => {
     const loggedInUser = (window as any).currentUser;
+    
+    // Prévia ao vivo: se o usuário ativou 'Mostrar prévia das transmissões',
+    // o card mostra a transmissão passando direto (sem entrar na sala).
+    const previewEnabled = !!(loggedInUser && loggedInUser.streamPreviewEnabled);
+    const { ref: cardRef, inView } = useInView<HTMLDivElement>();
+    const previewStreamId = streamer.streamKey || streamer.id;
     
     // Get country code from streamer profile (always lowercase for flagcdn)
     const countryCode = streamer.country ? streamer.country.toLowerCase() : '';
@@ -46,6 +140,7 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 
     return (
         <div 
+            ref={cardRef}
             className="relative aspect-[1/1.1] rounded-2xl overflow-hidden cursor-pointer group bg-zinc-950/40 select-none shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-300 border border-white/[0.03]" 
             onClick={() => onSelect(streamer)}
         >
@@ -55,6 +150,10 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
                 alt={streamer.name} 
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
             />
+            {/* Prévia ao vivo (opcional): transmissão passando direto no card */}
+            {previewEnabled && previewStreamId && (
+                <StreamPreviewVideo streamId={previewStreamId} visible={inView} />
+            )}
             {/* Dynamic black-transparent gradient layers */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30"></div>
 

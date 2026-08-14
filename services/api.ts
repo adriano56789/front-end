@@ -856,7 +856,7 @@ export const api = {
 
     // --- Metadata & Catalog ---
 
-    getRankingForPeriod: async (period: string, userId?: string): Promise<RankedUser[]> => {
+    getRankingForPeriod: async (period: string, userId?: string, scope?: string): Promise<RankedUser[]> => {
 
         try {
 
@@ -872,11 +872,15 @@ export const api = {
 
             const timestamp = Date.now();
 
-            const url = userId
+            const params = [];
 
-                ? `/api/ranking/${period}?userId=${userId}&_t=${timestamp}`
+            if (userId) params.push(`userId=${encodeURIComponent(userId)}`);
 
-                : `/api/ranking/${period}?_t=${timestamp}`;
+            if (scope) params.push(`scope=${encodeURIComponent(scope)}`);
+
+            params.push(`_t=${timestamp}`);
+
+            const url = `/api/ranking/${period}?${params.join('&')}`;
 
             const response = await callApi<RankedUser[]>(`GET`, url);
 
@@ -2339,7 +2343,7 @@ export const api = {
 
         // Girar a roleta — o backend sorteia entre os itens CADASTRADOS e registra no banco
         spin: (data: { userId: string; streamId?: string; ownerId: string; cost?: number }) =>
-            callApi<{ success: boolean; item: { _id: string; label: string; icon: string; color: string; textColor: string; ownerId: string; type: string; amount: number; isActive: boolean; createdAt: string; updatedAt: string }; diamondsAfter: number | null }>('POST', '/api/roulette/spin', data),
+            callApi<{ success: boolean; item: { _id: string; label: string; icon: string; color: string; textColor: string; ownerId: string; type: string; amount: number; isActive: boolean; createdAt: string; updatedAt: string }; diamondsAfter: number | null; cost: number }>('POST', '/api/roulette/spin', data),
 
         // Custo FIXO para girar ("X DIAMANTES PRA RODAR") — definido pela host
         getSpinCost: (ownerId: string) =>

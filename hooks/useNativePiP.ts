@@ -72,15 +72,22 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isNativePiPActive, setIsNativePiPActive] = useState(false);
-  const hasUserGesture = useRef(false);
 
   // Register the video element ref
   const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
     videoRef.current = el;
-    if (el && mediaSessionMetadata) {
-      updateMediaSession(mediaSessionMetadata);
+    if (el) {
+      // ✅ Minimizar automático via botão HOME/VOLTAR do celular: quando a página
+      // vai para segundo plano com a live tocando, o navegador (Chrome/WebView
+      // Android) abre a janelinha flutuante sozinho — sem nenhum botão extra.
+      // `autoPictureInPicture` NÃO exige gesto prévio do usuário (diferente do
+      // requestPictureInPicture(), que só funciona depois de um toque manual).
+      el.autoPictureInPicture = enableWhenBackground;
+      if (mediaSessionMetadata) {
+        updateMediaSession(mediaSessionMetadata);
+      }
     }
-  }, [mediaSessionMetadata]);
+  }, [enableWhenBackground, mediaSessionMetadata]);
 
   /**
    * Aguarda o vídeo carregar metadata antes de entrar em PiP.
@@ -125,11 +132,17 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
       
       await video.requestPictureInPicture();
       setIsNativePiPActive(true);
-      hasUserGesture.current = true;
       onEnterNativePiP?.();
       return true;
-    } catch (err) {
-      console.error('[NativePiP] Error entering PiP:', err);
+    } catch (err: any) {
+      // 🚫 NotAllowedError é ESPERADO: requestPictureInPicture() exige gesto do
+      // usuário (Chrome/WebView Android). O autoPictureInPicture (setVideoRef)
+      // é quem cobre o caso de fundo sem gesto — este fallback falha silencioso.
+      if (err?.name === 'NotAllowedError' || (err && typeof err.name === 'string' && err.name.indexOf('NotAllowed') !== -1)) {
+        console.info('[NativePiP] PiP ignorado: exige gesto do usuário (autoPictureInPicture cobre o caso de fundo)');
+      } else {
+        console.error('[NativePiP] Error entering PiP:', err);
+      }
       return false;
     }
   }, [onEnterNativePiP, waitForMetadata]);
@@ -147,13 +160,16 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
     onLeaveNativePiP?.();
   }, [onLeaveNativePiP]);
 
-  // Auto-PiP when tab goes to background (ZEGO's enableWhenBackground)
-  // Only attempts after user has manually triggered PiP (hasUserGesture = true)
+  // Auto-PiP when tab goes to background (ZEGO's enableWhenBackground).
+  // O `autoPictureInPicture` (definido no setVideoRef) já cobre o caso do botão
+  // HOME/VOLTAR. Este handler é um fallback para navegadores que ainda não
+  // suportam autoPictureInPicture — tenta requestPictureInPicture() mesmo sem
+  // gesto manual prévio (pode ser bloqueado, mas o autoPictureInPicture cuida).
   useEffect(() => {
     if (!enableWhenBackground || !isPiPSupported()) return;
 
     const handleVisibilityChange = () => {
-      if (document.hidden && videoRef.current && !isNativePiPActive && hasUserGesture.current) {
+      if (document.hidden && videoRef.current && !isNativePiPActive) {
         requestPiP();
       }
     };

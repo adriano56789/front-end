@@ -218,7 +218,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
         >
-            {/* Ghost Preview - 144p real com upscale visual Full HD */}
+            {/* 📷 Preview com a resolução NATIVA da câmera (720p+) — sem upscale
+                pixelado. A nitidez vem da própria captura HD, não de hacks de CSS. */}
             <video
                 ref={cameraPreview.videoRef}
                 autoPlay
@@ -226,11 +227,9 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 muted
                 className="absolute inset-0 w-full h-full object-cover -z-10"
                 style={{
-                    // Upscale visual CSS - 144p real exibido como Full HD
-                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)', // Mirror effect
-                    filter: 'contrast(1.1) brightness(1.05) saturate(1.1)', // Melhoria visual
-                    imageRendering: 'crisp-edges', // Mantém nitidez no upscale
-                    // O vídeo continua 144p real, mas é escalado visualmente pelo container
+                    // Mirror effect (frontal)
+                    transform: facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)',
+                    filter: 'contrast(1.1) brightness(1.05) saturate(1.1)', // Melhoria visual leve
                     objectFit: 'cover'
                 }}
             />
@@ -346,7 +345,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 }} 
                 selectedCountryCode={streamManager.selectedRegion} 
             />
-            {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
+            {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} videoRef={cameraPreview.videoRef} />}
 
             {isManualOpen && <LiveStreamManualModal onClose={() => setIsManualOpen(false)} />}
         </div>

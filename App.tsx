@@ -571,15 +571,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [activeCategory, setActiveCategory] = useState('popular');
 
-  // Filtro de país para a listagem de lives (sincronizado com currentUser.country)
+  // Filtro de país para a listagem de lives (SOMENTE visualização - não mexe no perfil)
   const [selectedCountry, setSelectedCountry] = useState<string>('ICON_GLOBE');
-
-  // Inicializar selectedCountry quando o usuário é carregado
-  useEffect(() => {
-    if (currentUser?.country && currentUser.country !== 'global') {
-      setSelectedCountry(currentUser.country);
-    }
-  }, [currentUser?.country]);
 
   // Função global para atualizar streams a partir do GoLiveScreen
   useEffect(() => {
@@ -595,27 +588,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     };
   }, []);
 
-  // Adiciona a conversa vazia na lista de conversas imediatamente ao iniciar um chat
-  useEffect(() => {
-    if (!chattingWith || !currentUser || chattingWith.id === currentUser.id) return;
-    
-    setConversations(prev => {
-      const exists = prev.some(c => c.friend && c.friend.id === chattingWith.id);
-      if (exists) return prev;
-      
-      const newEmptyConvo: Conversation = {
-        id: `chat_private_${currentUser.id < chattingWith.id ? currentUser.id + '_' + chattingWith.id : chattingWith.id + '_' + currentUser.id}`,
-        friend: chattingWith,
-        lastMessage: '',
-        timestamp: new Date().toISOString(),
-        unreadCount: 0
-      };
-      return [newEmptyConvo, ...prev];
-    });
-    
-    // Dispara chamada assíncrona ao backend para registrar de forma persistente a conversa
-    (api.getChatMessages(chattingWith.id) as any).catch?.(() => {});
-  }, [chattingWith?.id, currentUser?.id]);
+  // A lista de conversas só recebe novos contatos quando houver mensagem real
+  // trocada — tratado no listener de 'newChatMessage' (upsert da conversa).
 
   // Sempre buscar dados da API - não usar localStorage
 
@@ -1467,21 +1441,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     }
   }, [pipStreamer]);
 
-  // Minimizar SEMPRE para PiP (ignora config pipEnabled), como ZEGO's minimizingButton
-  const handleMinimizeToPiP = useCallback(() => {
-    const isHost = activeStream?.hostId === currentUser?.id;
-    if (activeStream && !isHost) {
-      setPipStreamer(activeStream);
-      setIsPiPMode(true);
-      setActiveStream(null);
-      setIsPKBattleActive(false);
-      setPkOpponent(null);
-      setLiveSession(null);
-      setStreamRoomData(null);
-      navigate('/');
-    }
-  }, [activeStream, currentUser, navigate]);
-
 
 
   const handleLogout = async () => {
@@ -1658,39 +1617,29 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     }
 
     // ⌨️ Ajusta o container do app à área visível. Na tela de LIVE o container
-    // NUNCA encolhe com o teclado (--app-height = maior altura de layout já
-    // vista enquanto um input está focado) — assim a tela da live não sobe nem
-    // se move: a barra de mensagem fica fixa no fundo e um composer flutua
-    // acima do teclado. Nas demais telas, mantém o comportamento adjustResize
-    // (--app-height = visualViewport.height) para o input ficar acima do teclado.
+    // NUNCA encolhe com o teclado (--app-height = MAIOR altura de layout já
+    // vista) — assim a tela da live não sobe nem se move: a barra de mensagem
+    // fica fixa no fundo e um composer flutua acima do teclado. Só a rotação
+    // de tela redefine a referência. Nas demais telas, mantém o comportamento
+    // adjustResize (--app-height = visualViewport.height) para o input ficar
+    // acima do teclado.
     const vv = window.visualViewport;
     let maxLayoutRef = Math.max(
       document.documentElement?.clientHeight || 0,
       window.innerHeight || 0
     );
-    const isInputFocused = () => {
-      const el = document.activeElement as HTMLElement | null;
-      if (!el) return false;
-      return (
-        el.tagName === 'INPUT' ||
-        el.tagName === 'TEXTAREA' ||
-        el.isContentEditable ||
-        el.getAttribute?.('contenteditable') === 'true'
-      );
-    };
     const setAppHeight = () => {
       const cur = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
       const container = document.querySelector<HTMLElement>('.app-container');
       const isLiveFixed = !!container?.classList.contains('live-fixed');
       if (isLiveFixed) {
-        // Live: trava a maior altura de layout enquanto o teclado está aberto
-        // (input focado) e re-sincroniza ao fechar/girar a tela.
-        if (isInputFocused()) {
-          maxLayoutRef = Math.max(maxLayoutRef, cur);
-        } else {
-          maxLayoutRef = cur;
-        }
-        const h = Math.max(maxLayoutRef, vv ? vv.height : 0);
+        // 🚫 NUNCA reduzir --app-height aqui: `cur` encolhe com o teclado
+        // (browsers/WebViews sem interactive-widget) e durante a animação de
+        // abrir/fechar. Reduzir empurra a barra de mensagem para cima e deixa
+        // um fundo preto piscando embaixo ao fechar. maxLayoutRef só cresce;
+        // a rotação de tela redefine a referência.
+        maxLayoutRef = Math.max(maxLayoutRef, cur);
+        const h = Math.max(maxLayoutRef, vv ? vv.height : cur);
         document.documentElement.style.setProperty('--app-height', `${h}px`);
       } else {
         const h = vv ? vv.height : cur;
@@ -1709,6 +1658,15 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     };
     document.addEventListener('focus', lateHeight, true);
     document.addEventListener('blur', lateHeight, true);
+    // 🔄 Rotação: re-sincroniza a referência da live com o novo layout.
+    const onOrientationChange = () => {
+      maxLayoutRef = Math.max(
+        document.documentElement?.clientHeight || 0,
+        window.innerHeight || 0
+      );
+      setAppHeight();
+    };
+    window.addEventListener('orientationchange', onOrientationChange);
     setAppHeight();
     // (não cleanup: o var persiste para toda a vida do app;
     //  se o componente desmontar, o var permanece com o último valor — inócuo)
@@ -1966,6 +1924,54 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
+    // 📡 Sincroniza mute/som do host para TODOS os usuários na sala da stream
+
+    let syncSocket: any = null;
+
+    let syncDisposed = false;
+
+    const onMicToggled = (payload: any) => {
+
+      const roomId = payload?.roomId || payload?.streamId;
+
+      if (activeStream && roomId === activeStream.id) {
+
+        const isMuted = payload.isMuted !== undefined ? payload.isMuted : !!payload.microphoneEnabled;
+
+        updateLiveSession({ isMicrophoneMuted: isMuted });
+
+      }
+
+    };
+
+    const onSoundToggled = (payload: any) => {
+
+      const roomId = payload?.roomId || payload?.streamId;
+
+      if (activeStream && roomId === activeStream.id) {
+
+        const isMuted = payload.isMuted !== undefined ? payload.isMuted : !!payload.soundEnabled;
+
+        updateLiveSession({ isStreamMuted: isMuted });
+
+      }
+
+    };
+
+    connectSocket().then(s => {
+
+      if (syncDisposed || !s?.connected) return;
+
+      syncSocket = s;
+
+      s.on('mic_toggled', onMicToggled);
+
+      s.on('sound_toggled', onSoundToggled);
+
+    });
+
+
+
     const handleUserUpdate = (payload: { user: User }) => {
 
       updateUserEverywhere(payload.user);
@@ -2085,7 +2091,17 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
     return () => {
-      // REMOVIDO: simpleEventManager cleanup
+
+      syncDisposed = true;
+
+      if (syncSocket) {
+
+        syncSocket.off('mic_toggled', onMicToggled);
+
+        syncSocket.off('sound_toggled', onSoundToggled);
+
+      }
+
     };
 
   }, [currentUser, updateUserEverywhere, activeStream, updateLiveSession, addToast, chattingWith]);
@@ -2196,22 +2212,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const handleSelectRegion = async (countryCode: string) => {
 
-    // REMOVED: setSelectedCountry(countryCode); - country now stored in MongoDB via currentUser.country
-
-    // Salvar país no backend imediatamente (API + estado local)
-    if (currentUser && countryCode !== 'ICON_GLOBE') {
-      try {
-        const newCountry = countryCode.toLowerCase();
-        // 🔧 CORREÇÃO: Persistir no MongoDB via API para evitar que GeoIP sobrescreva
-        await api.updateProfile(currentUser.id, { country: newCountry });
-        updateUserEverywhere({ ...currentUser, country: newCountry });
-        console.log('[REGION] ✅ País salvo no backend:', newCountry);
-      } catch (err) {
-        console.error('[REGION] Failed to save country to backend:', err);
-        // Fallback: atualizar apenas localmente
-        updateUserEverywhere({ ...currentUser, country: countryCode.toLowerCase() });
-      }
-    }
+    // 🔧 FILTRO DE VISUALIZAÇÃO APENAS: NÃO altera o país/bandeira do perfil do usuário.
 
     setIsRegionModalOpen(false);
 
@@ -2270,7 +2271,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     try {
 
-      const streams = await api.getLiveStreamers('popular');
+      const streams = await api.getLiveStreamers('popular', selectedCountry !== 'ICON_GLOBE' ? selectedCountry : undefined);
       setStreamers(Array.isArray(streams) ? streams : []);
 
     } catch (error) {
@@ -2454,7 +2455,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       try {
 
-        const streams = await api.getLiveStreamers(tab);
+        const streams = await api.getLiveStreamers(tab, selectedCountry !== 'ICON_GLOBE' ? selectedCountry : undefined);
         setStreamers(Array.isArray(streams) ? streams : []);
 
       } catch (error) {
@@ -3303,7 +3304,7 @@ const logLiveEvent = (type: string, data: any) => {
 
 
   const hasCadastralData = (user: User | null): boolean => {
-    return !!user?.cadastral?.document && !!user.cadastral?.address?.zipCode;
+    return !!user?.cadastral?.document;
   };
 
   const handlePurchase = (pkg: PurchasePackage) => {
@@ -3651,7 +3652,7 @@ const logLiveEvent = (type: string, data: any) => {
 
 
   return (
-    <div className={`app-container bg-black text-white font-sans ${activeStream && streamRoomData && currentUser ? 'live-fixed' : ''}`}>
+    <div className={`app-container bg-black text-white font-sans ${((activeStream && streamRoomData) || chattingWith) && currentUser ? 'live-fixed' : ''}`}>
 
 
       {/* PK Invite Pop-up Modal */}
@@ -3762,7 +3763,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {chattingWith && currentUser && (
 
-        <div className="fixed top-0 left-0 right-0 z-[999999]" style={{ height: 'var(--app-height, 100vh)' }}>
+        <div className="fixed top-0 left-0 right-0 z-[999999]" style={{ height: 'var(--app-height, 100dvh)' }}>
 
           <ChatScreen
 
@@ -3887,8 +3888,6 @@ const logLiveEvent = (type: string, data: any) => {
             streamer={activeStream}
 
             onRequestEndStream={handleRequestEndStream}
-
-            onMinimizeStreamView={handleMinimizeToPiP}
 
             onStartPKBattle={handleStartPKBattle}
 
@@ -4137,7 +4136,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       <ReminderModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)} onSelectStream={handleSelectStream} streamers={reminderStreamers} onOpenLiveHistory={() => setIsLiveHistoryOpen(true)} />
 
-      <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={currentUser?.country || 'ICON_GLOBE'} />
+      <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={selectedCountry || 'ICON_GLOBE'} />
 
       {/* Banner de instalação PWA para dispositivos móveis */}
       <PWAInstallBanner />

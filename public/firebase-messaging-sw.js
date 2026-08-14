@@ -156,7 +156,9 @@ messaging.onBackgroundMessage((payload) => {
   }
 
   // 🔔 Firebase/FCM serve SÓ para push na tela: ícone SEMPRE o favicon LOCAL
-  // (nunca icon/image remoto vindo do payload — zero fetch de imagem).
+  // (nunca icon remoto vindo do payload). A imagem GRANDE (Big Picture) é
+  // aceita apenas no tipo 'live_started' (alerta de início de live) — exibida
+  // ampliada na notificação, como nos grandes apps (avatar/capa do streamer).
   const notificationOptions = {
     body: notificationBody,
     icon: '/favicon.svg',
@@ -165,6 +167,11 @@ messaging.onBackgroundMessage((payload) => {
     renotify: false,
     data: d,
   };
+
+  const liveImage = (d.type === 'live_started' && (n.image || d.image)) || '';
+  if (liveImage) {
+    notificationOptions.image = liveImage;
+  }
 
   self.registration.showNotification(notificationTitle, notificationOptions);
 });

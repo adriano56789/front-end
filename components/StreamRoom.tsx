@@ -26,6 +26,7 @@ import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
+import JoinEffectOverlay from './live/JoinEffectOverlay';
 import { streamPublishService } from '../services/streamPublishService';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 // Chat e presença via Socket.IO (useStreamChat) com sync inicial REST
@@ -33,7 +34,7 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
@@ -60,7 +61,6 @@ interface StreamRoomProps {
     streamer: Streamer;
     onRequestEndStream: () => void;
     onLeaveStreamView: () => void;
-    onMinimizeStreamView?: () => void;
     onStartPKBattle: (opponent: User) => void;
     onViewProfile: (user: User) => void;
     currentUser: User;
@@ -124,7 +124,7 @@ const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: 
 
 const MAX_CHAT_MESSAGES = 200;
 
-const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onMinimizeStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
+const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
     const { t } = useTranslation();
 
     // Early validation for required props
@@ -175,7 +175,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         closeComposer,
         composerInputRef,
         composerRef,
-        keyboardInset,
+        chatInset,
         bottom: chatBarBottom,
     } = useComposerKeyboard();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
@@ -246,10 +246,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // 🔴 Live encerrada pelo broadcaster: mantém a sala aberta e o chat visível
     const [streamEnded, setStreamEnded] = useState(false);
 
-    // Native PiP (out-of-app) hook — ZEGO's pipButton + enableWhenBackground
+    // Native PiP (out-of-app) — minimizar automático via botão HOME/VOLTAR do
+    // celular (autoPictureInPicture ativado no hook). Sem botão extra na sala.
     const [nativePiPActive, setNativePiPActive] = useState(false);
     const enableWhenBg = currentUser?.enableWhenBackground !== undefined ? currentUser.enableWhenBackground : true;
-    const { setVideoRef, requestPiP, exitPiP, isPiPSupported } = useNativePiP({
+    const { setVideoRef } = useNativePiP({
       onEnterNativePiP: () => {
         setNativePiPActive(true);
         addToast(ToastType.Info, 'Picture-in-Picture ativado. O vídeo continuará mesmo fora do app.');
@@ -272,8 +273,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
     const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
     const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
-    const [pinnedGift, setPinnedGift] = useState<Gift | null>(null);
-    const [pinnedGiftLabel, setPinnedGiftLabel] = useState<string>('');
+    // 🚪 Efeito de entrada na live (join effect) — igual ti.live/Bigo.
+    // Premium: só toca para quem tem VIP ativo. O HOST vê a animação de cada
+    // VIP que entra (anúncio de chegada) e o próprio VIP se vê entrando.
+    const [joinEffect, setJoinEffect] = useState<{
+      userName: string;
+      avatarUrl: string;
+      entranceEffect?: any;
+    } | null>(null);
+    const joinEffectShownRef = useRef(false);
+    const [pinnedGifts, setPinnedGifts] = useState<{ gift: Gift; label: string }[]>([]);
     const [activeLiveInvite, setActiveLiveInvite] = useState<{ inviteId: string; type: string; from: string; fromName: string; streamId: string } | null>(null);
 
     // Estado para monitoramento de publish SRS
@@ -342,6 +351,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           const entryName = data.fullUser?.name || data.userName || data.user?.name || 'Alguém';
           const entryAvatar = data.fullUser?.avatarUrl || data.user?.avatarUrl || '';
           addToast(ToastType.Info, 'entrou na sala', { title: entryName, avatar: entryAvatar });
+          // 🚪 VIP com efeito de entrada → HOST vê a animação (anúncio de chegada,
+          // estilo Bigo/ti.live: "you can easily be noticed by the host").
+          if (data.entranceEffect) {
+            setJoinEffect({ userName: entryName, avatarUrl: entryAvatar, entranceEffect: data.entranceEffect });
+          }
         }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
         const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
@@ -396,6 +410,20 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     },
     onConnected: () => {
       console.log('[CHAT] Chat REST conectado (polling)!');
+      // 🚪 Efeito de entrada: toca UMA vez quando o espectador VIP entra na
+      // sala (premium — só quem tem VIP ativo se vê entrando; host não vê o
+      // próprio efeito, ele já está na própria live).
+      if (!isBroadcaster && !joinEffectShownRef.current) {
+        joinEffectShownRef.current = true;
+        const isVipActive = !!currentUser?.isVIP &&
+          (!currentUser.vipExpirationDate || new Date(currentUser.vipExpirationDate).getTime() > Date.now());
+        if (isVipActive) {
+          setJoinEffect({
+            userName: currentUser?.name || 'Alguém',
+            avatarUrl: currentUser?.avatarUrl || currentUser?.avatar || '',
+          });
+        }
+      }
       // 📡 State Sync: sincronizar papel do participante
       lkSetRole(isBroadcaster ? 'host' : 'viewer');
       // 📡 Room Metadata: Se for o broadcaster, registrar metadata inicial da live
@@ -1179,9 +1207,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     const handlePurchaseDiamonds = (pkg: PurchasePackage) => {
-        // Exigência legal: dados cadastrais (nome, CPF/CNPJ e endereço) pedidos antes do pagamento
+        // Identificação (nome e CPF/CNPJ) pedida antes do pagamento; endereço é opcional
         if (pkg.isFreeDev) return;
-        if (!currentUser?.cadastral?.document || !currentUser.cadastral?.address?.zipCode) {
+        if (!currentUser?.cadastral?.document) {
             setPendingPurchase(pkg);
             setIsCadastralScreenOpen(true);
             return;
@@ -1245,15 +1273,17 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     const handleToggleMicrophone = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isBroadcaster) return;
-        // 📡 State Sync: atualizar status do microfone APÓS sucesso da API
+        const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
         try {
           await api.toggleMicrophone(streamer.id);
+          updateLiveSession({ isMicrophoneMuted: newMicState });
+          addToast(ToastType.Success, newMicState ? 'Microfone desativado.' : 'Microfone ativado.');
           if (lkChatConnected) {
-            const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
             lkSetMicStatus(newMicState);
           }
         } catch (err) {
           console.warn('[StreamRoom] toggleMicrophone erro:', err);
+          addToast(ToastType.Error, 'Falha ao alternar o microfone.');
         }
     };
 
@@ -1267,8 +1297,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             });
             return;
         }
-        addToast(ToastType.Info, !(liveSession?.isStreamMuted) ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
-        await api.toggleStreamSound(streamer.id);
+        const newSoundState = !(liveSession?.isStreamMuted ?? false);
+        try {
+            await api.toggleStreamSound(streamer.id);
+            updateLiveSession({ isStreamMuted: newSoundState });
+            addToast(ToastType.Info, newSoundState ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
+        } catch (err) {
+            console.warn('[StreamRoom] toggleStreamSound erro:', err);
+            addToast(ToastType.Error, 'Falha ao alternar o áudio da live.');
+        }
     };
 
     const handleToggleAutoFollow = async (e: React.MouseEvent) => {
@@ -1290,6 +1327,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         const newAutoInviteState = !isAutoPrivateInviteEnabled;
         try {
             await api.toggleAutoPrivateInvite(streamer.id, newAutoInviteState);
+            setIsAutoPrivateInviteEnabled(newAutoInviteState);
+            updateLiveSession({ isAutoPrivateInviteEnabled: newAutoInviteState });
             addToast(ToastType.Success, newAutoInviteState ? 'Convite automático ativado.' : 'Convite automático desativado.');
         } catch (error) {
             addToast(ToastType.Error, "Falha ao alterar a configuração.");
@@ -1374,6 +1413,16 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 onEnd={handleFullscreenGiftAnimationEnd}
             />
 
+            {/* 🚪 Efeito de entrada na live (mp4 do pacote real, com o nome do usuário) */}
+            {joinEffect && (
+                <JoinEffectOverlay
+                    userName={joinEffect.userName}
+                    avatarUrl={joinEffect.avatarUrl}
+                    entranceEffect={joinEffect.entranceEffect}
+                    onEnd={() => setJoinEffect(null)}
+                />
+            )}
+
             {/* 3. Header UI */}
             <header className={`p-4 flex flex-col gap-2 bg-transparent absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                 <div className="flex justify-between items-start">
@@ -1456,27 +1505,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 <BellIcon className="w-5 h-5 text-yellow-400" />
                                 <span className="text-white font-bold select-none">{onlineCount}</span>
                             </button>
-                            {/* PiP button (viewers only) - OUT-OF-APP native Picture-in-Picture, like ZEGO's pipButton */}
-                            {!isBroadcaster && isPiPSupported && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (nativePiPActive) {
-                                            exitPiP();
-                                        } else {
-                                            requestPiP();
-                                        }
-                                    }}
-                                    className={`focus:outline-none cursor-pointer transition-all hover:scale-110 active:scale-90 ${
-                                        nativePiPActive ? 'text-purple-400' : 'text-white/70 hover:text-white'
-                                    }`}
-                                    title={nativePiPActive ? 'Sair do Picture-in-Picture' : 'Picture-in-Picture (fora do app)'}
-                                >
-                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
-                                    </svg>
-                                </button>
-                            )}
                             {/* 🪫 Seletor de qualidade do espectador (economia de dados) */}
                             {!isBroadcaster && (
                                 <div className="relative">
@@ -1506,18 +1534,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </div>
                             )}
 
-                            {/* Minimize button (viewers only) - always PiP, like ZEGO's minimizingButton */}
-                            {!isBroadcaster && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onMinimizeStreamView?.(); }}
-                                    className="focus:outline-none cursor-pointer text-white/70 hover:text-white transition-all hover:scale-110 active:scale-90"
-                                    title="Minimizar para janela flutuante"
-                                >
-                                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"/>
-                                    </svg>
-                                </button>
-                            )}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); isBroadcaster ? handleEndStream() : onLeaveStreamView(); }}
                                 className="focus:outline-none cursor-pointer text-white hover:opacity-85 transition-opacity"
@@ -1592,7 +1608,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             </header>
 
             {/* 4. Chat & Footer UI */}
-            <div className={`absolute left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` : `env(safe-area-inset-bottom, 0px)`, transition: 'opacity 0.3s ease, bottom 0.15s ease-out' }}>
+            {/* O container é FIXED (viewport, não do container de layout) e sobe
+                só o suficiente (fixedBottom + altura da barra) para a ÚLTIMA
+                mensagem parar exatamente ACIMA do composer — nunca atrás dele.
+                Fechado, sobe o suficiente para parar ACIMA da 1ª barra (nada de
+                texto escondido atrás dela). Sem transition de bottom: o teclado
+                já anima; transition + valor mudando por frame = bounce. */}
+            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${chatInset}px + env(safe-area-inset-bottom, 0px))` : `calc(${MESSAGE_BAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))` }}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
@@ -1639,7 +1661,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                 </div>
 
-                <footer className={`absolute left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     {/* 📡 Typing indicator */}
                     {typingUsers.length > 0 && (
                       <div className="px-2 py-1 text-xs text-gray-400 italic">
@@ -1742,40 +1764,46 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                 </footer>
 
-            {/* 📌 Presente Fixado — canto inferior direito da transmissão (estilo
-                Guzzcast). Só o host fixa via Ferramentas; todos veem o presente
-                fixado enquanto a live estiver no ar. O NOME aparece EM CIMA,
-                editável pelo host nas Ferramentas. Ao salvar, o presente SOBE
-                do fundo até o canto inferior direito. */}
-            {pinnedGift && (
-                <div className="absolute bottom-28 right-3 z-30 flex flex-col items-center gap-1 pointer-events-none select-none gift-pinned-rise">
-                    <div className="bg-black/55 backdrop-blur-md rounded-2xl px-3 py-2 border border-white/15 shadow-xl flex flex-col items-center gap-1">
-                        <p className="text-[10px] font-bold text-white truncate max-w-[90px]">{pinnedGiftLabel || pinnedGift.name}</p>
-                        <div className="w-14 h-14 flex items-center justify-center">
-                            {pinnedGift.component
-                                ? pinnedGift.component
-                                : (typeof pinnedGift.icon === 'string' && (pinnedGift.icon.startsWith('http') || pinnedGift.icon.startsWith('/')))
-                                    ? <img src={pinnedGift.icon} alt={pinnedGift.name} className="w-12 h-12 object-cover rounded-xl" />
-                                    : <span className="text-4xl">{pinnedGift.icon}</span>}
+            {/* 📌 Presentes Fixados — CANTO inferior direito da transmissão. Só o
+                host fixa via Ferramentas (até 5); todos veem os presentes fixados
+                enquanto a live estiver no ar. O NOME aparece EM CIMA, editável pelo
+                host nas Ferramentas. Ao salvar, os presentes SOBEM do fundo até o canto. */}
+            {pinnedGifts.length > 0 && (
+                <div className="absolute bottom-96 right-3 z-30 flex flex-col items-end gap-2 pointer-events-none select-none">
+                    {pinnedGifts.map(({ gift, label }) => (
+                        <div key={gift.id || gift.name} className="gift-pinned-rise flex flex-col items-center gap-1">
+                            <div className="bg-black/55 backdrop-blur-md rounded-2xl px-3 py-2 border border-white/15 shadow-xl flex flex-col items-center gap-1">
+                                <p className="text-[10px] font-bold text-white truncate max-w-[90px]">{label || gift.name}</p>
+                                <div className="w-14 h-14 flex items-center justify-center">
+                                    {gift.component
+                                        ? gift.component
+                                        : (typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')))
+                                            ? <img src={gift.icon} alt={gift.name} className="w-12 h-12 object-cover rounded-xl" />
+                                            : <span className="text-4xl">{gift.icon}</span>}
+                                </div>
+                            </div>
+                            <div className="w-6 h-6 rounded-full bg-[#FC10B8] flex items-center justify-center shadow-lg">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 3l7 3v5c0 4.42-2.87 8.17-6 9.4V12l-1-4-1 4v8.4C7.87 19.17 5 15.42 5 11V6l9-3Z" />
+                                </svg>
+                            </div>
                         </div>
-                    </div>
-                    <div className="w-6 h-6 rounded-full bg-[#FC10B8] flex items-center justify-center shadow-lg">
-                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M14 3l7 3v5c0 4.42-2.87 8.17-6 9.4V12l-1-4-1 4v8.4C7.87 19.17 5 15.42 5 11V6l9-3Z" />
-                        </svg>
-                    </div>
+                    ))}
                 </div>
             )}
 
             {/* ⌨️ Composer flutuante (TikTok-style): abre COLADO no teclado quando
-                o usuário toca na barra de mensagem fixa. A tela da live não se mexe. */}
+                o usuário toca na barra de mensagem fixa. A tela da live não se mexe.
+                Sem transition de bottom: o fixedBottom já acompanha o teclado
+                frame-a-frame; transition faria a barra ficar perseguindo o valor
+                e oscilar para cima e para baixo. */}
             {isComposerOpen && (
                 <div
                     ref={composerRef}
                     className="fixed left-0 right-0 z-40"
-                    style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
+                    style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))` }}
                 >
-                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317]/95 backdrop-blur-md border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
                         <div className="flex items-center gap-3">
                             <div className="flex-grow">
                                 <input
@@ -1878,10 +1906,9 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     isHost={isBroadcaster}
                     addToast={addToast}
                     gifts={gifts}
-                    pinnedGift={pinnedGift}
-                    onSavePinnedGift={(g: Gift | null, label?: string) => {
-                        setPinnedGift(g);
-                        setPinnedGiftLabel(g ? (label || g.name) : '');
+                    pinnedGifts={pinnedGifts}
+                    onSavePinnedGifts={(entries: { gift: Gift; label: string }[]) => {
+                        setPinnedGifts(entries);
                     }}
                 />
             )}

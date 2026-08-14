@@ -1,10 +1,35 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BackIcon, LiveGoLogo } from '../icons';
 import { useTranslation } from '../../i18n';
 
+// Versão atual do aparelho = a que foi salva no localStorage na última visita
+// (a mesma chave usada pelo useAppVersion para detectar atualização).
+const VERSION_KEY = 'livego_version';
+
+// 🔄 Tela "Versão do aplicativo": mostra a versão REAL — a do aparelho
+// (localStorage) e a mais recente do servidor (/version.json). Cada deploy
+// gera um version.json NOVO (scripts/gen-version.cjs), então o número aqui
+// reflete exatamente o que está publicado.
 const AppVersionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const { t } = useTranslation();
+    const [currentVersion, setCurrentVersion] = useState('1.0.0');
+    const [latestVersion, setLatestVersion] = useState('1.0.0');
+    const [hasUpdate, setHasUpdate] = useState(false);
+
+    useEffect(() => {
+        setCurrentVersion(localStorage.getItem(VERSION_KEY) || '1.0.0');
+        // Buscar versão do servidor com cache-busting (nunca ler version.json antigo)
+        fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((info) => {
+                if (info?.version) {
+                    setLatestVersion(info.version);
+                    setHasUpdate(info.version !== (localStorage.getItem(VERSION_KEY) || '1.0.0'));
+                }
+            })
+            .catch(() => {});
+    }, []);
+
     return (
         <div className="flex flex-col h-full bg-black">
             <header className="flex items-center p-4 flex-shrink-0">
@@ -17,12 +42,20 @@ const AppVersionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
                 <div className="w-full mt-12 bg-[#1C1C1E] rounded-lg p-4 space-y-4 text-base">
                     <div className="flex justify-between">
-                        <span className="text-gray-300">{t('settings.appVersion.latest')}</span>
-                        <span className="text-white">1.0.0</span>
+                        <span className="text-gray-300">{t('settings.appVersion.current')}</span>
+                        <span className="text-white">v{currentVersion}</span>
                     </div>
-                     <div className="flex justify-between">
+                    <div className="flex justify-between">
+                        <span className="text-gray-300">{t('settings.appVersion.latest')}</span>
+                        <span className="text-white">v{latestVersion}</span>
+                    </div>
+                    <div className="flex justify-between">
                         <span className="text-gray-300">{t('settings.appVersion.status')}</span>
-                        <span className="text-green-400">{t('settings.appVersion.upToDate')}</span>
+                        {hasUpdate ? (
+                            <span className="text-amber-400">Atualização disponível</span>
+                        ) : (
+                            <span className="text-green-400">{t('settings.appVersion.upToDate')}</span>
+                        )}
                     </div>
                 </div>
             </main>

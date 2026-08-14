@@ -4,7 +4,7 @@ import { BackIcon, ThreeDotsIcon, SendIcon, GalleryIcon, CheckIcon, DoubleCheckI
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 import { LoadingSpinner } from './Loading';
 import LiveBadge from './ui/LiveBadge';
@@ -208,14 +208,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const [userStatus, setUserStatus] = useState<{ isOnline?: boolean; lastSeen?: string } | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
-    const chatEndRef = useRef<HTMLDivElement>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
+    // 🔒 Scroll da lista de mensagens — rola SOMENTE o container interno
+    // (scrollTop), NUNCA a página. scrollIntoView fazia PAN na tela inteira e
+    // empurrava a barra de mensagem para cima quando o teclado abria.
+    const messagesScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLButtonElement>(null);
     // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
     // FIXA no fundo (bottom = safe-area, nunca sai do lugar). Ao tocar nela,
     // a barra fica INVISÍVEL (sem ser movida nem apagada) e abre um SEGUNDO
     // campo de digitação (composer) colado acima do teclado.
-    // `keyboardInset` (altura real do teclado) é usado para rolar até a última
-    // mensagem quando o teclado abre; `bottom` é a posição do composer.
+    // `keyboardInset` (altura real do teclado) é usado tanto para rolar até a
+    // última mensagem quanto para posicionar o composer COLADO no teclado.
     const {
         isComposerOpen,
         openComposer,
@@ -310,6 +314,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         }
     }, [user.id]);
 
+    // 📜 Rola a lista de mensagens INTERNAMENTE até o fim (scrollTop do
+    // container). NUNCA usa scrollIntoView — que rola a página/visualViewport
+    // e fazia a barra de mensagem SUBIR quando o teclado abria.
+    const scrollMessagesToBottom = () => {
+        const el = messagesScrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    };
+
     // 📡 Byte Streams: receber imagens via window event
     useEffect(() => {
         const onByteStreamFile = (e: Event) => {
@@ -333,9 +345,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             
             setMessages(prev => [...prev, receivedMessage]);
             
-            setTimeout(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }, 100);
+            setTimeout(scrollMessagesToBottom, 80);
         };
         
         window.addEventListener('byteStream:fileReceived', onByteStreamFile);
@@ -354,23 +364,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     useEffect(() => {
         if (effectiveMessages.length > 0) {
-            setTimeout(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-            }, 100);
+            setTimeout(scrollMessagesToBottom, 60);
         }
     }, [effectiveMessages.length]);
 
-    // ⌨️ Quando o teclado abre (keyboardInset sobe), rolar para a última
-    // mensagem para que ela fique visível logo acima do input — igual WhatsApp.
+    // ⌨️ Quando o teclado abre (keyboardInset sobe), rolar a última mensagem
+    // para cima do input — rolagem INTERNA, sem mover a página nem a barra.
     const prevInsetRef = useRef(0);
     useEffect(() => {
         const opened = keyboardInset > 0 && prevInsetRef.current === 0;
         prevInsetRef.current = keyboardInset;
         if (opened && effectiveMessages.length > 0) {
             // Delay: espera a animação do teclado (e do re-layout) estabilizar
-            setTimeout(() => {
-                chatEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
-            }, 120);
+            setTimeout(scrollMessagesToBottom, 120);
         }
     }, [keyboardInset, effectiveMessages.length]);
 
@@ -462,6 +468,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
         if ((!hasText && !hasImage) || sendingMessage) return;
 
+        setSendError(null);
+
         const textToSend = newMessage;
         const imageFile = selectedImageFile;
 
@@ -482,9 +490,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         setSelectedImage(null);
         setSelectedImageFile(null);
 
-        setTimeout(() => {
-            chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-        }, 150);
+        setTimeout(scrollMessagesToBottom, 120);
 
         try {
             let finalImageUrl: string | undefined = undefined;
@@ -528,6 +534,13 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                 );
             }
         } catch (error) {
+            const anyErr = error as any;
+            const reason = anyErr?.response?.data?.error;
+            if (anyErr?.response?.status === 403 && reason) {
+                setSendError(reason);
+            } else if (anyErr?.response?.status === 403) {
+                setSendError('Este usuário não aceita mensagens privadas no momento');
+            }
             setMessages(prev =>
                 prev.map(msg =>
                     msg.id === tempId
@@ -650,7 +663,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                 <main className="relative flex-1 min-h-0 overflow-hidden">
                     {/* overscroll-contain: a rolagem existe SÓ aqui (mensagens);
                         não propaga para a tela/página de jeito nenhum */}
-                    <div className="absolute inset-0 overflow-y-auto no-scrollbar overscroll-contain">
+                    <div ref={messagesScrollRef} className="absolute inset-0 overflow-y-auto no-scrollbar overscroll-contain">
                     {isLoading ? (
                         <div className="flex items-center justify-center h-full">
                             <LoadingSpinner />
@@ -692,7 +705,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     />
                                 );
                             })}
-                            <div ref={chatEndRef} style={{ height: `calc(4.5rem + ${isComposerOpen ? keyboardInset : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                            <div style={{ height: `calc(4.5rem + ${isComposerOpen ? keyboardInset : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                         </div>
                     )}
                     </div>
@@ -716,6 +729,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             </button>
                         </div>
                     )}
+                    {sendError && (
+                        <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
+                            {sendError}
+                        </div>
+                    )}
                     <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
                         <input
                             type="file"
@@ -734,6 +752,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             <button
                                 type="button"
                                 ref={chatInputRef}
+                                tabIndex={-1}
                                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
                                 className="w-full h-full bg-transparent text-[14px] px-2 text-left focus:outline-none cursor-pointer select-none"
                             >
@@ -761,15 +780,31 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     </div>
                 </footer>
 
-                {/* ⌨️ Composer (SEGUNDA barra): aparece SÓ na hora de digitar,
-                    colado acima do teclado, sem mexer na barra fixa. */}
+                {/* ⌨️ Composer (SEGUNDA barra): container SEPARADO, `position:fixed`
+                    relativo ao VIEWPORT (não ao layout do chat) e z-index alto.
+                    Usa a altura REAL do teclado medida pela 🔬 sonda do
+                    visualViewport (`bottom` = fixedBottom): cola EXATAMENTE em
+                    cima do teclado, sem depender do auto-rise do navegador.
+                    `min()` garante que NUNCA ultrapassa o topo da tela — se o
+                    teclado for alto demais, a barra encosta no limite e não
+                    um fixo `bottom:0` realmente termina naquele aparelho — cola a
+                    barra EXATAMENTE em cima do teclado. ⚠️ SEM `min(..., 100dvh - X)`: com
+                    o teclado aberto o 100dvh é a altura VISÍVEL (tela − teclado), então
+                    o min empurrava a barra para baixo, para TRÁS do teclado. A sonda
+                    já mede o valor certo (0 em iOS que auto-sobe; altura do teclado
+                    em Android). */}
                 {isComposerOpen && (
                     <div
                         ref={composerRef}
-                        className="fixed left-0 right-0 z-50"
-                        style={{ bottom: `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
+                        className="fixed left-0 right-0 z-[999]"
+                        style={{ bottom: `${bottom}px` }}
                     >
                         <footer className="bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]">
+                            {sendError && (
+                                <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
+                                    {sendError}
+                                </div>
+                            )}
                             <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
                                 <div className="flex-grow h-10">
                                     <input
@@ -779,7 +814,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                         value={newMessage}
                                         enterKeyHint="send"
                                         autoComplete="off"
-                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); }}
                                         onBlur={() => {
                                             // Só fecha se o foco saiu do composer por completo.
                                             // Não fecha em blur transitório do navegador (mobile).

@@ -131,6 +131,11 @@ const HelpIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
+interface PinnedGiftEntry {
+  gift: Gift;
+  label: string;
+}
+
 interface ToolsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -156,9 +161,11 @@ interface ToolsModalProps {
   isHost?: boolean;
   addToast?: (type: any, message: string) => void;
   gifts?: Gift[];
-  pinnedGift?: Gift | null;
-  onSavePinnedGift?: (gift: Gift | null, label?: string) => void;
+  pinnedGifts?: PinnedGiftEntry[];
+  onSavePinnedGifts?: (gifts: PinnedGiftEntry[]) => void;
 }
+
+export const MAX_PINNED_GIFTS = 5;
 
 interface ToolButtonProps {
     icon: React.ReactNode;
@@ -214,46 +221,62 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
     isHost = true,
     addToast,
     gifts = [],
-    pinnedGift = null,
-    onSavePinnedGift
+    pinnedGifts = [],
+    onSavePinnedGifts
 }) => {
     
-    const [selectedPinnedGift, setSelectedPinnedGift] = React.useState<Gift | null>(null);
-    const [pinnedGiftLabel, setPinnedGiftLabel] = React.useState<string>('');
+    const [selectedPinnedGifts, setSelectedPinnedGifts] = React.useState<PinnedGiftEntry[]>([]);
 
     useEffect(() => {
         if (isOpen) {
-            setSelectedPinnedGift(pinnedGift);
-            setPinnedGiftLabel(pinnedGift?.name || '');
+            setSelectedPinnedGifts(pinnedGifts.map((p) => ({ ...p })));
         }
-    }, [isOpen, pinnedGift]);
+    }, [isOpen, pinnedGifts]);
 
-    const renderGiftVisual = (gift: any) => {
+    const giftKey = (gift: Gift) => gift.id || gift.name;
+
+    const renderGiftVisual = (gift: any, size: 'md' | 'sm' = 'md') => {
         if (gift.component) return gift.component;
         if (typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/'))) {
-            return <img src={gift.icon} alt={gift.name} className="w-10 h-10 object-cover rounded-lg" />;
+            return <img src={gift.icon} alt={gift.name} className={size === 'sm' ? 'w-5 h-5 object-cover rounded' : 'w-10 h-10 object-cover rounded-lg'} />;
         }
-        return <span className="text-3xl">{gift.icon}</span>;
+        return <span className={size === 'sm' ? 'text-lg' : 'text-3xl'}>{gift.icon}</span>;
     };
 
-    const handleSavePinnedGift = (e: React.MouseEvent) => {
+    const isGiftSelected = (gift: Gift) => selectedPinnedGifts.some((p) => giftKey(p.gift) === giftKey(gift));
+    const isGiftPinned = (gift: Gift) => pinnedGifts.some((p) => giftKey(p.gift) === giftKey(gift));
+
+    const handleToggleGift = (gift: Gift) => {
+        if (isGiftSelected(gift)) {
+            setSelectedPinnedGifts((prev) => prev.filter((p) => giftKey(p.gift) !== giftKey(gift)));
+        } else if (selectedPinnedGifts.length < MAX_PINNED_GIFTS) {
+            setSelectedPinnedGifts((prev) => [...prev, { gift, label: gift.name }]);
+        } else {
+            if (addToast) addToast('error', `Limite de ${MAX_PINNED_GIFTS} presentes fixados atingido.`);
+        }
+    };
+
+    const handleLabelChange = (gift: Gift, value: string) => {
+        setSelectedPinnedGifts((prev) => prev.map((p) => giftKey(p.gift) === giftKey(gift) ? { ...p, label: value } : p));
+    };
+
+    const handleSavePinnedGifts = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!selectedPinnedGift) {
-            if (addToast) addToast('error', 'Selecione um presente para fixar na tela.');
+        if (selectedPinnedGifts.length === 0) {
+            if (addToast) addToast('error', 'Selecione ao menos um presente para fixar na tela.');
             return;
         }
-        const label = pinnedGiftLabel.trim() || selectedPinnedGift.name;
-        if (onSavePinnedGift) onSavePinnedGift(selectedPinnedGift, label);
-        if (addToast) addToast('success', `Presente "${label}" fixado na tela!`);
+        const normalized = selectedPinnedGifts.map((p) => ({ gift: p.gift, label: p.label.trim() || p.gift.name }));
+        if (onSavePinnedGifts) onSavePinnedGifts(normalized);
+        if (addToast) addToast('success', `${normalized.length} presente(s) fixado(s) na tela!`);
         onClose();
     };
 
-    const handleRemovePinnedGift = (e: React.MouseEvent) => {
+    const handleRemovePinnedGifts = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (onSavePinnedGift) onSavePinnedGift(null);
-        setSelectedPinnedGift(null);
-        setPinnedGiftLabel('');
-        if (addToast) addToast('info', 'Presente fixado removido da tela.');
+        if (onSavePinnedGifts) onSavePinnedGifts([]);
+        setSelectedPinnedGifts([]);
+        if (addToast) addToast('info', 'Presentes fixados removidos da tela.');
         onClose();
     };
 
@@ -271,17 +294,28 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
 
     const handleShare = (e: React.MouseEvent) => {
         e.stopPropagation();
-        try {
-            navigator.clipboard.writeText(window.location.href);
-            if (addToast) {
-                addToast('success', 'Link da transmissão copiado para a área de transferência!');
-            }
-        } catch (err) {
-            if (addToast) {
-                addToast('error', 'Falha ao copiar o link da transmissão.');
-            }
+        const shareUrl = window.location.href;
+        const shareData = {
+            title: 'LiveGo',
+            text: 'Assista ao vivo comigo no LiveGo!',
+            url: shareUrl,
+        };
+        if (navigator.share) {
+            navigator.share(shareData)
+                .then(() => onClose())
+                .catch(() => onClose());
+        } else {
+            copyLinkToClipboard(shareUrl);
+            onClose();
         }
-        onClose();
+    };
+
+    const copyLinkToClipboard = (url: string) => {
+        navigator.clipboard.writeText(url).then(() => {
+            if (addToast) addToast('success', 'Link copiado para a área de transferência!');
+        }).catch(() => {
+            if (addToast) addToast('error', 'Falha ao copiar o link.');
+        });
     };
 
     const handleReport = (e: React.MouseEvent) => {
@@ -358,6 +392,7 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
         { icon: <ChatBubbleIconCustom className="w-7 h-7" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
         { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Seguir Auto', hasDot: false, isActive: isAutoFollowEnabled, onClick: onToggleAutoFollow },
         { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Auto Convite', hasDot: false, isActive: isAutoPrivateInviteEnabled, onClick: onToggleAutoPrivateInvite },
+        { icon: <ShareIcon className="w-7 h-7" />, label: 'Compartilhar', hasDot: false, onClick: handleShare },
     ];
 
     const spectatorTools = [
@@ -406,59 +441,75 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                         </div>
 
                         <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
-                            <h3 className="text-[13px] font-semibold text-gray-400 mb-1 px-1.5 tracking-wide">Presente Fixado na Tela</h3>
-                            <p className="text-[11px] text-gray-500 px-1.5 mb-3">Selecione um presente para fixá-lo no canto da transmissão, como no Guzzcast.</p>
+                            <h3 className="text-[13px] font-semibold text-gray-400 mb-1 px-1.5 tracking-wide">Presentes Fixados na Tela</h3>
+                            <p className="text-[11px] text-gray-500 px-1.5 mb-3">Selecione até {MAX_PINNED_GIFTS} presentes para fixá-los no canto da transmissão, como no Guzzcast.</p>
                             {gifts.length === 0 ? (
                                 <p className="text-[11px] text-gray-500 px-1.5 py-2">Nenhum presente disponível.</p>
                             ) : (
-                                <div className="grid grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1 no-scrollbar">
-                                    {gifts.map(gift => {
-                                        const isSelected = selectedPinnedGift && (selectedPinnedGift.id || selectedPinnedGift.name) === (gift.id || gift.name);
-                                        const isPinned = pinnedGift && (pinnedGift.id || pinnedGift.name) === (gift.id || gift.name);
-                                        return (
-                                            <button
-                                                key={gift.id || gift.name}
-                                                onClick={(e) => { e.stopPropagation(); setSelectedPinnedGift(gift); setPinnedGiftLabel(prev => (prev && prev !== (selectedPinnedGift?.name || '')) ? prev : gift.name); }}
-                                                className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all border outline-none cursor-pointer ${isSelected ? 'border-[#00e5ff] bg-[#00e5ff]/5 shadow-[0_0_12px_rgba(0,229,255,0.2)] scale-[1.02]' : 'border-transparent bg-transparent hover:bg-white/[0.03]'}`}
-                                            >
-                                                <div className="w-11 h-11 flex items-center justify-center">
-                                                    {renderGiftVisual(gift)}
-                                                </div>
-                                                <p className="w-full text-[10px] text-gray-300 text-center truncate font-medium mt-1">{gift.name}</p>
-                                                {isPinned && (
-                                                    <span className="absolute top-0.5 right-0.5 text-[9px]">📌</span>
-                                                )}
-                                                {isSelected && (
-                                                    <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#00e5ff] rounded-full flex items-center justify-center shadow-md">
-                                                        <svg className="w-2 h-2 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="4">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                        </svg>
+                                <>
+                                    <div className="grid grid-cols-5 gap-2 max-h-44 overflow-y-auto pr-1 no-scrollbar">
+                                        {gifts.map(gift => {
+                                            const isSelected = isGiftSelected(gift);
+                                            const isPinned = isGiftPinned(gift);
+                                            return (
+                                                <button
+                                                    key={giftKey(gift)}
+                                                    onClick={(e) => { e.stopPropagation(); handleToggleGift(gift); }}
+                                                    className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-xl transition-all border outline-none cursor-pointer ${isSelected ? 'border-[#00e5ff] bg-[#00e5ff]/5 shadow-[0_0_12px_rgba(0,229,255,0.2)] scale-[1.02]' : 'border-transparent bg-transparent hover:bg-white/[0.03]'}`}
+                                                >
+                                                    <div className="w-11 h-11 flex items-center justify-center">
+                                                        {renderGiftVisual(gift)}
                                                     </div>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                                    <p className="w-full text-[10px] text-gray-300 text-center truncate font-medium mt-1">{gift.name}</p>
+                                                    {(isSelected || isPinned) && (
+                                                        <span className="absolute top-0.5 right-0.5 text-[9px]">📌</span>
+                                                    )}
+                                                    {isSelected && (
+                                                        <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#00e5ff] rounded-full flex items-center justify-center shadow-md">
+                                                            <svg className="w-2 h-2 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="4">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="mt-2 px-1.5">
+                                        <p className="text-[11px] text-gray-500">Selecionados: {selectedPinnedGifts.length}/{MAX_PINNED_GIFTS}</p>
+                                    </div>
+                                </>
+                            )}
+                            {selectedPinnedGifts.length > 0 && (
+                                <div className="mt-2 space-y-1.5 px-1">
+                                    {selectedPinnedGifts.map(({ gift }) => (
+                                        <div key={giftKey(gift)} className="flex items-center gap-2 bg-white/[0.04] rounded-xl px-2 py-1.5">
+                                            <div className="w-7 h-7 flex items-center justify-center shrink-0">
+                                                {renderGiftVisual(gift, 'sm')}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={selectedPinnedGifts.find((p) => giftKey(p.gift) === giftKey(gift))?.label || ''}
+                                                onChange={(e) => handleLabelChange(gift, e.target.value)}
+                                                placeholder={`Nome: ${gift.name}`}
+                                                maxLength={40}
+                                                className="flex-1 h-8 rounded-lg bg-white/[0.06] border border-white/10 px-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#00e5ff]"
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
                             )}
-                            <input
-                                type="text"
-                                value={pinnedGiftLabel}
-                                onChange={(e) => setPinnedGiftLabel(e.target.value)}
-                                placeholder={selectedPinnedGift ? `Nome: ${selectedPinnedGift.name}` : 'Nome do presente fixado'}
-                                maxLength={40}
-                                className="w-full h-10 rounded-xl bg-white/[0.06] border border-white/10 px-3 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#00e5ff]"
-                            />
                             <div className="flex items-center gap-2 mt-3">
                                 <button
-                                    onClick={handleSavePinnedGift}
-                                    disabled={!selectedPinnedGift}
+                                    onClick={handleSavePinnedGifts}
+                                    disabled={selectedPinnedGifts.length === 0}
                                     className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#00e5ff] to-[#bd00ff] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold tracking-wide uppercase transition-all active:scale-95 cursor-pointer"
                                 >
-                                    Fixar na Tela
+                                    Fixar na Tela ({selectedPinnedGifts.length}/{MAX_PINNED_GIFTS})
                                 </button>
                                 <button
-                                    onClick={handleRemovePinnedGift}
-                                    disabled={!pinnedGift}
+                                    onClick={handleRemovePinnedGifts}
+                                    disabled={pinnedGifts.length === 0}
                                     className="h-10 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] disabled:opacity-40 disabled:cursor-not-allowed text-gray-300 text-xs font-semibold transition-all active:scale-95 cursor-pointer"
                                 >
                                     Remover

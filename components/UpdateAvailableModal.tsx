@@ -17,7 +17,7 @@ const UpdateAvailableModal: React.FC<UpdateAvailableModalProps> = ({ open, lates
     };
 
     return (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-6">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/35 p-6">
             <div className="w-full max-w-sm rounded-3xl bg-[#1C1F26] border border-white/[0.08] p-6 text-center shadow-2xl">
                 <div className="text-4xl mb-3">🚀</div>
                 <h2 className="text-lg font-bold text-white mb-1">

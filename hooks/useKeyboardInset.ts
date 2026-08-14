@@ -3,9 +3,28 @@ import { useEffect, useState } from 'react';
 // Cache da ÚLTIMA altura real do teclado (o mesmo aparelho costuma ter sempre
 // a mesma altura) — usado pela sequência de abertura TikTok-style: o campo de
 // mensagem sobe PRIMEIRO até essa altura e só depois o teclado abre por baixo.
+// 💾 Persistido em localStorage: mesmo se o WebView não reportar o teclado em
+// uma sessão, na PRÓXIMA abertura o app já sabe a altura exata (cola a barra
+// sem folga desde o primeiro frame).
+const LS_KEY = 'lastKnownKeyboardHeight';
 let lastKnownKeyboardH = 0;
+try {
+  lastKnownKeyboardH = Number(localStorage.getItem(LS_KEY) || 0) || 0;
+} catch { /* storage indisponível — segue com 0 */ }
 export function getLastKnownKeyboardHeight(): number {
   return lastKnownKeyboardH;
+}
+function persistKeyboardHeight(h: number): void {
+  if (h <= 0 || Math.abs(h - lastKnownKeyboardH) < 2) return;
+  lastKnownKeyboardH = h;
+  try {
+    localStorage.setItem(LS_KEY, String(h));
+  } catch { /* ignora */ }
+}
+// Exportado para o cola-corretor do composer também salvar a altura que mediu
+// (caso o useKeyboardInset nunca dispare neste WebView — próximo ciclo usa ela).
+export function rememberKeyboardHeight(h: number): void {
+  persistKeyboardHeight(h);
 }
 
 /**
@@ -96,7 +115,7 @@ export function useKeyboardInset(): KeyboardInsetState {
       // input no fundo "absorveria" a altura do teclado e daria 0 — o campo
       // ficaria coberto. O app usa containers fixos; o layout não rola.)
       const inset = Math.max(0, maxLayoutRef - Math.min(cur, vv.height));
-      if (inset > 0) lastKnownKeyboardH = inset;
+      if (inset > 0) persistKeyboardHeight(inset);
       // fixedBottom: onde a SONDA termina. Se termina abaixo do fundo visível
       // (navegador não auto-sobe → está atrás do teclado), o offset é a
       // distância até o fundo visível = altura do teclado. Se já termina no

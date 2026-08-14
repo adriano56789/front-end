@@ -149,7 +149,10 @@
       "zoomAdjustment": "Zoom Adjustment",
       "deleteAccount": "Delete Account",
       "language": "Language",
-      "logout": "Log Out"
+      "logout": "Log Out",
+      "streamPreview": "Show live previews",
+      "streamPreviewDesc": "Turn on to see streams playing directly on the cards, without entering the live.",
+      "streamPreviewSaved": "Preview preference updated."
     },
     "connected": {
         "title": "Connected Accounts",
@@ -214,7 +217,7 @@
     },
     "appVersion": {
         "title": "App version",
-        "current": "Your current version is 1.0.0 of livego",
+        "current": "Your current version",
         "latest": "Latest version",
         "status": "Status",
         "upToDate": "Up-to-date"

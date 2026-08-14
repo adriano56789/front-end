@@ -2,6 +2,7 @@
 // Implementação completa com WebGL para performance via GPU
 
 import { BabyFaceProcessor } from './BabyFaceProcessor';
+import { getVideoConstraints } from './cameraService';
 
 export interface VideoProcessorConfig {
   width: number;
@@ -16,8 +17,54 @@ export interface BeautyEffectSettings {
   saturation: number;        // Ruborizar (0-100)
   contrast: number;         // Contraste (0-100)
   babyFace: number;         // Rosto Bebê (0-100) — rejuvenesce o rosto
+  teethWhitening?: number;  // Boca — Clarear dentes (0-100)
+  lipFill?: number;         // Boca — Preenchimento labial (0-100)
+  lipAugment?: number;      // Boca — Aumentar lábios (0-100)
+  smileAdjust?: number;     // Boca — Ajuste de sorriso (0-100)
+  browThickness?: number;   // Sobrancelha — Espessura (0-100)
+  browCurve?: number;       // Sobrancelha — Curvatura (0-100)
+  browDefinition?: number;  // Sobrancelha — Definição (0-100)
+  wrinkleSmoothing?: number;// Rejuvenescimento — Suavizar rugas (0-100)
+  darkCircle?: number;      // Rejuvenescimento — Clarear olheiras (0-100)
+  noseRefine?: number;      // Modelagem — Refinar nariz (0-100, mesh MediaPipe)
+  jawChin?: number;         // Modelagem — Mandíbula/queixo V-line (0-100, mesh)
+  eyeRefine?: number;       // Modelagem — Refinamento de olhos (0-100, mesh)
+  browColor?: string;       // Sobrancelha — Cor (hex '#4a2c17', mesh)
+  browColorStrength?: number; // Sobrancelha — Intensidade da cor (0-100, mesh)
+  acneRemoval?: number;     // Rejuvenescimento — Remover manchas/acne (0-100)
+  shineReduction?: number;  // Rejuvenescimento — Reduzir brilho/matte (0-100)
+  whiteBalance?: number;    // Balanço de branco ~5400K (0-100) — tira o tom amarelo
   selectedFilter?: string;
 }
+
+// 🎨 FILTRO 2D PADRÃO aplicado JÁ NA ABERTURA da live (estilo Bigo/ti.live):
+// imagem clara e brilhante, rosto suave e natural, sem o tom amarelo feio.
+// Balanço de branco em ~5400K (whiteBalance 35) + brilho/contraste sutis.
+export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
+  whitening: 22,
+  smoothing: 12,
+  saturation: 6,
+  contrast: 5,
+  whiteBalance: 35,
+  babyFace: 30,
+  teethWhitening: 0,
+  lipFill: 0,
+  lipAugment: 0,
+  smileAdjust: 0,
+  browThickness: 0,
+  browCurve: 0,
+  browDefinition: 0,
+  wrinkleSmoothing: 25,
+  darkCircle: 25,
+  noseRefine: 0,
+  jawChin: 0,
+  eyeRefine: 0,
+  browColor: '',
+  browColorStrength: 0,
+  acneRemoval: 45,
+  shineReduction: 15,
+  selectedFilter: '',
+};
 
 export class VideoProcessor {
   private videoElement: HTMLVideoElement | null = null;
@@ -26,6 +73,11 @@ export class VideoProcessor {
   private stream: MediaStream | null = null;
   private processedStream: MediaStream | null = null;
   private processingVideoElement: HTMLVideoElement | null = null;
+
+  // 📷 Stream ORIGINAL da câmera (cru). Guardado para o preview poder exibir o
+  // stream processado (canvas WebGL) sem feedback loop: ao reinicializar, o
+  // processador amostra SEMPRE este stream cru, nunca o canvas processado.
+  private rawSourceStream: MediaStream | null = null;
   
   private animationId: number | null = null;
   private isProcessing = false;
@@ -41,11 +93,17 @@ export class VideoProcessor {
     resolution: WebGLUniformLocation | null;
     time: WebGLUniformLocation | null;
     beautySettings: WebGLUniformLocation | null;
+    beautySettings2: WebGLUniformLocation | null;
+    beautySettings3: WebGLUniformLocation | null;
+    beautySettings4: WebGLUniformLocation | null;
     featureSettings: WebGLUniformLocation | null;
   } = {
     resolution: null,
     time: null,
     beautySettings: null,
+    beautySettings2: null,
+    beautySettings3: null,
+    beautySettings4: null,
     featureSettings: null
   };
   
@@ -56,12 +114,29 @@ export class VideoProcessor {
     saturation: 0,
     contrast: 0,
     babyFace: 0,
+    teethWhitening: 0,
+    lipFill: 0,
+    lipAugment: 0,
+    smileAdjust: 0,
+    browThickness: 0,
+    browCurve: 0,
+    browDefinition: 0,
+    wrinkleSmoothing: 0,
+    darkCircle: 0,
+    noseRefine: 0,
+    jawChin: 0,
+    eyeRefine: 0,
+    browColor: '',
+    browColorStrength: 0,
+    acneRemoval: 0,
+    shineReduction: 0,
+    whiteBalance: 0,
     selectedFilter: ''
   };
 
   // Baby face (warp por landmarks MediaPipe)
   private babyFaceProcessor: BabyFaceProcessor | null = null;
-  private babyFaceActive = false;
+  private meshActive = false;
   
   private config: VideoProcessorConfig = {
     width: 1280,
@@ -81,6 +156,23 @@ export class VideoProcessor {
    */
   async initialize(videoElement: HTMLVideoElement): Promise<boolean> {
     try {
+      // 🔁 Se o pipeline já está ativo para a MESMA câmera (mesmo track id),
+      // NÃO recriar canvas/shader/stream — evita double-init (GoLive abre o
+      // filtro padrão e o painel chama de novo ao abrir). Se o srcObject mudou
+      // (troca de câmera), recria normalmente.
+      if (this.gl && this.processedStream) {
+        const curTrack = this.videoElement?.srcObject instanceof MediaStream
+          ? this.videoElement.srcObject.getVideoTracks()[0]?.id
+          : undefined;
+        const newTrack = videoElement.srcObject instanceof MediaStream
+          ? videoElement.srcObject.getVideoTracks()[0]?.id
+          : undefined;
+        if (curTrack !== undefined && curTrack === newTrack) {
+          console.log('✅ [VIDEO_PROCESSOR] Já inicializado para esta câmera — reutilizando pipeline');
+          return true;
+        }
+      }
+
       this.videoElement = videoElement;
       
       // Criar canvas para processamento
@@ -88,8 +180,13 @@ export class VideoProcessor {
       this.canvas.width = this.config.width;
       this.canvas.height = this.config.height;
       
-      // Inicializar WebGL
-      const gl = this.canvas.getContext('webgl') || this.canvas.getContext('experimental-webgl');
+      // Inicializar WebGL — alpha:false é OBRIGATÓRIO para o captureStream() do
+      // canvas não sair com TOM AMARELADO/esverdeado no WebRTC: canvas com canal
+      // alpha deixa o navegador aplicar uma composição/conversão de cor extra na
+      // track capturada (mismatch BT.601/BT.709). Com alpha:false o canvas é
+      // opaco e a cor chega intacta ao encoder.
+      const glAttribs: WebGLContextAttributes = { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false };
+      const gl = this.canvas.getContext('webgl', glAttribs) || this.canvas.getContext('experimental-webgl', glAttribs);
       if (!gl) {
         console.error('❌ [VIDEO_PROCESSOR] WebGL não suportado, fallback para Canvas 2D');
         return this.initializeCanvas2D();
@@ -109,12 +206,11 @@ export class VideoProcessor {
       // Obter stream original do vídeo
       this.stream = await this.getVideoStream();
 
-      // Garantir que o "Rosto Bebê" seja inicializado se já estiver ativo
-      if (this.beautySettings.babyFace && this.beautySettings.babyFace > 0) {
-        this.babyFaceActive = true;
+      // Garantir que o processamento por malha facial (Rosto Bebê / lábios / sobrancelha) seja iniciado se já estiver ativo
+      if (this.meshActive) {
         this.ensureBabyFace().then((ok) => {
           if (ok && this.babyFaceProcessor) {
-            this.babyFaceProcessor.setIntensity((this.beautySettings.babyFace || 0) / 100);
+            this.syncMeshParams();
           }
         });
       }
@@ -133,7 +229,9 @@ export class VideoProcessor {
    */
   private async initializeCanvas2D(): Promise<boolean> {
     try {
-      const ctx = this.canvas?.getContext('2d');
+      // alpha:false — mesmo motivo do WebGL: captureStream de canvas opaco
+      // evita o tom amarelado no WebRTC.
+      const ctx = this.canvas?.getContext('2d', { alpha: false });
       if (!ctx) {
         console.error('❌ [VIDEO_PROCESSOR] Canvas 2D não disponível');
         return false;
@@ -158,23 +256,51 @@ export class VideoProcessor {
       throw new Error('Elemento de vídeo não disponível');
     }
 
-    let sourceStream: MediaStream;
+    let sourceStream: MediaStream | null = null;
 
-    // Se o vídeo já tem um stream, usar ele
-    if (this.videoElement.srcObject instanceof MediaStream) {
-      sourceStream = this.videoElement.srcObject;
-    } else {
-      // Caso contrário, capturar da câmera
-      const constraints = {
-        video: {
-          width: { ideal: this.config.width },
-          height: { ideal: this.config.height },
-          frameRate: { ideal: this.config.fps }
-        },
+    // 🚫 NUNCA amostrar o canvas processado como fonte (feedback loop). Se o
+    // preview já mostra o stream processado, usar o stream ORIGINAL guardado.
+    if (this.rawSourceStream) {
+      const t = this.rawSourceStream.getVideoTracks()[0];
+      if (t && t.readyState === 'live') {
+        sourceStream = this.rawSourceStream;
+      }
+    }
+
+    // Se o vídeo tem um stream que NÃO é o nosso canvas processado, usar ele
+    if (!sourceStream && this.videoElement.srcObject instanceof MediaStream) {
+      const soTrack = this.videoElement.srcObject.getVideoTracks()[0];
+      const procTrack = this.processedStream?.getVideoTracks()[0] ?? null;
+      const isSelfCanvas = !!soTrack && !!procTrack && soTrack.id === procTrack.id;
+      if (!isSelfCanvas) {
+        sourceStream = this.videoElement.srcObject;
+      }
+    }
+
+    // Caso contrário, capturar da câmera
+    if (!sourceStream) {
+      // 📷 Resolução na orientação do aparelho (portrait no celular, 16:9 no
+      // desktop) — sem min/max que forcassem landscape e distorcessem o preview.
+      const tier1 = {
+        video: getVideoConstraints('user'),
         audio: true
       };
+      const tier2 = { video: true, audio: true };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(tier1);
+      } catch (err1) {
+        console.warn('[VIDEO_PROCESSOR] Constraints HD falharam, tentando sem restrição:', err1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(tier2);
+        } catch (err2) {
+          console.error('[VIDEO_PROCESSOR] Sem acesso à câmera:', err2);
+        }
+      }
+      if (!stream) {
+        throw new Error('Sem stream de câmera disponível');
+      }
 
       // Aplicar ao elemento de vídeo
       this.videoElement.srcObject = stream;
@@ -182,6 +308,9 @@ export class VideoProcessor {
 
       sourceStream = stream;
     }
+
+    // Guardar o stream cru para futuras reinicializações (troca de câmera)
+    this.rawSourceStream = sourceStream;
 
     // ⚠️ Criar um elemento de vídeo DEDICADO (oculto) alimentado pela track de vídeo
     // ORIGINAL. O WebGL/Canvas 2D deve amostrar SEMPRE a câmera original, nunca o
@@ -197,11 +326,32 @@ export class VideoProcessor {
       processingVideo.muted = true;
       processingVideo.playsInline = true;
       processingVideo.setAttribute('playsinline', '');
+      // 🚨 OBRIGATÓRIO anexar ao DOM: um <video> FORA do DOM não decodifica
+      // frames em vários navegadores/WebViews → o texImage2D do WebGL subia uma
+      // textura VAZIA e o canvas processado ficava PRETO na transmissão. Fica
+      // offscreen (posição fora da viewport), sem aparecer na tela.
+      processingVideo.style.position = 'fixed';
+      processingVideo.style.left = '-2000px';
+      processingVideo.style.top = '0';
+      processingVideo.style.width = '2px';
+      processingVideo.style.height = '2px';
+      processingVideo.style.opacity = '0';
+      processingVideo.style.pointerEvents = 'none';
+      processingVideo.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(processingVideo);
       processingVideo.srcObject = processingStream;
       await processingVideo.play().catch((e) => {
         console.warn('[VIDEO_PROCESSOR] Não foi possível reproduzir vídeo dedicado de processamento:', e);
       });
       this.processingVideoElement = processingVideo;
+
+      // 📏 Dimensionar o canvas para a resolução real da fonte ANTES do
+      // captureStream(). O canvas.captureStream() fixa a track na resolução do
+      // canvas NA HORA da captura; se o canvas ainda estiver 1280x720 (padrão) e
+      // só depois for redimensionado, várias WebViews mantêm a track 16:9 e o
+      // preview vira um ZOOM pesado do rosto em telas retrato ("colado no rosto").
+      await this.waitForVideoSize(processingVideo);
+      this.syncCanvasToSource();
     }
 
     return sourceStream;
@@ -218,9 +368,41 @@ export class VideoProcessor {
     if (this.processingVideoElement) {
       try {
         this.processingVideoElement.srcObject = null;
+        this.processingVideoElement.remove();
       } catch { /* ignore */ }
       this.processingVideoElement = null;
     }
+  }
+
+  /**
+   * Aguarda o elemento de vídeo de processamento reportar resolução nativa
+   * (videoWidth/videoHeight > 0). Algumas WebViews só decodificam o primeiro
+   * frame depois do play(); capturar o canvas antes disso resultaria em track
+   * com dimensões erradas (zoom no preview).
+   */
+  private waitForVideoSize(video: HTMLVideoElement): Promise<void> {
+    return new Promise((resolve) => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        resolve();
+        return;
+      }
+      const onLoaded = () => {
+        cleanup();
+        resolve();
+      };
+      const onTimeout = () => {
+        cleanup();
+        resolve();
+      };
+      const cleanup = () => {
+        video.removeEventListener('loadedmetadata', onLoaded);
+        video.removeEventListener('loadeddata', onLoaded);
+        clearTimeout(timeout);
+      };
+      video.addEventListener('loadedmetadata', onLoaded);
+      video.addEventListener('loadeddata', onLoaded);
+      const timeout = setTimeout(onTimeout, 4000);
+    });
   }
 
   /**
@@ -250,6 +432,9 @@ export class VideoProcessor {
       uniform vec2 u_resolution;
       uniform float u_time;
       uniform vec4 u_beautySettings; // x: whitening, y: smoothing, z: saturation, w: contrast
+      uniform vec4 u_beautySettings2; // x: teethWhitening, y: wrinkleSmoothing, z: darkCircle, w: browDefinition
+      uniform vec4 u_beautySettings3; // x: acneRemoval, y: shineReduction, z: reservado, w: reservado
+      uniform vec4 u_beautySettings4; // x: whiteBalance (balanço de branco ~5400K)
       uniform vec4 u_featureSettings; // x: featureActive, y: edgeStrength, z: preserveLips, w: preserveEyes
       
       varying vec2 v_texCoord;
@@ -404,6 +589,77 @@ export class VideoProcessor {
         return result / max(totalWeight, 0.001);
       }
       
+      // --- Detecção de dentes (para clareamento) ---
+      // Dentes: alta luminância, baixa saturação
+      float isTooth(vec3 rgb, vec3 hsv) {
+        float lum = luminance(rgb);
+        if (hsv.y < 0.28 && lum > 0.60 && lum < 0.98) return 1.0;
+        if (hsv.y < 0.40 && lum > 0.72 && lum < 0.98) return 0.55;
+        return 0.0;
+      }
+      
+      // --- Detecção de detalhe fino (rugas) ---
+      // Compara luminância dos vizinhos imediatos; rugas geram detalhe sem borda forte
+      float localDetail(vec2 uv, vec2 texelSize) {
+        float l = luminance(texture2D(u_texture, uv + vec2(-1.0, 0.0) * texelSize).rgb);
+        float r = luminance(texture2D(u_texture, uv + vec2(1.0, 0.0) * texelSize).rgb);
+        float u2 = luminance(texture2D(u_texture, uv + vec2(0.0, -1.0) * texelSize).rgb);
+        float d = luminance(texture2D(u_texture, uv + vec2(0.0, 1.0) * texelSize).rgb);
+        return abs(l - r) + abs(u2 - d);
+      }
+      
+      // --- Detecção de manchas/acne (separação de frequência) ---
+      // Manchas: pequenas áreas de PELE mais escuras ou avermelhadas que o
+      // ENTORNO imediato (limiar RELATIVO — funciona em qualquer tom de pele).
+      float spotScore(vec3 rgb, vec3 hsv, float skinProb, float eyeScore, float lipScore, float hairScore, vec2 uv, vec2 texelSize) {
+        float lum = luminance(rgb);
+        // Luminância/cor média da vizinhança imediata (raio 2 texels)
+        float localLum = 0.0;
+        float localR = 0.0;
+        int n = 0;
+        for (int x = -2; x <= 2; x++) {
+          for (int y = -2; y <= 2; y++) {
+            if (x == 0 && y == 0) continue;
+            vec2 off = uv + vec2(float(x), float(y)) * texelSize;
+            vec3 s = texture2D(u_texture, off).rgb;
+            localLum += luminance(s);
+            localR += s.r;
+            n++;
+          }
+        }
+        localLum /= float(n);
+        localR /= float(n);
+        // Escura RELATIVA ao entorno (a mancha é mais escura que a pele ao redor)
+        float darkSpot = clamp((localLum - lum) / 0.15, 0.0, 1.0);
+        // Avermelhada RELATIVA ao entorno (acne inflamada)
+        float redSpot = clamp((rgb.r - localR - 0.08) / 0.15, 0.0, 1.0) * step(0.10, rgb.g);
+        float score = max(darkSpot * 0.85, redSpot) * skinProb;
+        // Exclui sombras de contorno do rosto (borda forte) e features
+        score *= (1.0 - eyeScore) * (1.0 - lipScore) * (1.0 - hairScore);
+        // Exclui pixels quase pretos (sombra real, não mancha)
+        score *= step(0.03, lum);
+        return clamp(score, 0.0, 1.0);
+      }
+      
+      // --- Cor média da pele ao redor (baixa frequência) ---
+      // Soma um anel ao redor do pixel ponderado pela probabilidade de ser pele;
+      // substitui o pixel da mancha pela pele do entorno (clone-style Tencent).
+      vec3 skinLocalAverage(vec2 uv, vec2 texelSize, float radius) {
+        vec3 sum = vec3(0.0);
+        float weightSum = 0.0;
+        for (int i = 0; i < 8; i++) {
+          float ang = float(i) * 0.7853982; // 45° em radianos
+          vec2 off = uv + vec2(cos(ang), sin(ang)) * radius * texelSize;
+          vec3 s = texture2D(u_texture, off).rgb;
+          vec3 sh = rgb2hsv(s);
+          float w = skinProbability(s, sh);
+          sum += s * w;
+          weightSum += w;
+        }
+        if (weightSum < 0.01) return texture2D(u_texture, uv).rgb;
+        return sum / weightSum;
+      }
+      
       void main() {
         vec2 uv = v_texCoord;
         uv.y = 1.0 - uv.y;
@@ -418,6 +674,15 @@ export class VideoProcessor {
         float smoothing = u_beautySettings.y / 100.0;
         float saturationVal = u_beautySettings.z / 100.0;
         float contrastVal = u_beautySettings.w / 200.0;
+        
+        float teethWhitening = u_beautySettings2.x / 100.0;
+        float wrinkleSmoothing = u_beautySettings2.y / 100.0;
+        float darkCircle = u_beautySettings2.z / 100.0;
+        float browDefinition = u_beautySettings2.w / 100.0;
+        
+        float acneRemoval = u_beautySettings3.x / 100.0;
+        float shineReduction = u_beautySettings3.y / 100.0;
+        float whiteBalance = u_beautySettings4.x / 100.0;
         
         float featureActive = u_featureSettings.x; // 0=desligado, 1=ligado
         
@@ -461,6 +726,81 @@ export class VideoProcessor {
           result = mix(result, blurred, blendAmount);
         }
         
+        // Clareamento de dentes — pixels claros e dessaturados (dentes)
+        if (teethWhitening > 0.0) {
+          float toothScore = isTooth(result, rgb2hsv(result));
+          if (toothScore > 0.0) {
+            vec3 boost = (1.0 - result) * teethWhitening * 0.6 * toothScore;
+            result += boost;
+            float gray = luminance(result);
+            result = mix(result, vec3(gray), teethWhitening * 0.25 * toothScore);
+            result = clamp(result, 0.0, 1.0);
+          }
+        }
+        
+        // Suavização de rugas — blur extra onde há detalhe fino na pele
+        if (wrinkleSmoothing > 0.0 && skinMask > 0.01) {
+          float detail = localDetail(uv, texelSize);
+          // Rugas: detalhe médio (não borda forte de contorno)
+          float wrinkleMask = skinMask * detail * (1.0 - step(0.55, edgeScore)) * (1.0 - eyeScore) * (1.0 - lipScore);
+          if (wrinkleMask > 0.02) {
+            float blurRadius = wrinkleSmoothing * 1.8;
+            vec3 blurred = bilateralBlur(uv, texelSize, blurRadius, result);
+            float blend = wrinkleMask * wrinkleSmoothing * 0.9;
+            result = mix(result, blurred, blend);
+          }
+        }
+        
+        // Clareamento de olheiras — eleva a luminância de sombras escuras da pele
+        if (darkCircle > 0.0) {
+          float lum = luminance(result);
+          float shadowFactor = clamp((0.56 - lum) / 0.32, 0.0, 1.0);
+          float shadowMask = skinProb * shadowFactor * (1.0 - eyeScore) * (1.0 - hairScore) * (1.0 - lipScore);
+          if (shadowMask > 0.02) {
+            vec3 lightened = result + (vec3(0.40, 0.37, 0.35) - result) * 0.6;
+            result = mix(result, lightened, darkCircle * shadowMask * 1.5);
+          }
+        }
+        
+        // Definição de sobrancelha — escurece e dá contraste aos fios
+        if (browDefinition > 0.0) {
+          float lum = luminance(result);
+          float browMask = step(0.04, lum) * (1.0 - step(0.40, lum)) * (1.0 - step(0.50, hsv.y)) * (1.0 - hairScore);
+          if (browMask > 0.02) {
+            result = mix(result, result * 0.82, browDefinition * browMask * 0.6);
+            result = mix(result, result * (1.0 - edgeScore * 0.18), browDefinition * browMask * 0.8);
+          }
+        }
+        
+        // Remoção de manchas/acne — separação de frequência (estilo Tencent):
+        // detecta o ponto escuro/avermelhado e SUBSTITUI pela cor média da pele
+        // do entorno. O blur bilateral antigo PRESERVAVA a mancha (é uma borda
+        // pequena!) — por isso o defeito não saía do rosto.
+        if (acneRemoval > 0.0 && skinProb > 0.01) {
+          float spot = spotScore(result, hsv, skinProb, eyeScore, lipScore, hairScore, uv, texelSize);
+          if (spot > 0.03) {
+            float radius = 2.5 + acneRemoval * 2.0;
+            vec3 skinTone = skinLocalAverage(uv, texelSize, radius);
+            float blend = spot * acneRemoval * 0.95;
+            result = mix(result, skinTone, blend);
+          }
+        }
+        
+        // Redução de brilho (matte) — tira o reflexo especular da pele: áreas muito
+        // claras E dessaturadas (o brilho "estoura" o matiz da pele)
+        if (shineReduction > 0.0) {
+          float lum = luminance(result);
+          float highlight = clamp((lum - 0.58) / 0.26, 0.0, 1.0);
+          float lowSat = 1.0 - hsv.y;
+          float specMask = skinProb * highlight * lowSat * (1.0 - eyeScore) * (1.0 - lipScore) * (1.0 - hairScore);
+          if (specMask > 0.02) {
+            // Aproxima a cor do tom médio da pele (dessatura) e amacia o brilho
+            float gray = luminance(result);
+            result = mix(result, vec3(gray), specMask * shineReduction * 0.35);
+            result = mix(result, result * 0.86, specMask * shineReduction * 0.55);
+          }
+        }
+        
         // Saturação (ruborizar)
         if (saturationVal != 0.0) {
           float gray = luminance(result);
@@ -473,6 +813,15 @@ export class VideoProcessor {
         // Contraste
         if (contrastVal != 0.0) {
           result = (result - 0.5) * (1.0 + contrastVal) + 0.5;
+          result = clamp(result, 0.0, 1.0);
+        }
+        
+        // 🌡️ Balanço de branco ~5400K — tira o tom amarelo/laranja (diminui o
+        // vermelho e eleva levemente o azul), deixando cor de luz do dia.
+        if (whiteBalance > 0.0) {
+          result.r *= (1.0 - whiteBalance * 0.045);
+          result.g *= (1.0 + whiteBalance * 0.012);
+          result.b *= (1.0 + whiteBalance * 0.055);
           result = clamp(result, 0.0, 1.0);
         }
         
@@ -505,6 +854,9 @@ export class VideoProcessor {
     this.uniformLocations.resolution = this.gl.getUniformLocation(this.program, 'u_resolution');
     this.uniformLocations.time = this.gl.getUniformLocation(this.program, 'u_time');
     this.uniformLocations.beautySettings = this.gl.getUniformLocation(this.program, 'u_beautySettings');
+    this.uniformLocations.beautySettings2 = this.gl.getUniformLocation(this.program, 'u_beautySettings2');
+    this.uniformLocations.beautySettings3 = this.gl.getUniformLocation(this.program, 'u_beautySettings3');
+    this.uniformLocations.beautySettings4 = this.gl.getUniformLocation(this.program, 'u_beautySettings4');
     this.uniformLocations.featureSettings = this.gl.getUniformLocation(this.program, 'u_featureSettings');
     
     return true;
@@ -568,6 +920,16 @@ export class VideoProcessor {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    
+    // 🎨 NÃO deixar o WebGL converter o espaço de cor do vídeo novamente ao
+    // subir a textura. O <video> já entrega RGB (sRGB); com BROWSER_DEFAULT o
+    // browser pode aplicar uma 2ª conversão e a track do canvas.captureStream()
+    // sai com TOM AMARELADO/esverdeado no WebRTC (mismatch YUV→RGB BT.601/709).
+    try {
+      this.gl.pixelStorei(this.gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, this.gl.NONE);
+    } catch (e) {
+      // UNPACK_COLORSPACE_CONVERSION_WEBGL não existe em alguns contextos antigos
+    }
   }
 
   /**
@@ -586,6 +948,11 @@ export class VideoProcessor {
       this.startCanvas2DProcessing();
     }
     
+    // 📏 Garantir que o canvas já esteja na proporção da fonte antes de capturar
+    // (redundante com o waitForVideoSize do getVideoStream, mas cobre o caso do
+    // fallback Canvas 2D e do restartProcessing).
+    this.syncCanvasToSource();
+    
     // Criar stream processado do canvas
     this.processedStream = this.canvas!.captureStream(this.config.fps);
     
@@ -599,6 +966,31 @@ export class VideoProcessor {
     
     console.log('✅ [VIDEO_PROCESSOR] Processamento iniciado');
     return this.processedStream;
+  }
+
+  /**
+   * 📏 Sincroniza o canvas com a resolução NATIVA da câmera PRESERVANDO a
+   * proporção (aspect ratio). O cap antigo limitava width E height de forma
+   * INDEPENDENTE (1280/720): uma câmera portrait 1080x1920 virava 1080x720 e
+   * uma 720x1280 virava 720x720 — esmagando o rosto e deixando o preview
+   * "estranho". Agora escala mantendo a proporção até caber em 1280x720 no
+   * maior lado (portrait → 405x720, landscape → 1280x720). Redimensiona só
+   * quando a fonte muda de tamanho (evita re-alocação desnecessária).
+   */
+  private syncCanvasToSource(): void {
+    if (!this.canvas) return;
+    const src = this.getVideoSource() as any;
+    const vw = src?.videoWidth ?? 0;
+    const vh = src?.videoHeight ?? 0;
+    if (!vw || !vh) return;
+    const maxW = 1280, maxH = 1280;
+    const scale = Math.min(1, maxW / vw, maxH / vh);
+    const w = Math.max(2, Math.round(vw * scale));
+    const h = Math.max(2, Math.round(vh * scale));
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
   }
 
   /**
@@ -622,6 +1014,10 @@ export class VideoProcessor {
     const render = () => {
       if (!this.isProcessing) return;
       
+      // 📏 Canvas acompanha a resolução nativa da câmera (cap 720p, casa com o
+      // bitrate de publicação) — sem upscale borrado de 640x480.
+      this.syncCanvasToSource();
+      
       // Limpar canvas
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -629,14 +1025,14 @@ export class VideoProcessor {
       // Usar programa
       gl.useProgram(program);
       
-      // Atualizar textura do vídeo (com warp de "Rosto Bebê" se ativo)
+      // Atualizar textura do vídeo (com warp de malha facial se ativo)
       gl.bindTexture(gl.TEXTURE_2D, videoTexture);
       let imageSource: TexImageSource = this.getVideoSource() as TexImageSource;
       if (!imageSource) {
         this.animationId = requestAnimationFrame(render);
         return;
       }
-      if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
+      if (this.meshActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
         const warped = this.babyFaceProcessor.render();
         if (warped) imageSource = warped;
       }
@@ -658,6 +1054,39 @@ export class VideoProcessor {
           this.beautySettings.smoothing,
           this.beautySettings.saturation,
           this.beautySettings.contrast
+        );
+      }
+      
+      const uBeauty2 = uniformLocs.beautySettings2;
+      if (uBeauty2) {
+        gl.uniform4f(
+          uBeauty2,
+          this.beautySettings.teethWhitening || 0,
+          this.beautySettings.wrinkleSmoothing || 0,
+          this.beautySettings.darkCircle || 0,
+          this.beautySettings.browDefinition || 0
+        );
+      }
+      
+      const uBeauty3 = uniformLocs.beautySettings3;
+      if (uBeauty3) {
+        gl.uniform4f(
+          uBeauty3,
+          this.beautySettings.acneRemoval || 0,
+          this.beautySettings.shineReduction || 0,
+          0,
+          0
+        );
+      }
+      
+      const uBeauty4 = uniformLocs.beautySettings4;
+      if (uBeauty4) {
+        gl.uniform4f(
+          uBeauty4,
+          this.beautySettings.whiteBalance || 0,
+          0,
+          0,
+          0
         );
       }
       
@@ -702,13 +1131,16 @@ export class VideoProcessor {
     const render = () => {
       if (!this.isProcessing) return;
 
-      // Com "Rosto Bebê" ativo, usa o frame warpeado como base
+      // 📏 Canvas acompanha a resolução nativa da câmera (cap 720p)
+      this.syncCanvasToSource();
+
+      // Com malha facial ativa, usa o frame warpeado como base
       let imageSource: CanvasImageSource | null = this.getVideoSource();
       if (!imageSource) {
         this.animationId = requestAnimationFrame(render);
         return;
       }
-      if (this.babyFaceActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
+      if (this.meshActive && this.babyFaceProcessor && this.babyFaceProcessor.isReady()) {
         const warped = this.babyFaceProcessor.render();
         if (warped) imageSource = warped;
       }
@@ -750,6 +1182,26 @@ export class VideoProcessor {
       filters.push(`contrast(${1 + this.beautySettings.contrast / 200})`);
     }
     
+    if ((this.beautySettings.teethWhitening || 0) > 0) {
+      filters.push(`brightness(${1 + (this.beautySettings.teethWhitening || 0) / 300})`);
+    }
+    
+    if ((this.beautySettings.darkCircle || 0) > 0) {
+      filters.push(`brightness(${1 + (this.beautySettings.darkCircle || 0) / 500})`);
+    }
+    
+    if ((this.beautySettings.browDefinition || 0) > 0) {
+      filters.push(`contrast(${1 + (this.beautySettings.browDefinition || 0) / 400})`);
+    }
+    
+    if ((this.beautySettings.acneRemoval || 0) > 0) {
+      filters.push(`blur(${Math.min((this.beautySettings.acneRemoval || 0) / 220, 0.8)}px)`);
+    }
+    
+    if ((this.beautySettings.shineReduction || 0) > 0) {
+      filters.push(`brightness(${1 - (this.beautySettings.shineReduction || 0) / 600}) saturate(${1 - (this.beautySettings.shineReduction || 0) / 900})`);
+    }
+    
     return filters.join(' ') || 'none';
   }
 
@@ -760,29 +1212,98 @@ export class VideoProcessor {
     this.beautySettings = { ...this.beautySettings, ...settings };
     this.syncNativeBeautySettings();
 
-    const babyFace = this.beautySettings.babyFace || 0;
-    this.babyFaceActive = babyFace > 0;
-    if (this.babyFaceActive) {
+    this.meshActive = this.computeMeshActive();
+    if (this.meshActive) {
       this.ensureBabyFace().then((ok) => {
         if (ok && this.babyFaceProcessor) {
-          this.babyFaceProcessor.setIntensity(babyFace / 100);
+          this.syncMeshParams();
         }
       });
     } else if (this.babyFaceProcessor) {
-      this.babyFaceProcessor.setIntensity(0);
+      this.babyFaceProcessor.setParams({
+        babyFace: 0,
+        lipFill: 0,
+        lipAugment: 0,
+        smileAdjust: 0,
+        browThickness: 0,
+        browCurve: 0,
+        noseRefine: 0,
+        jawChin: 0,
+        eyeRefine: 0,
+        browColor: '',
+        browColorStrength: 0
+      });
     }
   }
 
   /**
-   * Inicializar (lazy) o processador de "Rosto Bebê" com MediaPipe
+   * Verifica se algum efeito precisa da malha facial (MediaPipe)
+   */
+  private computeMeshActive(): boolean {
+    return (this.beautySettings.babyFace || 0) > 0
+      || (this.beautySettings.lipFill || 0) > 0
+      || (this.beautySettings.lipAugment || 0) > 0
+      || (this.beautySettings.smileAdjust || 0) > 0
+      || (this.beautySettings.browThickness || 0) > 0
+      || (this.beautySettings.browCurve || 0) > 0
+      || (this.beautySettings.noseRefine || 0) > 0
+      || (this.beautySettings.jawChin || 0) > 0
+      || (this.beautySettings.eyeRefine || 0) > 0
+      || (this.beautySettings.browColorStrength || 0) > 0;
+  }
+
+  /**
+   * Repassa os efeitos de malha para o processador facial
+   */
+  private syncMeshParams(): void {
+    if (!this.babyFaceProcessor) return;
+    this.babyFaceProcessor.setParams({
+      babyFace: (this.beautySettings.babyFace || 0) / 100,
+      lipFill: (this.beautySettings.lipFill || 0) / 100,
+      lipAugment: (this.beautySettings.lipAugment || 0) / 100,
+      smileAdjust: (this.beautySettings.smileAdjust || 0) / 100,
+      browThickness: (this.beautySettings.browThickness || 0) / 100,
+      browCurve: (this.beautySettings.browCurve || 0) / 100,
+      noseRefine: (this.beautySettings.noseRefine || 0) / 100,
+      jawChin: (this.beautySettings.jawChin || 0) / 100,
+      eyeRefine: (this.beautySettings.eyeRefine || 0) / 100,
+      browColor: this.beautySettings.browColor || '',
+      browColorStrength: (this.beautySettings.browColorStrength || 0) / 100
+    });
+  }
+
+  /**
+   * 🔥 Pré-carrega o MediaPipe Face Landmarker (wasm + modelo) o mais cedo
+   * possível, para o Rosto Bebê/nariz/olhos/mandíbula começarem a funcionar na
+   * hora. Com retry: se a 1ª carga falhar, o BabyFaceProcessor limpa o
+   * initPromise e uma chamada seguinte tenta de novo.
+   */
+  async warmUpMesh(): Promise<boolean> {
+    try {
+      if (!this.babyFaceProcessor) {
+        this.babyFaceProcessor = new BabyFaceProcessor();
+      }
+      return await this.babyFaceProcessor.preload();
+    } catch (error) {
+      console.error('❌ [VIDEO_PROCESSOR] Falha no warm-up do mesh:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Inicializar (lazy) o processador de malha facial com MediaPipe
    */
   private async ensureBabyFace(): Promise<boolean> {
+    // 🎥 Amostra SEMPRE o vídeo DEDICADO de processamento (câmera crua), nunca o
+    // elemento de preview — se o preview mostrar o stream processado (canvas),
+    // amostrar ele criaria feedback loop (canvas de canvas).
+    const sampleVideo = this.processingVideoElement || this.videoElement;
+    if (!sampleVideo) return false;
     if (this.babyFaceProcessor) {
-      return this.babyFaceProcessor.isReady() || this.babyFaceProcessor.initialize(this.videoElement!);
+      return this.babyFaceProcessor.isReady() || this.babyFaceProcessor.initialize(sampleVideo);
     }
-    if (!this.videoElement) return false;
     this.babyFaceProcessor = new BabyFaceProcessor();
-    return this.babyFaceProcessor.initialize(this.videoElement);
+    return this.babyFaceProcessor.initialize(sampleVideo);
   }
 
   private syncNativeBeautySettings(): void {
@@ -806,6 +1327,23 @@ export class VideoProcessor {
   }
 
   /**
+   * 🔄 Reiniciar o processamento com um NOVO elemento de vídeo/câmera (ex.: após
+   * trocar de câmera frontal/traseira). Mantém as configurações de beleza atuais
+   * e devolve um stream processado novo apontando para a câmera nova.
+   */
+  async restartProcessing(videoElement: HTMLVideoElement): Promise<MediaStream | null> {
+    try {
+      this.stopProcessing();
+      const ok = await this.initialize(videoElement);
+      if (!ok) return null;
+      return this.startProcessing();
+    } catch (e) {
+      console.error('❌ [VIDEO_PROCESSOR] Erro ao reiniciar processamento:', e);
+      return null;
+    }
+  }
+
+  /**
    * Parar processamento
    */
   stopProcessing(): void {
@@ -822,7 +1360,19 @@ export class VideoProcessor {
     }
     
     if (this.babyFaceProcessor) {
-      this.babyFaceProcessor.setIntensity(0);
+      this.babyFaceProcessor.setParams({
+        babyFace: 0,
+        lipFill: 0,
+        lipAugment: 0,
+        smileAdjust: 0,
+        browThickness: 0,
+        browCurve: 0,
+        noseRefine: 0,
+        jawChin: 0,
+        eyeRefine: 0,
+        browColor: '',
+        browColorStrength: 0
+      });
     }
     
     console.log('⏹️ [VIDEO_PROCESSOR] Processamento parado');
@@ -865,12 +1415,13 @@ export class VideoProcessor {
     this.videoElement = null;
     this.canvas = null;
     this.gl = null;
+    this.rawSourceStream = null;
     
     if (this.babyFaceProcessor) {
       this.babyFaceProcessor.destroy();
       this.babyFaceProcessor = null;
     }
-    this.babyFaceActive = false;
+    this.meshActive = false;
     
     this.cleanupProcessingVideo();
     

@@ -169,7 +169,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
     // Buscar fâs reais do banco de dados (enviaram presentes)
     useEffect(() => {
         let isMounted = true;
-        api.getRankingForPeriod('monthly', user.id)
+        api.getRankingForPeriod('monthly', user.id, 'fans')
             .then(data => {
                 if (isMounted) {
                     setRealTopFans(data || []);

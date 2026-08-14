@@ -40,8 +40,10 @@ export default function LivePlayer({
       // 1. Register with streamPublishService so we get the mirrored style classes and state updates
       streamPublishService.registerVideoRef(videoRef);
 
-      // 2. Fetch and assign the current stream
-      const localStream = streamPublishService.getCurrentStream();
+      // 2. Fetch and assign the current stream — 🎨 PREFERE o stream processado
+      // (WebGL com beleza) quando disponível, para o host ver os efeitos na live.
+      const localStream = streamPublishService.getBeautyProcessedStream()
+        || streamPublishService.getCurrentStream();
       if (localStream) {
         video.srcObject = localStream;
         video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local:', e));
@@ -51,7 +53,8 @@ export default function LivePlayer({
       // Check periodically in case stream wasn't ready on first mount
       const checkInterval = setInterval(() => {
         if (video.srcObject) return;
-        const currentLocal = streamPublishService.getCurrentStream();
+        const currentLocal = streamPublishService.getBeautyProcessedStream()
+          || streamPublishService.getCurrentStream();
         if (currentLocal) {
           video.srcObject = currentLocal;
           video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local (retrying):', e));

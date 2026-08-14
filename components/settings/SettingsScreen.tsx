@@ -18,6 +18,7 @@ import CopyrightScreen from './CopyrightScreen';
 import DeleteAccountScreen from './DeleteAccountScreen';
 import { useTranslation } from '../../i18n';
 import { User, Gift, ToastType } from '../../types';
+import { api } from '../../services/api';
 
 // Custom, highly polished SVG icons matching the screenshot's precise thin-line design
 const CustomLinkIcon = () => (
@@ -92,6 +93,13 @@ const CustomTrashIcon = () => (
     </svg>
 );
 
+const CustomPlayIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+        <rect x="2" y="4" width="20" height="16" rx="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M10 9.5l4.5 2.5-4.5 2.5v-5z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 interface SettingsListItemProps {
     label: string; 
     icon: React.ReactNode; 
@@ -118,8 +126,56 @@ const SettingsListItem: React.FC<SettingsListItemProps> = ({ label, icon, onClic
     </button>
 );
 
-const MainSettingsPage: React.FC<{ navigateTo: (page: string) => void; onLogout: () => void; onOpenLanguageModal: () => void; }> = ({ navigateTo, onLogout, onOpenLanguageModal }) => {
+interface CustomSwitchProps {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    id: string;
+}
+
+const CustomSwitch: React.FC<CustomSwitchProps> = ({ checked, onChange, id }) => {
+    return (
+        <button
+            id={id}
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 ease-in-out outline-none focus:outline-none ${
+                checked 
+                    ? 'bg-[#00DADE] shadow-[0_0_12px_rgba(0,218,222,0.65)]' 
+                    : 'bg-[#3E4146] border border-white/[0.02]'
+            }`}
+        >
+            <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.35)] transition duration-300 ease-in-out ${
+                    checked ? 'translate-x-[24px]' : 'translate-x-[4px]'
+                }`}
+            />
+        </button>
+    );
+};
+
+const MainSettingsPage: React.FC<{ navigateTo: (page: string) => void; onLogout: () => void; onOpenLanguageModal: () => void; currentUser: User; updateUser: (user: User) => void; addToast: (type: ToastType, message: string) => void; }> = ({ navigateTo, onLogout, onOpenLanguageModal, currentUser, updateUser, addToast }) => {
     const { t } = useTranslation();
+
+    const handleToggleStreamPreview = async () => {
+        const newVal = !(currentUser.streamPreviewEnabled ?? false);
+        const originalUser = { ...currentUser };
+        updateUser({ ...currentUser, streamPreviewEnabled: newVal });
+        try {
+            const { success, user } = await api.updateProfile(currentUser.id, { streamPreviewEnabled: newVal });
+            if (success && user) {
+                updateUser(user);
+                addToast(ToastType.Success, t('settings.main.streamPreviewSaved') || 'Preferência de prévia atualizada.');
+            } else {
+                throw new Error('Falha ao atualizar preferência de prévia.');
+            }
+        } catch (error) {
+            updateUser(originalUser);
+            addToast(ToastType.Error, (error as Error).message);
+        }
+    };
 
     const menuItems = [
         { icon: <CustomLinkIcon />, label: t('settings.main.connectedAccounts'), action: () => navigateTo('connected_accounts') },
@@ -139,6 +195,30 @@ const MainSettingsPage: React.FC<{ navigateTo: (page: string) => void; onLogout:
         <>
             <div className="flex-grow overflow-y-auto no-scrollbar pt-2">
                 <div className="space-y-0.5">
+                    {/* Mostrar prévia das transmissões — toggle direto nas configurações */}
+                    <div className="flex items-start justify-between w-full px-5 py-4 bg-transparent">
+                        <div className="flex items-start space-x-4">
+                            <div className="w-5 h-5 flex items-center justify-center text-gray-300 mt-0.5">
+                                <CustomPlayIcon />
+                            </div>
+                            <div className="flex flex-col pr-4">
+                                <span className="text-[15px] font-normal tracking-wide text-white leading-snug">
+                                    {t('settings.main.streamPreview') || 'Mostrar prévia das transmissões'}
+                                </span>
+                                <span className="text-[13px] text-zinc-500 mt-1 leading-snug font-light">
+                                    {t('settings.main.streamPreviewDesc') || 'Ative para ver a transmissão passando direto nos cards, sem precisar entrar na live.'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex-shrink-0 pt-0.5">
+                            <CustomSwitch
+                                id="switch_stream_preview"
+                                checked={currentUser.streamPreviewEnabled ?? false}
+                                onChange={handleToggleStreamPreview}
+                            />
+                        </div>
+                    </div>
+
                     {menuItems.map((item) => (
                         <SettingsListItem 
                             key={item.label}
@@ -209,7 +289,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose, currentUser, g
             case 'delete_account': 
                 return <DeleteAccountScreen onBack={() => setPage('main')} onDelete={onDeleteAccount} />;
             default:
-                return <MainSettingsPage navigateTo={navigateTo} onLogout={onLogout} onOpenLanguageModal={onOpenLanguageModal} />;
+                return <MainSettingsPage navigateTo={navigateTo} onLogout={onLogout} onOpenLanguageModal={onOpenLanguageModal} currentUser={currentUser} updateUser={updateUser} addToast={addToast} />;
         }
     };
     

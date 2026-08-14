@@ -653,7 +653,13 @@ export default function PKBattleScreen({
     const handleToggleMicrophone = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isBroadcaster) return;
-        await api.toggleMicrophone(streamer.id);
+        const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
+        try {
+            await api.toggleMicrophone(streamer.id);
+            updateLiveSession({ isMicrophoneMuted: newMicState });
+        } catch (err) {
+            console.warn('[PKBattle] toggleMicrophone erro:', err);
+        }
     };
 
     const handleToggleSound = async (e: React.MouseEvent) => {
@@ -666,8 +672,15 @@ export default function PKBattleScreen({
             });
             return;
         }
-        addToast(ToastType.Info, !(liveSession?.isStreamMuted) ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
-        await api.toggleStreamSound(streamer.id);
+        const newSoundState = !(liveSession?.isStreamMuted ?? false);
+        try {
+            await api.toggleStreamSound(streamer.id);
+            updateLiveSession({ isStreamMuted: newSoundState });
+            addToast(ToastType.Info, newSoundState ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
+        } catch (err) {
+            console.warn('[PKBattle] toggleStreamSound erro:', err);
+            addToast(ToastType.Error, 'Falha ao alternar o áudio da live.');
+        }
     };
 
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -728,6 +741,8 @@ export default function PKBattleScreen({
         const newAutoInviteState = !isAutoPrivateInviteEnabled;
         try {
             await api.toggleAutoPrivateInvite(streamer.id, newAutoInviteState);
+            setIsAutoPrivateInviteEnabled(newAutoInviteState);
+            updateLiveSession({ isAutoPrivateInviteEnabled: newAutoInviteState });
             addToast(ToastType.Success, newAutoInviteState ? 'Convite automático ativado.' : 'Convite automático desativado.');
         } catch (error) {
             addToast(ToastType.Error, "Falha ao alterar a configuração.");
