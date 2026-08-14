@@ -15,21 +15,31 @@ interface GiftLottiePlayerProps {
   onLoadError?: () => void;
 }
 
-// 📐 Proporção nativa dos JSON exportados (750×1624) — usada para dimensionar
-// o container sem distorção (mesma geometria dos mp4 VAP).
+// 📐 Proporção nativa dos JSON exportados (750×1624 para os convertidos de VAP
+// e o Coração; Foguete 750×1624; Caixa de Música 1500×1334) — usada para
+// dimensionar o container sem distorção. Os novos gifts (conversão
+// vap2lottie) usam 375×812 (metade da resolução, para caber o pacote).
 const GIFT_LOTTIE_DIMENSIONS: Record<string, { w: number; h: number }> = {
   'Foguete': { w: 750, h: 1624 },
   'Caixa de Música': { w: 1500, h: 1334 },
   'Coração': { w: 750, h: 1624 },
+  'Rosa': { w: 375, h: 812 },
+  'Pirulito': { w: 375, h: 812 },
+  'Planta': { w: 375, h: 812 },
+  'Sorvete': { w: 375, h: 812 },
+  'Anel': { w: 375, h: 812 },
+  'Champanhe': { w: 375, h: 812 },
+  'Caixa de Presente Rosa': { w: 375, h: 812 },
+  'Meu coração palpita por você': { w: 375, h: 812 },
+  'Asas de Anjo': { w: 375, h: 812 },
 };
 
-// 🎨 Presentes LOTTIE cujos FRAMES são OPAÇOS — fundo PRETO embutido no frame
-// (webp yuv420p sem canal alfa — Caixa de Música e Coração vieram de pacotes
-// .lottie exportados sem transparência). O lottie-web renderiza o frame
-// inteiro, então aplicamos `mix-blend-mode: screen` no container: o preto
-// some sobre a transmissão (blend aditivo) e só o conteúdo brilhante aparece
-// — mesma técnica de animações de gift sobre vídeo. Nada de WebGL/mp4.
-const SCREEN_BLEND_GIFTS = new Set(['Caixa de Música', 'Coração']);
+// 🎨 Presentes LOTTIE com TRANSPARÊNCIA REAL: os frames (webps) agora embutem
+// canal alfa (fundo preto removido com ffmpeg colorkey na origem) — o
+// lottie-web renderiza direto com transparência sobre a transmissão, sem
+// depender de `mix-blend-mode: screen` (que FALHA sobre <video> em iOS/WebView
+// e exibia uma caixa escura com o presente). Nada de WebGL/mp4.
+const SCREEN_BLEND_GIFTS = new Set<string>();
 
 // 🔊 O lottie-web NÃO toca áudio por padrão: sem `audioFactory` ele usa um stub
 // mudo. Este factory devolve um wrapper sobre um <Audio> REAL, que reproduz o
@@ -206,8 +216,8 @@ const GiftLottiePlayer: React.FC<GiftLottiePlayerProps> = ({ url, giftName, onDu
           maxWidth: '90vw',
           maxHeight: '72vh',
           aspectRatio: `${dims.w} / ${dims.h}`,
-          // 🎨 Fundo preto embutido nos frames (Caixa de Música/Coração) some
-          // com blend screen — só a animação aparece, sem parecer vídeo.
+          // 🎨 Frames com alfa REAL (webp com transparência) → aparecem limpos
+          // sobre a transmissão, sem blend mode.
           mixBlendMode: SCREEN_BLEND_GIFTS.has(giftName) ? 'screen' : undefined,
           animation: 'gift-lottie-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           willChange: 'transform, opacity',

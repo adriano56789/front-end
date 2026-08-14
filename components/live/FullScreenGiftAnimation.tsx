@@ -2,18 +2,16 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { GiftPayload } from './GiftAnimationOverlay';
 import { Gift } from '../../types';
-import GiftVapPlayer from './GiftVapPlayer';
 import GiftLottiePlayer from './GiftLottiePlayer';
 import { preloadLottieJson } from '../../services/LottiePreloader';
 import { giftCacheService } from '../../services/GiftCacheService';
-import { getAnimationUrl } from '../../services/GiftAnimationUrls';
 
-// ⏱ Duração REAL de cada arquivo de animação (medida com ffprobe):
-//   Rosa de Cristal   (rosa_cristal.mp4)   = 5.000s
-//   Champanhe Dourada (champanhe_dourado.mp4) = 4.033s
-//   Anel de Ouro      (anel_de_ouro.mp4)   = 4.367s
-// Usado como fallback quando a duração real ainda não foi carregada pelo
-// metadata do vídeo (o tempo exato sempre vem do arquivo em execução).
+// ⏱ Duração REAL de cada animação (medida com ffprobe no mp4 original e
+// conferida no JSON Lottie):
+//   Rosa de Cristal   = 5.000s
+//   Champanhe Dourada = 4.033s
+//   Anel de Ouro      = 4.367s
+// Usado como fallback quando a duração real ainda não veio do onDuration do Lottie.
 const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
     'Coração': 4033,
     'Rosa': 5000,
@@ -29,29 +27,26 @@ const GIFT_ANIMATION_DURATIONS_MS: Record<string, number> = {
     'Asas de Anjo': 8000,
 };
 
-// 🎞️ APENAS estes presentes têm animação mp4 real (arquivos na pasta
-// public/animations). NÃO usar getAnimationUrl genérico: ele também cobre
-// outros gifts (.webm de /uploads/animations) que NÃO devem ir para o
-// caminho de canvas — eles mantêm o efeito de partículas/ícone atual.
-// Coração e Caixa de Música ficam FORA da lista de VAP: usam só o Lottie
-// (e se o lottie falhar caem no ícone animado — nunca no VAP/vídeo).
-const GIFT_ANIMATION_NAMES = new Set(['Rosa', 'Pirulito', 'Planta', 'Sorvete', 'Anel', 'Champanhe', 'Caixa de Presente Rosa', 'Meu coração palpita por você', 'Foguete', 'Asas de Anjo']);
-
-// 🎞️ Presentes renderizados via LOTTIE (JSON direto no navegador — sem mp4):
-// o foguete.json (pacote ZEGO 火箭, 750×1624, 25fps, 100 frames = 4000ms) é
-// carregado pelo lottie-web em SVG; imagens (img_*.png) e som (aud_0.mp3) são
-// arquivos externos no MESMO diretório do .json.
-// O Coração usa o coracao.json extraído do pacote .lottie (750×1624, 30fps,
-// 121 imagens webp = 4.033s) — sem camada de áudio, sem VAP de fallback.
-// A Caixa de Música usa o musicbox.json (1500×1334, 30fps, 212 webps). Os
-// frames são OPAÇOS (fundo preto embutido, yuv420p sem alfa) — por isso o
-// GiftLottiePlayer aplica `mix-blend-mode: screen` (o preto some sobre a
-// transmissão, deixando SÓ a animação — sem parecer vídeo, sem WebGL). A
-// melodia própria (gift-musicbox.mp3) toca em separado.
+// 🎞️ TODOS os presentes com animação são renderizados via LOTTIE (JSON + frames
+// webp com TRANSPARÊNCIA REAL, direto no navegador) — SEM mp4 e SEM <video> no
+// evento de presente. Os 9 gifts VAP (mp4 side-by-side) foram convertidos para
+// sequência webp 375×812 + JSON no formato lfvideo2lottie (via
+// scripts/vap2lottie.mjs), no mesmo padrão do Coração. O Foguete (vetorial
+// ZEGO), Coração e Caixa de Música continuam como estavam.
+// Se o Lottie falhar, o presente cai DIRETO no ícone/partículas — NUNCA em vídeo.
 const GIFT_LOTTIE_URLS: Record<string, string> = {
     'Foguete': '/animations/foguete.json',
     'Coração': '/animations/coracao.json',
     'Caixa de Música': '/animations/musicbox.json',
+    'Rosa': '/animations/rosa.json',
+    'Pirulito': '/animations/pirulito.json',
+    'Planta': '/animations/planta.json',
+    'Sorvete': '/animations/sorvete.json',
+    'Anel': '/animations/anel.json',
+    'Champanhe': '/animations/champanhe.json',
+    'Caixa de Presente Rosa': '/animations/caixa_presente_rosa.json',
+    'Meu coração palpita por você': '/animations/meu_coracao_palpita.json',
+    'Asas de Anjo': '/animations/asas_anjo.json',
 };
 
 // 🚀 Pré-carrega o JSON do Foguete assim que este módulo é importado (quando a
@@ -60,10 +55,6 @@ const GIFT_LOTTIE_URLS: Record<string, string> = {
 Object.values(GIFT_LOTTIE_URLS).forEach(preloadLottieJson);
 
 const isLottieGift = (gift: Gift): boolean => Boolean(GIFT_LOTTIE_URLS[gift.name]);
-
-const hasRealAnimationFile = (gift: Gift): boolean => {
-    return GIFT_ANIMATION_NAMES.has(gift.name);
-};
 
 // Helper para classes de animação CSS
 const getAnimationClass = (gift: Gift): string => {
@@ -220,30 +211,22 @@ const MusicNotesOverlay: React.FC = () => {
 };
 
 /**
- * 🎞️ Player de animação de presente com TRANSPARÊNCIA REAL (VAP da Tencent).
- *
- * Os mp4 de presentes embutem o canal ALPHA no próprio frame: conteúdo RGB na
- * metade superior e a máscara (escala de cinza) na metade inferior. O HTML5
- * player não reconstrói essa transparência — por isso o GiftVapPlayer desenha a
- * animação num <canvas> WebGL com o shader do VAP (amostra rgbFrame + aFrame e
- * emite vec4(rgb, alpha)), deixando o fundo preto invisível sobre a transmissão
- * (mesmo efeito de TikTok Live / Bigo Live). O <video> fica OCULTO no DOM —
- * nenhum player aparece na tela.
- *
- * Reporta a duração REAL do arquivo via onDuration (loadedmetadata) para que o
- * timer de encerramento seja exatamente o tempo do vídeo.
+ * 🎞️ Animação de presente 100% via LOTTIE (JSON + frames webp com
+ * TRANSPARÊNCIA REAL direto no navegador) — NENHUM <video>/mp4 é usado no
+ * evento de presente. Se o Lottie falhar, o presente exibe apenas o efeito de
+ * partículas/ícone (GiftEffectCanvas). A duração REAL vem do onDuration do
+ * lottie-web ((op - ip) / fr) para que o timer de encerramento seja exatamente
+ * o tempo da animação.
  */
 const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: () => void; }> = ({ payload, onEnd }) => {
     const animationTimeoutRef = useRef<number | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const [resolvedAudio, setResolvedAudio] = useState<string>('');
-    // ⏱ Duração real do arquivo de animação (reportada pelo metadata do vídeo).
+    // ⏱ Duração real da animação (reportada pelo onDuration do Lottie).
     const [realAnimDurationMs, setRealAnimDurationMs] = useState<number | null>(null);
-    // 🛑 Fallback: se o mp4 falhar ao carregar/reproduzir, exibe o efeito de
-    // partículas/ícone (GiftEffectCanvas) em vez de um espaço vazio.
-    const [videoFailed, setVideoFailed] = useState(false);
-    // 🛑 Fallback do LOTTIE: se o JSON/imagens falharem, tenta o vídeo VAP
-    // (mp4/webm) antes de cair no efeito de partículas/ícone.
+    // 🛑 Fallback do LOTTIE: se o JSON/imagens falharem, exibe o efeito de
+    // partículas/ícone (GiftEffectCanvas) em vez de um espaço vazio — NUNCA um
+    // <video> no evento de presente.
     const [lottieFailed, setLottieFailed] = useState(false);
     // NOVO: a animação NÃO espera o pré-load dos assets — renderiza na hora
     // (instante). 🚫 SEM VÍDEO: o presente exibe apenas a animação (partículas
@@ -310,12 +293,12 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
     }, [payload]);
 
     // ⏱️ Timer de encerramento (BACKUP): inicia IMEDIATAMENTE (sem esperar
-    // assets). O encerramento EXATO acontece pelo evento `ended` do vídeo
-    // (onVideoEnd → onEnd), que dispara no fim REAL da animação (Rosa 5.000s |
-    // Champanhe 4.033s | Anel 4.367s — medidos com ffprobe). Este timer roda
-    // APENAS uma vez por presente (NÃO reinicia quando o metadata chega, para
-    // não somar o atraso do carregamento) e usa a duração real + pequena
-    // margem, garantindo que a animação nunca fique presa na tela.
+    // assets). O encerramento EXATO acontece pelo evento `complete`/onVideoEnd
+    // do Lottie, que dispara no fim REAL da animação (Rosa 5.000s | Champanhe
+    // 4.033s | Anel 4.367s). Este timer roda APENAS uma vez por presente (NÃO
+    // reinicia quando o JSON carrega, para não somar o atraso do carregamento)
+    // e usa a duração real + pequena margem, garantindo que a animação nunca
+    // fique presa na tela.
     useEffect(() => {
         const cleanup = () => {
             if (animationTimeoutRef.current) {
@@ -325,7 +308,6 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
         };
         cleanup();
         hasEndedRef.current = false;
-        setVideoFailed(false);
         setLottieFailed(false);
         setRealAnimDurationMs(null);
 
@@ -335,8 +317,8 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
 
         const { gift } = payload;
         const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
-        const hasRealAnimation = hasRealAnimationFile(gift);
-        const baseDuration = hasRealAnimation
+        const hasLottieAnimation = isLottieGift(gift);
+        const baseDuration = hasLottieAnimation
             ? (GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000)
             : Number(gift.duration || assetConfig.duration || 5000);
 
@@ -388,25 +370,19 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
     const { gift, fromUser, quantity } = payload;
     const assetConfig = LUXURY_ASSETS_MAP[gift.name] || getFallbackAsset(gift);
     const uniqueKey = payload.id ? `gift-fs-${payload.id}` : `gift-fs-${Date.now()}`;
-    // 🎞️ Gifts com ANIMAÇÃO real (Rosa, Champanhe, Anel, ...): o mp4 é desenhado
-    // frame a frame num <canvas> WebGL com o shader do VAP (RGB + Alpha embutidos
-    // no mesmo vídeo) — o elemento <video> fica OCULTO no DOM, então NENHUM
-    // player/moldura de vídeo aparece na tela, só a animação em si, com a
-    // duração EXATA do arquivo (Rosa 5s | Champanhe 4.03s | Anel 4.37s).
-    // A transparência é REAL: o fundo preto não é exibido (GiftVapPlayer).
-    // Foguete e Caixa de Música usam LOTTIE (JSON direto no navegador); se o
-    // JSON falhar, caem no vídeo VAP (mp4/webm) como fallback antes do efeito
-    // de partículas/ícone.
+    // 🎞️ Gifts com ANIMAÇÃO REAL (Rosa, Champanhe, Anel, ...) são renderizados
+    // via LOTTIE (JSON + webps com alfa REAL direto no navegador, sem mp4 nem
+    // <video>): a transparência é REAL e a duração é a EXATA do arquivo
+    // (Rosa 5s | Champanhe 4.03s | Anel 4.37s). Se o Lottie falhar, cai no
+    // efeito de partículas/ícone — nunca em vídeo.
     const lottieUrl = isLottieGift(gift) ? GIFT_LOTTIE_URLS[gift.name] : undefined;
-    const realAnimationUrl = hasRealAnimationFile(gift) ? getAnimationUrl(gift) : undefined;
-    // ▶️ Mostra o LOTTIE quando o JSON está ok; o VAP quando não há lottie ou
-    // o lottie falhou; partículas/ícone apenas se nenhum dos dois rodar.
+    // ▶️ Mostra o LOTTIE quando o JSON está ok; partículas/ícone (fallback)
+    // apenas se o Lottie falhar. NENHUM <video> é usado no evento de presente.
     const showLottie = Boolean(lottieUrl) && !lottieFailed;
-    const showVap = Boolean(realAnimationUrl) && !videoFailed && (!lottieUrl || lottieFailed);
-    const showFallback = !showLottie && !showVap;
-    // ⏱ Duração de exibição: o tempo REAL do arquivo (metadata → realAnimDurationMs)
-    // ou o fallback medido (GIFT_ANIMATION_DURATIONS_MS) enquanto o metadata carrega.
-    const displayDurationMs = (lottieUrl || realAnimationUrl)
+    const showFallback = !showLottie;
+    // ⏱ Duração de exibição: o tempo REAL da animação (op/fr → realAnimDurationMs)
+    // ou o fallback medido (GIFT_ANIMATION_DURATIONS_MS) enquanto o JSON carrega.
+    const displayDurationMs = lottieUrl
         ? (realAnimDurationMs ?? GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000)
         : null;
 
@@ -416,7 +392,7 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
             className="fixed inset-0 z-[9990] flex flex-col items-center justify-center pointer-events-none animate-gift-screen-container"
             style={{ animationDuration: displayDurationMs ? `${displayDurationMs}ms` : '5.5s' }}
         >
-            {/* 1. ANIMAÇÃO REAL: LOTTIE (JSON → SVG, sem mp4) ou VAP (mp4/webm → canvas) */}
+            {/* 1. ANIMAÇÃO REAL: LOTTIE (JSON → SVG, sem mp4/vídeo) */}
             {showLottie ? (
                 <GiftLottiePlayer
                     key={`anim-${uniqueKey}`}
@@ -446,50 +422,20 @@ const FullScreenGiftAnimation: React.FC<{ payload: GiftPayload | null; onEnd: ()
                         onEndRef.current();
                     }}
                 />
-            ) : showVap ? (
-                <GiftVapPlayer
-                    key={`anim-${uniqueKey}`}
-                    url={realAnimationUrl}
-                    giftName={gift.name}
-                    riseFromBottom={gift.name === 'Champanhe'}
-                    onDuration={setRealAnimDurationMs}
-                    onPlaying={() => {
-                        // Reinicia o timer a partir do momento em que o vídeo
-                        // de fato começou (a duração já veio do metadata).
-                        const durMs = realAnimDurationMs ?? GIFT_ANIMATION_DURATIONS_MS[gift.name] ?? 5000;
-                        if (animationTimeoutRef.current) {
-                            clearTimeout(animationTimeoutRef.current);
-                            animationTimeoutRef.current = null;
-                        }
-                        animationTimeoutRef.current = window.setTimeout(() => {
-                            onEndRef.current();
-                        }, durMs + 250);
-                    }}
-                    onLoadError={() => setVideoFailed(true)}
-                    onVideoEnd={() => {
-                        if (hasEndedRef.current) return;
-                        hasEndedRef.current = true;
-                        if (animationTimeoutRef.current) {
-                            clearTimeout(animationTimeoutRef.current);
-                            animationTimeoutRef.current = null;
-                        }
-                        onEndRef.current();
-                    }}
-                />
             ) : null}
 
             {/* 1b. 🎵 NOTAS MUSICAIS FLUTUANTES — exclusivo da Caixa de Música.
             O lottie/webm da caixinha NÃO embute notas (só a caixa + janela de
             foto); estas notas sobem da caixa como overlay, dando o efeito
             musical. */}
-        {gift.name === 'Caixa de Música' && (showLottie || showVap) && (
+        {gift.name === 'Caixa de Música' && showLottie && (
             <MusicNotesOverlay />
         )}
 
-        {/* 2. Apresentação LIMPA para presentes SEM vídeo mp4 (ou se o vídeo
-                falhou): apenas o ícone do presente + quem enviou. SEM explosão
-                de partículas, SEM glow de fundo. Os vídeos mp4 já trazem os
-                próprios efeitos e são exibidos sozinhos acima. */}
+        {/* 2. Fallback (Lottie falhou ou gift sem animação): apenas o ícone do
+            presente + quem enviou. SEM explosão de partículas, SEM glow de
+            fundo. As animações Lottie já trazem os próprios efeitos e são
+            exibidas sozinhas acima. NENHUM <video> é usado aqui. */}
             {showFallback && (
             <div className={`flex flex-col items-center justify-center relative z-10 w-full h-full max-w-4xl px-4 select-none ${gift.name === 'Champanhe' ? 'gift-champagne-rise-fallback' : ''}`}>
                 <div className="relative flex items-center justify-center transform animate-gift-pop-impact w-[300px] h-[300px]">
