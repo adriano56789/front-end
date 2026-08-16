@@ -132,7 +132,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage((payload) => {
+messaging.onBackgroundMessage(async (payload) => {
   console.log('[FCM-SW] Mensagem em background:', payload);
 
   const d = payload.data || {};
@@ -157,8 +157,8 @@ messaging.onBackgroundMessage((payload) => {
 
   // 🔔 Firebase/FCM serve SÓ para push na tela: ícone SEMPRE o favicon LOCAL
   // (nunca icon remoto vindo do payload). A imagem GRANDE (Big Picture) é
-  // aceita apenas no tipo 'live_started' (alerta de início de live) — exibida
-  // ampliada na notificação, como nos grandes apps (avatar/capa do streamer).
+  // exibida ampliada na notificação de 'live_started' (avatar do streamer).
+  // A foto é tirada do payload OU buscada na API se o payload não trouxer.
   const notificationOptions = {
     body: notificationBody,
     icon: '/favicon.svg',
@@ -168,9 +168,31 @@ messaging.onBackgroundMessage((payload) => {
     data: d,
   };
 
-  const liveImage = (d.type === 'live_started' && (n.image || d.image)) || '';
-  if (liveImage) {
-    notificationOptions.image = liveImage;
+  if (d.type === 'live_started') {
+    let liveImage = n.image || d.image || d.avatar || d.avatarUrl || d.streamerAvatar || '';
+    if (!liveImage) {
+      const streamerId = d.streamerId || d.hostId || d.senderId || '';
+      if (streamerId) {
+        try {
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 1200);
+          try {
+            const res = await fetch(`${self.location.origin}/api/users/${encodeURIComponent(streamerId)}/photos/avatar`, { signal: ctrl.signal });
+            if (res.ok) {
+              const avatarData = await res.json();
+              if (avatarData && avatarData.photoUrl) liveImage = avatarData.photoUrl;
+            }
+          } finally {
+            clearTimeout(timer);
+          }
+        } catch (err) {
+          console.warn('[FCM-SW] Sem foto do streamer para ampliar:', err);
+        }
+      }
+    }
+    if (liveImage) {
+      notificationOptions.image = liveImage;
+    }
   }
 
   self.registration.showNotification(notificationTitle, notificationOptions);

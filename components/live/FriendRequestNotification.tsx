@@ -13,9 +13,9 @@ const FriendRequestNotification: React.FC<FriendRequestNotificationProps> = ({ f
   return (
     <button
       onClick={onClick}
-      className="bg-purple-500/30 rounded-full p-1.5 px-3 flex items-center self-start text-xs cursor-pointer hover:bg-purple-500/40"
+      className="bg-purple-500/30 rounded-full p-1 px-2 flex items-center self-start text-[9px] cursor-pointer hover:bg-purple-500/40"
     >
-      <UserIcon className="w-5 h-5 text-purple-300 mr-2" />
+      <UserIcon className="w-3.5 h-3.5 text-purple-300 mr-1.5" />
       <span className="text-gray-200">{t('chat.newFriendRequestWithName', { name: followerName })}</span>
     </button>
   );

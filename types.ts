@@ -238,6 +238,7 @@ export interface User {
   pipEnabled?: boolean;
   enableWhenBackground?: boolean; // ZEGO-style auto PiP on background
   streamPreviewEnabled?: boolean; // 'Mostrar prévia das transmissões' nos cards
+  screenSecurityEnabled?: boolean; // Bloquear prints/gravador de tela + salvar/copiar foto de perfil
   locationPermission?: 'granted' | 'denied' | 'prompt';
   showActivityStatus?: boolean;
   showLocation?: boolean;
@@ -300,6 +301,13 @@ export interface Message {
   timestamp: string;
   status: 'sent' | 'delivered' | 'read' | 'sending' | 'failed';
   type?: 'system-friend-notification';
+  // 💬 Resposta a outra mensagem (estilo WhatsApp)
+  replyTo?: {
+    text?: string;
+    imageUrl?: string;
+    from?: string;
+    senderName?: string;
+  };
   // Dados do remetente incluídos pela API
   senderName?: string;
   senderAvatar?: string;
@@ -401,6 +409,10 @@ export interface BeautySettings {
     activeTab?: 'Recomendar' | 'Beleza';
     // Efeito selecionado na aba Beleza
     selectedEffect?: string;
+    // 📐 Resolução da CÂMERA do broadcaster (1080p/720p/480p/360p/auto).
+    // Salva no banco junto com os efeitos (updateBeautySettings) e aplicada ao
+    // abrir a câmera — não fica hardcoded nem presa a um aparelho.
+    cameraResolution?: '1080p' | '720p' | '480p' | '360p' | 'auto';
     // Permitir outros efeitos futuros
     [key: string]: number | string | undefined;
 }

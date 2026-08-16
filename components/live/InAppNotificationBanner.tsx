@@ -167,11 +167,11 @@ const InAppNotificationBanner: React.FC<InAppNotificationBannerProps> = ({
               <div className="flex items-center gap-3 p-3">
                 {/* Avatar com anel gradiente + badge */}
                 <div className={`relative flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr ${theme.ring}`}>
-                  <div className="w-11 h-11 rounded-full overflow-hidden bg-black">
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-black">
                     {n.avatar ? (
                       <img src={n.avatar} alt={n.name} className="w-full h-full object-cover" onError={(e) => { (e.currentTarget).style.display = 'none'; }} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-lg font-black uppercase bg-zinc-800 text-white">
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-black uppercase bg-zinc-800 text-white">
                         {n.icon || n.name?.charAt(0) || '🔔'}
                       </div>
                     )}

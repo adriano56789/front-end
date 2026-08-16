@@ -177,6 +177,24 @@ const MainSettingsPage: React.FC<{ navigateTo: (page: string) => void; onLogout:
         }
     };
 
+    const handleToggleScreenSecurity = async () => {
+        const newVal = !(currentUser.screenSecurityEnabled ?? false);
+        const originalUser = { ...currentUser };
+        updateUser({ ...currentUser, screenSecurityEnabled: newVal });
+        try {
+            const { success, user } = await api.updateProfile(currentUser.id, { screenSecurityEnabled: newVal });
+            if (success && user) {
+                updateUser(user);
+                addToast(ToastType.Success, t('settings.main.screenSecuritySaved') || 'Proteção de tela atualizada.');
+            } else {
+                throw new Error('Falha ao atualizar proteção de tela.');
+            }
+        } catch (error) {
+            updateUser(originalUser);
+            addToast(ToastType.Error, (error as Error).message);
+        }
+    };
+
     const menuItems = [
         { icon: <CustomLinkIcon />, label: t('settings.main.connectedAccounts'), action: () => navigateTo('connected_accounts') },
         { icon: <CustomBellIcon />, label: t('settings.main.notificationSettings'), action: () => navigateTo('notifications') },
@@ -228,6 +246,30 @@ const MainSettingsPage: React.FC<{ navigateTo: (page: string) => void; onLogout:
                             isDestructive={item.isDestructive} 
                         />
                     ))}
+
+                    {/* Proteção de tela — bloqueia prints/gravador e salvar/copiar foto de perfil */}
+                    <div className="flex items-start justify-between w-full px-5 py-4 bg-transparent">
+                        <div className="flex items-start space-x-4">
+                            <div className="w-5 h-5 flex items-center justify-center text-gray-300 mt-0.5">
+                                <CustomLockIcon />
+                            </div>
+                            <div className="flex flex-col pr-4">
+                                <span className="text-[15px] font-normal tracking-wide text-white leading-snug">
+                                    {t('settings.main.screenSecurity') || 'Bloquear prints e gravação de tela'}
+                                </span>
+                                <span className="text-[13px] text-zinc-500 mt-1 leading-snug font-light">
+                                    {t('settings.main.screenSecurityDesc') || 'Ao marcar, quem tentar tirar print ou gravar a tela verá tudo preto (no app Android). Também bloqueia salvar, copiar, baixar ou compartilhar sua foto e seus vídeos — inclusive por bot do Telegram. A live continua podendo ser compartilhada.'}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex-shrink-0 pt-0.5">
+                            <CustomSwitch
+                                id="switch_screen_security"
+                                checked={currentUser.screenSecurityEnabled ?? false}
+                                onChange={handleToggleScreenSecurity}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
              <footer className="px-6 py-6 pb-8 flex-shrink-0">

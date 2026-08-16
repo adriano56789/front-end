@@ -34,7 +34,7 @@ import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
@@ -93,27 +93,27 @@ interface StreamRoomProps {
 const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: number }> = ({ follower, followed, level }) => {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center gap-1.5 text-[10px] bg-transparent rounded-[14px] px-2 py-0.5 my-0.5 max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap">
+        <div className="flex items-center gap-0.5 text-[8px] bg-transparent rounded-[10px] px-1 py-px my-px max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap">
             <span 
-                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[10px]"
+                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[8px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {follower}
             </span>
             
             {/* Glossy Silver metal level badge matching the screenshot */}
-            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[8px] font-black px-1 py-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[14px]">
+            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[6px] font-black px-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[9px]">
                 Lvl. {level || 1}
             </span>
 
             <span 
-                className="text-zinc-300 font-sans font-semibold text-[10px] ml-0.5 tracking-wide"
+                className="text-zinc-300 font-sans font-semibold text-[8px] tracking-wide"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {t('streamRoom.followed')}
             </span>
             <span 
-                className="text-[#c084fc] font-extrabold ml-0.5 font-sans text-[11px]"
+                className="text-[#c084fc] font-extrabold font-sans text-[8px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {followed}! 🎉
@@ -175,7 +175,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         closeComposer,
         composerInputRef,
         composerRef,
-        chatInset,
         bottom: chatBarBottom,
     } = useComposerKeyboard();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
@@ -367,10 +366,12 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
           quantity: data.quantity || 1, roomId: streamer.id,id: String(data.id || Date.now() + Math.random()),
         };
-        // 🎁 Presente exibido UMA única vez, na animação em tela cheia (sem overlay
-        // lateral duplicado e sem re-exibição). Nada de duas filas para o mesmo evento.
-        setFullscreenGiftQueue(prev => [...prev, giftEvtPayload]);
-        postGiftChatMessage(giftEvtPayload);
+        // 🎁 O remetente já vê a animação pela via OTIMISTA (handleSendGift →
+        // enqueueGift), então o echo do socket do próprio envio é IGNORADO para
+        // não duplicar. Os demais espectadores recebem o evento do socket normal.
+        const senderIsMe = String(data.from?.id || data.fromUser?.id || '') === String(currentUser?.id || '');
+        if (senderIsMe) return;
+        enqueueGift(giftEvtPayload);
       } else if (data.type === 'stream_liked' && data.streamId === streamer.id) {
         setLikes(data.totalLikes);
         if (data.userId === currentUser?.id) setIsLiked(true);
@@ -490,7 +491,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // 1. PublishEngine inicia a sessão WHIP no SRS (POST SDP offer)
             // 2. O SDK captura câmera/mic (getUserMedia) e a mídia flui via WebRTC
             // O evento 'mediaReady' entrega a MediaStream capturada para o preview.
-            const engine = new PublishEngine({ videoCodec: 'H264', maxVideoBitrate: 2500 });
+            const engine = new PublishEngine({ videoCodec: 'H264', maxVideoBitrate: 6000 });
             publishEngineRef.current = engine;
             streamPublishService.setPublishEngine(engine);
 
@@ -524,9 +525,22 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             const previewStream = streamPublishService.getCurrentStream();
             // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
             // anteriormente parou os tracks — o stream morto não serve para publicar).
-            const mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
+            let mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
                 ? previewStream
                 : undefined;
+
+            // 🎨 EMBELEZAMENTO DIRETO NO WHIP (SRS/WebRTC): se o filtro já foi
+            // aplicado (videoProcessor → canvas → processedStream), publicar A
+            // STREAM PROCESSADA logo de cara — o SRS recebe o vídeo embelezado
+            // desde o 1º frame, sem depender do replaceTrack após o 'connected'
+            // (que podia perder o efeito se o processamento ainda não tivesse
+            // terminado). Mantém o áudio original do preview.
+            const beautyStream = streamPublishService.getBeautyProcessedStream();
+            if (mediaForPublish && beautyStream && beautyStream.getVideoTracks().some(t => t.readyState === 'live')) {
+                const withBeauty = streamPublishService.applyBeautyToStream(mediaForPublish);
+                mediaForPublish = withBeauty && withBeauty.getVideoTracks().length > 0 ? withBeauty : mediaForPublish;
+                console.log('[HOST] 🎨 Embelezamento aplicado diretamente na stream WHIP (SRS)');
+            }
             console.log('[HOST] 🎥 Reutilizando preview do GoLive para publish:', !!mediaForPublish);
 
             // WHIP inicia a sessão e captura a mídia (getUserMedia) ao publicar
@@ -783,6 +797,19 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         }
     };
 
+    // 🎁 Fila central de presentes (animação em tela cheia + msg no chat).
+    // Usada pelo caminho OTIMISTA (quem envia, ver handleSendGift) e pelo
+    // caminho do SOCKET (demais espectadores). Sem dedupe por conteúdo: o
+    // usuário pode enviar o mesmo presente quantas vezes quiser (ex.: x100),
+    // cada envio gera UMA entrada real na fila.
+    const enqueueGift = (payload: any) => {
+        const fromId = payload?.fromUser?.id || '';
+        const giftName = payload?.gift?.name || '';
+        if (!fromId || !giftName) return;
+        setFullscreenGiftQueue(prev => [...prev, payload]);
+        postGiftChatMessage(payload);
+    };
+
     const handleBannerAnimationEnd = (id: number) => {
         setBannerGifts(prev => prev.filter(g => g.id !== id));
     };
@@ -843,7 +870,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             if (isComposerOpen) {
                 composerInputRef.current?.focus();
             } else {
-                chatInputRef.current?.focus();
+                chatInputRef.current?.focus({ preventScroll: true } as any);
             }
         });
     };
@@ -1134,14 +1161,32 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             // 🔧 Presente propagado em tempo real via Socket.IO:
             // a rota POST /streams/:id/gift do backend emite live_gift_received
             // para a sala da stream — todos (inclusive o remetente) recebem.
-            // SEM optimistic UI: o presente só aparece via socket, após o servidor
-            // validar e emitir o evento. Isso garante animação única e sincronizada.
+            // 🚀 OPTIMISTIC UI: quem envia vê a animação IMEDIATAMENTE após o
+            // servidor confirmar o envio (sem depender do socket). O enqueueGift
+            // deduplica com o evento do socket (mesma chave + janela de 4s),
+            // então a animação nunca aparece duplicada.
 
             // Now, call the API in the background
             try {
                 const { success, error, updatedSender, updatedReceiver } = await api.sendGift(currentUser.id, streamer.id, streamer.id, gift.name, quantity);
 
                 if (success && updatedSender) {
+                    // 🚀 OPTIMISTIC: enfileira a animação do presente para o remetente
+                    const optAnimationUrl = getAnimationUrl(gift);
+                    const optDuration = getAnimationDuration(gift);
+                    enqueueGift({
+                        fromUser: {
+                            id: currentUser.id,
+                            name: (updatedSender.name || currentUser.name || 'Usuário'),
+                            avatarUrl: updatedSender.avatarUrl || currentUser.avatarUrl || currentUser.avatar || '',
+                            level: updatedSender.level || currentUser.level || 1,
+                        },
+                        toUser: { id: streamer.id, name: streamerUser?.name || streamer.name || 'Streamer' },
+                        gift: { ...gift, ...(optAnimationUrl ? { animationUrl: optAnimationUrl } : {}), ...(optDuration ? { duration: optDuration } : {}) },
+                        quantity,
+                        roomId: streamer.id,
+                        id: String(Date.now() + Math.random()),
+                    });
                     // 🔧 SINCRONIZAÇÃO: Usar dados reais da API (banco de dados) para atualizar o remetente
                     updateUser(updatedSender);
                     // Remetente atualizado com dados da API
@@ -1608,18 +1653,17 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             </header>
 
             {/* 4. Chat & Footer UI */}
-            {/* O container é FIXED (viewport, não do container de layout) e sobe
-                só o suficiente (fixedBottom + altura da barra) para a ÚLTIMA
-                mensagem parar exatamente ACIMA do composer — nunca atrás dele.
-                Fechado, sobe o suficiente para parar ACIMA da 1ª barra (nada de
-                texto escondido atrás dela). Sem transition de bottom: o teclado
-                já anima; transition + valor mudando por frame = bounce. */}
-            <div className={`fixed left-0 right-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${chatInset}px + env(safe-area-inset-bottom, 0px))` : `calc(${MESSAGE_BAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))` }}>
+            {/* O container é FIXED e fica PARADO em bottom:0 (viewport) — igual ao
+                chat privado. Quem reserva o espaço no fundo é um ESPAÇADOR FORA da
+                área rolável (fechado = altura da 1ª barra; aberto = composer +
+                teclado). Assim o teclado NUNCA move a 1ª barra e as mensagens
+                ficam sempre visíveis ACIMA do espaçador (nunca escondidas). */}
+            <div className={`fixed left-0 right-0 bottom-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
-                <div className="absolute inset-x-0 bottom-0 top-[-30px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] h-full overflow-y-auto no-scrollbar overscroll-contain flex flex-col pointer-events-auto px-3 pb-[env(safe-area-inset-bottom)] relative z-10" style={{ maxHeight: '33lvh' }}>
-                        <div className="flex flex-col gap-1.5 mt-auto items-start w-full">
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col pointer-events-auto px-1.5 pb-[env(safe-area-inset-bottom)] relative z-10" style={{ maxHeight: '33lvh' }}>
+                        <div className="flex flex-col gap-px mt-auto items-start w-full">
                             {messages.map((msg, index) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
                                     const entryProps: any = {
@@ -1659,6 +1703,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             })}
                         </div>
                     </div>
+                    {/* Espaçador FORA da área rolável: reserva o espaço do fundo
+                        (1ª barra ou composer + teclado) sem esconder as mensagens —
+                        elas ficam sempre visíveis acima dele. */}
+                    <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                 </div>
 
                 <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
@@ -1692,6 +1740,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 <button
                                     type="button"
                                     ref={chatInputRef}
+                                    tabIndex={-1}
                                     onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
                                     className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
                                 >
@@ -1801,7 +1850,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 <div
                     ref={composerRef}
                     className="fixed left-0 right-0 z-40"
-                    style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))` }}
+                    style={{ bottom: `${chatBarBottom}px` }}
                 >
                     <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
                         <div className="flex items-center gap-3">

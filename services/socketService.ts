@@ -193,8 +193,27 @@ export function initPrivateChatSocket(): void {
         s.on('newChatMessage', (data: any) => {
             window.dispatchEvent(new CustomEvent('newChatMessage', { detail: data }));
         });
-        console.log('[SocketIO] Ponte do chat privado conectada (newChatMessage → window)');
+        // ⌨️ Indicador "digitando..." (estilo WhatsApp)
+        s.on('chat_typing', (data: any) => {
+            window.dispatchEvent(new CustomEvent('chat_typing', { detail: data }));
+        });
+        // 🔵 Confirmação de leitura em tempo real (✓✓ azul)
+        s.on('messages_read', (data: any) => {
+            window.dispatchEvent(new CustomEvent('messages_read', { detail: data }));
+        });
+        // 🗑️ Mensagem apagada pelo outro lado
+        s.on('message_deleted', (data: any) => {
+            window.dispatchEvent(new CustomEvent('message_deleted', { detail: data }));
+        });
+        console.log('[SocketIO] Ponte do chat privado conectada (newChatMessage | chat_typing | messages_read → window)');
     }
+}
+
+/** ⌨️ Emite para o backend que o usuário está digitando (debounce é feito no caller) */
+export function emitChatTyping(to: string, typing: boolean): void {
+    const s = getSocket();
+    if (!s?.connected) return;
+    s.emit('chat_typing', { to, typing });
 }
 
 /** Escuta um evento do socket; retorna função para cancelar */

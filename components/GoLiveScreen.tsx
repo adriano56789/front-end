@@ -25,6 +25,9 @@ import { StreamToolsPanel } from './live/StreamToolsPanel';
 import { StreamService } from '../services/streamService';
 import { streamPublishService } from '../services/streamPublishService';
 import { api } from '../services/api';
+import { videoProcessor, DEFAULT_BEAUTY_SETTINGS } from '../services/VideoProcessor';
+import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
+import { setPreferredCameraResolution, getVideoConstraints } from '../services/cameraService';
 
 // Interface para propriedades globais da window
 declare global {
@@ -99,6 +102,26 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
     const isInviteMode = Boolean(inviteData);
 
+    // 📐 Aplicar a RESOLUÇÃO DA CÂMERA salva no banco (chave cameraResolution
+    // dentro das beauty settings). Roda UMA vez na montagem (o GoLiveScreen fica
+    // montado sempre) — assim, quando a câmera abrir, o getUserMedia já usa a
+    // resolução preferida do usuário em vez de um valor fixo.
+    useEffect(() => {
+        if (!currentUser?.id) return;
+        let cancelled = false;
+        api.getBeautySettings(currentUser.id)
+            .then(saved => {
+                if (cancelled || !saved) return;
+                const res = saved['cameraResolution'];
+                if (res === '1080p' || res === '720p' || res === '480p' || res === '360p' || res === 'auto') {
+                    setPreferredCameraResolution(res);
+                    console.log(`[GOLIVE] Resolução da câmera carregada do banco: ${res}`);
+                }
+            })
+            .catch(err => console.warn('[GOLIVE] Falha ao carregar resolução da câmera:', err));
+        return () => { cancelled = true; };
+    }, [currentUser?.id]);
+
     useEffect(() => {
         // Inicializar dados padrão
         if (isOpen && !streamManager.streamTitle) {
@@ -117,6 +140,91 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             }).catch(err => console.error("Error fetching regions:", err));
         }
     }, [isOpen, isInviteMode, inviteData, currentUser.name, currentUser.country, streamManager, countries.length]);
+
+    // 🎨 FILTRO PADRÃO AUTOMÁTICO na abertura da câmera (estilo Tencent/Bigo):
+    // nitidez + efeito 3D + clareza aplicados JÁ quando o preview liga, sem o
+    // usuário precisar abrir o painel. O BeautyEffectsPanel (se aberto depois)
+    // reutiliza o pipeline (videoProcessor.initialize é idempotente p/ a mesma
+    // câmera) e sobrescreve com as preferências salvas do usuário.
+    const autoBeautyRef = useRef(false);
+    useEffect(() => {
+        if (!isOpen || !cameraPreview.videoRef.current) return;
+        if (autoBeautyRef.current) return;
+
+        const video = cameraPreview.videoRef.current;
+        if (!video.srcObject) {
+            // A câmera ainda não ligou — tenta de novo quando o srcObject chegar
+            const checkTimer = setTimeout(() => {
+                if (video.srcObject) {
+                    applyDefaultBeautyToCamera(video);
+                }
+            }, 400);
+            return () => clearTimeout(checkTimer);
+        }
+        applyDefaultBeautyToCamera(video);
+    }, [isOpen, cameraPreview.videoRef]);
+
+    const applyDefaultBeautyToCamera = async (video: HTMLVideoElement) => {
+        try {
+            if (autoBeautyRef.current) return;
+            autoBeautyRef.current = true;
+
+            // ✅ Aplicar o filtro 2D padrão (nitidez 55, 3D 45, clareza/brilho)
+            videoProcessor.updateBeautySettings({ ...DEFAULT_BEAUTY_SETTINGS });
+
+            // Iniciar pipeline WebGL (idempotente — painel reutiliza depois)
+            const success = await videoProcessor.initialize(video);
+            if (!success) return;
+
+            const processedStream = videoProcessor.startProcessing();
+            if (!processedStream) return;
+
+            // Conectar ao pipeline de publicação (replaceTrack no SRS quando publicar)
+            streamPublishService.setBeautyProcessedStream(processedStream);
+            // 🎥 Mostrar o efeito JÁ NO PREVIEW (a câmera aberta exibe o stream
+            // processado, não a imagem crua). O painel, se aberto depois, continua
+            // sobrescrevendo as configurações do usuário normalmente.
+            streamPublishService.applyBeautyToPreview();
+            if (streamPublishService.isPublishing()) {
+                await streamPublishService.updateBeautyTrack();
+            }
+
+            await beautyWebRTCIntegration.initialize(processedStream);
+
+            // ✅ Se o usuário tem configurações salvas, elas VENCEM o padrão
+            try {
+                if (currentUser?.id) {
+                    const saved = await api.getBeautySettings(currentUser.id);
+                    const s = saved || {};
+                    const hasAny = Object.keys(s).some(k =>
+                        k !== 'activeTab' && k !== 'selectedFilter' && k !== 'selectedEffect'
+                    );
+                    if (hasAny) {
+                        videoProcessor.updateBeautySettings({
+                            whitening: s['Branquear'] || 0,
+                            smoothing: s['Alisar a pele'] || 0,
+                            saturation: s['Ruborizar'] || 0,
+                            contrast: s['Contraste'] || 0,
+                            whiteBalance: Number(s['Balanço de Branco']) || 0,
+                            acneRemoval: s['Remover manchas'] || 0,
+                            wrinkleSmoothing: s['Suavizar rugas'] || 0,
+                            darkCircle: s['Clarear olheiras'] || 0,
+                            shineReduction: s['Reduzir brilho'] || 0,
+                            babyFace: s['Rosto Bebê'] || 0,
+                            sharpness: Number(s['Nitidez']) || DEFAULT_BEAUTY_SETTINGS.sharpness,
+                            faceVolume3D: Number(s['Efeito 3D']) || DEFAULT_BEAUTY_SETTINGS.faceVolume3D
+                        });
+                    }
+                }
+            } catch (e) {
+                // Mantém o filtro padrão se não conseguir carregar as salvas
+            }
+
+            console.log('✅ [GOLIVE] Filtro padrão aplicado na abertura da câmera (nitidez + 3D)');
+        } catch (e) {
+            console.error('❌ [GOLIVE] Erro ao aplicar filtro padrão:', e);
+        }
+    };
 
     const handleSelectCategory = async (categoryKey: string) => {
         streamManager.updateState({ selectedCategoryKey: categoryKey });
@@ -210,6 +318,39 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
         streamManager.updateState({ isPrivate: !streamManager.isPrivate });
     };
 
+    // 📐 Resolução da CÂMERA escolhida no painel: aplica na hora (a próxima
+    // captura usa as constraints novas) e SALVA NO BANCO junto com os efeitos
+    // (updateBeautySettings) — persiste entre aparelhos/sessões.
+    const handleSelectCameraResolution = async (resolution: '1080p' | '720p' | '480p' | '360p' | 'auto') => {
+        try {
+            setPreferredCameraResolution(resolution);
+
+            // Persistir no banco junto das beauty settings
+            const saved = await api.getBeautySettings(currentUser.id);
+            const settings: BeautySettings = {
+                ...(saved || {}),
+                cameraResolution: resolution,
+            };
+            await api.updateBeautySettings(currentUser.id, settings);
+
+            // Aplicar na track ativa sem precisar reabrir a câmera
+            const stream = streamPublishService.getCurrentStream();
+            const liveTrack = stream?.getVideoTracks?.().find(t => t.readyState === 'live');
+            if (liveTrack && typeof liveTrack.applyConstraints === 'function') {
+                try {
+                    await liveTrack.applyConstraints(getVideoConstraints(streamPublishService.getFacingMode(), resolution));
+                } catch (applyErr) {
+                    console.warn('[GOLIVE] applyConstraints da nova resolução falhou (será aplicado na próxima captura):', applyErr);
+                }
+            }
+
+            addToast(ToastType.Success, `Resolução da câmera alterada para ${resolution}`);
+        } catch (err) {
+            console.error('❌ [GOLIVE] Falha ao salvar resolução da câmera:', err);
+            addToast(ToastType.Error, 'Falha ao salvar a resolução da câmera.');
+        }
+    };
+
     const selectedCategoryLabel = categories.find(c => c.key === streamManager.selectedCategoryKey)?.label || streamManager.selectedCategoryKey;
 
     return (
@@ -295,6 +436,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         isPrivate={streamManager.isPrivate}
                         onTogglePrivate={handleTogglePrivate}
                         isInviteMode={isInviteMode}
+                        onSelectCameraResolution={handleSelectCameraResolution}
                     />
                 </div>
             </div>

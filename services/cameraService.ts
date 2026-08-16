@@ -14,24 +14,62 @@ export interface CameraStatus {
 }
 
 /**
- * 📐 Constraints de vídeo em 720p (HD) com enquadramento NATURAL. Apenas dicas
- * `ideal` (sem min/max) para o navegador escolher o modo nativo mais próximo de
- * 1280x720 — garante nitidez e nunca corta o sensor nem deixa o rosto colado.
- * Para referência da Tencent Cloud (TRTC): a resolução é configurada via
- * ideal/dicas (ex.: 720p = 1280x720) e o enquadramento via modo de preenchimento
- * (FILL corta bordas = zoom; FIT cabe a imagem inteira = rosto no lugar certo).
+ * 🎬 Resoluções suportadas para captura da câmera. A escolha do usuário é
+ * SALVA NO BANCO (via api.updateBeautySettings → chave 'cameraResolution') e
+ * reaplicada ao abrir a câmera — não fica só "hardcoded".
  */
-export function getVideoConstraints(facingMode: 'user' | 'environment'): MediaTrackConstraints {
-  // 📐 Enquadramento ORIGINAL (natural, sem zoom): apenas dicas `ideal`, SEM
-  // `min`/`max`. Forçar proporção 9:16 com max (ex.: 720x1280) obriga o navegador
-  // a CORTAR o sensor nativo (4:3/16:9) e deixa o rosto COLADO/zoomado. Com só
-  // `ideal` o navegador escolhe o modo nativo mais próximo de 720p — o rosto fica
-  // no lugar certo e o canvas (que segue a proporção da fonte) nunca estica nem
-  // corta. Mesmo enquadramento de referência: TRTC setLocalVideoFillMode FIT.
+export type CameraResolution = '1080p' | '720p' | '480p' | '360p' | 'auto';
+
+const RESOLUTION_PRESETS: Record<Exclude<CameraResolution, 'auto'>, { width: number; height: number; minWidth: number; minHeight: number }> = {
+  '1080p': { width: 1920, height: 1080, minWidth: 1280, minHeight: 720 },
+  '720p': { width: 1280, height: 720, minWidth: 640, minHeight: 480 },
+  '480p': { width: 640, height: 480, minWidth: 480, minHeight: 360 },
+  '360p': { width: 480, height: 360, minWidth: 320, minHeight: 240 },
+};
+
+let preferredResolution: CameraResolution = '1080p';
+
+/**
+ * Resolução escolhida pelo usuário (persistida no banco). Usada por todas as
+ * capturas de câmera do app — preview, VideoProcessor e publish.
+ */
+export function setPreferredCameraResolution(resolution: CameraResolution): void {
+  preferredResolution = resolution;
+}
+
+export function getPreferredCameraResolution(): CameraResolution {
+  return preferredResolution;
+}
+
+/**
+ * 📐 Constraints de vídeo com a resolução salva no banco e enquadramento
+ * NATURAL (FIT, sem corte/zoom). Apenas dicas `ideal` (sem max) para o
+ * navegador escolher o modo nativo mais próximo da resolução escolhida — garante
+ * nitidez e nunca corta o sensor nem deixa o rosto colado. Referência Tencent
+ * Cloud (TRTC): resolução via ideal/dicas (ex.: 720p = 1280x720) e enquadramento
+ * via modo de preenchimento FIT (cabe a imagem inteira).
+ */
+export function getVideoConstraints(
+  facingMode: 'user' | 'environment',
+  resolution?: CameraResolution
+): MediaTrackConstraints {
+  const res = resolution || preferredResolution;
+  const preset = res !== 'auto' ? RESOLUTION_PRESETS[res] : undefined;
+
+  if (!preset) {
+    // 'auto': deixa o navegador escolher o melhor modo nativo do sensor
+    return {
+      facingMode,
+      width: { min: 640, ideal: 1280 },
+      height: { min: 480, ideal: 720 },
+      frameRate: { ideal: 30 },
+    };
+  }
+
   return {
     facingMode,
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
+    width: { min: preset.minWidth, ideal: preset.width },
+    height: { min: preset.minHeight, ideal: preset.height },
     frameRate: { ideal: 30 },
   };
 }
@@ -191,7 +229,7 @@ export class CameraService {
         } catch (audErr) {
           try {
             console.log('[Camera] Tentando áudio simples como fallback...');
-            audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
             console.log('✅ [Camera] Áudio simples capturado com sucesso');
           } catch (audErr2) {
             console.warn('⚠️ [Camera] Não foi possível obter nenhuma track de áudio:', audErr2);
@@ -214,10 +252,13 @@ export class CameraService {
         }
       }
 
-      // Se tudo falhou, tenta o fallback absoluto: qualquer mídia de vídeo disponível
+        // Se tudo falhou, tenta o fallback absoluto: qualquer mídia de vídeo disponível
       if (!stream) {
         console.log('[Camera] Tentando fallback absoluto para qualquer câmera/microfone...');
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
       }
 
       // Validação detalhada das tracks retornadas

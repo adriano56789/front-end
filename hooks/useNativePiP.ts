@@ -82,7 +82,7 @@ export function useNativePiP(options: UseNativePiPOptions = {}) {
       // Android) abre a janelinha flutuante sozinho — sem nenhum botão extra.
       // `autoPictureInPicture` NÃO exige gesto prévio do usuário (diferente do
       // requestPictureInPicture(), que só funciona depois de um toque manual).
-      el.autoPictureInPicture = enableWhenBackground;
+      (el as HTMLVideoElement & { autoPictureInPicture?: boolean }).autoPictureInPicture = enableWhenBackground;
       if (mediaSessionMetadata) {
         updateMediaSession(mediaSessionMetadata);
       }

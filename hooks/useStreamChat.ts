@@ -368,13 +368,16 @@ export function useStreamChat(options: StreamChatOptions) {
         if (!giftName) return;
         const fromId = data.from?.id || data.fromUser?.id || '';
         const quantity = data.quantity || 1;
-        // 🔑 Chave de dedupe com JANELA DE TEMPO (2s): o backend emite o mesmo
-        // evento duas vezes (live_gift_received + gift_received) — dedupe esses,
-        // MAS permite presentes idênticos repetidos do mesmo usuário (ex: x2 Coração).
         const now = Date.now();
-        const key = `${fromId}_${giftName}_${quantity}`;
+        // 🔑 Dedupe APENAS do MESMO envio: o backend emite o mesmo presente duas
+        // vezes (live_gift_received na sala + gift_received na sala privada do
+        // receptor). Esses dois eventos compartilham o MESMO timestamp, então a
+        // chave inclui o timestamp — envios idênticos repetidos (ex.: x100 do
+        // mesmo presente) têm timestamps diferentes e SEMPRE passam.
+        const ts = String(data.timestamp || data.createTime || '');
+        const key = `${fromId}_${giftName}_${quantity}_${ts}`;
         const lastAt = knownGiftIdsRef.current.get(key) || 0;
-        if (!deadRoomRef.current && now - lastAt > 2000) {
+        if (!deadRoomRef.current && now - lastAt > 10000) {
           knownGiftIdsRef.current.set(key, now);
           optionsRef.current.onMessage?.({
             type: 'live_gift_received',

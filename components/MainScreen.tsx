@@ -369,7 +369,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
             </button>
         </div>
       )}      <main ref={mainRef} className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar">
-        {isLoading ? (
+        {isLoading && (!Array.isArray(streamers) || streamers.length === 0) ? (
             <div className="h-full flex items-center justify-center">
                 <LoadingSpinner />
             </div>

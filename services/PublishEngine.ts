@@ -13,7 +13,7 @@ export interface PublishEngineConfig {
 
 const DEFAULT_CONFIG: Required<Pick<PublishEngineConfig, 'videoCodec' | 'maxVideoBitrate' | 'reconnectRetries'>> = {
   videoCodec: 'H264',
-  maxVideoBitrate: 2500,
+  maxVideoBitrate: 6000,
   reconnectRetries: 3,
 };
 
@@ -180,9 +180,13 @@ export class PublishEngine {
       // constraints não suportadas (NotOverconstrainedError) ou câmera ocupada.
       return await cameraService.captureStream('user');
     } catch (err: any) {
-      // Fallback absoluto: captura mínima simples, sem constraints
+      // Fallback absoluto: captura mínima simples, sem constraints pesadas,
+      // mas mantendo o áudio nativo limpo (eco/som ambiente/cutoff).
       try {
-        const fallback = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const fallback = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
         if (fallback && fallback.getTracks().length > 0) return fallback;
       } catch { /* mantém erro original */ }
       throw new Error(getUserMediaErrorMessage(err));

@@ -197,6 +197,25 @@ const TemperatureIcon = ({ className = "w-7 h-7 text-white" }) => (
   </svg>
 );
 
+const SharpnessIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 8L36 26L54 22L44 36L58 42L42 46L46 62L34 50L22 62L24 46L8 42L22 36L12 22L30 26L32 8Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="32" cy="35" r="6" stroke="currentColor" strokeWidth="2.5" />
+  </svg>
+);
+
+const FaceVolume3DIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 6C19 6 10 16 10 30C10 44 19 58 32 58C45 58 54 44 54 30C54 16 45 6 32 6Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M32 6C40 16 44 28 44 30C44 42 38 52 32 58" stroke="currentColor" strokeWidth="1.5" opacity="0.5" strokeLinecap="round" />
+    <path d="M23 28C25 26 28 26 30 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M34 28C36 26 39 26 41 28" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M28 38C30 40 34 40 36 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    <circle cx="20" cy="34" r="2" fill="currentColor" />
+    <circle cx="44" cy="34" r="2" fill="currentColor" />
+  </svg>
+);
+
 const BrowColorIcon = ({ className = "w-7 h-7 text-white" }) => (
   <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M10 30C16 20 24 16 32 20C40 16 48 20 54 30" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
@@ -264,6 +283,10 @@ const renderEffectIcon = (effectName: string, isSelected: boolean) => {
             return <BrowColorIcon className={iconClass} />;
         case 'Balanço de Branco':
             return <TemperatureIcon className={iconClass} />;
+        case 'Nitidez':
+            return <SharpnessIcon className={iconClass} />;
+        case 'Efeito 3D':
+            return <FaceVolume3DIcon className={iconClass} />;
         default:
             return <div className="text-xl">✨</div>;
     }
@@ -314,6 +337,8 @@ const FALLBACK_BEAUTY_EFFECTS: BeautyEffect[] = [
   { name: 'Refinar nariz' },
   { name: 'Cor da sobrancelha' },
   { name: 'Balanço de Branco' },
+  { name: 'Nitidez' },
+  { name: 'Efeito 3D' },
 ];
 
 // Efeitos que dependem exclusivamente da malha facial (MediaPipe) — sem fallback CSS
@@ -420,6 +445,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                         'Clarear olheiras': DEFAULT_BEAUTY_SETTINGS.darkCircle,
                         'Reduzir brilho': DEFAULT_BEAUTY_SETTINGS.shineReduction,
                         'Rosto Bebê': DEFAULT_BEAUTY_SETTINGS.babyFace,
+                        'Nitidez': DEFAULT_BEAUTY_SETTINGS.sharpness,
+                        'Efeito 3D': DEFAULT_BEAUTY_SETTINGS.faceVolume3D,
                     };
                     const effective = {
                         ...defaultKeys,
@@ -520,7 +547,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             noseRefine: apiSettings['Refinar nariz'] || 0,
             jawChin: apiSettings['Ajuste de mandíbula e queixo'] || 0,
             eyeRefine: apiSettings['Refinamento de olhos'] || 0,
-            whiteBalance: Number(apiSettings['Balanço de Branco']) || 0
+            whiteBalance: Number(apiSettings['Balanço de Branco']) || 0,
+            sharpness: Number(apiSettings['Nitidez']) || 0,
+            faceVolume3D: Number(apiSettings['Efeito 3D']) || 0
         });
     };
 
@@ -617,7 +646,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             'Reduzir brilho': (int) => `brightness(${1 - (int / 700)}) saturate(${1 - (int / 1000)})`,
             'Ajuste de mandíbula e queixo': (int) => `contrast(${1 + (int / 450)})`,
             'Refinamento de olhos': (int) => `contrast(${1 + (int / 300)})`,
-            'Refinar nariz': (int) => `contrast(${1 + (int / 450)})`
+            'Refinar nariz': (int) => `contrast(${1 + (int / 450)})`,
+            'Nitidez': (int) => `contrast(${1 + (int / 180)})`,
+            'Efeito 3D': (int) => `brightness(${1 + (int / 500)}) contrast(${1 + (int / 320)})`
         };
 
         const fn = effectMap[effectName];
@@ -832,7 +863,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
             eyeRefine: 0,
             browColor: '',
             browColorStrength: 0,
-            whiteBalance: 0
+            whiteBalance: 0,
+            sharpness: 0,
+            faceVolume3D: 0
         });
         
         // Resetar vídeo (filtro CSS local)

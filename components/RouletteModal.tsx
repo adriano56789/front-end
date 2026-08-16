@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
+import { connectSocket, onSocketEvent } from '../services/socketService';
 
 interface RouletteItem {
     _id: string;
@@ -50,6 +51,10 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     const addToastRef = useRef(addToast);
     addToastRef.current = addToast;
 
+    // 🔁 Referência do loadItems para o listener de socket (evita re-registrar)
+    const loadItemsRef = useRef<() => void>(() => {});
+    const loadCostRef = useRef<() => void>(() => {});
+
     const [items, setItems] = useState<RouletteItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [editing, setEditing] = useState(false);
@@ -98,6 +103,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             setLoading(false);
         }
     }, [ownerId]);
+    loadItemsRef.current = loadItems;
 
     useEffect(() => {
         if (isOpen && ownerId) {
@@ -111,6 +117,41 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             }).catch(() => { });
         }
     }, [isOpen, ownerId, loadItems]);
+
+    // 📡 TEMPO REAL: quando o HOST cadastra/edita/remove item ou muda o custo,
+    // o backend emite `roulette_updated` na sala da live (io.to(ownerId)) e TODOS
+    // os espectadores com a roleta aberta veem a mudança na hora — sem precisar
+    // fechar/abrir ou recarregar. Só abre a tela de compra, nunca edita nada.
+    useEffect(() => {
+        if (!isOpen || !ownerId) return;
+        let unsub: (() => void) | null = null;
+        let cancelled = false;
+        const syncFromEvent = (data: any) => {
+            if (!data || cancelled) return;
+            if (data.ownerId && String(data.ownerId) !== String(ownerId)) return;
+            if (Array.isArray(data.items)) {
+                setItems(data.items);
+            } else {
+                loadItemsRef.current();
+            }
+            if (typeof data.spinCost === 'number') {
+                const fresh = Math.max(0, data.spinCost);
+                setSpinCost(fresh);
+                setSpinCostInput((prev) => (editingCostInline ? prev : String(fresh)));
+            } else {
+                loadCostRef.current();
+            }
+        };
+        connectSocket().then((s) => {
+            if (!cancelled && s?.connected) {
+                unsub = onSocketEvent<any>('roulette_updated', syncFromEvent);
+            }
+        });
+        return () => {
+            cancelled = true;
+            if (unsub) unsub();
+        };
+    }, [isOpen, ownerId, editingCostInline]);
 
     // 🔁 Mantém o custo SEMPRE igual ao valor salvo pela host: se a host mudar
     // o preço com a roleta aberta, o valor exibido atualiza sozinho (assim o
@@ -128,7 +169,15 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         }, 8000);
         return () => clearInterval(t);
     }, [isOpen, ownerId, editingCostInline]);
-
+    loadCostRef.current = () => {
+        if (!ownerId) return;
+        api.roulette.getSpinCost(ownerId).then((r) => {
+            if (!r || typeof r.spinCost !== 'number') return;
+            const fresh = Math.max(0, r.spinCost);
+            setSpinCost(fresh);
+            setSpinCostInput((prev) => (editingCostInline ? prev : String(fresh)));
+        }).catch(() => { });
+    };
     // Foca o input de edição quando um setor é selecionado
     useEffect(() => {
         if (editingItemId) editInputRef.current?.focus();

@@ -201,6 +201,7 @@ const isExternalUrl = (url: string): boolean => {
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1000;
+const REQUEST_TIMEOUT_MS = 25000;
 
 const callApiWithOptions = async <T = any>(
     method: Method,
@@ -255,6 +256,17 @@ const callApiWithOptions = async <T = any>(
                 }
                 options.signal.addEventListener('abort', () => xhr.abort(), { once: true });
             }
+
+            // ⏱️ TIMEOUT: sem isso, um request pendurado (ex.: proxy local → VPS
+            // lenta, QUIC travado) ficava girando a "bolinha" de envio para
+            // SEMPRE e as mensagens sumiam (fetch inicial nunca resolvia). 25s
+            // de tolerância, depois aborta e cai no retry/erro normal.
+            xhr.timeout = REQUEST_TIMEOUT_MS;
+            xhr.ontimeout = () => {
+                const error = new Error('timeout');
+                (error as any).xhrStatus = 0;
+                reject(error);
+            };
 
             xhr.onload = () => {
                 const responseHeaders: Record<string, string> = {};
@@ -1396,7 +1408,7 @@ export const api = {
         }
     },
 
-    sendChatMessage: (from: string, to: string, text?: string, imageUrl?: string, tempId?: string): Promise<{ success: boolean; message: Message }> => callApi<{ success: boolean; message: Message }>('POST', '/api/chats/send', { from, to, text, imageUrl, tempId }) as Promise<{ success: boolean; message: Message }>,
+    sendChatMessage: (from: string, to: string, text?: string, imageUrl?: string, tempId?: string, replyTo?: Message['replyTo']): Promise<{ success: boolean; message: Message }> => callApi<{ success: boolean; message: Message }>('POST', '/api/chats/send', { from, to, text, imageUrl, tempId, replyTo }) as Promise<{ success: boolean; message: Message }>,
 
     deleteMessage: (messageId: string, userId?: string): Promise<{ success: boolean }> => {
         try {
@@ -1408,7 +1420,10 @@ export const api = {
         }
     },
 
-    markMessagesAsRead: (messageIds: string[], userId: string) => callApi<{ success: boolean }>('PUT', `/api/messages/messages/${messageIds[0]}/read`, { userId }),
+    markMessagesAsRead: (messageIds: string[], userId: string) => {
+        if (!messageIds || messageIds.length === 0) return Promise.resolve({ success: true });
+        return callApi<{ success: boolean }>('PUT', '/api/messages/read', { messageIds, userId });
+    },
 
     getVisitors: (userId: string) => callApi<Visitor[]>('GET', `/api/interactions/visitors/list/${userId}`),
 

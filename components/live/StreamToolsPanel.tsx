@@ -1,6 +1,7 @@
 import React from 'react';
-import { BookOpenIcon, SparklesIcon, PKIcon, LockIcon, ChevronRightIcon } from '../icons';
+import { BookOpenIcon, SparklesIcon, PKIcon, LockIcon, ChevronRightIcon, CameraIcon } from '../icons';
 import { useTranslation } from '../../i18n';
+import { getPreferredCameraResolution, CameraResolution } from '../../services/cameraService';
 
 interface StreamToolsPanelProps {
   onOpenManual: () => void;
@@ -8,16 +9,34 @@ interface StreamToolsPanelProps {
   isPrivate: boolean;
   onTogglePrivate: () => void;
   isInviteMode?: boolean;
+  onSelectCameraResolution?: (resolution: CameraResolution) => void;
 }
+
+const RESOLUTION_LABELS: Record<CameraResolution, string> = {
+  '1080p': '1080p (Full HD)',
+  '720p': '720p (HD)',
+  '480p': '480p (Padrão)',
+  '360p': '360p (Fluente)',
+  'auto': 'Auto (nativo)',
+};
 
 export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
   onOpenManual,
   onOpenBeautyPanel,
   isPrivate,
   onTogglePrivate,
-  isInviteMode = false
+  isInviteMode = false,
+  onSelectCameraResolution
 }) => {
   const { t } = useTranslation();
+  const [resOpen, setResOpen] = React.useState(false);
+  const [currentRes, setCurrentRes] = React.useState<CameraResolution>(getPreferredCameraResolution());
+
+  const handleSelectRes = (res: CameraResolution) => {
+    setCurrentRes(res);
+    setResOpen(false);
+    onSelectCameraResolution?.(res);
+  };
 
   return (
     <div className="bg-[#121212]/95 rounded-[16px] p-4 text-white">
@@ -45,6 +64,37 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
           </div>
           <ChevronRightIcon className="w-4 h-4 text-gray-500" />
         </button>
+
+        {/* 📐 Resolução da CÂMERA (broadcaster) — salva no banco */}
+        {onSelectCameraResolution && (
+          <div className="border-t border-[#ffffff10]">
+            <button 
+              onClick={() => setResOpen(o => !o)} 
+              className="flex items-center justify-between py-3.5 w-full transition-colors active:bg-white/5"
+            >
+              <div className="flex items-center space-x-3">
+                <CameraIcon className="w-5 h-5 text-gray-400" />
+                <span className="text-[14px] font-medium text-[#e2e2e2]">Resolução da Câmera</span>
+              </div>
+              <span className="text-[13px] text-[#00e5ff] font-semibold">{RESOLUTION_LABELS[currentRes]}</span>
+            </button>
+            {resOpen && (
+              <div className="pb-2 space-y-1">
+                {(Object.keys(RESOLUTION_LABELS) as CameraResolution[]).map(res => (
+                  <button
+                    key={res}
+                    onClick={() => handleSelectRes(res)}
+                    className={`w-full text-left px-4 py-2.5 rounded-xl text-[13px] font-medium transition-colors ${
+                      currentRes === res ? 'bg-[#bd00ff]/25 text-white border border-[#bd00ff]/50' : 'text-gray-300 hover:bg-white/5'
+                    }`}
+                  >
+                    {RESOLUTION_LABELS[res]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
 
 

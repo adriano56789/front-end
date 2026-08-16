@@ -1007,7 +1007,7 @@ export default function PKBattleScreen({
                 {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
                 <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` : `env(safe-area-inset-bottom, 0px)`, transition: 'opacity 0.3s ease, bottom 0.15s ease-out' }}>
                     {/* Chat messages */}
-                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar overscroll-contain px-3 pt-16 pb-2 flex flex-col gap-1.5 justify-end max-h-[40vh]" style={{ maxHeight: '40lvh',
+                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar overscroll-contain px-2 pt-6 pb-2 flex flex-col gap-0.5 justify-end max-h-[22vh]" style={{ maxHeight: '22lvh',
                         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'
                     }}>
                         {messages.map((msg) => {

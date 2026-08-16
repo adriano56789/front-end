@@ -35,9 +35,9 @@ export class BeautyWebRTCIntegration {
         babyFace: 0
       },
       quality: {
-        width: 1280,
-        height: 720,
-        frameRate: 24  // Reduzido para performance com beauty
+        width: 1920,
+        height: 1080,
+        frameRate: 30
       },
       ...config
     };
@@ -62,8 +62,8 @@ export class BeautyWebRTCIntegration {
       
       // Atualizar configuração baseada no stream original
       this.config.quality = {
-        width: settings.width || 1280,
-        height: settings.height || 720,
+        width: settings.width || 1920,
+        height: settings.height || 1080,
         frameRate: settings.frameRate || 30
       };
 

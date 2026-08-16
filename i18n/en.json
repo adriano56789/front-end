@@ -152,7 +152,10 @@
       "logout": "Log Out",
       "streamPreview": "Show live previews",
       "streamPreviewDesc": "Turn on to see streams playing directly on the cards, without entering the live.",
-      "streamPreviewSaved": "Preview preference updated."
+      "streamPreviewSaved": "Preview preference updated.",
+      "screenSecurity": "Block screenshots and screen recording",
+      "screenSecurityDesc": "When enabled, anyone trying to screenshot or record the screen will see everything black (in the Android app). It also blocks saving, copying, downloading or sharing your photos and videos — including via Telegram bots. The live stream can still be shared.",
+      "screenSecuritySaved": "Screen protection updated."
     },
     "connected": {
         "title": "Connected Accounts",

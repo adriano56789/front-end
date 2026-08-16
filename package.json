@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.0",
+    "@types/three": "^0.185.4",
     "axios": "^1.7.2",
+    "facefilter": "^3.4.3",
     "firebase": "^12.15.0",
     "lottie-web": "^5.13.0",
     "protobufjs": "^7.6.5",
@@ -20,7 +22,8 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.14.1",
     "socket.io-client": "^4.8.3",
-    "stacked-alpha-video": "^1.0.10"
+    "stacked-alpha-video": "^1.0.10",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

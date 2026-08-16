@@ -10,10 +10,13 @@ import { LoadingSpinner } from './Loading';
 import LiveBadge from './ui/LiveBadge';
 import { formatMessageTime } from '../utils/formatMessageTime';
 import { syncServerTime } from '../utils/serverTime';
+import { emitChatTyping, connectSocket } from '../services/socketService';
 // 💬 Chat privado via WebSocket (Socket.IO): o socketService faz a ponte do
 // evento `newChatMessage` do backend para o window (abaixo). A busca inicial
 // usa REST e o envio usa REST (persiste no banco); a entrega em tempo real é
-// via WebSocket — sem Firebase.
+// via WebSocket — sem Firebase. Comportamento estilo WhatsApp: indicador
+// "digitando...", ✓✓ azul em tempo real, responder mensagem e separadores de
+// data (Hoje/Ontem).
 
 interface ChatScreenProps {
     user: User;
@@ -56,6 +59,19 @@ const formatTimestamp = (timestamp: string) => {
     return formatMessageTime(timestamp);
 };
 
+// 📅 Separador de data estilo WhatsApp: "Hoje", "Ontem" ou "15/08"
+const formatDayLabel = (timestamp: string): string => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86400000);
+    if (diffDays === 0) return 'Hoje';
+    if (diffDays === 1) return 'Ontem';
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
 const ChatMessageBubble: React.FC<{ 
     message: Message; 
     isMe: boolean; 
@@ -63,7 +79,8 @@ const ChatMessageBubble: React.FC<{
     onImageClick: (url: string) => void; 
     onAvatarClick?: (user: User) => void;
     currentUser: User;
-}> = ({ message, isMe, user, onImageClick, onAvatarClick, currentUser }) => {
+    onReply?: (message: Message) => void;
+}> = ({ message, isMe, user, onImageClick, onAvatarClick, currentUser, onReply }) => {
     const isObservable = !isMe && message.status !== 'read';
 
     // Simplificado - sem frames para navegação isolada
@@ -84,10 +101,39 @@ const ChatMessageBubble: React.FC<{
                today.getMonth() === birthday.getMonth();
     };
 
+    // 📌 Long-press (estilo WhatsApp): segurar na mensagem abre "Responder"
+    const pressTimerRef = useRef<number | null>(null);
+    const pressTriggeredRef = useRef(false);
+    const onPressStart = () => {
+        if (!onReply) return;
+        pressTriggeredRef.current = false;
+        pressTimerRef.current = window.setTimeout(() => {
+            pressTriggeredRef.current = true;
+            onReply(message);
+            navigator.vibrate?.(30);
+        }, 400);
+    };
+    const onPressEnd = () => {
+        if (pressTimerRef.current) {
+            window.clearTimeout(pressTimerRef.current);
+            pressTimerRef.current = null;
+        }
+    };
+
     return (
         <div
             key={message.id}
-            className={`flex items-start ${isMe ? 'flex-row-reverse' : ''} ${isObservable ? 'message-bubble-observable' : ''} ${message.status === 'failed' ? 'opacity-70' : ''}`}
+            onTouchStart={onPressStart}
+            onTouchEnd={onPressEnd}
+            onTouchMove={onPressEnd}
+            onMouseDown={onPressStart}
+            onMouseUp={onPressEnd}
+            onMouseLeave={onPressEnd}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                if (onReply) onReply(message);
+            }}
+            className={`flex items-start ${isMe ? 'flex-row-reverse' : ''} ${isObservable ? 'message-bubble-observable' : ''} ${message.status === 'failed' ? 'opacity-70' : ''} select-text`}
             data-message-id={message.id}
         >
             {/* Clickable Avatar with frame indicator matching user action modal */}
@@ -104,6 +150,24 @@ const ChatMessageBubble: React.FC<{
             
             {/* Chat Message Box with gorgeous live stream semi-transparent glass style matching feed */}
             <div className={`relative z-10 max-w-[80%] md:max-w-[70%] rounded-2xl ${isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none pr-6 pl-3.5' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none pl-6 pr-3.5'} ${message.imageUrl && !message.text ? 'p-1' : 'py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.25)]'}`}>
+                {/* 📌 Citação da mensagem respondida (estilo WhatsApp) */}
+                {message.replyTo && (
+                    <div className={`mb-1.5 rounded-lg border-l-4 px-2.5 py-1.5 text-xs ${isMe ? 'bg-[#3a1a52]/60 border-[#d21fff]' : 'bg-black/30 border-[#00e5ff]'}`}>
+                        <div className="font-black text-[11px] mb-0.5 truncate flex items-center space-x-1">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={isMe ? 'text-[#d21fff]' : 'text-[#00e5ff]'}>
+                                <path d="M3 12c3.5-4 8-6 13-6v4l5-5-5-5v4c-6 0-11 3-14 8z" fill="none"/>
+                                <path d="M8 21c2.5-1.5 4-4 4-7H6v6z" fill="none"/>
+                            </svg>
+                            <span className={isMe ? 'text-[#d21fff]' : 'text-[#00e5ff]'}>{message.replyTo.senderName || 'Você'}</span>
+                        </div>
+                        {message.replyTo.imageUrl && !message.replyTo.text && (
+                            <img src={message.replyTo.imageUrl} alt="resposta" className="w-10 h-10 rounded object-cover opacity-90" />
+                        )}
+                        {message.replyTo.text && (
+                            <p className="text-zinc-300/90 truncate">{message.replyTo.text}</p>
+                        )}
+                    </div>
+                )}
                 {(senderName || senderLevel) && (
                     <div className="flex items-center flex-wrap gap-1.5 mb-1.5 text-xs select-none">
                         <span 
@@ -241,10 +305,34 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
 
     // Sala de chat: Socket.IO removido — mensagens via REST API
     const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
+
+    // ⌨️ Indicador "digitando..." (estilo WhatsApp)
+    const [isTyping, setIsTyping] = useState(false);
+    const typingStopTimerRef = useRef<number | null>(null);
+    const lastTypingEmitRef = useRef(0);
+
+    // 📌 Responder mensagem (estilo WhatsApp)
+    const [replyTo, setReplyTo] = useState<Message | null>(null);
+    const replyToRef = useRef<Message | null>(null);
+    replyToRef.current = replyTo;
+
+    const handleUserTyping = useCallback(() => {
+        if (!user?.id) return;
+        const now = Date.now();
+        // Debounce: no máximo 1 emit a cada 900ms
+        if (now - lastTypingEmitRef.current > 900) {
+            lastTypingEmitRef.current = now;
+            emitChatTyping(user.id, true);
+        }
+        if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+        typingStopTimerRef.current = window.setTimeout(() => emitChatTyping(user.id, false), 2000);
+    }, [user?.id]);
+
+    const handleReplyTo = useCallback((msg: Message) => {
+        setReplyTo(msg);
+        if (!isComposerOpen) openComposer();
+    }, [isComposerOpen, openComposer]);
     
-    // Cache local para evitar requisições duplicadas
-    const cacheRef = useRef<Map<string, { data: any; timestamp: number }>>(new Map());
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
     const formatLastSeen = (timestamp?: string) => {
         if (!timestamp) return 'Offline';
@@ -274,45 +362,31 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     const fetchInitialData = useCallback(async () => {
         setIsLoading(true);
         
-        // Verificar cache primeiro
-        const cacheKey = `chat_data_${user.id}`;
-        const cached = cacheRef.current.get(cacheKey);
-        const now = Date.now();
-        
-        if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-            // Usar dados em cache
-            setMessages(cached.data.messages || []);
-            setUserStatus(cached.data.status);
-            syncFromMessages(cached.data.messages || []);
-            setIsLoading(false);
-            return;
-        }
-        
+        // 📂 SEM cache: as mensagens vivem no BANCO (REST), então sempre
+        // buscamos do servidor ao abrir. O MERGE garante que nada some: mescla
+        // as do servidor com as que já estavam na tela (envios otimistas,
+        // recebidas por socket que ainda não foram persistidas). Servidor
+        // vence em conflito de ID; o resto local é mantido.
         try {
             const [fetchedMessages, status] = await Promise.all([
                 api.getChatMessages(user.id, currentUser.id),
                 api.getUserStatus(user.id)
             ]);
             
-            const data = {
-                messages: fetchedMessages || [],
-                status
-            };
-            
-            // Salvar no cache
-            cacheRef.current.set(cacheKey, {
-                data,
-                timestamp: now
+            const fetched = fetchedMessages || [];
+            setMessages(prev => {
+                if (!prev || prev.length === 0) return fetched;
+                const fetchedIds = new Set(fetched.map(m => m.id));
+                const localOnly = prev.filter(m => !fetchedIds.has(m.id));
+                return [...fetched, ...localOnly];
             });
-            
-            setMessages(data.messages);
-            setUserStatus(data.status);
-            syncFromMessages(data.messages);
+            setUserStatus(status);
+            syncFromMessages(fetched);
         } catch (error) {
         } finally {
             setIsLoading(false);
         }
-    }, [user.id]);
+    }, [user.id, currentUser.id]);
 
     // 📜 Rola a lista de mensagens INTERNAMENTE até o fim (scrollTop do
     // container). NUNCA usa scrollIntoView — que rola a página/visualViewport
@@ -411,6 +485,45 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         };
     }, [chatKey, currentUser.id, user.id, propMessages]);
 
+    // ⌨️ Indicador "digitando..." em tempo real (estilo WhatsApp).
+    // Recebe o evento do backend (repasse via socketService) e mostra no header.
+    // 🔵 Confirmação de leitura em tempo real: quando o DESTINATÁRIO lê minhas
+    // mensagens, o backend emite `messages_read` → aqui atualizo ✓✓ para azul.
+    useEffect(() => {
+        const onTyping = (e: Event) => {
+            const data = (e as CustomEvent).detail;
+            if (!data) return;
+            if (data.from === user.id && data.to === currentUser.id) {
+                setIsTyping(!!data.typing);
+                if (data.typing) {
+                    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+                    typingStopTimerRef.current = window.setTimeout(() => setIsTyping(false), 4000);
+                }
+            }
+        };
+        const onMessagesRead = (e: Event) => {
+            const data = (e as CustomEvent).detail;
+            if (!data?.messageIds?.length) return;
+            // `userId` é quem LEU (o destinatário). Só atualizo se for o outro lado.
+            if (data.userId !== user.id) return;
+            const ids = new Set(data.messageIds);
+            setMessages(prev => prev.map(m =>
+                m.from === currentUser.id && ids.has(m.id)
+                    ? { ...m, status: 'read' as 'read' }
+                    : m
+            ));
+        };
+        window.addEventListener('chat_typing', onTyping);
+        window.addEventListener('messages_read', onMessagesRead);
+        return () => {
+            window.removeEventListener('chat_typing', onTyping);
+            window.removeEventListener('messages_read', onMessagesRead);
+            if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+            // Avisar o outro lado que parei de digitar
+            if (user?.id && currentUser?.id) emitChatTyping(user.id, false);
+        };
+    }, [chatKey, currentUser.id, user.id]);
+
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
@@ -474,6 +587,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         const imageFile = selectedImageFile;
 
         const tempId = `temp_${Date.now()}`;
+        const replyContext = replyToRef.current
+            ? {
+                text: replyToRef.current.imageUrl && !replyToRef.current.text ? undefined : replyToRef.current.text,
+                imageUrl: replyToRef.current.imageUrl || undefined,
+                from: replyToRef.current.from,
+                senderName: replyToRef.current.senderName || (replyToRef.current.from === currentUser.id ? currentUser.name : user.name)
+            }
+            : undefined;
+
         const optimisticMessage: Message = {
             id: tempId,
             chatId: chatKey,
@@ -483,12 +605,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             imageUrl: selectedImage || undefined,
             timestamp: new Date().toISOString(),
             status: 'sending' as 'sent',
+            replyTo: replyContext,
         };
 
         setMessages(prev => [...prev, optimisticMessage]);
         setNewMessage('');
         setSelectedImage(null);
         setSelectedImageFile(null);
+        setReplyTo(null);
+        // Parei de digitar
+        emitChatTyping(user.id, false);
 
         setTimeout(scrollMessagesToBottom, 120);
 
@@ -512,7 +638,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                 }
             }
 
-            const result = await api.sendChatMessage(currentUser.id, user.id, textToSend, finalImageUrl, tempId);
+            const result = await api.sendChatMessage(currentUser.id, user.id, textToSend, finalImageUrl, tempId, replyContext);
 
             if (result && result.message) {
                 // ⏰ Confirmado pelo servidor: timestamp de envio = horário do servidor
@@ -648,9 +774,9 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                         </span>
                                     )}
                                 </h1>
-                                <span className="text-[12px] text-[#00e5ff] flex items-center font-medium">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] mr-1.5"></span>
-                                    {(userStatus?.isOnline ?? user.isOnline) ? t('common.online') : formatLastSeen(userStatus?.lastSeen)}
+                                <span className={`text-[12px] flex items-center font-medium ${isTyping ? 'text-[#b91bff]' : 'text-[#00e5ff]'}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${isTyping ? 'bg-[#b91bff] animate-pulse' : 'bg-[#00e5ff]'}`}></span>
+                                    {isTyping ? 'digitando...' : ((userStatus?.isOnline ?? user.isOnline) ? t('common.online') : formatLastSeen(userStatus?.lastSeen))}
                                 </span>
                             </div>
                         </div>
@@ -689,22 +815,49 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         </div>
                     ) : (
                         <div className="space-y-3 px-4 pt-2">
-                            {effectiveMessages.map((msg) => {
-                                if (msg.type === 'system-friend-notification') {
-                                    return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
-                                }
-                                return (
-                                    <ChatMessageBubble
-                                        key={msg.id}
-                                        message={msg}
-                                        isMe={msg.from === currentUser.id}
-                                        user={msg.from === currentUser.id ? currentUser : user}
-                                        onImageClick={handleViewImage}
-                                        onAvatarClick={onOpenProfile}
-                                        currentUser={currentUser}
-                                    />
-                                );
-                            })}
+                            {(() => {
+                                // 📅 Separadores de data (estilo WhatsApp): Hoje / Ontem / data
+                                let lastDayKey = '';
+                                return effectiveMessages.map((msg) => {
+                                    if (msg.type === 'system-friend-notification') {
+                                        return <BecameFriendsIndicator key={msg.id} onNavigate={onNavigateToFriends} />;
+                                    }
+                                    const dayKey = formatDayLabel(msg.timestamp);
+                                    const showSeparator = dayKey && dayKey !== lastDayKey;
+                                    lastDayKey = dayKey;
+                                    return (
+                                        <React.Fragment key={msg.id}>
+                                            {showSeparator && (
+                                                <div className="flex justify-center my-2 select-none">
+                                                    <span className="bg-[#232128]/90 text-[#a09cae] text-[11px] font-bold px-3 py-1 rounded-full">{dayKey}</span>
+                                                </div>
+                                            )}
+                                            <ChatMessageBubble
+                                                message={msg}
+                                                isMe={msg.from === currentUser.id}
+                                                user={msg.from === currentUser.id ? currentUser : user}
+                                                onImageClick={handleViewImage}
+                                                onAvatarClick={onOpenProfile}
+                                                currentUser={currentUser}
+                                                onReply={handleReplyTo}
+                                            />
+                                        </React.Fragment>
+                                    );
+                                });
+                            })()}
+                            {/* ⌨️ Bolha "digitando..." (estilo WhatsApp) */}
+                            {isTyping && (
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-10 h-10 rounded-full bg-[#131317] border-[3px] border-[#131317] overflow-hidden">
+                                        <img src={user.avatarUrl || `https://picsum.photos/seed/${user.name}/200/200.jpg`} alt="avatar" className="w-full h-full rounded-full object-cover border border-white/10 bg-zinc-950" />
+                                    </div>
+                                    <div className="bg-white/[0.04] border border-white/[0.06] rounded-2xl rounded-tl-none px-4 py-3 flex items-center space-x-1">
+                                        <span className="typing-dot" />
+                                        <span className="typing-dot" style={{ animationDelay: '0.15s' }} />
+                                        <span className="typing-dot" style={{ animationDelay: '0.3s' }} />
+                                    </div>
+                                </div>
+                            )}
                             <div style={{ height: `calc(4.5rem + ${isComposerOpen ? keyboardInset : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                         </div>
                     )}
@@ -715,6 +868,21 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     ela fica apenas INVISÍVEL (opacity) e o composer (SEGUNDA
                     barra) aparece colado acima do teclado, por cima dela. */}
                 <footer className={`fixed left-0 right-0 z-10 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128] transition-all duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                    {replyTo && (
+                        <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
+                            <div className="min-w-0 flex-1">
+                                <div className="text-[11px] font-black text-[#d21fff] truncate">
+                                    Respondendo a {replyTo.senderName || (replyTo.from === currentUser.id ? currentUser.name : user.name)}
+                                </div>
+                                <div className="text-[12px] text-zinc-300 truncate">
+                                    {replyTo.imageUrl && !replyTo.text ? '📷 Foto' : replyTo.text || ''}
+                                </div>
+                            </div>
+                            <button onClick={() => setReplyTo(null)} className="ml-2 p-1 text-[#888691] hover:text-white flex-shrink-0" aria-label="Cancelar resposta">
+                                <CloseIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                    )}
                     {selectedImage && (
                         <div className="relative mb-2 w-fit">
                             <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
@@ -800,6 +968,21 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         style={{ bottom: `${bottom}px` }}
                     >
                         <footer className="bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]">
+                            {replyTo && (
+                                <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-[11px] font-black text-[#d21fff] truncate">
+                                            Respondendo a {replyTo.senderName || (replyTo.from === currentUser.id ? currentUser.name : user.name)}
+                                        </div>
+                                        <div className="text-[12px] text-zinc-300 truncate">
+                                            {replyTo.imageUrl && !replyTo.text ? '📷 Foto' : replyTo.text || ''}
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setReplyTo(null)} className="ml-2 p-1 text-[#888691] hover:text-white flex-shrink-0" aria-label="Cancelar resposta">
+                                        <CloseIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            )}
                             {sendError && (
                                 <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
                                     {sendError}
@@ -814,7 +997,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                         value={newMessage}
                                         enterKeyHint="send"
                                         autoComplete="off"
-                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); }}
+                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); }}
                                         onBlur={() => {
                                             // Só fecha se o foco saiu do composer por completo.
                                             // Não fecha em blur transitório do navegador (mobile).

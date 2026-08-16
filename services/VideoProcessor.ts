@@ -34,6 +34,8 @@ export interface BeautyEffectSettings {
   acneRemoval?: number;     // Rejuvenescimento — Remover manchas/acne (0-100)
   shineReduction?: number;  // Rejuvenescimento — Reduzir brilho/matte (0-100)
   whiteBalance?: number;    // Balanço de branco ~5400K (0-100) — tira o tom amarelo
+  sharpness?: number;       // Nitidez (0-100) — realça detalhes/clareza (Tencent: Sharpness 80)
+  faceVolume3D?: number;    // Efeito 3D (0-100) — volume/modelagem de luz no rosto, aparência natural mais jovem
   selectedFilter?: string;
 }
 
@@ -41,13 +43,13 @@ export interface BeautyEffectSettings {
 // imagem clara e brilhante, rosto suave e natural, sem o tom amarelo feio.
 // Balanço de branco em ~5400K (whiteBalance 35) + brilho/contraste sutis.
 export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
-  whitening: 22,
-  smoothing: 12,
-  saturation: 6,
-  contrast: 5,
-  whiteBalance: 35,
+  whitening: 28,
+  smoothing: 14,
+  saturation: 12,
+  contrast: 8,
+  whiteBalance: 40,
   babyFace: 30,
-  teethWhitening: 0,
+  teethWhitening: 20,
   lipFill: 0,
   lipAugment: 0,
   smileAdjust: 0,
@@ -62,7 +64,12 @@ export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
   browColor: '',
   browColorStrength: 0,
   acneRemoval: 45,
-  shineReduction: 15,
+  shineReduction: 20,
+  // 🔍 Nitidez (Tencent: Sharpness 80 / Sharpen 30) + Efeito 3D (volume facial) —
+  // aplicados JÁ NA ABERTURA da câmera para a imagem sair nítida, limpa e com
+  // volume natural no rosto (aparência mais jovem), igual aos presets Tencent.
+  sharpness: 65,
+  faceVolume3D: 45,
   selectedFilter: '',
 };
 
@@ -131,6 +138,8 @@ export class VideoProcessor {
     acneRemoval: 0,
     shineReduction: 0,
     whiteBalance: 0,
+    sharpness: 0,
+    faceVolume3D: 0,
     selectedFilter: ''
   };
 
@@ -139,10 +148,10 @@ export class VideoProcessor {
   private meshActive = false;
   
   private config: VideoProcessorConfig = {
-    width: 1280,
-    height: 720,
+    width: 1920,
+    height: 1080,
     fps: 30,
-    quality: 'medium'
+    quality: 'high'
   };
 
   constructor(config?: Partial<VideoProcessorConfig>) {
@@ -283,9 +292,12 @@ export class VideoProcessor {
       // desktop) — sem min/max que forcassem landscape e distorcessem o preview.
       const tier1 = {
         video: getVideoConstraints('user'),
-        audio: true
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
       };
-      const tier2 = { video: true, audio: true };
+      const tier2 = {
+        video: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      };
 
       let stream: MediaStream | null = null;
       try {
@@ -433,7 +445,7 @@ export class VideoProcessor {
       uniform float u_time;
       uniform vec4 u_beautySettings; // x: whitening, y: smoothing, z: saturation, w: contrast
       uniform vec4 u_beautySettings2; // x: teethWhitening, y: wrinkleSmoothing, z: darkCircle, w: browDefinition
-      uniform vec4 u_beautySettings3; // x: acneRemoval, y: shineReduction, z: reservado, w: reservado
+      uniform vec4 u_beautySettings3; // x: acneRemoval, y: shineReduction, z: sharpness, w: faceVolume3D
       uniform vec4 u_beautySettings4; // x: whiteBalance (balanço de branco ~5400K)
       uniform vec4 u_featureSettings; // x: featureActive, y: edgeStrength, z: preserveLips, w: preserveEyes
       
@@ -608,6 +620,60 @@ export class VideoProcessor {
         return abs(l - r) + abs(u2 - d);
       }
       
+      // --- Blur Gaussiano leve (para nitidez / unsharp mask) ---
+      vec3 gaussianBlurLight(vec2 uv, vec2 texelSize) {
+        vec3 sum = vec3(0.0);
+        float weights[9];
+        weights[0] = 1.0; weights[1] = 2.0; weights[2] = 1.0;
+        weights[3] = 2.0; weights[4] = 4.0; weights[5] = 2.0;
+        weights[6] = 1.0; weights[7] = 2.0; weights[8] = 1.0;
+        float total = 16.0;
+        int i = 0;
+        for (int y = -1; y <= 1; y++) {
+          for (int x = -1; x <= 1; x++) {
+            float w = weights[i];
+            sum += texture2D(u_texture, uv + vec2(float(x), float(y)) * texelSize).rgb * w;
+            i++;
+          }
+        }
+        return sum / total;
+      }
+      
+      // --- Nitidez (unsharp mask) estilo Tencent Sharpness ---
+      // Aumenta o contraste local de MICRO-detalhe (poros, fios, contornos finos)
+      // sem estourar bordas fortes. Aplica no resultado final, ponderado pela pele.
+      vec3 applySharpness(vec3 rgb, vec2 uv, vec2 texelSize, float strength, float skinMask) {
+        vec3 blurred = gaussianBlurLight(uv, texelSize);
+        vec3 detail = rgb - blurred;
+        // Escala o detalhe: forte na pele, mais contido em features/bordas fortes
+        float featureFactor = 1.0 - edgeDetection(uv, texelSize) * 0.45;
+        float amount = strength * 0.45 * mix(1.0, 1.25, skinMask) * featureFactor;
+        return clamp(rgb + detail * amount, 0.0, 1.0);
+      }
+      
+      // --- Efeito 3D / volume facial (estilo Tencent 3D) ---
+      // Modela a LUZ do rosto: eleva sutilmente a luminância das áreas centrais
+      // iluminadas e dá "profundidade" ao contorno, deixando a aparência mais
+      // jovem e com volume, sem achatar a imagem.
+      vec3 applyFaceVolume3D(vec3 rgb, vec2 uv, vec2 texelSize, float strength, float skinMask) {
+        // Base suave (blur maior simula o "plano de luz" do rosto)
+        vec3 blurred = gaussianBlurLight(uv, texelSize);
+        // Quanto mais iluminado em relação ao entorno, mais "sobe" (volume)
+        float lum = luminance(rgb);
+        float base = luminance(blurred);
+        float lightDiff = clamp((lum - base) / 0.18, 0.0, 1.0);
+        // Iluminação mais quente nos tons altos (aparência jovem/saudável)
+        vec3 warm = vec3(1.02, 0.99, 0.97);
+        // Combina: elevação de luz + suave modelagem do contorno
+        vec3 result = rgb;
+        float vol = strength * 0.30 * skinMask;
+        result = result + vec3(lightDiff) * warm * vol * 0.5;
+        // Profundidade no contorno (sombras suaves mais definidas)
+        float shade = clamp(0.5 - base * 1.1, 0.0, 1.0);
+        result = mix(result, result * 0.96 + vec3(0.012, 0.008, 0.005), shade * vol * 0.4);
+        return clamp(result, 0.0, 1.0);
+      }
+      
       // --- Detecção de manchas/acne (separação de frequência) ---
       // Manchas: pequenas áreas de PELE mais escuras ou avermelhadas que o
       // ENTORNO imediato (limiar RELATIVO — funciona em qualquer tom de pele).
@@ -682,6 +748,8 @@ export class VideoProcessor {
         
         float acneRemoval = u_beautySettings3.x / 100.0;
         float shineReduction = u_beautySettings3.y / 100.0;
+        float sharpness = u_beautySettings3.z / 100.0;
+        float faceVolume3D = u_beautySettings3.w / 100.0;
         float whiteBalance = u_beautySettings4.x / 100.0;
         
         float featureActive = u_featureSettings.x; // 0=desligado, 1=ligado
@@ -823,6 +891,16 @@ export class VideoProcessor {
           result.g *= (1.0 + whiteBalance * 0.012);
           result.b *= (1.0 + whiteBalance * 0.055);
           result = clamp(result, 0.0, 1.0);
+        }
+        
+        // 🔍 Nitidez (unsharp mask) — clareza/micro-detalhe na imagem final
+        if (sharpness > 0.0) {
+          result = applySharpness(result, uv, texelSize, sharpness, skinMask);
+        }
+        
+        // ✨ Efeito 3D / volume facial — modelagem de luz para aparência mais jovem
+        if (faceVolume3D > 0.0) {
+          result = applyFaceVolume3D(result, uv, texelSize, faceVolume3D, skinMask);
         }
         
         gl_FragColor = vec4(result, color.a);
@@ -973,8 +1051,8 @@ export class VideoProcessor {
    * proporção (aspect ratio). O cap antigo limitava width E height de forma
    * INDEPENDENTE (1280/720): uma câmera portrait 1080x1920 virava 1080x720 e
    * uma 720x1280 virava 720x720 — esmagando o rosto e deixando o preview
-   * "estranho". Agora escala mantendo a proporção até caber em 1280x720 no
-   * maior lado (portrait → 405x720, landscape → 1280x720). Redimensiona só
+   * "estranho". Agora escala mantendo a proporção até caber em 1920x1920 no
+   * maior lado (portrait → 1080x1920, landscape → 1920x1080). Redimensiona só
    * quando a fonte muda de tamanho (evita re-alocação desnecessária).
    */
   private syncCanvasToSource(): void {
@@ -983,7 +1061,7 @@ export class VideoProcessor {
     const vw = src?.videoWidth ?? 0;
     const vh = src?.videoHeight ?? 0;
     if (!vw || !vh) return;
-    const maxW = 1280, maxH = 1280;
+    const maxW = 1920, maxH = 1920;
     const scale = Math.min(1, maxW / vw, maxH / vh);
     const w = Math.max(2, Math.round(vw * scale));
     const h = Math.max(2, Math.round(vh * scale));
@@ -1014,7 +1092,7 @@ export class VideoProcessor {
     const render = () => {
       if (!this.isProcessing) return;
       
-      // 📏 Canvas acompanha a resolução nativa da câmera (cap 720p, casa com o
+      // 📏 Canvas acompanha a resolução nativa da câmera (cap 1080p, casa com o
       // bitrate de publicação) — sem upscale borrado de 640x480.
       this.syncCanvasToSource();
       
@@ -1074,8 +1152,8 @@ export class VideoProcessor {
           uBeauty3,
           this.beautySettings.acneRemoval || 0,
           this.beautySettings.shineReduction || 0,
-          0,
-          0
+          this.beautySettings.sharpness || 0,
+          this.beautySettings.faceVolume3D || 0
         );
       }
       
@@ -1131,7 +1209,7 @@ export class VideoProcessor {
     const render = () => {
       if (!this.isProcessing) return;
 
-      // 📏 Canvas acompanha a resolução nativa da câmera (cap 720p)
+      // 📏 Canvas acompanha a resolução nativa da câmera (cap 1080p)
       this.syncCanvasToSource();
 
       // Com malha facial ativa, usa o frame warpeado como base
@@ -1200,6 +1278,14 @@ export class VideoProcessor {
     
     if ((this.beautySettings.shineReduction || 0) > 0) {
       filters.push(`brightness(${1 - (this.beautySettings.shineReduction || 0) / 600}) saturate(${1 - (this.beautySettings.shineReduction || 0) / 900})`);
+    }
+    
+    if ((this.beautySettings.sharpness || 0) > 0) {
+      filters.push(`contrast(${1 + (this.beautySettings.sharpness || 0) / 220})`);
+    }
+    
+    if ((this.beautySettings.faceVolume3D || 0) > 0) {
+      filters.push(`brightness(${1 + (this.beautySettings.faceVolume3D || 0) / 500}) contrast(${1 + (this.beautySettings.faceVolume3D || 0) / 300})`);
     }
     
     return filters.join(' ') || 'none';

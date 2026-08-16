@@ -62,6 +62,22 @@ class StreamPublishService {
     return mediaStream;
   }
 
+  // 🎥 Exibe o stream PROCESSADO no elemento de preview (videoRef). Assim o
+  // usuário vê o efeito JÁ NA ABERTURA da câmera (não só na transmissão).
+  // O VideoProcessor usa um vídeo dedicado (processingVideoElement) alimentado
+  // pela track ORIGINAL, então exibir o canvas aqui não cria feedback loop.
+  applyBeautyToPreview(): void {
+    const processed = this.beautyProcessedStream;
+    const video = this.currentVideoRef?.current;
+    if (!processed || !video) return;
+    const procTracks = processed.getVideoTracks();
+    if (procTracks.length === 0) return;
+    if (video.srcObject !== processed) {
+      video.srcObject = processed;
+      video.play().catch(() => {});
+    }
+  }
+
   async updateBeautyTrack(): Promise<void> {
     const processed = this.beautyProcessedStream;
     if (!processed || !this.currentStream) return;
@@ -182,9 +198,37 @@ class StreamPublishService {
     this._publishEngine = null;
   }
 
+  private applyCameraFlip(videoElement: HTMLVideoElement | null, facing: 'user' | 'environment'): void {
+    if (!videoElement) return;
+    const parentElement = videoElement.parentElement;
+    if (parentElement) {
+      parentElement.classList.add('camera-3d-flip-active');
+      setTimeout(() => parentElement.classList.remove('camera-3d-flip-active'), 550);
+    }
+    videoElement.style.transform = facing === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+  }
+
   async switchCamera(): Promise<void> {
     const nextFacing = this.currentFacingMode === 'user' ? 'environment' : 'user';
     const videoElement = this.currentVideoRef?.current;
+
+    // ⚡ CAMINHO RÁPIDO: no Chrome (Android/desktop) a troca frontal/traseira
+    // é feita com applyConstraints na track ATIVA — a câmera nem fecha e a
+    // troca é praticamente instantânea. Só cai no getUserMedia se não suportar.
+    const liveTrack = this.currentStream?.getVideoTracks?.().find(t => t.readyState === 'live');
+    if (liveTrack && typeof liveTrack.applyConstraints === 'function') {
+      try {
+        // ⚡ Resolução 720p preservada na troca: sem `width`/`height` o navegador
+        // escolhe a resolução padrão do sensor (que pode ser baixa) e o vídeo
+        // fica borrado. Aplicar getVideoConstraints mantém a mesma resolução HD.
+        await liveTrack.applyConstraints(getVideoConstraints(nextFacing));
+        this.currentFacingMode = nextFacing;
+        this.applyCameraFlip(videoElement, nextFacing);
+        return;
+      } catch (applyErr) {
+        console.warn('[PUBLISH_SERVICE] applyConstraints indisponível, usando getUserMedia:', applyErr);
+      }
+    }
 
     if (videoElement && videoElement.srcObject) {
       try {
@@ -211,32 +255,30 @@ class StreamPublishService {
       });
     }
 
-    await new Promise(resolve => setTimeout(resolve, 250));
+    // Pequeno respiro para o navegador liberar a câmera antes de reabri-la
+    // (apenas no fallback getUserMedia). Antes eram 250ms + cascata de 7
+    // tentativas — era isso que deixava a troca de câmera lenta.
+    await new Promise(resolve => setTimeout(resolve, 120));
 
     try {
       let newStream: MediaStream | null = null;
-      // 📐 Constraints na orientação do aparelho (portrait no celular) — sem
-      // min/max que forçassem landscape e estranhassem o preview.
-      const baseVideoConfig = getVideoConstraints(nextFacing);
-
-      const constraintAttempts = [
-        { video: { ...baseVideoConfig, facingMode: { exact: nextFacing } }, audio: false },
-        { video: { ...baseVideoConfig, facingMode: { ideal: nextFacing } }, audio: false },
-        { video: { ...baseVideoConfig, facingMode: nextFacing as any }, audio: false },
-        { video: { facingMode: { exact: nextFacing } }, audio: false },
-        { video: { facingMode: { ideal: nextFacing } }, audio: false },
-        { video: { facingMode: nextFacing as any }, audio: false },
-        { video: baseVideoConfig, audio: false },
-        { video: true, audio: false },
-      ];
-
-      for (let i = 0; i < constraintAttempts.length; i++) {
-        try {
-          newStream = await navigator.mediaDevices.getUserMedia(constraintAttempts[i] as any);
-          if (newStream && newStream.getVideoTracks().length > 0) break;
-        } catch { /* next tier */ }
+      // 📐 No máximo 2 tentativas rápidas, MAS sempre pedindo 720p na PRIMEIRA
+      // (constraints ideais). Sem width/height o navegador usa resolução baixa
+      // e a câmera fica borrada. O fallback simples só serve se o 720p falhar.
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({ video: { ...getVideoConstraints(nextFacing), facingMode: nextFacing }, audio: false });
+        if (!newStream || newStream.getVideoTracks().length === 0) newStream = null;
+      } catch (gmErr) {
+        console.warn('[PUBLISH_SERVICE] getUserMedia 720p falhou, tentando facingMode simples:', gmErr);
       }
-
+      if (!newStream) {
+        try {
+          newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: nextFacing }, audio: false });
+          if (!newStream || newStream.getVideoTracks().length === 0) newStream = null;
+        } catch (gm2Err) {
+          console.warn('[PUBLISH_SERVICE] getUserMedia simples falhou, tentando captura robusta:', gm2Err);
+        }
+      }
       if (!newStream) {
         newStream = await cameraService.captureStream(nextFacing);
       }
@@ -258,15 +300,9 @@ class StreamPublishService {
       }
 
       if (videoElement) {
-        const parentElement = videoElement.parentElement;
-        if (parentElement) {
-          parentElement.classList.add('camera-3d-flip-active');
-          setTimeout(() => parentElement.classList.remove('camera-3d-flip-active'), 550);
-        }
-
         videoElement.srcObject = this.currentStream;
         videoElement.play().catch(() => {});
-        videoElement.style.transform = nextFacing === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+        this.applyCameraFlip(videoElement, nextFacing);
       }
 
       if (this._publishing && this._publishEngine) {
@@ -279,13 +315,13 @@ class StreamPublishService {
 
       // 🎨 Re-liga o filtro de beleza à câmera NOVA (a track processada antiga
       // ficaria congelada no feed). Mantém as configurações atuais do usuário.
-      // O preview continua exibindo a câmera original (srcObject = this.currentStream
-      // acima); só a track publicada é substituída pelo stream processado.
+      // O preview volta a exibir o stream processado (efeito visível na hora).
       if (this.beautyProcessedStream && videoElement) {
         try {
           const proc = await videoProcessor.restartProcessing(videoElement);
           if (proc) {
             this.beautyProcessedStream = proc;
+            this.applyBeautyToPreview();
             const procTrack = proc.getVideoTracks()[0];
             if (procTrack && this._publishing && this._publishEngine) {
               await this._publishEngine.replaceTrack('video', procTrack);

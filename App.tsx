@@ -445,6 +445,27 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [viewingProfile, setViewingProfile] = useState<User | null>(null);
 
+  // 🛡️ Perfil com proteção de tela ATIVA sendo visto AGORA por outra pessoa:
+  // o aparelho de quem VÊ bloqueia print/gravador/salvar/compartilhar apenas
+  // enquanto aquele perfil estiver aberto — ver o perfil continua normal.
+  const [viewingProtectedProfile, setViewingProtectedProfile] = useState<boolean>(false);
+
+  useEffect(() => {
+    const protectedId = viewingProfile && viewingProfile.id !== currentUser?.id ? viewingProfile.id : null;
+    if (!protectedId) {
+      setViewingProtectedProfile(false);
+      return;
+    }
+    let disposed = false;
+    setViewingProtectedProfile(!!viewingProfile?.screenSecurityEnabled);
+    api.getUser(protectedId).then((u: any) => {
+      if (!disposed && u && String(u.id) === String(protectedId)) {
+        setViewingProtectedProfile(!!u.screenSecurityEnabled);
+      }
+    }).catch(() => {});
+    return () => { disposed = true; };
+  }, [viewingProfile?.id, currentUser?.id]);
+
   const [isEditingProfile, setIsEditingProfile] = useState<boolean>(false);
 
   const [isWalletScreenOpen, setIsWalletScreenOpen] = useState<boolean>(false);
@@ -613,23 +634,48 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           return;
         }
 
+        // ⚡ ABERTURA RÁPIDA: se já temos o usuário em cache (localStorage),
+        // mostra a tela imediatamente e valida em segundo plano. Evita o
+        // spinner preto esperando a rede. A API atualiza o cache no sucesso.
+        let cachedUser: User | null = null;
+        try {
+          cachedUser = JSON.parse(localStorage.getItem('livego_cached_user') || 'null');
+        } catch {
+          cachedUser = null;
+        }
+        if (cachedUser && cachedUser.id) {
+          setCurrentUser(cachedUser);
+          (window as any).currentUser = cachedUser;
+          setIsAuthenticated(true);
+          setIsLoadingCurrentUser(false);
+        }
+
         // Tentar buscar usuário atual da API
 
-        const user = await api.getCurrentUser();
+        try {
+          const user = await api.getCurrentUser();
 
-        if (user) {
+          if (user) {
 
-          setCurrentUser(user);
-          (window as any).currentUser = user;
+            setCurrentUser(user);
+            (window as any).currentUser = user;
+            setIsAuthenticated(true);
+            try { localStorage.setItem('livego_cached_user', JSON.stringify(user)); } catch { }
 
-          setIsAuthenticated(true);
+          } else {
 
-        } else {
+            setIsAuthenticated(false);
+            setCurrentUser(null);
+            try { localStorage.removeItem('livego_cached_user'); } catch { }
 
-          setIsAuthenticated(false);
-
-          setCurrentUser(null);
-
+          }
+        } catch {
+          // Rede falhou: se não havia cache, vai para o login. Se havia cache,
+          // mantém o usuário em tela (tolerante a offline momentâneo).
+          if (!cachedUser || !cachedUser.id) {
+            setIsAuthenticated(false);
+            setCurrentUser(null);
+          }
         }
 
       } catch {
@@ -735,7 +781,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-  // Carregar dados da API na inicialização (Streams, Países, Gifts)
   const initialLoadRef = useRef(false);
 
   useEffect(() => {
@@ -746,6 +791,15 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       setIsLoadingStreamers(true);
       try {
         console.log('📦 [App] Carregando dados iniciais...');
+
+        // ⚡ ABERTURA RÁPIDA: mostra o feed do cache antes de buscar na rede.
+        // A busca fresca atualiza a grid em seguida (sem spinner em branco).
+        try {
+          const cachedStreams = JSON.parse(localStorage.getItem('livego_cached_streams') || 'null');
+          if (Array.isArray(cachedStreams) && cachedStreams.length > 0) {
+            setStreamers(cachedStreams);
+          }
+        } catch { }
 
         // Carregar dados em paralelo para maior performance
         const filterCountry = selectedCountry !== 'ICON_GLOBE' ? selectedCountry : undefined;
@@ -758,6 +812,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         setStreamers(Array.isArray(streams) ? streams : []);
         setCountries(countries);
         setAllGifts(enrichGiftsWithComponents(gifts));
+
+        // Cache do feed para a próxima abertura abrir instantânea
+        try { localStorage.setItem('livego_cached_streams', JSON.stringify(Array.isArray(streams) ? streams : [])); } catch { }
 
         console.log('✅ [App] Dados iniciais carregados');
       } catch (error) {
@@ -815,32 +872,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       }
     })();
   }, [location.pathname, isAuthenticated, activeStream]);
-
-
-
-  // Carregar gifts da API
-
-  useEffect(() => {
-
-    const loadGifts = async () => {
-
-      try {
-
-        const gifts = await api.getGifts();
-
-        setAllGifts(enrichGiftsWithComponents(gifts));
-
-      } catch (error) {
-
-      }
-
-    };
-
-
-
-    loadGifts();
-
-  }, []);
 
 
 
@@ -1304,6 +1335,111 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, []);
 
+  // 🛡️ Proteção de tela: ativa quando o usuário liga 'screenSecurityEnabled'
+  // (própria conta) OU quando está vendo o perfil de alguém que ativou a
+  // proteção (viewingProtectedProfile). Enquanto ativa: bloqueia print/
+  // gravador (tela preta no app Android), salvar/copiar/arrastar/baixar
+  // imagens e compartilhar FOTO/VIDEO (ex.: bot do Telegram). A LIVE
+  // continua podendo ser compartilhada e o perfil pode ser visto normalmente.
+  useEffect(() => {
+    const enabled = !!currentUser?.screenSecurityEnabled || viewingProtectedProfile;
+    if (!enabled) return;
+
+    const root = document.documentElement;
+    let styleEl: HTMLStyleElement | null = null;
+
+    const isImage = (target: EventTarget | null): boolean => {
+      const t = target as HTMLElement | null;
+      return !!t && typeof t.closest === 'function' && !!t.closest('img, canvas');
+    };
+
+    const onContextMenu = (e: MouseEvent) => {
+      if (isImage(e.target)) {
+        e.preventDefault();
+        addToast(ToastType.Error, 'Não é permitido salvar imagens com a proteção de tela ativa.');
+      }
+    };
+
+    const onDragStart = (e: DragEvent) => {
+      if (isImage(e.target)) e.preventDefault();
+    };
+
+    const onCopy = (e: ClipboardEvent) => {
+      if (isImage(e.target)) e.preventDefault();
+    };
+
+    const onClickDownload = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      const link = t && typeof t.closest === 'function' ? t.closest('a[download]') as HTMLAnchorElement | null : null;
+      if (link && /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(link.getAttribute('href') || '')) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    root.classList.add('screen-security-enabled');
+    styleEl = document.createElement('style');
+    styleEl.textContent = `
+      .screen-security-enabled img,
+      .screen-security-enabled canvas {
+        -webkit-touch-callout: none;
+        -webkit-user-drag: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    document.addEventListener('contextmenu', onContextMenu, true);
+    document.addEventListener('dragstart', onDragStart, true);
+    document.addEventListener('copy', onCopy, true);
+    document.addEventListener('click', onClickDownload, true);
+
+    // App Android nativo: FLAG_SECURE → tela preta ao tentar print/gravar
+    const bridge = (window as any).Android;
+    if (bridge && typeof bridge.setScreenSecure === 'function') {
+      try { bridge.setScreenSecure(true); } catch (_) {}
+    }
+
+    // Bloqueia compartilhar FOTO/VIDEO (ex.: bot do Telegram) — a LIVE
+    // (link de página) continua podendo ser compartilhada normalmente.
+    const isMediaShare = (data: any): boolean => {
+      if (!data) return false;
+      if (Array.isArray(data.files) && data.files.length > 0) return true;
+      const url = typeof data.url === 'string' ? data.url : '';
+      return /\.(jpe?g|png|gif|webp|bmp|heic|mp4|webm|mov|m4v|mkv)(\?|#|$)/i.test(url);
+    };
+    let restoredShare: (() => void) | null = null;
+    if (typeof navigator.share === 'function') {
+      const original = (navigator as any).share;
+      try {
+        (navigator as any).share = (data: any) => {
+          if (isMediaShare(data)) {
+            addToast(ToastType.Error, 'Não é permitido compartilhar foto ou vídeo com a proteção de tela ativa.');
+            return Promise.reject(new Error('Compartilhamento de mídia bloqueado pela proteção de tela.'));
+          }
+          return original.call(navigator, data);
+        };
+        restoredShare = () => { (navigator as any).share = original; };
+      } catch (_) {}
+    }
+
+    return () => {
+      root.classList.remove('screen-security-enabled');
+      if (styleEl) styleEl.remove();
+      document.removeEventListener('contextmenu', onContextMenu, true);
+      document.removeEventListener('dragstart', onDragStart, true);
+      document.removeEventListener('copy', onCopy, true);
+      document.removeEventListener('click', onClickDownload, true);
+      const bridge2 = (window as any).Android;
+      if (bridge2 && typeof bridge2.setScreenSecure === 'function') {
+        try { bridge2.setScreenSecure(false); } catch (_) {}
+      }
+      if (restoredShare) restoredShare();
+    };
+
+  }, [currentUser?.screenSecurityEnabled, viewingProtectedProfile, addToast]);
+
   // 🔔 Ativa notificações via gesto do usuário — navegadores móveis ignoram
   // requestPermission fora de um toque, então o CTA/botão é o gatilho correto.
   const handleEnableNotifications = useCallback(async () => {
@@ -1419,7 +1555,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       setPkOpponent(null);
       setLiveSession(null);
       setStreamRoomData(null);
-      navigate('/');
+      navigate('/', { replace: true });
       return;
     }
     // Comportamento normal: fechar tudo (incluindo limpar estado PiP)
@@ -1430,7 +1566,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     setPkOpponent(null);
     setLiveSession(null);
     setStreamRoomData(null);
-    navigate('/');
+    navigate('/', { replace: true });
   }, [activeStream, navigate, currentUser]);
 
   const handleRestoreFromPiP = useCallback(() => {
@@ -1440,6 +1576,46 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       setPipStreamer(null);
     }
   }, [pipStreamer]);
+
+  // 📱 Botão VOLTAR/HOME do celular durante uma live (ASSISTINDO): em vez de a
+  // transmissão sumir, minimiza para a janela flutuante (PiP no app). O PiP
+  // nativo (autoPictureInPicture) só cobre o botão HOME (app vai para o fundo);
+  // o VOLTAR (navegação do browser) dispara `popstate` — é isso que interceptamos.
+  const handleMinimizeToPiP = useCallback(() => {
+    const stream = activeStreamRef.current;
+    const user = currentUserRef.current;
+    if (!stream || !user) return;
+    // Só minimiza quem está ASSISTINDO a live (nunca o dono transmitindo)
+    if (String(stream.hostId) === String(user.id)) return;
+    // Já minimizado → não duplicar
+    if (pipStreamerRef.current) return;
+
+    leftStreamRef.current = true;
+    setPipStreamer(stream);
+    setIsPiPMode(true);
+    setActiveStream(null);
+    setIsPKBattleActive(false);
+    setPkOpponent(null);
+    setLiveSession(null);
+    setStreamRoomData(null);
+    navigate('/', { replace: true });
+  }, [navigate]);
+
+  const handleMinimizeToPiPRef = useRef(handleMinimizeToPiP);
+  useEffect(() => { handleMinimizeToPiPRef.current = handleMinimizeToPiP; }, [handleMinimizeToPiP]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const stream = activeStreamRef.current;
+      const user = currentUserRef.current;
+      if (!stream || !user) return;
+      // Fora da live → comportamento normal de voltar
+      if (String(stream.hostId) === String(user.id)) return;
+      handleMinimizeToPiPRef.current();
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
 
 
@@ -1671,7 +1847,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     // (não cleanup: o var persiste para toda a vida do app;
     //  se o componente desmontar, o var permanece com o último valor — inócuo)
 
-    if (currentUserRef.current) {
+    // 🔔 FIREBASE SERVE SÓ PARA NOTIFICAÇÃO NA TELA — o tempo real do app é
+    // 100% WebSocket (socketService). Por isso o FCM é carregado DEPOIS da
+    // interface abrir (idle com timeout), sem competir com o feed no boot.
+    const initFirebaseOnlyNotifications = () => {
+      if (!currentUserRef.current) return;
       import('./services/notificationService').then(async ({ initNotifications }) => {
         const notifStatus = await initNotifications(currentUserRef.current.id);
         if (notifStatus === 'denied') {
@@ -1710,6 +1890,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           }
         });
       });
+    };
+    const w = window as any;
+    if (w.requestIdleCallback) {
+      w.requestIdleCallback(initFirebaseOnlyNotifications, { timeout: 3000 });
+    } else {
+      w.setTimeout(initFirebaseOnlyNotifications, 2000);
     }
 
     return () => {};
@@ -2028,9 +2214,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       if (!currentUser) return;
 
+      // Não reposiciona nem conta badge por ecos das PRÓPRIAS mensagens
 
+      if (message.from === currentUser.id) return;
 
-      // If we are currently chatting with this user, we assume it's read immediately by ChatScreen component
+      // Se estamos no chat com quem mandou, o ChatScreen já exibe na hora
 
       if (chattingWith && chattingWith.id === message.from) {
 
@@ -2038,15 +2226,15 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
       }
 
-
-
-      // Otherwise, update the conversation list to increment badge
+      // Caso contrário, atualiza a lista de conversas em tempo real (badge + última mensagem)
 
       setConversations(prevConversations => {
 
         const index = prevConversations.findIndex(c => c.friend.id === message.from);
 
+        const lastMessage = message.text || (message.imageUrl ? '[Imagem]' : '');
 
+        const timestamp = message.timestamp || new Date().toISOString();
 
         if (index > -1) {
 
@@ -2058,9 +2246,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
             ...oldConv,
 
-            lastMessage: message.text || (message.imageUrl ? 'Imagem' : ''),
+            lastMessage,
 
-            timestamp: message.timestamp,
+            timestamp,
 
             unreadCount: (oldConv.unreadCount || 0) + 1
 
@@ -2072,17 +2260,56 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           return updated;
 
-        } else {
-
-          // Para dados estáticos, apenas retorna o estado anterior
-
-          return prevConversations;
-
         }
+
+        // Nova conversa: cria a entrada na hora (com os dados do remetente)
+
+        const friend = {
+
+          id: message.from,
+
+          name: message.senderName || message.from,
+
+          avatarUrl: message.senderAvatar || '',
+
+          level: message.senderLevel || 1,
+
+          birthday: message.senderBirthday,
+
+        } as User;
+
+        const newConvo: Conversation = {
+
+          id: `convo_${message.from}_${currentUser.id}`,
+
+          friend,
+
+          lastMessage,
+
+          timestamp,
+
+          unreadCount: 1,
+
+        };
+
+        return [newConvo, ...prevConversations];
 
       });
 
     };
+
+    // 💬 ATUALIZAÇÃO EM TEMPO REAL da lista de conversas: o backend emite
+    // `newChatMessage` e a ponte (socketService) repassa como evento no window.
+    // Este handler antes ficava definido mas NUNCA registrado — a lista só
+    // mudava ao recarregar. Registramos aqui (mesmo efeito, closure fresca).
+
+    const onChatWindowMessage = (event: Event) => {
+
+      handleNewMessage((event as CustomEvent).detail as Message);
+
+    };
+
+    window.addEventListener('newChatMessage', onChatWindowMessage);
 
 
 
@@ -2093,6 +2320,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     return () => {
 
       syncDisposed = true;
+
+      window.removeEventListener('newChatMessage', onChatWindowMessage);
 
       if (syncSocket) {
 
@@ -3638,6 +3867,8 @@ const logLiveEvent = (type: string, data: any) => {
     (window as any).currentUser = user;
     setCurrentUser(user);
     setIsAuthenticated(true);
+    // Cache para a próxima abertura abrir instantânea
+    try { localStorage.setItem('livego_cached_user', JSON.stringify(user)); } catch { }
   }, []);
 
 
