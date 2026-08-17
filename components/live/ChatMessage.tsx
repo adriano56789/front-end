@@ -49,9 +49,9 @@ const getUsernameColor = (username: string, level?: number) => {
 const TranslateButton: React.FC<{ active: boolean; loading: boolean; onClick: (e: React.MouseEvent) => void }> = ({ active, loading, onClick }) => (
     <button
         onClick={onClick}
-        className={`flex items-center justify-center w-3 h-3 rounded-full border leading-none shrink-0 select-none cursor-pointer transition-colors text-[6px] font-black ${active
-            ? 'bg-[#a855f7]/30 border-[#a855f7]/60 text-[#e9d5ff]'
-            : 'bg-white/10 border-white/25 text-white/80 hover:text-white hover:bg-white/25'}`}
+        className={`flex items-center justify-center w-[15px] h-[15px] rounded-full border-2 leading-none shrink-0 select-none cursor-pointer transition-all text-[8px] font-black shadow-[0_1px_2px_rgba(0,0,0,0.4)] ${active
+            ? 'bg-[#a855f7]/40 border-[#a855f7] text-white'
+            : 'bg-[#a855f7]/25 border-[#a855f7]/60 text-[#e9d5ff] hover:bg-[#a855f7]/45 hover:border-[#a855f7]'}`}
         aria-label="Traduzir mensagem"
         title={active ? 'Traduzido' : 'Traduzir'}
     >

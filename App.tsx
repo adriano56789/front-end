@@ -225,7 +225,7 @@ import { useGlobalNotifications } from './hooks/useGlobalNotifications';
 import GiftAdminPanel from './components/live/GiftAdminPanel';
 
 import { api } from './services/api';
-import { connectSocket, initPrivateChatSocket } from './services/socketService';
+  import { connectSocket, initPrivateChatSocket, isSocketConnected } from './services/socketService';
 
 import UpdateAvailableModal from './components/UpdateAvailableModal';
 import { useAppVersion } from './hooks/useAppVersion';
@@ -428,6 +428,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     text: string;
 
     timestamp: string;
+
+    from?: string;
+
+    senderUser?: any;
 
   }>>([]);
 
@@ -1015,13 +1019,29 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
         text: message.text || 'Enviou uma mensagem',
 
-        timestamp: message.timestamp || new Date().toISOString()
+        timestamp: message.timestamp || new Date().toISOString(),
+
+        from: message.from || '',
+
+        // 🔑 Usuário mínimo para abrir o chat ao tocar no aviso
+
+        senderUser: {
+
+          id: message.from || '',
+
+          name: message.senderName || 'Usuário',
+
+          avatar: message.senderAvatar || '',
+
+        },
 
       };
 
       
 
-      setMessageNotifications(prev => [...prev, notification]);
+      // Empilha os avisos (estilo WhatsApp), no máximo 4 na tela
+
+      setMessageNotifications(prev => [...prev, notification].slice(-4));
 
       addToast(ToastType.Info, notification.text);
 
@@ -1424,6 +1444,38 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       } catch (_) {}
     }
 
+    // 🚫 TENTATIVA DE PRINT/CAPTURA NO NAVEGADOR (melhor esforço): não existe
+    // API web que escureça SÓ a gravação (o gravador captura o que a tela
+    // mostra). Então aqui NÃO bloqueamos a tela de quem assiste: só aparece o
+    // aviso "NÃO PERMITIDO". O vídeo da gravação/print fica PRETO de verdade
+    // no app Android nativo (FLAG_SECURE via bridge setScreenSecure abaixo).
+    let captureViolated = false;
+
+    const showCaptureWarning = () => {
+      addToast(ToastType.Error, 'NÃO PERMITIDO — captura de tela/gravação bloqueada.');
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') captureViolated = true;
+    };
+    const onWindowBlur = () => { captureViolated = true; };
+    const onReturnVisible = () => {
+      if (!captureViolated) return;
+      captureViolated = false;
+      showCaptureWarning();
+    };
+    // Ponte para o app Android nativo: o WebView chama window.onScreenCaptureAttempt()
+    // (ex.: Android 14 DETECT_SCREEN_CAPTURE / onUserLeaveHint) ou dispara o
+    // evento 'screen_capture_attempt' — aqui apenas mostra o aviso (o preto da
+    // gravação é o FLAG_SECURE nativo).
+    const nativeAttempt = () => showCaptureWarning();
+    (window as any).onScreenCaptureAttempt = nativeAttempt;
+    window.addEventListener('screen_capture_attempt', nativeAttempt as EventListener);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('focus', onReturnVisible);
+    window.addEventListener('pageshow', onReturnVisible);
+
     return () => {
       root.classList.remove('screen-security-enabled');
       if (styleEl) styleEl.remove();
@@ -1431,6 +1483,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       document.removeEventListener('dragstart', onDragStart, true);
       document.removeEventListener('copy', onCopy, true);
       document.removeEventListener('click', onClickDownload, true);
+      delete (window as any).onScreenCaptureAttempt;
+      window.removeEventListener('screen_capture_attempt', nativeAttempt as EventListener);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('focus', onReturnVisible);
+      window.removeEventListener('pageshow', onReturnVisible);
       const bridge2 = (window as any).Android;
       if (bridge2 && typeof bridge2.setScreenSecure === 'function') {
         try { bridge2.setScreenSecure(false); } catch (_) {}
@@ -1865,14 +1923,36 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         }
       });
       import('./services/firebase').then(({ onForegroundMessage }) => {
+        const recentPushKeys: string[] = [];
         onForegroundMessage((payload) => {
           const title = payload.notification?.title || payload.data?.title || 'Nova notificação';
           const body = payload.notification?.body || payload.data?.body || '';
           const type = payload.data?.type;
           if (type === 'new_message') {
-            // 🚫 REMOVIDO: o CHAT PRIVADO não usa mais Firebase. As mensagens
-            // em tempo real (e o banner de notificação) chegam EXCLUSIVAMENTE
-            // via WebSocket (socketService → evento window 'newChatMessage').
+            // 💬 FALLBACK do CHAT PRIVADO: com o app aberto a mensagem chega em
+            // tempo real pelo WebSocket (socketService → evento 'newChatMessage').
+            // O FCM em foreground entra só como reserva quando o socket está
+            // desconectado — o dedup evita banner duplicado (WS + FCM).
+            const key = `nm|${payload.data?.from || ''}|${payload.data?.fromUserName || title}|${body}`;
+            if (recentPushKeys.includes(key)) return;
+            recentPushKeys.push(key);
+            if (recentPushKeys.length > 20) recentPushKeys.shift();
+            const uid = currentUserRef.current?.id;
+            if (!uid) return;
+            if (!isSocketConnected()) {
+              window.dispatchEvent(new CustomEvent('newChatMessage', {
+                detail: {
+                  id: `fcm_${Date.now()}_${Math.random()}`,
+                  from: payload.data?.from || '',
+                  to: uid,
+                  senderName: payload.data?.fromUserName || title,
+                  senderAvatar: '',
+                  text: body,
+                  timestamp: new Date().toISOString(),
+                  conversationId: payload.data?.conversationId || '',
+                },
+              }));
+            }
           } else if (type === 'live_started') {
             // 🔔 Firebase/FCM serve SÓ para push na tela: NUNCA carrega avatar,
             // foto ou ícone. A faixa in-app usa apenas os dados de roteamento
@@ -4459,7 +4539,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {/* Notificações de mensagens */}
 
-      {messageNotifications.map((notification) => (
+      {messageNotifications.map((notification, index) => (
 
         <MessageNotification
 
@@ -4467,10 +4547,21 @@ const logLiveEvent = (type: string, data: any) => {
 
           message={notification}
 
+          index={index}
+
           onClose={() => {
 
             setMessageNotifications(prev => prev.filter(n => n.id !== notification.id));
 
+          }}
+
+          onOpen={(n) => {
+            // 💬 Tocar no aviso abre o chat direto com a pessoa
+            setMessageNotifications(prev => prev.filter(x => x.id !== n.id));
+            if (n.senderUser && n.senderUser.id) {
+              setIsPrivateChatModalOpen(false);
+              handleStartChat(n.senderUser);
+            }
           }}
 
         />

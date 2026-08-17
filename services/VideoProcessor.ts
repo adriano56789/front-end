@@ -36,40 +36,47 @@ export interface BeautyEffectSettings {
   whiteBalance?: number;    // Balanço de branco ~5400K (0-100) — tira o tom amarelo
   sharpness?: number;       // Nitidez (0-100) — realça detalhes/clareza (Tencent: Sharpness 80)
   faceVolume3D?: number;    // Efeito 3D (0-100) — volume/modelagem de luz no rosto, aparência natural mais jovem
+  noiseReduction?: number;  // Limpar Chiado (0-100) — reduz ruído/grão da câmera preservando bordas
   selectedFilter?: string;
 }
 
 // 🎨 FILTRO 2D PADRÃO aplicado JÁ NA ABERTURA da live (estilo Bigo/ti.live):
 // imagem clara e brilhante, rosto suave e natural, sem o tom amarelo feio.
-// Balanço de branco em ~5400K (whiteBalance 35) + brilho/contraste sutis.
+// Balanço de branco em ~5400K + brilho/contraste sutis.
+// Ao entrar na live o usuário JÁ PEGA a imagem limpa, cor viva e nitidez total.
 export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
-  whitening: 28,
-  smoothing: 14,
-  saturation: 12,
-  contrast: 8,
-  whiteBalance: 40,
-  babyFace: 30,
-  teethWhitening: 20,
+  whitening: 38,
+  smoothing: 34,
+  saturation: 30,
+  contrast: 16,
+  whiteBalance: 42,
+  babyFace: 32,
+  teethWhitening: 22,
   lipFill: 0,
   lipAugment: 0,
   smileAdjust: 0,
   browThickness: 0,
   browCurve: 0,
   browDefinition: 0,
-  wrinkleSmoothing: 25,
-  darkCircle: 25,
+  wrinkleSmoothing: 35,
+  darkCircle: 30,
   noseRefine: 0,
   jawChin: 0,
   eyeRefine: 0,
   browColor: '',
   browColorStrength: 0,
-  acneRemoval: 45,
-  shineReduction: 20,
-  // 🔍 Nitidez (Tencent: Sharpness 80 / Sharpen 30) + Efeito 3D (volume facial) —
-  // aplicados JÁ NA ABERTURA da câmera para a imagem sair nítida, limpa e com
-  // volume natural no rosto (aparência mais jovem), igual aos presets Tencent.
+  acneRemoval: 55,
+  shineReduction: 25,
+  // 🔍 Nitidez equilibrada (Tencent Sharpness ~65) — alta demais (80) amplifica
+  // o ruído do sensor e vira CHIADO na imagem; baixa demais deixa embaçado.
+  // Combinada com o smoothing (34) que segura o ruído, a imagem fica limpa e
+  // nítida ao mesmo tempo. Efeito 3D mantém o volume facial (aparência jovem).
   sharpness: 65,
-  faceVolume3D: 45,
+  faceVolume3D: 48,
+  // 🧹 Limpar Chiado — redução de ruído bilateral ANTES dos efeitos: remove o
+  // grão da câmera (chiado de sensor/ISO) da imagem INTEIRA preservando bordas.
+  // É o que tira aquele aspecto feio de "TV velha" sem embaçar o rosto.
+  noiseReduction: 45,
   selectedFilter: '',
 };
 
@@ -140,6 +147,7 @@ export class VideoProcessor {
     whiteBalance: 0,
     sharpness: 0,
     faceVolume3D: 0,
+    noiseReduction: 0,
     selectedFilter: ''
   };
 
@@ -363,6 +371,13 @@ export class VideoProcessor {
       // só depois for redimensionado, várias WebViews mantêm a track 16:9 e o
       // preview vira um ZOOM pesado do rosto em telas retrato ("colado no rosto").
       await this.waitForVideoSize(processingVideo);
+      // 🚨 Em várias WebViews Android o decoder amostra frames na resolução do
+      // LAYOUT do <video> — com width/height 2px o frame era decodificado
+      // minúsculo e upscalado no texImage2D (imagem borrada/granulada, "TV
+      // velha"). Forçando o elemento ao tamanho NATIVO (videoWidth/videoHeight)
+      // o frame sai na resolução real da câmera. (Mesmo workaround do vap/vapVideo.)
+      processingVideo.style.width = `${processingVideo.videoWidth || 2}px`;
+      processingVideo.style.height = `${processingVideo.videoHeight || 2}px`;
       this.syncCanvasToSource();
     }
 
@@ -707,8 +722,7 @@ export class VideoProcessor {
         return clamp(score, 0.0, 1.0);
       }
       
-      // --- Cor média da pele ao redor (baixa frequência) ---
-      // Soma um anel ao redor do pixel ponderado pela probabilidade de ser pele;
+      // --- Cor média da pele ao redor (baixa frequência) ---      // Soma um anel ao redor do pixel ponderado pela probabilidade de ser pele;
       // substitui o pixel da mancha pela pele do entorno (clone-style Tencent).
       vec3 skinLocalAverage(vec2 uv, vec2 texelSize, float radius) {
         vec3 sum = vec3(0.0);
@@ -724,6 +738,39 @@ export class VideoProcessor {
         }
         if (weightSum < 0.01) return texture2D(u_texture, uv).rgb;
         return sum / weightSum;
+      }
+
+      // --- Limpar Chiado (redução de ruído bilateral, preserva bordas) ---
+      // Remove o grão/chiado do SENSOR da câmera da imagem INTEIRA (não só da
+      // pele): média ponderada dos vizinhos onde pesos caem com a diferença de
+      // luminância — bordas fortes (contornos, olhos) quase não mudam, ruído
+      // homogêneo é suavizado. Roda ANTES dos demais efeitos para a nitidez e a
+      // saturação não amplificarem o grão no final.
+      vec3 applyDenoise(vec3 rgb, vec2 uv, vec2 texelSize, float strength) {
+        float radius = 1.0 + strength * 1.5;
+        float sigmaL = 0.10 + strength * 0.28;
+        vec3 sum = rgb;
+        float wsum = 1.0;
+        float axisW = 0.85;
+        float diagW = 0.55;
+        for (int i = 0; i < 8; i++) {
+          vec2 dir;
+          float w;
+          if (i == 0) { dir = vec2(1.0, 0.0); w = axisW; }
+          else if (i == 1) { dir = vec2(-1.0, 0.0); w = axisW; }
+          else if (i == 2) { dir = vec2(0.0, 1.0); w = axisW; }
+          else if (i == 3) { dir = vec2(0.0, -1.0); w = axisW; }
+          else if (i == 4) { dir = vec2(1.0, 1.0); w = diagW; }
+          else if (i == 5) { dir = vec2(-1.0, -1.0); w = diagW; }
+          else if (i == 6) { dir = vec2(1.0, -1.0); w = diagW; }
+          else { dir = vec2(-1.0, 1.0); w = diagW; }
+          vec3 nb = texture2D(u_texture, uv + dir * radius * texelSize).rgb;
+          float ldiff = abs(luminance(nb) - luminance(rgb));
+          float wI = exp(-ldiff / max(sigmaL, 0.01));
+          sum += nb * w * wI;
+          wsum += w * wI;
+        }
+        return sum / wsum;
       }
       
       void main() {
@@ -751,6 +798,7 @@ export class VideoProcessor {
         float sharpness = u_beautySettings3.z / 100.0;
         float faceVolume3D = u_beautySettings3.w / 100.0;
         float whiteBalance = u_beautySettings4.x / 100.0;
+        float noiseReduction = u_beautySettings4.y / 100.0;
         
         float featureActive = u_featureSettings.x; // 0=desligado, 1=ligado
         
@@ -776,6 +824,12 @@ export class VideoProcessor {
         
         // --- 4. Aplicar efeitos ---
         vec3 result = rgb;
+        
+        // 🧹 Limpar Chiado — primeiro efeito (imagem crua ainda SEM nitidez/
+        // saturação para não amplificar o grão). Limpa a imagem INTEIRA.
+        if (noiseReduction > 0.0) {
+          result = applyDenoise(result, uv, texelSize, noiseReduction);
+        }
         
         // Branqueamento (whitening) — mais forte na pele, suave nas features
         if (whitening > 0.0) {
@@ -1033,6 +1087,17 @@ export class VideoProcessor {
     
     // Criar stream processado do canvas
     this.processedStream = this.canvas!.captureStream(this.config.fps);
+
+    // 🔍 contentHint 'detail' no track do canvas: instrui o encoder WebRTC a
+    // priorizar FIDELIDADE ESPACIAL (mais bitrate, menos blur/chiado) em vez do
+    // default 'motion', que joga nitidez fora para economizar banda — a mesma
+    // recomendação de nitidez da Tencent (MLVB/TRTC). Sem isso, o canvas track
+    // costuma sair com cara de "TV velha". (Preferência vale também após o
+    // replaceTrack, pois o sender mantém as mesmas parameters.)
+    const procVideoTrack = this.processedStream.getVideoTracks()[0];
+    if (procVideoTrack) {
+      try { (procVideoTrack as any).contentHint = 'detail'; } catch { /* ignore */ }
+    }
     
     // Adicionar áudio do stream original
     if (this.stream) {
@@ -1162,7 +1227,7 @@ export class VideoProcessor {
         gl.uniform4f(
           uBeauty4,
           this.beautySettings.whiteBalance || 0,
-          0,
+          this.beautySettings.noiseReduction || 0,
           0,
           0
         );
@@ -1286,6 +1351,10 @@ export class VideoProcessor {
     
     if ((this.beautySettings.faceVolume3D || 0) > 0) {
       filters.push(`brightness(${1 + (this.beautySettings.faceVolume3D || 0) / 500}) contrast(${1 + (this.beautySettings.faceVolume3D || 0) / 300})`);
+    }
+    
+    if ((this.beautySettings.noiseReduction || 0) > 0) {
+      filters.push(`blur(${Math.min((this.beautySettings.noiseReduction || 0) / 180, 0.8)}px)`);
     }
     
     return filters.join(' ') || 'none';

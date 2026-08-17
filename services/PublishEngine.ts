@@ -266,6 +266,14 @@ export class PublishEngine {
     }
   }
 
+  /**
+   * ⚡ Qualidade de vídeo estilo Tencent Cloud (TRTC/MLVB): bitrate com PISO
+   * (min) e teto (max) + degradação que PRESERVA a resolução. O canvas track
+   * (captureStream) nasce com bitrate padrão baixíssimo no navegador — era isso
+   * que deixava a imagem com cara de "TV velha" (macro-blocos/chiado). Com piso
+   * de 2.5 Mbps (720p limpa) e maintain-resolution a imagem fica nítida mesmo
+   * quando a rede oscila (cai frame, não resolução).
+   */
   private async _applyMaxVideoBitrate(pc: RTCPeerConnection): Promise<void> {
     if (!this._config.maxVideoBitrate) return;
     const sender = pc.getSenders().find(s => s.track?.kind === 'video');
@@ -273,11 +281,15 @@ export class PublishEngine {
     try {
       const params = sender.getParameters();
       if (params.encodings && params.encodings.length > 0) {
-        params.encodings[0].maxBitrate = this._config.maxVideoBitrate * 1000;
+        const max = this._config.maxVideoBitrate * 1000;
+        params.encodings[0].minBitrate = 2500000;
+        params.encodings[0].maxBitrate = Math.max(max, 2500000);
+        params.encodings[0].maxFramerate = 30;
+        (params as any).degradationPreference = 'maintain-resolution';
         await sender.setParameters(params);
       }
     } catch (e) {
-      console.warn('[PublishEngine] ⚠️ Falha ao aplicar maxVideoBitrate:', e);
+      console.warn('[PublishEngine] ⚠️ Falha ao aplicar bitrate de vídeo:', e);
     }
   }
 

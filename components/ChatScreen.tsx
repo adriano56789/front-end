@@ -11,6 +11,7 @@ import LiveBadge from './ui/LiveBadge';
 import { formatMessageTime } from '../utils/formatMessageTime';
 import { syncServerTime } from '../utils/serverTime';
 import { emitChatTyping, connectSocket } from '../services/socketService';
+import { translateText } from '../services/translate';
 // 💬 Chat privado via WebSocket (Socket.IO): o socketService faz a ponte do
 // evento `newChatMessage` do backend para o window (abaixo). A busca inicial
 // usa REST e o envio usa REST (persiste no banco); a entrega em tempo real é
@@ -82,6 +83,36 @@ const ChatMessageBubble: React.FC<{
     onReply?: (message: Message) => void;
 }> = ({ message, isMe, user, onImageClick, onAvatarClick, currentUser, onReply }) => {
     const isObservable = !isMe && message.status !== 'read';
+    const { language } = useTranslation();
+
+    // 🔤 Tradução da mensagem (estilo Google): só nas mensagens RECEBIDAS.
+    // Toque no botão "A" traduz para o idioma do perfil; toque de novo volta.
+    const [translatedText, setTranslatedText] = useState<string | null>(null);
+    const [translating, setTranslating] = useState(false);
+    const [showTranslated, setShowTranslated] = useState(false);
+
+    const canTranslate = !isMe && !!message.text && message.text.trim().length > 0;
+
+    const handleTranslate = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!message.text) return;
+        if (showTranslated) {
+            setShowTranslated(false);
+            return;
+        }
+        if (translatedText) {
+            setShowTranslated(true);
+            return;
+        }
+        setTranslating(true);
+        const result = await translateText(message.text, language);
+        setTranslating(false);
+        if (result) {
+            setTranslatedText(result);
+            setShowTranslated(true);
+        }
+    };
 
     // Simplificado - sem frames para navegação isolada
     const frameGlowClass = '';
@@ -176,6 +207,20 @@ const ChatMessageBubble: React.FC<{
                         >
                             {senderName}
                         </span>
+
+                        {/* 🔤 Traduzir mensagem (idioma do perfil) */}
+                        {canTranslate && (
+                            <button
+                                onClick={handleTranslate}
+                                title={showTranslated ? 'Traduzido' : 'Traduzir'}
+                                aria-label="Traduzir mensagem"
+                                className={`flex items-center justify-center w-[18px] h-[18px] rounded-full border-2 leading-none shrink-0 select-none cursor-pointer transition-all text-[9px] font-black shadow-[0_1px_2px_rgba(0,0,0,0.4)] ${showTranslated
+                                    ? 'bg-[#a855f7]/40 border-[#a855f7] text-white'
+                                    : 'bg-[#a855f7]/25 border-[#a855f7]/60 text-[#e9d5ff] hover:bg-[#a855f7]/45 hover:border-[#a855f7]'}`}
+                            >
+                                {translating ? '…' : 'A'}
+                            </button>
+                        )}
                         
                         {/* Glossy Silver metal level badge */}
                         <span 
@@ -231,6 +276,9 @@ const ChatMessageBubble: React.FC<{
                             {isMe && <MessageStatus status={message.status} />}
                         </div>
                         <p className="text-zinc-100 font-sans tracking-wide break-words text-[13.5px] leading-relaxed font-semibold">{message.text}</p>
+                        {showTranslated && translatedText && (
+                            <p className="text-zinc-300 italic font-sans tracking-wide break-words text-[13.5px] leading-relaxed border-t border-white/10 mt-1 pt-1">🔤 {translatedText}</p>
+                        )}
                     </div>
                 )}
                 {!message.text && message.imageUrl && (

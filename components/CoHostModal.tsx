@@ -127,7 +127,7 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     const friendMap = new Map<string, User>();
     friends.forEach(f => friendMap.set(f.id, f));
 
-    const merged: User[] = [...friends];
+    let merged: User[] = [...friends];
     liveUsers.forEach(lu => {
       if (!friendMap.has(lu.userId)) {
         merged.push({
@@ -154,10 +154,17 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
 
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      return merged.filter(u => u.name?.toLowerCase().includes(term) || u.id?.toLowerCase().includes(term));
+      merged = merged.filter(u => u.name?.toLowerCase().includes(term) || u.id?.toLowerCase().includes(term));
     }
+
+    // ⚔️ Em modo Batalha PK, só usuários AO VIVO aparecem (não lista amigos offline)
+    if (mode === 'battle') {
+      const liveIds = new Set(liveUsers.filter(lu => lu.status === 'broadcasting').map(lu => lu.userId));
+      merged = merged.filter(u => liveIds.has(u.id) || (u as any).isLive);
+    }
+
     return merged;
-  }, [friends, liveUsers, searchTerm]);
+  }, [friends, liveUsers, searchTerm, mode]);
 
   const handleInviteClick = async (friend: User) => {
     if (invitedFriends.has(friend.id) || invitingFriendId === friend.id) return;

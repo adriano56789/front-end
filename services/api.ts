@@ -998,8 +998,6 @@ export const api = {
 
     updatePrivateStreamSettings: (userId: string, settings: Partial<User['privateStreamSettings']>) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/private-stream/${userId}`, { settings }),
 
-    getInvitedStreams: (userId: string) => callApi<{ success: boolean, streamIds: string[] }>('GET', `/api/interactions/streams/invited-streams?userId=${userId}`),
-
     togglePip: (userId: string, enabled: boolean) => callApi<{ success: boolean, user: User }>('POST', `/api/settings/pip/toggle/${userId}`, { enabled }),
 
     updateActivityPreference: (userId: string, show: boolean) => callApi<{ success: boolean, user: User }>('POST', `/api/users/${userId}/privacy/activity`, { show }),
@@ -1305,18 +1303,22 @@ export const api = {
 
     checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean, reason?: string }>('GET', `/api/interactions/streams/${streamId}/access-check?userId=${userId}`),
 
+    getInvitedStreams: (userId: string) => callApi<{ success: boolean, streamIds: string[] }>('GET', `/api/interactions/streams/invited-streams?userId=${userId}`),
+
     inviteFriendForCoHost: (streamId: string, inviteeId: string, inviteType: 'co-host' | 'pk-battle' = 'pk-battle') => {
-      const fromUserId = (() => {
-        try {
-          const token = getAuthToken();
-          if (!token) return '';
+      let fromUserId = '';
+      let fromUserName = '';
+      try {
+        const token = getAuthToken();
+        if (token) {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          return payload.id || payload.userId || '';
-        } catch { return ''; }
-      })();
+          fromUserId = payload.id || payload.userId || '';
+          fromUserName = payload.name || payload.userName || '';
+        }
+      } catch { /* token inválido — segue sem */ }
       return callApi<{ success: boolean, message?: string, error?: string }>('POST', '/api/live/invite', {
         inviterUsername: fromUserId,
-        inviterName: '',
+        inviterName: fromUserName,
         inviteeUsername: inviteeId,
         inviteeName: '',
         inviteType,

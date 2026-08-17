@@ -1,7 +1,6 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-// (v10: correção da ordem do teclado — campo sobe primeiro, nunca coberto;
-//  força o PWA instalado a baixar o bundle novo)
-const CACHE_NAME = 'livenza-cache-v10';
+// (v12: push do chat estilo WhatsApp com vibração de alerta)
+const CACHE_NAME = 'livenza-cache-v12';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -164,7 +163,9 @@ messaging.onBackgroundMessage(async (payload) => {
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     tag: notifTag, // agrupa/sobrescreve notificações do mesmo chat
-    renotify: false,
+    renotify: true, // 🔔 re-alerta a cada mensagem nova (mesmo tag = mesmo chat)
+    requireInteraction: true, // 💬 estilo WhatsApp: NÃO some sozinha
+    vibrate: [180, 80, 180], // 📳 vibra estilo WhatsApp
     data: d,
   };
 

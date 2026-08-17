@@ -147,22 +147,35 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     // reutiliza o pipeline (videoProcessor.initialize é idempotente p/ a mesma
     // câmera) e sobrescreve com as preferências salvas do usuário.
     const autoBeautyRef = useRef(false);
+    // 🔁 A câmera de celulares lentos demora bem mais que 400ms para ligar. Se o
+    // srcObject ainda não existe, fica POLINDO a cada 400ms até chegar (máx 20s)
+    // e então aplica o filtro padrão na hora — antes, era 1 tentativa só em 400ms
+    // e o filtro simplesmente NÃO LIGAVA quando a câmera demorava.
     useEffect(() => {
-        if (!isOpen || !cameraPreview.videoRef.current) return;
+        if (!isOpen) return;
         if (autoBeautyRef.current) return;
 
-        const video = cameraPreview.videoRef.current;
-        if (!video.srcObject) {
-            // A câmera ainda não ligou — tenta de novo quando o srcObject chegar
-            const checkTimer = setTimeout(() => {
-                if (video.srcObject) {
-                    applyDefaultBeautyToCamera(video);
-                }
-            }, 400);
-            return () => clearTimeout(checkTimer);
+        const tryApply = () => {
+            if (autoBeautyRef.current) return;
+            const video = cameraPreview.videoRef.current;
+            if (video && video.srcObject) {
+                applyDefaultBeautyToCamera(video);
+            }
+        };
+
+        tryApply();
+        if (!autoBeautyRef.current && !cameraPreview.videoRef.current?.srcObject) {
+            const poll = setInterval(tryApply, 400);
+            const stopTimer = setTimeout(() => clearInterval(poll), 20000);
+            return () => { clearInterval(poll); clearTimeout(stopTimer); };
         }
-        applyDefaultBeautyToCamera(video);
     }, [isOpen, cameraPreview.videoRef]);
+
+    // 🔁 Zera o ref ao FECHAR a live — senão a 2ª abertura entrava SEM o filtro
+    // padrão (o ref ficava true para sempre após a primeira aplicação).
+    useEffect(() => {
+        if (!isOpen) autoBeautyRef.current = false;
+    }, [isOpen]);
 
     const applyDefaultBeautyToCamera = async (video: HTMLVideoElement) => {
         try {
@@ -191,30 +204,31 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
             await beautyWebRTCIntegration.initialize(processedStream);
 
-            // ✅ Se o usuário tem configurações salvas, elas VENCEM o padrão
+            // ✅ Se o usuário tem configurações salvas, elas VENCEM o padrão.
+            // Chaves não salvas mantêm o DEFAULT (imagem limpa/jovem/nítida) —
+            // não zeram como antigamente.
             try {
                 if (currentUser?.id) {
                     const saved = await api.getBeautySettings(currentUser.id);
                     const s = saved || {};
-                    const hasAny = Object.keys(s).some(k =>
-                        k !== 'activeTab' && k !== 'selectedFilter' && k !== 'selectedEffect'
-                    );
-                    if (hasAny) {
-                        videoProcessor.updateBeautySettings({
-                            whitening: s['Branquear'] || 0,
-                            smoothing: s['Alisar a pele'] || 0,
-                            saturation: s['Ruborizar'] || 0,
-                            contrast: s['Contraste'] || 0,
-                            whiteBalance: Number(s['Balanço de Branco']) || 0,
-                            acneRemoval: s['Remover manchas'] || 0,
-                            wrinkleSmoothing: s['Suavizar rugas'] || 0,
-                            darkCircle: s['Clarear olheiras'] || 0,
-                            shineReduction: s['Reduzir brilho'] || 0,
-                            babyFace: s['Rosto Bebê'] || 0,
-                            sharpness: Number(s['Nitidez']) || DEFAULT_BEAUTY_SETTINGS.sharpness,
-                            faceVolume3D: Number(s['Efeito 3D']) || DEFAULT_BEAUTY_SETTINGS.faceVolume3D
-                        });
-                    }
+                    const num = (v: any, fallback: number) => (typeof v === 'number' ? v : fallback);
+                    videoProcessor.updateBeautySettings({
+                        ...DEFAULT_BEAUTY_SETTINGS,
+                        whitening: num(s['Branquear'], DEFAULT_BEAUTY_SETTINGS.whitening),
+                        smoothing: num(s['Alisar a pele'], DEFAULT_BEAUTY_SETTINGS.smoothing),
+                        saturation: num(s['Ruborizar'], DEFAULT_BEAUTY_SETTINGS.saturation),
+                        contrast: num(s['Contraste'], DEFAULT_BEAUTY_SETTINGS.contrast),
+                        whiteBalance: num(s['Balanço de Branco'], DEFAULT_BEAUTY_SETTINGS.whiteBalance),
+                        acneRemoval: num(s['Remover manchas'], DEFAULT_BEAUTY_SETTINGS.acneRemoval),
+                        wrinkleSmoothing: num(s['Suavizar rugas'], DEFAULT_BEAUTY_SETTINGS.wrinkleSmoothing),
+                        darkCircle: num(s['Clarear olheiras'], DEFAULT_BEAUTY_SETTINGS.darkCircle),
+                        shineReduction: num(s['Reduzir brilho'], DEFAULT_BEAUTY_SETTINGS.shineReduction),
+                        babyFace: num(s['Rosto Bebê'], DEFAULT_BEAUTY_SETTINGS.babyFace),
+                        teethWhitening: num(s['Clarear dentes'], DEFAULT_BEAUTY_SETTINGS.teethWhitening),
+                        sharpness: num(s['Nitidez'], DEFAULT_BEAUTY_SETTINGS.sharpness),
+                        faceVolume3D: num(s['Efeito 3D'], DEFAULT_BEAUTY_SETTINGS.faceVolume3D),
+                        noiseReduction: num(s['Limpar Chiado'], DEFAULT_BEAUTY_SETTINGS.noiseReduction)
+                    });
                 }
             } catch (e) {
                 // Mantém o filtro padrão se não conseguir carregar as salvas

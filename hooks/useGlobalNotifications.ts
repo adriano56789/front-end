@@ -130,7 +130,7 @@ export function useGlobalNotifications(options: UseGlobalNotificationsOptions) {
           title: 'Desafio de PK!',
           name: d.fromUserName || d.fromName || 'Alguém',
           avatar,
-          message: d.message || 'Te convidou para uma batalha PK',
+          message: d.message || (d.inviteType === 'pk-battle' ? `Você recebeu um convite de PK de ${d.fromUserName || d.fromName || 'Alguém'}` : 'Te convidou para uma batalha PK'),
           actionLabel: 'Aceitar',
           secondaryLabel: 'Recusar',
           icon: '⚔️',

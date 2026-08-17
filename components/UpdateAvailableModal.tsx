@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from '../i18n';
+import { markVersionReloadFlag } from '../hooks/useAppVersion';
 
 interface UpdateAvailableModalProps {
     open: boolean;
@@ -8,11 +9,14 @@ interface UpdateAvailableModalProps {
 
 // 🔄 Modal de nova versão: bloqueia o uso da versão antiga até o usuário
 // clicar em "Atualizar agora", que recarrega a página com o build novo.
+// O flag em sessionStorage diz ao useAppVersion que o reload foi INTENCIONAL —
+// assim a versão nova é registrada só depois de o build novo estar rodando.
 const UpdateAvailableModal: React.FC<UpdateAvailableModalProps> = ({ open, latestVersion }) => {
     const { t } = useTranslation();
     if (!open) return null;
 
     const reload = () => {
+        markVersionReloadFlag();
         window.location.reload();
     };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User } from '../types';
-import { BackIcon } from './icons';
+import { BackIcon, LockIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import LiveBadge from './ui/LiveBadge';
@@ -19,9 +19,11 @@ const UserItem: React.FC<{
   onRowClick: () => void; 
   onFollowClick: () => void; 
   onOpenLive?: (user: User) => void; 
-}> = ({ user, onRowClick, onFollowClick, onOpenLive }) => {
+  hasPadlock?: boolean;
+}> = ({ user, onRowClick, onFollowClick, onOpenLive, hasPadlock }) => {
     const { t } = useTranslation();
     const handleTag = user.name.toLowerCase().replace(/\s+/g, '');
+    const avatarSrc = (user as any).avatarUrl || (user as any).avatar || '';
     
     return (
         <div 
@@ -32,9 +34,22 @@ const UserItem: React.FC<{
                 <div className="relative flex-shrink-0">
                     <div className="rounded-full p-[2px] bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c] shadow-md shadow-black/20">
                         <div className="rounded-full p-[1.5px] bg-[#000000]">
-                            <img src={user.avatarUrl} alt={user.name} className="w-[48px] h-[48px] rounded-full object-cover" />
+                            {avatarSrc ? (
+                                <img src={avatarSrc} alt={user.name} className="w-[48px] h-[48px] rounded-full object-cover" onError={(e) => { (e.currentTarget).style.display = 'none'; }} />
+                            ) : null}
+                            {!avatarSrc && (
+                                <div className="w-[48px] h-[48px] rounded-full flex items-center justify-center text-lg font-black uppercase bg-zinc-800 text-white">
+                                    {user.name?.charAt(0) || '?'}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    {/* 🔒 Cadeado de sala privada — bem no meio do avatar */}
+                    {hasPadlock && (
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-[22px] h-[22px] rounded-full bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c] shadow-[0_0_8px_rgba(225,186,114,0.6)] border-2 border-black">
+                            <LockIcon className="w-[11px] h-[11px] text-black" />
+                        </div>
+                    )}
                     {user.isLive && (
                         <LiveBadge label="" showLabel={false} iconClassName="w-[13px] h-[13px]" className="absolute -bottom-1 -right-1 rounded-full p-[2px]" onClick={(e) => { e.stopPropagation(); onOpenLive?.(user); }} />
                     )}
@@ -42,6 +57,9 @@ const UserItem: React.FC<{
                 <div>
                     <h3 className="font-normal text-[#dfc38f] flex items-center gap-1.5 text-[16px] tracking-wide">
                         {user.name.toLowerCase()}
+                        {hasPadlock && (
+                            <LockIcon className="w-[14px] h-[14px] text-[#e1ba72]" />
+                        )}
                         {user.isVIP && (
                             <span className="bg-gradient-to-r from-amber-400 to-yellow-500 text-black text-[9px] font-black px-1.5 py-0.5 rounded-full scale-90">
                                 VIP
@@ -67,6 +85,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
     const [isLoading, setIsLoading] = useState(false);
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [padlockHosts, setPadlockHosts] = useState<Set<string>>(new Set());
     const hasLoadedRef = useRef(false);
 
     // Carregar dados da API quando o componente é montado (apenas uma vez)
@@ -81,7 +100,20 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
         if (!currentUser?.id) return;
         try {
             setIsLoading(true);
-            const followingData = await api.getFollowingUsers(currentUser.id);
+            // 🔒 Descobre quais seguidos têm sala privada AO VIVO pra qual o usuário foi convidado
+            const [followingData, invited, privateRooms] = await Promise.all([
+                api.getFollowingUsers(currentUser.id),
+                api.getInvitedStreams(currentUser.id).catch(() => null),
+                api.getLiveStreamers('private').catch(() => []),
+            ]);
+            const invitedIds = new Set(invited?.streamIds || []);
+            const privateByStreamId = new Map((Array.isArray(privateRooms) ? privateRooms : []).map((s: any) => [s.id, s]));
+            const padlockHosts = new Set<string>();
+            invitedIds.forEach((sid: string) => {
+                const room = privateByStreamId.get(sid);
+                if (room?.hostId) padlockHosts.add(room.hostId);
+            });
+            setPadlockHosts(padlockHosts);
             setLocalUsers(followingData);
         } catch (error) {
             console.error('❌ [FOLLOWING-SCREEN] Erro ao carregar dados:', error);
@@ -132,6 +164,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                                 onRowClick={() => handleItemClick(user)} 
                                 onFollowClick={() => handleUnfollowUser(user)} 
                                 onOpenLive={onOpenLive} 
+                                hasPadlock={padlockHosts.has(user.id)}
                             />
                         ))}
                     </div>
@@ -162,11 +195,21 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                         <div className="flex flex-col items-center text-center space-y-3 pb-3">
                             <div className="rounded-full p-[2px] bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c]">
                                 <div className="rounded-full p-[1.5px] bg-[#121214]">
+                            <div>
+                                {((selectedUser as any).avatarUrl || (selectedUser as any).avatar) ? (
                                     <img 
-                                        src={selectedUser.avatarUrl} 
+                                        src={(selectedUser as any).avatarUrl || (selectedUser as any).avatar} 
                                         alt={selectedUser.name} 
                                         className="w-[64px] h-[64px] rounded-full object-cover" 
+                                        onError={(e) => { (e.currentTarget).style.display = 'none'; }}
                                     />
+                                ) : null}
+                                {!((selectedUser as any).avatarUrl || (selectedUser as any).avatar) && (
+                                    <div className="w-[64px] h-[64px] rounded-full flex items-center justify-center text-2xl font-black uppercase bg-zinc-800 text-white">
+                                        {selectedUser.name?.charAt(0) || '?'}
+                                    </div>
+                                )}
+                            </div>
                                 </div>
                             </div>
                             <div>

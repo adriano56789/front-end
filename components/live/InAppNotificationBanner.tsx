@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CloseIcon } from '../icons';
 
+const resolveAvatar = (n: InAppNotification): string => {
+  const d = n.data || {};
+  return n.avatar || d.fromUserAvatar || d.hostAvatar || d.avatar || '';
+};
+
 // ═══════════════════════════════════════════════════════════════════════
 // Notificação flutuante in-app (faixa) — estilos TikTok/ZEGO:
 //   - live_started    → "X está ao vivo" (badge LIVE, botão Assistir)
@@ -65,6 +70,68 @@ const THEMES: Record<InAppAccent, {
 
 const AUTO_DISMISS_MS = 6500;
 
+// Avatar do banner: foto real primeiro; "L" (letra) só quando não tem foto.
+const BannerAvatar: React.FC<{ n: InAppNotification; theme: typeof THEMES.live; onOpen: () => void }> = ({ n, theme, onOpen }) => {
+  const [failed, setFailed] = useState(false);
+  const src = resolveAvatar(n);
+  return (
+    <div
+      className={`relative flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr ${theme.ring} cursor-pointer active:scale-95 transition-transform`}
+      onClick={(e) => { e.stopPropagation(); onOpen(); }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="w-16 h-16 rounded-full overflow-hidden bg-black">
+        {src && !failed ? (
+          <img src={src} alt={n.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-2xl font-black uppercase bg-zinc-800 text-white">
+            {n.name?.charAt(0) || '?'}
+          </div>
+        )}
+      </div>
+      <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-black/60 ${theme.badgeClass}`}>
+        {theme.badgeText}
+      </div>
+    </div>
+  );
+};
+
+// Visualizador em tela cheia da foto (estilo Buzzcast) — imagem original, sem erros.
+const AvatarViewer: React.FC<{ n: InAppNotification; onClose: () => void }> = ({ n, onClose }) => {
+  const src = resolveAvatar(n);
+  return (
+    <div
+      className="fixed inset-0 z-[100000] bg-black/95 flex flex-col items-center justify-center"
+      onClick={onClose}
+    >
+      <button
+        className="fixed top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center active:scale-95 transition-transform z-10"
+        aria-label="Fechar"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+      >
+        <CloseIcon className="w-6 h-6 text-white" />
+      </button>
+      <div className="px-6 pb-10 text-center" onClick={(e) => e.stopPropagation()}>
+        {src ? (
+          <img
+            src={src}
+            alt={n.name}
+            className="max-w-[85vw] max-h-[75vh] rounded-3xl object-contain bg-black shadow-[0_0_60px_rgba(0,0,0,0.8)]"
+            onError={(e) => { (e.currentTarget).style.display = 'none'; }}
+          />
+        ) : null}
+        {!src && (
+          <div className="mx-auto w-40 h-40 rounded-full flex items-center justify-center text-6xl font-black uppercase bg-zinc-800 text-white shadow-[0_0_60px_rgba(0,0,0,0.8)]">
+            {n.name?.charAt(0) || '?'}
+          </div>
+        )}
+        <p className="mt-5 text-white font-bold text-lg drop-shadow-lg">{n.name}</p>
+        <p className="text-white/50 text-xs mt-1">{n.message}</p>
+      </div>
+    </div>
+  );
+};
+
 const InAppNotificationBanner: React.FC<InAppNotificationBannerProps> = ({
   notifications,
   onDismiss,
@@ -73,6 +140,7 @@ const InAppNotificationBanner: React.FC<InAppNotificationBannerProps> = ({
 }) => {
   const [dragY, setDragY] = useState(0);
   const [exitingIds, setExitingIds] = useState<Set<string>>(new Set());
+  const [viewer, setViewer] = useState<InAppNotification | null>(null);
   const dragRef = useRef<{ id: string; startY: number; startX: number; moved: boolean } | null>(null);
 
   const visible = notifications.slice(-3);
@@ -165,21 +233,8 @@ const InAppNotificationBanner: React.FC<InAppNotificationBannerProps> = ({
               <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${theme.ring}`} />
 
               <div className="flex items-center gap-3 p-3">
-                {/* Avatar com anel gradiente + badge */}
-                <div className={`relative flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr ${theme.ring}`}>
-                  <div className="w-16 h-16 rounded-full overflow-hidden bg-black">
-                    {n.avatar ? (
-                      <img src={n.avatar} alt={n.name} className="w-full h-full object-cover" onError={(e) => { (e.currentTarget).style.display = 'none'; }} />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl font-black uppercase bg-zinc-800 text-white">
-                        {n.icon || n.name?.charAt(0) || '🔔'}
-                      </div>
-                    )}
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-black/60 ${theme.badgeClass}`}>
-                    {theme.badgeText}
-                  </div>
-                </div>
+                {/* Avatar com anel gradiente + badge — tocar na foto amplia (Buzzcast) */}
+                <BannerAvatar n={n} theme={theme} onOpen={() => { dragRef.current = null; setViewer(n); }} />
 
                 {/* Texto */}
                 <div className="flex-1 min-w-0">
@@ -237,6 +292,9 @@ const InAppNotificationBanner: React.FC<InAppNotificationBannerProps> = ({
           +{extraCount} notificação{extraCount > 1 ? 'ões' : ''}
         </div>
       )}
+
+      {/* 🔍 Foto ampliada (estilo Buzzcast) */}
+      {viewer && <AvatarViewer n={viewer} onClose={() => setViewer(null)} />}
     </div>
   );
 };
