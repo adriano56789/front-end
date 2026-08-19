@@ -163,7 +163,9 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
 
   return (
     <div className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={onClose}>
-      <div className={`bg-[#0f1115] w-full max-w-md h-[75%] rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
+      {/* Backdrop 100% opaco — bloqueia qualquer vaza do vídeo da live */}
+      <div className="absolute inset-0 bg-black" />
+      <div className={`relative z-10 bg-[#0f1115] w-full h-[75%] rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
         
         {/* Header Block exactly matching image 2 */}
         <header className="relative flex items-center justify-between p-4 flex-shrink-0">

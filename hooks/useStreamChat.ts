@@ -379,6 +379,7 @@ export function useStreamChat(options: StreamChatOptions) {
         const lastAt = knownGiftIdsRef.current.get(key) || 0;
         if (!deadRoomRef.current && now - lastAt > 10000) {
           knownGiftIdsRef.current.set(key, now);
+          console.log('[StreamChat] Presente recebido via socket:', giftName, 'x' + quantity, 'de', fromId);
           optionsRef.current.onMessage?.({
             type: 'live_gift_received',
             from: {

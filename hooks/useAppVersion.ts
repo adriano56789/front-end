@@ -16,6 +16,7 @@
 //   • qualquer reload SEM o flag mantém o modal ativo (não deixa escapar
 //     para uma versão velha em silêncio).
 import { useState, useEffect } from 'react';
+import { api } from '../services/api';
 
 const VERSION_KEY = 'livego_version';
 const RELOAD_FLAG = 'livego_reload_flag';
@@ -26,15 +27,9 @@ interface VersionInfo {
     buildTime?: string;
 }
 
+// 🔄 Busca a versão SEMPRE pelo api.ts (nenhum fetch direto fora dele).
 async function fetchVersion(): Promise<VersionInfo | null> {
-    try {
-        // Cache-busting para nunca ler um version.json antigo do cache do navegador
-        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch {
-        return null;
-    }
+    return api.getAppVersion();
 }
 
 export function useAppVersion() {

@@ -100,18 +100,25 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
         if (!currentUser?.id) return;
         try {
             setIsLoading(true);
-            // 🔒 Descobre quais seguidos têm sala privada AO VIVO pra qual o usuário foi convidado
+            // 🔒 Descobre quais seguidos têm sala privada AO VIVO pra qual o usuário foi convidado.
+            // O backend filtra a lista de salas privadas por convite (userId) — quem não foi
+            // convidado não vê a sala. Aqui casamos os convites (hostId) com as salas retornadas.
             const [followingData, invited, privateRooms] = await Promise.all([
                 api.getFollowingUsers(currentUser.id),
                 api.getInvitedStreams(currentUser.id).catch(() => null),
-                api.getLiveStreamers('private').catch(() => []),
+                api.getLiveStreamers('private', undefined, currentUser.id).catch(() => []),
             ]);
             const invitedIds = new Set(invited?.streamIds || []);
-            const privateByStreamId = new Map((Array.isArray(privateRooms) ? privateRooms : []).map((s: any) => [s.id, s]));
+            // Mapa por hostId (o id da stream privada == id do host) — s.id é o streamKey e
+            // não bate com o id do convite, então indexamos pelo hostId da sala.
+            const privateByHostId = new Map((Array.isArray(privateRooms) ? privateRooms : []).map((s: any) => [s.hostId || s.id, s]));
             const padlockHosts = new Set<string>();
             invitedIds.forEach((sid: string) => {
-                const room = privateByStreamId.get(sid);
-                if (room?.hostId) padlockHosts.add(room.hostId);
+                // 🔒 O id da stream convidada == id do host nesta app. Usar o hostId da
+                // sala quando casar, e o próprio sid como fallback — o invited-streams já
+                // garante: usuário convidado + stream AO VIVO (fonte da verdade é o Streamer).
+                const room = privateByHostId.get(sid);
+                padlockHosts.add(room?.hostId || sid);
             });
             setPadlockHosts(padlockHosts);
             setLocalUsers(followingData);

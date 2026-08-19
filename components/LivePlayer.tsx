@@ -23,6 +23,16 @@ export default function LivePlayer({
   onVideoRef,
 }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const mutedRef = useRef(muted);
+
+  // Keep mutedRef in sync without destroying the WebRTC connection
+  useEffect(() => {
+    mutedRef.current = muted;
+    const video = videoRef.current;
+    if (video && !isBroadcaster) {
+      video.muted = muted;
+    }
+  }, [muted, isBroadcaster]);
 
   // Expose video element to parent
   useEffect(() => {
@@ -77,7 +87,7 @@ export default function LivePlayer({
 
       const engine = new SrsPlayerEngine({
         autoMuteRetry: true,
-        userMuted: muted,
+        userMuted: mutedRef.current,
       });
 
       const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
@@ -106,7 +116,7 @@ export default function LivePlayer({
         engine.destroy();
       };
     }
-  }, [streamId, isBroadcaster, muted]);
+  }, [streamId, isBroadcaster]);
 
   if (!isBroadcaster && !streamId) {
     return null;

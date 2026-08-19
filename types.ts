@@ -44,6 +44,7 @@ export interface Streamer {
   state?: string;
   distance?: string;
   onlineTotal?: number;
+  screenSecurityEnabled?: boolean; // Host com proteção de tela ativa — espectador fica bloqueado
 }
 
 export interface LiveSetup {

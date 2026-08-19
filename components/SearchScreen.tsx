@@ -19,6 +19,9 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
         onFollow(user);
     };
 
+    // 🔒 Não dá pra seguir a SI MESMO — esconde o botão (e o ícone +) na própria conta.
+    const isSelf = String(user.id) === String((window as any).currentUser?.id);
+
     return (
         <div className="flex items-center justify-between p-4 hover:bg-gray-800/50 cursor-pointer" onClick={() => onViewProfile(user)}>
             <div className="flex items-center space-x-4 min-w-0">
@@ -40,17 +43,19 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
                     <p className="text-sm text-gray-400">{t('profile.id')}: {user.id}</p>
                 </div>
             </div>
-            <button
-                onClick={handleFollow}
-                className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 shrink-0 ${
-                    user.isFollowed
-                        ? 'bg-green-600 text-white hover:bg-green-700 scale-95 shadow-inner'
-                        : 'bg-purple-600 text-white hover:bg-purple-700 hover:scale-105 shadow-md'
-                }`}
-            >
-                {!user.isFollowed && <PlusIcon className="w-4 h-4" />}
-                <span>{user.isFollowed ? t('common.following') : t('common.follow')}</span>
-            </button>
+            {!isSelf && (
+                <button
+                    onClick={handleFollow}
+                    className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 shrink-0 ${
+                        user.isFollowed
+                            ? 'bg-green-600 text-white hover:bg-green-700 scale-95 shadow-inner'
+                            : 'bg-purple-600 text-white hover:bg-purple-700 hover:scale-105 shadow-md'
+                    }`}
+                >
+                    {!user.isFollowed && <PlusIcon className="w-4 h-4" />}
+                    <span>{user.isFollowed ? t('common.following') : t('common.follow')}</span>
+                </button>
+            )}
         </div>
     );
 };

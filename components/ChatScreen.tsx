@@ -180,7 +180,7 @@ const ChatMessageBubble: React.FC<{
             </div>
             
             {/* Chat Message Box with gorgeous live stream semi-transparent glass style matching feed */}
-            <div className={`relative z-10 max-w-[80%] md:max-w-[70%] rounded-2xl ${isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none pr-6 pl-3.5' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none pl-6 pr-3.5'} ${message.imageUrl && !message.text ? 'p-1' : 'py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.25)]'}`}>
+            <div className={`relative z-10 max-w-[80%] md:max-w-[70%] rounded-2xl ${message.imageUrl && !message.text ? (isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none p-1' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none p-1') : `${isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none pr-6 pl-3.5' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none pl-6 pr-3.5'} py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.25)]`}`}>
                 {/* 📌 Citação da mensagem respondida (estilo WhatsApp) */}
                 {message.replyTo && (
                     <div className={`mb-1.5 rounded-lg border-l-4 px-2.5 py-1.5 text-xs ${isMe ? 'bg-[#3a1a52]/60 border-[#d21fff]' : 'bg-black/30 border-[#00e5ff]'}`}>
@@ -265,7 +265,7 @@ const ChatMessageBubble: React.FC<{
                         <img
                             src={message.imageUrl}
                             alt="Chat attachment"
-                            className="w-24 object-cover bg-black/20"
+                            className="max-w-[220px] sm:max-w-[260px] max-h-[300px] w-auto h-auto object-contain rounded-lg bg-black/20"
                         />
                     </button>
                 )}

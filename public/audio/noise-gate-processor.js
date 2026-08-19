@@ -5,10 +5,10 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
     const opts = (options && options.processorOptions) || {};
-    this.threshold = opts.threshold != null ? opts.threshold : 0.022;
-    this.attackMs = opts.attackMs != null ? opts.attackMs : 6;
-    this.releaseMs = opts.releaseMs != null ? opts.releaseMs : 220;
-    this.holdMs = opts.holdMs != null ? opts.holdMs : 80;
+    this.threshold = opts.threshold != null ? opts.threshold : 0.035;
+    this.attackMs = opts.attackMs != null ? opts.attackMs : 4;
+    this.releaseMs = opts.releaseMs != null ? opts.releaseMs : 180;
+    this.holdMs = opts.holdMs != null ? opts.holdMs : 60;
 
     this.gain = 1.0;
     this.open = true;

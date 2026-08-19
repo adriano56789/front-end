@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BackIcon, LiveGoLogo } from '../icons';
 import { useTranslation } from '../../i18n';
+import { api } from '../../services/api';
 
 // Versão atual do aparelho = a que foi salva no localStorage na última visita
 // (a mesma chave usada pelo useAppVersion para detectar atualização).
@@ -18,9 +19,8 @@ const AppVersionScreen: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
     useEffect(() => {
         setCurrentVersion(localStorage.getItem(VERSION_KEY) || '1.0.0');
-        // Buscar versão do servidor com cache-busting (nunca ler version.json antigo)
-        fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
-            .then((res) => (res.ok ? res.json() : null))
+        // Buscar versão do servidor SEMPRE pelo api.ts (nenhum fetch direto)
+        api.getAppVersion()
             .then((info) => {
                 if (info?.version) {
                     setLatestVersion(info.version);

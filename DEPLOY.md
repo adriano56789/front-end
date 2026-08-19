@@ -19,10 +19,20 @@ O script faz tudo automaticamente:
    roda DEPOIS da extração, então nunca apaga arquivo em uso (se a extração
    falhar, o site antigo continua íntegro).
 
-> ⚠️ O frontend NÃO roda no Docker: é servido pelo nginx do host diretamente
-> de `/var/www/livego.store` (o `livego-nginx` do Docker é só o proxy 80/443
-> para a API). Para forçar a atualização do PWA instalado, o script também
-> precisa subir um `firebase-messaging-sw.js` novo (bump `livenza-cache-vN`).
+> ✅ O frontend RODA no Docker: o container `livego-frontend` (nginx, serviço
+> `frontend` do `/app/docker-compose.yml`) serve o dist montado como volume
+> de `/var/www/livego.store` (publicado em `127.0.0.1:8081`). O nginx do host
+> continua dono do 80/443 e apenas repassa `location /` para o container
+> (todo o resto — `/api`, WHIP/WHEP, `/socket.io/`, `/animations/`,
+> `/uploads/`, api.livego.store — segue servido/proxyado pelo host). Como o
+> container serve a MESMA pasta `/var/www/livego.store`, os scripts de deploy
+> abaixo continuam funcionando sem mudança. Para confirmar que o container
+> está servindo: `curl -sI https://livego.store/ | grep -i x-livego-frontend`
+> (deve responder `docker-container`).
+>
+> 🔁 Rollback (se precisar voltar ao nginx do host servindo estático):
+> restaure o backup do vhost (`/etc/nginx/sites-enabled/livego.bak.dockerfe.*`)
+> e rode `cd /app && docker compose stop frontend`.
 
 ---
 

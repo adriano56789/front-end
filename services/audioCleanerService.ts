@@ -52,24 +52,27 @@ class AudioCleanerService {
       this.destination = ctx.createMediaStreamDestination();
 
       // 1. High-pass — remove zumbido/rumble (50/60Hz e microfonoquias).
+      //    Q=1.0 (mais agressivo que 0.707) para cortar melhor o grave indesejado.
       const highpass = ctx.createBiquadFilter();
       highpass.type = 'highpass';
-      highpass.frequency.value = 110;
-      highpass.Q.value = 0.707;
+      highpass.frequency.value = 120;
+      highpass.Q.value = 1.0;
 
       // 2. Low-pass — corta o chiado/sibilo agudo do microfone.
+      //    8kHz remove chiado agudo (hiss 6-12kHz) sem afetar a voz (300Hz-4kHz).
       const lowpass = ctx.createBiquadFilter();
       lowpass.type = 'lowpass';
-      lowpass.frequency.value = 13000;
-      lowpass.Q.value = 0.5;
+      lowpass.frequency.value = 8000;
+      lowpass.Q.value = 0.7;
 
       // 3. Compressor — uniformiza dinâmica sem espremer a voz.
+      //    Threshold mais alto (-20) para não comprimir tanto e amplificar ruído.
       const compressor = ctx.createDynamicsCompressor();
-      compressor.threshold.value = -24;
-      compressor.knee.value = 18;
-      compressor.ratio.value = 6;
-      compressor.attack.value = 0.004;
-      compressor.release.value = 0.18;
+      compressor.threshold.value = -20;
+      compressor.knee.value = 12;
+      compressor.ratio.value = 4;
+      compressor.attack.value = 0.005;
+      compressor.release.value = 0.15;
 
       this.source.connect(highpass);
       highpass.connect(lowpass);
@@ -114,10 +117,10 @@ class AudioCleanerService {
           numberOfOutputs: 1,
           outputChannelCount: [1],
           processorOptions: {
-            threshold: 0.022,
-            attackMs: 6,
-            releaseMs: 220,
-            holdMs: 80,
+            threshold: 0.035,
+            attackMs: 4,
+            releaseMs: 180,
+            holdMs: 60,
           },
         });
         input.connect(node);
@@ -135,10 +138,10 @@ class AudioCleanerService {
       let gain = 1;
       let open = true;
       let hold = 0;
-      const threshold = 0.022;
-      const attack = 0.4;     // por callback (2048 frames)
-      const release = 0.04;
-      const holdFrames = 3;   // ~128ms de hold
+      const threshold = 0.035;
+      const attack = 0.3;
+      const release = 0.05;
+      const holdFrames = 2;
 
       sp.onaudioprocess = (e: AudioProcessingEvent) => {
         const inData = e.inputBuffer.getChannelData(0);

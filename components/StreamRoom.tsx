@@ -25,7 +25,7 @@ import { api } from '../services/api';
 import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
 import { RankedAvatar } from './live/RankedAvatar';
-import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
+import GiftAnimationPanel, { GiftAnimationPanelHandle } from './live/GiftAnimationPanel';
 import JoinEffectOverlay from './live/JoinEffectOverlay';
 import { streamPublishService } from '../services/streamPublishService';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
@@ -33,6 +33,7 @@ import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimation
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
 import LivePlayer from './LivePlayer';
+import VideoCallPiP from './VideoCallPiP';
 import { useStreamChat } from '../hooks/useStreamChat';
 import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
@@ -165,6 +166,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set());
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
+    const [isVideoCallPiPOpen, setIsVideoCallPiPOpen] = useState(false);
     const chatInputRef = useRef<HTMLButtonElement>(null);
     // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
     // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
@@ -188,6 +190,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // 🎁 Ref para o GiftAnimationPanel (painel independente de animação de presentes)
+    const giftPanelRef = useRef<GiftAnimationPanelHandle>(null);
 
     // 📡 Cleanup do typingTimeout ao desmontar
     useEffect(() => {
@@ -270,8 +274,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     });
 
     const [bannerGifts, setBannerGifts] = useState<(GiftPayload & { id: number })[]>([]);
-    const [fullscreenGiftQueue, setFullscreenGiftQueue] = useState<GiftPayload[]>([]);
-    const [currentFullscreenGift, setCurrentFullscreenGift] = useState<GiftPayload | null>(null);
     // 🚪 Efeito de entrada na live (join effect) — igual ti.live/Bigo.
     // Premium: só toca para quem tem VIP ativo. O HOST vê a animação de cada
     // VIP que entra (anúncio de chegada) e o próprio VIP se vê entrando.
@@ -366,10 +368,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
           quantity: data.quantity || 1, roomId: streamer.id,id: String(data.id || Date.now() + Math.random()),
         };
-        // 🎁 O remetente já vê a animação pela via OTIMISTA (handleSendGift →
-        // enqueueGift), então o echo do socket do próprio envio é IGNORADO para
-        // não duplicar. Os demais espectadores recebem o evento do socket normal.
         const senderIsMe = String(data.from?.id || data.fromUser?.id || '') === String(currentUser?.id || '');
+        console.log('[STREAM]礼物 evento recebido:', rawGift?.name, 'senderIsMe:', senderIsMe, 'from:', data.from?.id);
         if (senderIsMe) return;
         enqueueGift(giftEvtPayload);
       } else if (data.type === 'stream_liked' && data.streamId === streamer.id) {
@@ -451,8 +451,6 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setStreamEnded(true);
         setMessages([]);
         setBannerGifts([]);
-        setFullscreenGiftQueue([]);
-        setCurrentFullscreenGift(null);
       }
     },
   });
@@ -797,16 +795,22 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         }
     };
 
-    // 🎁 Fila central de presentes (animação em tela cheia + msg no chat).
+    // 🎁 Fila central de presentes → painel independente (GiftAnimationPanel).
     // Usada pelo caminho OTIMISTA (quem envia, ver handleSendGift) e pelo
-    // caminho do SOCKET (demais espectadores). Sem dedupe por conteúdo: o
-    // usuário pode enviar o mesmo presente quantas vezes quiser (ex.: x100),
-    // cada envio gera UMA entrada real na fila.
+    // caminho do SOCKET (demais espectadores).
     const enqueueGift = (payload: any) => {
         const fromId = payload?.fromUser?.id || '';
         const giftName = payload?.gift?.name || '';
-        if (!fromId || !giftName) return;
-        setFullscreenGiftQueue(prev => [...prev, payload]);
+        if (!fromId || !giftName) {
+            console.warn('[STREAM] enqueueGift: payload inválido (fromId ou giftName ausente)', { fromId, giftName, payload });
+            return;
+        }
+        // Enfileira no painel independente de animação
+        if (giftPanelRef.current) {
+            giftPanelRef.current.pushGift(payload);
+        } else {
+            console.warn('[STREAM] enqueueGift: giftPanelRef.current é NULL — ref não montada!');
+        }
         postGiftChatMessage(payload);
     };
 
@@ -814,19 +818,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         setBannerGifts(prev => prev.filter(g => g.id !== id));
     };
 
-    const handleFullscreenGiftAnimationEnd = () => {
-        // 🔥 A animação em tela cheia NÃO re-enfileira o presente no overlay lateral:
-        // cada presente é exibido exatamente uma vez (evita o envio duplicado).
-        setCurrentFullscreenGift(null);
-    };
-
-    useEffect(() => {
-        if (!currentFullscreenGift && fullscreenGiftQueue.length > 0) {
-            const nextGift = fullscreenGiftQueue[0];
-            setCurrentFullscreenGift(nextGift);
-            setFullscreenGiftQueue(prev => prev.slice(1));
-        }
-    }, [currentFullscreenGift, fullscreenGiftQueue]);
 
 
 
@@ -1174,6 +1165,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     // 🚀 OPTIMISTIC: enfileira a animação do presente para o remetente
                     const optAnimationUrl = getAnimationUrl(gift);
                     const optDuration = getAnimationDuration(gift);
+                    console.log('[STREAM]礼物 handleSendGift optimistic: enfileirando animação para remetente', gift.name, 'giftPanelRef.current:', !!giftPanelRef.current);
                     enqueueGift({
                         fromUser: {
                             id: currentUser.id,
@@ -1452,11 +1444,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 )}
             </div>
 
-            {/* 2. Gift Animation Layer (única — tela cheia, sem overlay lateral duplicado) */}
-            <FullScreenGiftAnimation
-                payload={currentFullscreenGift}
-                onEnd={handleFullscreenGiftAnimationEnd}
-            />
+            {/* 2. Gift Animation Panel (independente — camada sobre o vídeo, abaixo dos controles) */}
+            <GiftAnimationPanel ref={giftPanelRef} />
 
             {/* 🚪 Efeito de entrada na live (mp4 do pacote real, com o nome do usuário) */}
             {joinEffect && (
@@ -1952,6 +1941,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onToggleAutoFollow={handleToggleAutoFollow}
                     isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
                     onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
+                    onOpenVideoCall={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setIsVideoCallPiPOpen(true); }}
                     isHost={isBroadcaster}
                     addToast={addToast}
                     gifts={gifts}
@@ -1983,7 +1973,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 isVIP={currentUser.isVIP || false}
                 currentUser={currentUser}
             />
-            {/* 🎡 Roleta — widget fixo na tela da live, SEM janela */}
+            {/* 🎡 Roleta — widget fixo na tela da live, SEM janela.
+                ownerId SEMPRE o ID REAL do HOST (hostId): itens e custo da roleta
+                ficam salvos no User do host — passar o streamer.id (que no feed é o
+                streamKey) fazia o espectador ver 0 itens e 0💎. */}
             <RouletteModalAny
                 isOpen={isRouletteOpen}
                 onClose={() => setIsRouletteOpen(false)}
@@ -1991,7 +1984,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 updateUser={updateUser}
                 addToast={addToast}
                 onOpenWallet={handleRecharge}
-                ownerId={streamer.id}
+                ownerId={streamer.hostId}
                 streamId={streamer.id}
                 canEdit={isBroadcaster}
             />
@@ -2044,6 +2037,20 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 onMakeModerator={handleMakeModerator}
                 onKick={handleKickUser}
                 isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
+            />
+
+            {/* Video Call PiP — Chamada de vídeo Picture-in-Picture
+                Quando dois usuários estão ao vivo e conversam entre si,
+                a telinha pequenininha PiP aparece DENTRO DA CHAMADA,
+                nas ferramentas de interação (ícone Chamada). */}
+            <VideoCallPiP
+                isOpen={isVideoCallPiPOpen}
+                onClose={() => setIsVideoCallPiPOpen(false)}
+                localStreamId={streamer.streamKey || streamer.id}
+                remoteStreamId={streamer.streamKey || streamer.id}
+                remoteUserName={streamer.name}
+                remoteUserAvatar={streamer.avatar}
+                localUserId={currentUser.id}
             />
 
 

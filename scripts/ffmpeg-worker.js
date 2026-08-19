@@ -25,8 +25,9 @@ const MAX_LADDER_JOBS = 4;
 // O app escolhe a URL WHEP do tier conforme a velocidade da rede do espectador.
 // Formato: "ALTURA:bitrate_kbps" separado por vírgula. Ex: "360:500,240:300"
 const DEFAULT_LADDER = [
-  { height: 360, bitrate: 500 },
-  { height: 240, bitrate: 300 },
+  { height: 540, bitrate: 1500 },
+  { height: 360, bitrate: 800 },
+  { height: 240, bitrate: 400 },
 ];
 
 function parseLadder(ladder) {
@@ -51,7 +52,7 @@ function buildTierArgs(streamKey, tier, fps) {
     // o matiz fica consistente (cores vivas, sem amarelado).
     '-vf', 'scale=-2:' + tier.height + ',format=yuv420p',
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
+    '-preset', 'faster',
     '-tune', 'zerolatency',
     '-colorspace', 'bt709',
     '-color_primaries', 'bt709',
@@ -121,14 +122,14 @@ function startTranscode(streamKey, preset, filters, ladder) {
     '-colorspace', 'bt709',
     '-color_primaries', 'bt709',
     '-color_trc', 'bt709',
-    '-b:v', (preset.videoBitrate || 2000) + 'k',
-    '-maxrate', Math.round((preset.videoBitrate || 2000) * 1.2) + 'k',
-    '-bufsize', ((preset.videoBitrate || 2000) * 2) + 'k',
+    '-b:v', (preset.videoBitrate || 4000) + 'k',
+    '-maxrate', Math.round((preset.videoBitrate || 4000) * 1.3) + 'k',
+    '-bufsize', ((preset.videoBitrate || 4000) * 2) + 'k',
     '-r', String(preset.fps || 30),
     '-g', String((preset.fps || 30) * 2),
     '-af', 'aresample=async=1:first_pts=0',
     '-c:a', 'aac',
-    '-b:a', '128k',
+    '-b:a', '192k',
     '-ar', '48000',
     '-ac', '2',
     '-f', 'flv',

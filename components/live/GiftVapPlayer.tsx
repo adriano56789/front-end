@@ -137,7 +137,7 @@ const GiftVapPlayer: React.FC<GiftVapPlayerProps> = ({ url, giftName, riseFromBo
   }, [url, giftName]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 1 }}>
+    <div className="absolute inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 1 }}>
       <div
         className="relative"
         style={{

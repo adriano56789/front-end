@@ -156,10 +156,7 @@ export default function PKBattleScreen({
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
     // 📡 useStreamChat: chat + presença via Socket.IO; convites via REST (SRS-only)
-    // O vídeo do oponente agora vem da live SRS do próprio oponente via WHEP
-    // (renderizado em um segundo LivePlayer), sem LiveKit.
     const lkConnectedRef = useRef(false);
-    const remoteVideoAttachedRef = useRef(false);
 
     // Declarado antes do useStreamChat (usado nos callbacks onConnected/isHost)
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
@@ -252,49 +249,15 @@ export default function PKBattleScreen({
             lkConnectedRef.current = true;
             // 📡 State Sync: sincronizar papel
             lkSetRole(isBroadcaster ? 'host' : 'viewer');
-            // Publicar camera local quando conectar (apenas preview local — sem LiveKit)
-            if (isBroadcaster) {
-                startLocalCamera();
-            }
         },
     });
 
     const [isOpponentConnected, setIsOpponentConnected] = useState(false);
-    const selfPreviewRef = useRef<HTMLVideoElement>(null);
-    const localMediaStreamRef = useRef<MediaStream | null>(null);
 
-    // 📡 Iniciar camera local (apenas self-preview — mídia do PK via SRS/WHEP, sem LiveKit)
-    const startLocalCamera = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 320 }, height: { ideal: 240 } },
-                audio: false,
-            });
-            localMediaStreamRef.current = stream;
-
-            // Self-preview local
-            const video = selfPreviewRef.current;
-            if (video) {
-                video.srcObject = stream;
-                video.style.transform = 'scaleX(-1)';
-            }
-
-            console.log('[PKBattle] Camera local iniciada (self-preview)');
-        } catch (err) {
-            console.warn('[PKBattle] Falha ao iniciar camera:', err);
-        }
-    };
-
-    // 📡 Limpeza: parar tracks locais quando o componente desmontar
+    // Cleanup on unmount
     useEffect(() => {
         return () => {
-            // Parar tracks de midia local
-            if (localMediaStreamRef.current) {
-                localMediaStreamRef.current.getTracks().forEach(t => t.stop());
-                localMediaStreamRef.current = null;
-            }
             lkConnectedRef.current = false;
-            remoteVideoAttachedRef.current = false;
         };
     }, []);
 
@@ -754,118 +717,110 @@ export default function PKBattleScreen({
     return (
         <div className="absolute inset-0 bg-[#000000] flex flex-col font-sans text-white z-10 select-none">
             {/* ═══════════════════════════════════════════════════════════
-               PROFESSIONAL PICTURE-IN-PICTURE PK BATTLE LAYOUT
+               PK BATTLE LAYOUT — SPLIT SCREEN
                
                ARQUITETURA (apenas SRS):
-               - Fundo fullscreen: Host video (SRS WHEP) — stream pública
-               - Janela PiP flutuante: Opponent video (SRS WHEP)
-               - Mini-PiP: Self-preview local (câmera) para broadcaster
-               - VS Banner: overlay centralizado no topo
+               - Lado esquerdo: Host video (SRS WHEP)
+               - Lado direito: Opponent video (SRS WHEP)
+               - Divider central: VS badge
+               - VS Banner: overlay centralizado no topo com placar e timer
                - Chat: sobreposição no bottom
                ═══════════════════════════════════════════════════════════ */}
             
-            {/* Main Video Container — full height, host video as background */}
+            {/* Main Container — full height, split screen */}
             <div 
-                className="relative w-full h-full bg-zinc-950 overflow-hidden"
+                className="relative w-full h-full bg-zinc-950 overflow-hidden flex"
                 onClick={handleHeartClick}
             >
-                {/* ─── LAYER 1: Host Video (Full Background via SRS WHEP) ─── */}
-                <div className="absolute inset-0 bg-black">
+                {/* ─── HOST VIDEO (Left Half) ─── */}
+                <div className="relative w-1/2 h-full bg-black overflow-hidden">
                     <LivePlayer
                         streamId={streamer.streamKey || streamer.id}
                         isBroadcaster={isBroadcaster}
                         userId={currentUser.id}
                         muted={!isBroadcaster && isLocalMuted}
                     />
-                    {/* Subtle dark vignette overlay for depth */}
                     <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none" />
-                    {/* Fallback cover while player connects */}
                     <img 
                         src={streamerUser.coverUrl} 
                         alt="" 
                         className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-10" 
                     />
+                    {/* Host name badge */}
+                    <div className="absolute bottom-0 left-0 right-0 z-10">
+                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded-full bg-pink-500/30 ring-1 ring-white/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                    <img src={streamerDisplayUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                                <span className="text-white text-[9px] font-bold truncate drop-shadow-lg">
+                                    {streamerDisplayUser.name}
+                                </span>
+                                <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} className="ml-auto" />
+                            </div>
+                            <div className="flex items-center gap-1 mt-0.5">
+                                <span className="w-1.5 h-1.5 bg-pink-400 rounded-full" />
+                                <span className="text-pink-200/70 text-[7px] font-medium">
+                                    {myScore.toLocaleString()} pts ({myHearts}♥)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                {/* ─── LAYER 2: Floating PiP — Opponent Video (SRS WHEP) ─── */}
-                {/* 
-                    Professional PiP styling (top-right corner, like Zoom/Google Meet):
-                    - Positioned top-right to avoid overlapping with chat input at bottom
-                    - ~25% width with 9:16 aspect ratio (portrait video call feel)
-                    - 14px rounded corners with thick glowing border
-                    - Glassmorphism backdrop when opponent not connected
-                    - Smooth scale+opacity entrance animation
-                    - Team-colored shadow glow
-
-                    O vídeo do oponente agora vem da própria live SRS do oponente
-                    via WHEP (segundo LivePlayer), sem LiveKit. Se o oponente não
-                    estiver transmitindo, o placeholder "AGUARDANDO" é exibido.
-                */}
+                {/* ─── CENTER VS DIVIDER ─── */}
                 <div 
-                    className={`absolute sm:top-4 top-[72px] right-3 z-30 transition-all duration-500 ease-out
-                        ${isOpponentConnected 
-                            ? 'opacity-100 scale-100 translate-x-0' 
-                            : 'opacity-80 scale-95 translate-x-2'
-                        }`}
+                    className="relative flex-shrink-0 z-10 flex items-center justify-center"
                     style={{
-                        width: 'min(26%, 170px)',
-                        minWidth: '100px',
-                        maxWidth: '170px',
-                        aspectRatio: '9 / 16',
+                        width: '3px',
+                        background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)',
                     }}
                 >
-                    {/* Glowing border ring — team blue/cyan gradient */}
-                    <div className={`absolute inset-0 rounded-2xl transition-all duration-700 ${
-                        isOpponentConnected 
-                            ? 'shadow-[0_0_30px_rgba(0,122,255,0.4)] border-[2.5px] border-white/40' 
-                            : 'shadow-[0_0_15px_rgba(0,122,255,0.15)] border-[2px] border-white/15'
-                    }`} />
-                    
-                    {/* Video element — live SRS do oponente via WHEP */}
-                    <div className="absolute inset-0 rounded-2xl overflow-hidden bg-black/80 backdrop-blur-sm">
-                        <LivePlayer
-                            streamId={opponent.id}
-                            userId={currentUser.id}
-                            onPlaying={() => setIsOpponentConnected(true)}
-                            onError={() => setIsOpponentConnected(false)}
-                        />
-                        
-                        {/* Placeholder when opponent not connected — cobre o player até conectar */}
-                        {!isOpponentConnected && (
-                            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
-                                {/* Animated pulsing avatar placeholder */}
-                                <div className="relative mb-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 p-[2px] animate-pulse">
-                                        <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                                            <img 
-                                                src={opponent.avatarUrl} 
-                                                alt={opponent.name}
-                                                className="w-full h-full rounded-full object-cover"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                    {/* Small loading spinner */}
-                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-black">
-                                        <svg className="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
+                    <div className="absolute bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[9px] text-black px-2.5 py-1 border border-white/60 shadow-lg shadow-yellow-500/30 z-10 select-none">
+                        VS
+                    </div>
+                </div>
+
+                {/* ─── OPPONENT VIDEO (Right Half) ─── */}
+                <div className="relative w-1/2 h-full bg-black overflow-hidden">
+                    <LivePlayer
+                        streamId={opponent.id}
+                        userId={currentUser.id}
+                        onPlaying={() => setIsOpponentConnected(true)}
+                        onError={() => setIsOpponentConnected(false)}
+                    />
+                    {/* Placeholder when opponent not connected */}
+                    {!isOpponentConnected && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
+                            <div className="relative mb-3">
+                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 p-[2px] animate-pulse">
+                                    <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
+                                        <img 
+                                            src={opponent.avatarUrl} 
+                                            alt={opponent.name}
+                                            className="w-full h-full rounded-full object-cover"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
                                     </div>
                                 </div>
-                                <p className="text-blue-200/70 text-[9px] font-medium tracking-wide">AGUARDANDO</p>
-                                <p className="text-white/50 text-[8px] mt-0.5">{opponent.name}</p>
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-black">
+                                    <svg className="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                    
-                    {/* Opponent name badge — glassmorphism overlay at bottom of PiP */}
+                            <p className="text-blue-200/70 text-[10px] font-medium tracking-wide">AGUARDANDO</p>
+                            <p className="text-white/50 text-[9px] mt-0.5">{opponent.name}</p>
+                        </div>
+                    )}
+                    {/* Opponent name badge */}
                     <div className={`absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-500 ${
                         isOpponentConnected ? 'opacity-100' : 'opacity-0'
                     }`}>
-                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5 rounded-b-2xl">
+                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-5 h-5 rounded-full bg-blue-500/30 ring-1 ring-white/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                                     <img src={opponent.avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -874,41 +829,16 @@ export default function PKBattleScreen({
                                     {opponent.name}
                                 </span>
                                 <ConnectionQualityIndicator quality={lkConnectionQualities[opponent.id]} className="ml-auto" />
-                                <span className="text-blue-300 text-[7px] font-semibold">LIVE</span>
                             </div>
-                            {/* Small score indicator */}
                             <div className="flex items-center gap-1 mt-0.5">
                                 <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
                                 <span className="text-blue-200/70 text-[7px] font-medium">
-                                    {opponentScore.toLocaleString()} pts
+                                    {opponentScore.toLocaleString()} pts ({opponentHearts}♥)
                                 </span>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                {/* ─── LAYER 3: Self-Preview (Mini PiP) — only for broadcaster ─── */}
-                {isBroadcaster && (
-                    <div 
-                        className="absolute bottom-3 left-3 z-30 rounded-xl overflow-hidden border border-white/20 shadow-lg bg-black/60 backdrop-blur-sm transition-all duration-300 hover:scale-105"
-                        style={{
-                            width: '70px',
-                            aspectRatio: '9 / 16',
-                        }}
-                    >
-                        <video
-                            ref={selfPreviewRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="absolute inset-0 w-full h-full object-cover"
-                        />
-                        {/* Glossy label */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent py-1 px-1.5">
-                            <span className="text-white text-[6px] font-bold tracking-wide">VOCÊ</span>
-                        </div>
-                    </div>
-                )}
 
                 {/* ─── LAYER 4: VS Battle Banner (centered top) ─── */}
                 <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>

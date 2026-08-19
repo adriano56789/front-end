@@ -208,31 +208,30 @@ const GiftLottiePlayer: React.FC<GiftLottiePlayerProps> = ({ url, giftName, onDu
   }, [url]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 1 }}>
+    <div
+      className="absolute inset-0 pointer-events-none select-none"
+      style={{ zIndex: 1, background: 'transparent' }}
+    >
       <div
-        className="relative"
+        ref={containerRef}
+        className="w-full h-full"
         style={{
-          width: `min(90vw, calc(72vh * ${CONTENT_ASPECT}))`,
-          maxWidth: '90vw',
-          maxHeight: '72vh',
-          aspectRatio: `${dims.w} / ${dims.h}`,
-          // 🎨 Frames com alfa REAL (webp com transparência) → aparecem limpos
-          // sobre a transmissão, sem blend mode.
-          mixBlendMode: SCREEN_BLEND_GIFTS.has(giftName) ? 'screen' : undefined,
+          // 🎯 TELA CHEIA: preenche 100% do container pai (sobre a live).
+          // O SVG do Lottie renderiza com transparência real (fundo transparente).
+          // NENHUM fundo preto/branco/caixa — somente o efeito visível.
+          background: 'transparent',
           animation: 'gift-lottie-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
           willChange: 'transform, opacity',
         }}
-      >
-        <div ref={containerRef} className="w-full h-full block" style={{ zIndex: 1 }} />
-        <style>{`
-            @keyframes gift-lottie-pop-impact {
-                0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
-                15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
-                22% { transform: scale(0.95) rotate(-2deg); }
-                30% { transform: scale(1) rotate(0deg); }
-            }
-        `}</style>
-      </div>
+      />
+      <style>{`
+          @keyframes gift-lottie-pop-impact {
+              0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
+              15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
+              22% { transform: scale(0.95) rotate(-2deg); }
+              30% { transform: scale(1) rotate(0deg); }
+          }
+      `}</style>
     </div>
   );
 };

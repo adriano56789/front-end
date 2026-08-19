@@ -135,8 +135,10 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
         ? streamer.message 
         : "Acabei de chegar aqui";
 
-    // 🔒 Cadeado só para quem foi convidado a uma sala privada
-    const isInvitedToPrivate = !!streamer.isPrivate && invited;
+    // 🔒 Sala privada: o CADEADO aparece no MEIO do card para TODOS verem que é
+    // transmissão privada. Quem não foi convidado vê o cadeado mas não consegue
+    // entrar (o acesso é bloqueado pelo access-check no handleSelectStream).
+    const isPrivateRoom = !!streamer.isPrivate;
 
     return (
         <div 
@@ -157,10 +159,12 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
             {/* Dynamic black-transparent gradient layers */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30"></div>
 
-            {/* 🔒 Padlock Badge for invited private rooms (ao lado do nome/ícone do usuário) */}
-            {isInvitedToPrivate && (
-                <div className="absolute top-2 left-2 z-10 flex items-center gap-1 rounded-full bg-black/55 backdrop-blur-sm px-1.5 py-1 border border-[#e1ba72]/30 shadow-lg shadow-black/60">
-                    <LockIcon className="w-3 h-3 text-[#f2d7a2] drop-shadow" />
+            {/* 🔒 CADEADO NO MEIO DO CARD — sala privada visível para todo mundo */}
+            {isPrivateRoom && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                    <div className="flex items-center justify-center w-[48px] h-[48px] rounded-full bg-black/60 backdrop-blur-md border-2 border-[#e1ba72]/80 shadow-[0_0_20px_rgba(225,186,114,0.55)]">
+                        <LockIcon className="w-[22px] h-[22px] text-[#f2d7a2] drop-shadow" />
+                    </div>
                 </div>
             )}
 

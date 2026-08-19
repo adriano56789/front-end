@@ -140,7 +140,6 @@ import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSess
 
 import Toast from './components/Toast';
 
-import MessageNotification from './components/MessageNotification';  // Socket.IO removido — chat via REST API
 
 import UserProfileScreen from './components/BroadcasterProfileScreen';
 
@@ -416,24 +415,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [showNotifCta, setShowNotifCta] = useState(false);
   const notifDeniedShownRef = useRef(false);
   const notifCtaShownRef = useRef(false);
-
-  const [messageNotifications, setMessageNotifications] = useState<Array<{
-
-    id: string;
-
-    senderName: string;
-
-    senderAvatar: string;
-
-    text: string;
-
-    timestamp: string;
-
-    from?: string;
-
-    senderUser?: any;
-
-  }>>([]);
 
   const [activeStream, setActiveStream] = useState<Streamer | null>(null);
 
@@ -977,90 +958,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
 
 
-  // Listener para notificações de novas mensagens
-
-  useEffect(() => {
-
-    const handleNewMessage = (event: CustomEvent) => {
-
-      const message = event.detail;
-
-      
-
-      // Não notificar sobre as próprias mensagens (eco de confirmação do socket)
-
-      if (message.from === currentUser?.id) {
-
-        return;
-
-      }
-
-      
-
-      // Não mostrar notificação se estiver no chat com o remetente
-
-      if (chattingWith && chattingWith.id === message.from) {
-
-        return;
-
-      }
-
-      
-
-      // Adicionar notificação
-
-      const notification = {
-
-        id: `msg_${Date.now()}_${Math.random()}`,
-
-        senderName: message.senderName || 'Usuário',
-
-        senderAvatar: message.senderAvatar || '',
-
-        text: message.text || 'Enviou uma mensagem',
-
-        timestamp: message.timestamp || new Date().toISOString(),
-
-        from: message.from || '',
-
-        // 🔑 Usuário mínimo para abrir o chat ao tocar no aviso
-
-        senderUser: {
-
-          id: message.from || '',
-
-          name: message.senderName || 'Usuário',
-
-          avatar: message.senderAvatar || '',
-
-        },
-
-      };
-
-      
-
-      // Empilha os avisos (estilo WhatsApp), no máximo 4 na tela
-
-      setMessageNotifications(prev => [...prev, notification].slice(-4));
-
-      addToast(ToastType.Info, notification.text);
-
-    };
-
-
-
-    window.addEventListener('newChatMessage', handleNewMessage as EventListener);
-
-    
-
-    return () => {
-
-      window.removeEventListener('newChatMessage', handleNewMessage as EventListener);
-
-    };
-
-  }, [chattingWith?.id]);
-
   useEffect(() => {
     if (!currentUser) return;
 
@@ -1356,13 +1253,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   }, []);
 
   // 🛡️ Proteção de tela: ativa quando o usuário liga 'screenSecurityEnabled'
-  // (própria conta) OU quando está vendo o perfil de alguém que ativou a
-  // proteção (viewingProtectedProfile). Enquanto ativa: bloqueia print/
-  // gravador (tela preta no app Android), salvar/copiar/arrastar/baixar
-  // imagens e compartilhar FOTO/VIDEO (ex.: bot do Telegram). A LIVE
-  // continua podendo ser compartilhada e o perfil pode ser visto normalmente.
+  // (própria conta), OU quando está vendo o perfil de alguém que ativou a
+  // proteção (viewingProtectedProfile), OU quando está NA SALA DE TRANSMISSÃO
+  // de um host com proteção ativa (activeStream.screenSecurityEnabled), OU no
+  // CHAT PRIVADO com alguém protegido (chattingWith.screenSecurityEnabled).
+  // Enquanto ativa: bloqueia print/gravador (tela preta no app Android),
+  // salvar/copiar/arrastar/baixar imagens e compartilhar FOTO/VIDEO (ex.: bot
+  // do Telegram). A LIVE continua podendo ser compartilhada.
   useEffect(() => {
-    const enabled = !!currentUser?.screenSecurityEnabled || viewingProtectedProfile;
+    const enabled = !!currentUser?.screenSecurityEnabled || viewingProtectedProfile
+      || !!activeStream?.screenSecurityEnabled || !!chattingWith?.screenSecurityEnabled;
     if (!enabled) return;
 
     const root = document.documentElement;
@@ -1496,7 +1396,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       if (restoredShare) restoredShare();
     };
 
-  }, [currentUser?.screenSecurityEnabled, viewingProtectedProfile, addToast]);
+  }, [currentUser?.screenSecurityEnabled, viewingProtectedProfile, activeStream?.screenSecurityEnabled, chattingWith?.screenSecurityEnabled, addToast]);
 
   // 🔔 Ativa notificações via gesto do usuário — navegadores móveis ignoram
   // requestPermission fora de um toque, então o CTA/botão é o gatilho correto.
@@ -1933,7 +1833,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
             // tempo real pelo WebSocket (socketService → evento 'newChatMessage').
             // O FCM em foreground entra só como reserva quando o socket está
             // desconectado — o dedup evita banner duplicado (WS + FCM).
-            const key = `nm|${payload.data?.from || ''}|${payload.data?.fromUserName || title}|${body}`;
+            // 🔑 "from" é reservada no FCM v1 (o backend remove) — usar senderId
+            const senderIdFcm = payload.data?.senderId || payload.data?.from || '';
+            const key = `nm|${senderIdFcm}|${payload.data?.fromUserName || title}|${body}`;
             if (recentPushKeys.includes(key)) return;
             recentPushKeys.push(key);
             if (recentPushKeys.length > 20) recentPushKeys.shift();
@@ -1943,7 +1845,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
               window.dispatchEvent(new CustomEvent('newChatMessage', {
                 detail: {
                   id: `fcm_${Date.now()}_${Math.random()}`,
-                  from: payload.data?.from || '',
+                  from: payload.data?.senderId || payload.data?.from || '',
                   to: uid,
                   senderName: payload.data?.fromUserName || title,
                   senderAvatar: '',
@@ -2414,8 +2316,6 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     };
 
   }, [currentUser, updateUserEverywhere, activeStream, updateLiveSession, addToast, chattingWith]);
-
-
 
   const startLiveSession = async (streamer: Streamer) => {
 
@@ -4300,6 +4200,7 @@ const logLiveEvent = (type: string, data: any) => {
                   conversations={conversations}
                   friends={friends}
                   initialTab={messagesInitialTab}
+                  initialChatUserId={new URLSearchParams(location.search).get('chat') || undefined}
                   onOpenFriendRequests={() => setIsFriendRequestsScreenOpen(true)}
                   fans={fans}
                   followingUsers={followingUsers}
@@ -4534,41 +4435,6 @@ const logLiveEvent = (type: string, data: any) => {
       <LiveHistoryScreen isOpen={isLiveHistoryOpen} onClose={() => setIsLiveHistoryOpen(false)} history={streamHistory} />
 
       <PrivateChatModal isOpen={isPrivateChatModalOpen} onClose={() => setIsPrivateChatModalOpen(false)} onStartChat={(user) => { setIsPrivateChatModalOpen(false); handleStartChat(user); }} conversations={conversations} />
-
-      
-
-      {/* Notificações de mensagens */}
-
-      {messageNotifications.map((notification, index) => (
-
-        <MessageNotification
-
-          key={notification.id}
-
-          message={notification}
-
-          index={index}
-
-          onClose={() => {
-
-            setMessageNotifications(prev => prev.filter(n => n.id !== notification.id));
-
-          }}
-
-          onOpen={(n) => {
-            // 💬 Tocar no aviso abre o chat direto com a pessoa
-            setMessageNotifications(prev => prev.filter(x => x.id !== n.id));
-            if (n.senderUser && n.senderUser.id) {
-              setIsPrivateChatModalOpen(false);
-              handleStartChat(n.senderUser);
-            }
-          }}
-
-        />
-
-      ))}
-
-      
 
       <PKBattleTimerSettingsScreen isOpen={isPKTimerSettingsOpen} onBack={() => setIsPKTimerSettingsOpen(false)} onSave={handleSavePKTimer} />
 

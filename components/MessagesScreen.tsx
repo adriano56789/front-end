@@ -12,6 +12,7 @@ interface MessagesScreenProps {
     conversations: Conversation[];
     friends: User[];
     initialTab?: 'messages' | 'friends';
+    initialChatUserId?: string;
     onOpenFriendRequests: () => void;
     fans: User[];
     followingUsers: User[];
@@ -223,15 +224,27 @@ const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProf
     );
 };
 
-const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer, onOpenLive }) => {
+const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, initialChatUserId, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer, onOpenLive }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'messages');
     const { t } = useTranslation();
+    const autoOpenedRef = React.useRef(false);
 
     useEffect(() => {
         if (initialTab) {
             setActiveTab(initialTab);
         }
     }, [initialTab]);
+
+    // 🔔 Deep-link: abre automaticamente a conversa quando o usuário clica numa notificação push
+    useEffect(() => {
+        if (!initialChatUserId || autoOpenedRef.current) return;
+        const allFriends = [...(friends || []), ...(fans || []), ...(followingUsers || [])];
+        const match = allFriends.find(f => String(f.id) === String(initialChatUserId));
+        if (match) {
+            autoOpenedRef.current = true;
+            onStartChat(match);
+        }
+    }, [initialChatUserId, friends, fans, followingUsers, onStartChat]);
 
     // Defensive fallbacks — any prop can arrive undefined before API response
     const safeConversations = conversations || [];

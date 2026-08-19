@@ -9,6 +9,10 @@ const firebaseConfig = {
   messagingSenderId: '359465743060',
   appId: '1:359465743060:web:e53ff179a5e9ee42164141',
   measurementId: 'G-610W32XQJC',
+  // 🔑 VAPID key do projeto (Firebase Console → Configurações do projeto →
+  // Cloud Messaging → Certificados de Web Push). OBRIGATÓRIA para web push:
+  // sem ela o getToken() gera um token que o FCM rejeita.
+  vapidKey: 'BJamjvLU2QconKZHYCXSuhkd8lvSIP0vfe4Psuxp_IywVMdQ_cT1JJGtfmRFpovU_iKqLN9kPBr01g5sUKoDzoY',
 };
 
 let app: FirebaseApp | null = null;
@@ -49,7 +53,11 @@ export async function requestFcmToken(): Promise<string | null> {
       return null;
     }
 
-    const currentToken = await getToken(msg);
+    // 🔑 VAPID key obrigatória no getToken para web push (sem ela o FCM
+    // rejeita o token com "not a valid FCM registration token").
+    const currentToken = firebaseConfig.vapidKey
+      ? await getToken(msg, { vapidKey: firebaseConfig.vapidKey })
+      : await getToken(msg);
 
     if (currentToken) {
       fcmToken = currentToken;

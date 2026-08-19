@@ -9,6 +9,7 @@ import {
   ENTRANCE_H,
   buildEntranceHeadData,
 } from '../../services/vap/entranceVapConfig';
+import { sanitizeMediaUrl } from '../../services/GiftAnimationUrls';
 
 // 🚪 Efeito de ENTRADA na live (join effect) — igual ti.live/Bigo.
 //
@@ -42,8 +43,10 @@ const JoinEffectOverlay: React.FC<JoinEffectOverlayProps> = ({ userName, avatarU
   const onEndRef = useRef(onEnd);
   useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
-  const EFFECT_URL = entranceEffect?.url || ENTRANCE_EFFECT_URL;
-  const EFFECT_CONFIG_URL = entranceEffect?.configUrl || ENTRANCE_VAP_CONFIG_URL;
+  // 🔒 Firebase é SÓ push — efeitos de entrada sempre locais (sanitize converte
+  // qualquer URL de Firebase Storage para o caminho local equivalente).
+  const EFFECT_URL = sanitizeMediaUrl(entranceEffect?.url) || ENTRANCE_EFFECT_URL;
+  const EFFECT_CONFIG_URL = sanitizeMediaUrl(entranceEffect?.configUrl) || ENTRANCE_VAP_CONFIG_URL;
   const EFFECT_W = entranceEffect?.w || ENTRANCE_W;
   const EFFECT_H = entranceEffect?.h || ENTRANCE_H;
 

@@ -1,6 +1,7 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
 // (v12: push do chat estilo WhatsApp com vibração de alerta)
-const CACHE_NAME = 'livenza-cache-v12';
+// (v14: deploy roleta host-only + notificações WhatsApp + painel de beleza)
+const CACHE_NAME = 'livenza-cache-v14';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -205,6 +206,7 @@ self.addEventListener('notificationclick', (event) => {
 
   const data = notification.data || {};
   const type = data.type;
+  console.log('[FCM-SW] notificationclick:', type, data);
 
   let urlToOpen = '/';
 
@@ -218,9 +220,9 @@ self.addEventListener('notificationclick', (event) => {
     const streamId = data.streamKey || data.streamId;
     urlToOpen = streamId ? `/stream/${streamId}` : '/';
   } else if (type === 'new_message') {
-    // 💬 Mensagem de chat: abre a LISTA de conversas (o chat específico é
-    // aberto pelo toque na conversa — o app não tem rota /chat/:id).
-    urlToOpen = '/messages';
+    // 💬 Mensagem de chat: abre diretamente a conversa específica com o remetente
+    const senderId = data.senderId || data.from || '';
+    urlToOpen = senderId ? `/messages?chat=${encodeURIComponent(senderId)}` : '/messages';
   } else {
     urlToOpen = data.url || data.streamId ? `/${data.streamId || data.streamKey || ''}` : '/';
   }

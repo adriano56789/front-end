@@ -69,10 +69,28 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     // RODADA. Os nomes dos setores são 100% editáveis (dança, música, o que for).
     const [spinCost, setSpinCost] = useState<number>(0);
     const [spinCostInput, setSpinCostInput] = useState<string>('');
+    // 🔒 Estado de carregamento: true até receber os dados REAIS do backend
+    // (REST ou socket). Evita mostrar "0💎" antes de saber o valor correto.
+    const [stateLoaded, setStateLoaded] = useState<boolean>(false);
     // ✏️ Edição INLINE do valor: clicou no "X💎 DIAMANTES PRA RODAR" → vira
     // input pra host digitar o novo valor e salvar.
     const [editingCostInline, setEditingCostInline] = useState(false);
     const costInputRef = useRef<HTMLInputElement>(null);
+    // 🎹 Teclado móvel: altura escondida pelo teclado (visualViewport) — usada
+    // para subir o widget e o input de diamantes ficar VISÍVEL acima do teclado.
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
+
+    // 🎹 Detecta o teclado móvel (visualViewport encolhe) e sobe o widget na hora.
+    useEffect(() => {
+        const vv = (window as any).visualViewport as VisualViewport | undefined;
+        if (!vv) return;
+        const onResize = () => {
+            const hidden = window.innerHeight - vv.height;
+            setKeyboardOffset(hidden > 0 ? hidden : 0);
+        };
+        vv.addEventListener('resize', onResize);
+        return () => vv.removeEventListener('resize', onResize);
+    }, []);
 
     const [rotationDeg, setRotationDeg] = useState<number>(0);
     const [isSpinning, setIsSpinning] = useState<boolean>(false);
@@ -107,14 +125,32 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
 
     useEffect(() => {
         if (isOpen && ownerId) {
+            setStateLoaded(false);
             loadItems();
-            // 💎 Carrega o custo fixo definido pela host ("X DIAMANTES PRA RODAR")
-            api.roulette.getSpinCost(ownerId).then((r) => {
-                if (r && typeof r.spinCost === 'number') {
-                    setSpinCost(Math.max(0, r.spinCost));
-                    setSpinCostInput(String(Math.max(0, r.spinCost)));
-                }
-            }).catch(() => { });
+            // 💎 Carrega o custo fixo definido pela host ("X DIAMANTES PRA RODAR").
+            // Em caso de falha, NÃO seta stateLoaded(true) — mantém "Carregando..."
+            // até o socket ou polling trazer o valor correto. Evita mostrar "0💎"
+            // quando o host definiu um custo real.
+            const fetchCost = (attempt: number) => {
+                api.roulette.getSpinCost(ownerId).then((r) => {
+                    if (r && typeof r.spinCost === 'number') {
+                        setSpinCost(Math.max(0, r.spinCost));
+                        setSpinCostInput(String(Math.max(0, r.spinCost)));
+                        setStateLoaded(true);
+                    } else if (attempt < 3) {
+                        setTimeout(() => fetchCost(attempt + 1), 2000);
+                    } else {
+                        setStateLoaded(true);
+                    }
+                }).catch(() => {
+                    if (attempt < 3) {
+                        setTimeout(() => fetchCost(attempt + 1), 2000);
+                    } else {
+                        setStateLoaded(true);
+                    }
+                });
+            };
+            fetchCost(0);
         }
     }, [isOpen, ownerId, loadItems]);
 
@@ -141,10 +177,16 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             } else {
                 loadCostRef.current();
             }
+            // 📡 Marca estado como carregado quando recebido via socket
+            setStateLoaded(true);
         };
         connectSocket().then((s) => {
             if (!cancelled && s?.connected) {
                 unsub = onSocketEvent<any>('roulette_updated', syncFromEvent);
+                // 🎡 Solicita o estado ATUAL da roleta ao abrir — garante que
+                // espectadores vejam os mesmos itens e custo que o host definiu,
+                // mesmo que o broadcast anterior tenha sido perdido.
+                s.emit('request_roulette_state', { ownerId });
             }
         });
         return () => {
@@ -165,7 +207,12 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                 const fresh = Math.max(0, r.spinCost);
                 setSpinCost(fresh);
                 setSpinCostInput((prev) => (editingCostInline ? prev : String(fresh)));
-            }).catch(() => { });
+                setStateLoaded(true);
+            }).catch(() => {
+                // ⚠️ Não silenciar completamente: se o REST falhar repetidamente,
+                // o socket já deveria ter entregado o estado. Não mexer no stateLoaded
+                // para não causar flicker entre "Carregando..." e "0💎".
+            });
         }, 8000);
         return () => clearInterval(t);
     }, [isOpen, ownerId, editingCostInline]);
@@ -176,6 +223,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             const fresh = Math.max(0, r.spinCost);
             setSpinCost(fresh);
             setSpinCostInput((prev) => (editingCostInline ? prev : String(fresh)));
+            setStateLoaded(true);
         }).catch(() => { });
     };
     // Foca o input de edição quando um setor é selecionado
@@ -185,7 +233,14 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
 
     // Foca o input do valor quando o host clica no "X💎 DIAMANTES PRA RODAR"
     useEffect(() => {
-        if (editingCostInline) costInputRef.current?.focus();
+        if (editingCostInline) {
+            costInputRef.current?.focus();
+            // 🎹 Rola o input para o CENTRO do widget — o teclado abre em ~300ms
+            // e, sem isso, cobre o campo e não dá pra digitar.
+            setTimeout(() => {
+                costInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 350);
+        }
     }, [editingCostInline]);
 
     // ⏱️ Modal de resultado do prêmio fecha SOZINHO depois de ~3s (não fica
@@ -301,11 +356,24 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         }
     };
 
+    // 🔒 O HOST NÃO gira — só o espectador pode girar a roleta.
+    const isHost = canEdit;
+
     // 🎯 GIRAR — o backend sorteia entre os itens CADASTRADOS e retorna exatamente
     // o que a pessoa cadastrou (dança, música, qualquer ação). O CUSTO É SEMPRE O
     // VALOR FIXO definido pela host (spinCost). Passa SEMPRE pelo api.ts.
     const handleSpin = async () => {
+        if (isHost) {
+            addToast(ToastType.Info, 'Apenas espectadores podem girar a roleta.');
+            return;
+        }
         if (isSpinning || spinInFlightRef.current) return;
+
+        // 📡 Espera o estado ser carregado antes de permitir giro
+        if (!stateLoaded) {
+            addToast(ToastType.Info, 'Carregando dados da roleta...');
+            return;
+        }
 
         const currentDiamonds = currentUser.diamonds || 0;
         // 💎 Sem saldo suficiente pro custo fixo → abre a MESMA carteira dos
@@ -414,6 +482,9 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     // precisar salvar); quem assiste vê o valor salvo.
     const typedCost = Math.max(0, Math.floor(parseInt(spinCostInput) || 0));
     const costToSpin = (editing && spinCostInput !== '') ? typedCost : (spinCost || 0);
+    // 📡 Mostra "Carregando..." até receber os dados reais do backend (REST/socket).
+    // Evita mostrar "0💎" para espectadores antes do estado ser sincronizado.
+    const displayCost = stateLoaded ? costToSpin : null;
 
     // Widget da roleta — fica FIXO direto na tela da live, BEM CENTRALIZADO
     // no meio da tela. NÃO é uma janela/modal: sem fundo, sem tela extra.
@@ -421,7 +492,10 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     // na live; só o widget em si é clicável (pointer-events-auto).
     return (
         <div className="fixed inset-0 z-40 flex items-center justify-center text-white animate-fade-in select-none pointer-events-none">
-            <div className="relative w-[340px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2 pointer-events-auto">
+            <div
+                className="relative w-[340px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2 pointer-events-auto"
+                style={keyboardOffset > 0 ? { transform: `translateY(${-keyboardOffset}px)`, transition: 'transform 0.15s ease' } : undefined}
+            >
                 {/* Header Actions — só título + fechar (sem minimizar) */}
                 <div className="w-full flex items-center justify-between z-10 mb-1 px-1">
                     <div className="flex items-center space-x-2 bg-purple-900/60 border border-purple-500/40 px-3 py-1 rounded-full backdrop-blur-sm">
@@ -577,16 +651,21 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                     {/* Center GO Button */}
                     <button
                         onClick={handleSpin}
-                        disabled={isSpinning}
+                        disabled={isSpinning || isHost}
                         className="absolute z-20 w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 p-1 shadow-[0_0_25px_rgba(245,158,11,0.8)] border-2 border-amber-200 hover:scale-105 active:scale-95 disabled:opacity-80 transition-all cursor-pointer flex flex-col items-center justify-center text-purple-950 font-black"
                     >
                         <div className="w-full h-full rounded-full bg-gradient-to-b from-purple-900 via-purple-950 to-purple-900 flex flex-col items-center justify-center border border-amber-300/60 shadow-inner">
                             <span className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                                 GO
                             </span>
-                            {Number(costToSpin) > 0 && (
+                            {!stateLoaded ? (
                                 <div className="flex flex-col items-center justify-center mt-0.5 bg-black/60 px-2 py-0.5 rounded-full border border-amber-400/50">
-                                    <span className="text-[8px] font-black text-amber-300 leading-tight whitespace-nowrap">{costToSpin}💎</span>
+                                    <span className="text-[8px] font-black text-amber-300 leading-tight whitespace-nowrap">...</span>
+                                    <span className="text-[8px] font-black text-amber-300 leading-tight whitespace-nowrap">CARREGANDO</span>
+                                </div>
+                            ) : Number(displayCost) > 0 && (
+                                <div className="flex flex-col items-center justify-center mt-0.5 bg-black/60 px-2 py-0.5 rounded-full border border-amber-400/50">
+                                    <span className="text-[8px] font-black text-amber-300 leading-tight whitespace-nowrap">{displayCost}💎</span>
                                     <span className="text-[8px] font-black text-amber-300 leading-tight whitespace-nowrap">PRA RODAR</span>
                                 </div>
                             )}
@@ -656,25 +735,31 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                                 title={canEdit ? 'Clique no valor para editar' : undefined}
                                 className={`text-xs font-black text-amber-300 whitespace-nowrap ${canEdit ? 'cursor-pointer underline decoration-dotted underline-offset-4 hover:text-amber-200' : ''}`}
                             >
-                                {Number(costToSpin) > 0 ? `${costToSpin}💎 DIAMANTES PRA RODAR` : '0💎 DIAMANTES PRA RODAR'}
+                                {!stateLoaded
+                                    ? 'Carregando...'
+                                    : Number(displayCost) > 0 ? `${displayCost}💎 DIAMANTES PRA RODAR` : '0💎 DIAMANTES PRA RODAR'
+                                }
                             </button>
                         )}
                     </div>
 
                     <div className="bg-amber-950/40 border border-amber-500/30 px-4 py-2 rounded-2xl text-center backdrop-blur-sm max-w-xs">
                         <p className="text-xs text-amber-200 font-medium leading-relaxed">
-                            {canEdit
-                                ? `Cada rodada custa ${Number(costToSpin) > 0 ? costToSpin : 0} 💎 (definido pela host). Clique no valor para editar.`
-                                : `Cada rodada custa ${Number(costToSpin) > 0 ? costToSpin : 0} 💎 (definido pela host). Ao girar, esses diamantes vão direto para a host da live.`}
+                            {!stateLoaded
+                                ? 'Carregando dados da roleta...'
+                                : isHost
+                                    ? `Cada rodada custa ${Number(displayCost) > 0 ? displayCost : 0} 💎 (definido por você). Apenas espectadores giram.`
+                                    : `Cada rodada custa ${Number(displayCost) > 0 ? displayCost : 0} 💎 (definido pela host). Ao girar, esses diamantes vão direto para a host da live.`
+                            }
                         </p>
                     </div>
 
                     <button
                         onClick={handleSpin}
-                        disabled={isSpinning}
+                        disabled={isSpinning || isHost}
                         className="w-full max-w-xs py-3 rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-purple-950 font-black text-base uppercase tracking-wider shadow-[0_4px_20px_rgba(245,158,11,0.5)] active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                     >
-                        {isSpinning ? 'Girando...' : 'Girar Roleta'}
+                        {isHost ? 'somente espectadores giram' : isSpinning ? 'Girando...' : 'Girar Roleta'}
                     </button>
                 </div>
 

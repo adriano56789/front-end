@@ -428,7 +428,7 @@ const callApiWithOptions = async <T = any>(
 
         if (isNetworkError && retryCount < MAX_RETRIES) {
             const delay = RETRY_DELAY_MS * (retryCount + 1);
-            console.warn(`[API] ⚡ Erro de rede (tentativa ${retryCount + 1}/${MAX_RETRIES}). Tentando novamente em ${delay}ms...`);
+            // (retry silencioso — sem log de console)
             await new Promise(resolve => setTimeout(resolve, delay));
             return callApiWithOptions<T>(method, url, data, options, retryCount + 1);
         }
@@ -436,7 +436,6 @@ const callApiWithOptions = async <T = any>(
         // Se o servidor respondeu com sucesso (status 200+) mas o XHR deu erro (QUIC bug),
         // não jogar erro para o caller — o servidor processou a requisição.
         if (serverRespondedOk) {
-            console.warn('[API] ⚠️ Servidor respondeu com', error.xhrStatus, 'mas XHR reportou erro de rede (possível QUIC timeout). Ignorando.');
             return {} as T;
         }
 
@@ -1207,7 +1206,10 @@ export const api = {
             message: options.message || options.description || '',
             category: options.category || 'popular',
             hostId: userId,
-            streamId: options.streamId || options.streamKey
+            streamId: options.streamId || options.streamKey,
+            // 🔒 Sala privada: repassar a opção do GoLive (checkbox "Sala Privada")
+            // para o backend persistir no Streamer → on_publish espelha no LiveCard.
+            ...(typeof options.isPrivate === 'boolean' ? { isPrivate: options.isPrivate } : {})
         };
         const response = await callApi<{ success: boolean, stream: Streamer }>('POST', `/api/streams`, payload);
         return response?.stream;
@@ -2382,7 +2384,25 @@ export const api = {
     put: <T = any>(url: string, data?: any) => callApi<T>('PUT', url, data),
     patch: <T = any>(url: string, data?: any) => callApi<T>('PATCH', url, data),
     delete: <T = any>(url: string, data?: any) => callApi<T>('DELETE', url, data),
-    
+
+    // 🔄 Versão do app — vem do BANCO DE DADOS (AppVersion) via API
+    // (GET /api/version/livego). Tudo passa pelo api.ts; nenhum fetch direto.
+    getAppVersion: async (): Promise<{ version: string; buildTime?: string } | null> => {
+        try {
+            // 📡 A versão do APP vem do version.json servido pelo frontend
+            // (regenerado a cada deploy pelo scripts/gen-version.cjs). NÃO usar
+            // /api/version/livego: o backend devolve um valor fixo que nunca
+            // muda, então o modal de atualização nunca disparava.
+            // /version.json é same-origin (servido pelo frontend) — sem token/headers extras
+            const res = await callApi<{ version: string; buildTime?: string }>('GET', '/version.json');
+            if (res?.version) {
+                return { version: res.version, buildTime: res.buildTime };
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    },
 };
 
 

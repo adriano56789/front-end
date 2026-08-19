@@ -450,40 +450,30 @@ const GiftAlphaVideoPlayer: React.FC<GiftAlphaVideoPlayerProps> = ({ url, onDura
     }, [url]);
 
     return (
-        <div className="fixed inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 1 }}>
-            <div
-                className="relative"
+        <div
+            className="absolute inset-0 pointer-events-none select-none"
+            style={{ zIndex: 1, background: 'transparent' }}
+        >
+            <canvas
+                ref={canvasRef}
+                className="w-full h-full block"
                 style={{
-                    // 📏 ANIMAÇÃO GRANDE centralizada: mantém a proporção do
-                    // conteúdo (700×1624 ≈ 0.431), limitada a ~72% da altura e
-                    // 90% da largura — NUNCA corta, sempre inteira no meio da
-                    // tela da transmissão.
-                    //
-                    // 🎬 O wrapper é centralizado por flex (o pai é fixed
-                    // inset-0 + flex), então os keyframes NÃO precisam de
-                    // translate — só escala/rotação em torno do próprio centro.
-                    width: 'min(90vw, calc(72vh * 0.431034))',
-                    maxWidth: '90vw',
-                    maxHeight: '72vh',
-                    aspectRatio: '700 / 1624',
+                    // 🎯 TELA CHEIA: canvas preenche 100% do container.
+                    // O WebGL shader emite vec4(rgb, alpha) com transparência real.
+                    // NENHUM fundo preto — somente o efeito do presente visível.
+                    background: 'transparent',
                     animation: 'gift-video-pop-impact 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
                     willChange: 'transform, opacity',
                 }}
-            >
-                <canvas
-                    ref={canvasRef}
-                    className="w-full h-full block"
-                    style={{ zIndex: 1 }}
-                />
-                <style>{`
-                    @keyframes gift-video-pop-impact {
-                        0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
-                        15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
-                        22% { transform: scale(0.95) rotate(-2deg); }
-                        30% { transform: scale(1) rotate(0deg); }
-                    }
-                `}</style>
-            </div>
+            />
+            <style>{`
+                @keyframes gift-video-pop-impact {
+                    0% { transform: scale(0.35) rotate(-15deg); opacity: 0; }
+                    15% { transform: scale(1.15) rotate(5deg); opacity: 1; }
+                    22% { transform: scale(0.95) rotate(-2deg); }
+                    30% { transform: scale(1) rotate(0deg); }
+                }
+            `}</style>
         </div>
     );
 };
