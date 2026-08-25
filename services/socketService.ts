@@ -175,7 +175,7 @@ export async function emitJoinStream(payload: {
 }
 
 /**
- * 💬 Ponte do CHAT PRIVADO (exclusivamente WebSocket — NÃO usa Firebase):
+ * 💬 Ponte do CHAT PRIVADO (exclusivamente WebSocket):
  * recebe o evento `newChatMessage` que o backend emite para a sala
  * `user_{id}` (chatRoutes.ts) e o repassa como CustomEvent no `window`.
  * App.tsx e ChatScreen.tsx já escutam esse evento para atualizar o chat e

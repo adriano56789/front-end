@@ -104,17 +104,12 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         fetchEarningsInfo();
     }, []);
 
-    // Calculate withdrawal value in real-time as user types (com debounce)
+    // Calculate withdrawal value in real-time as user types (com debounce) — via Payoneer
     useEffect(() => {
         const amount = parseInt(withdrawAmount);
-        
+
         // ⚠️ NÃO processa vazio ou inválido
         if (!withdrawAmount || isNaN(amount) || amount <= 0) {
-            return;
-        }
-
-        // ⚠️ NÃO calcular se já tivermos calculation para o mesmo valor
-        if (calculation && calculation.diamonds === amount) {
             return;
         }
 
@@ -127,9 +122,9 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         // Debounce: esperar 500ms antes de calcular
         const timeoutId = setTimeout(() => {
             setIsCalculating(true);
-            api.calculateWithdrawal(amount, currentUser.id)
+            api.getPayoneerQuote(amount, displayCurrency)
                 .then((result) => {
-                    setCalculation(result);
+                    setCalculation(result as any);
                 })
                 .catch((error) => {
                     // ⚠️ NÃO limpa estado em caso de erro
@@ -140,7 +135,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
         // Limpar timeout se o valor mudar novamente
         return () => clearTimeout(timeoutId);
-    }, [withdrawAmount, calculation, currentUser?.id]);
+    }, [withdrawAmount, displayCurrency, currentUser?.id]);
 
     const handleMaxClick = () => {
         if (earningsInfo) {
@@ -161,72 +156,30 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
             return;
         }
 
-        if (!calculation) {
-            addToast(ToastType.Error, "Aguarde o cálculo dos valores.");
-            return;
-        }
-
         setIsWithdrawing(true);
         try {
-            const withdrawalMethod = earningsInfo?.withdrawal_method || currentUser.withdrawal_method;
-            const methodName = (withdrawalMethod.method || '').toString().toLowerCase();
-            const currencySymbol = calculation.currency_symbol || 'R$';
+            // Saque liquidado via Payoneer (Pix BRL / conta USD / conta EUR)
+            const response = await api.payoneerWithdraw(currentUser.id, calculation?.diamonds || Math.floor(amount), displayCurrency);
 
-            let response;
-            if (methodName === 'pix') {
-                // Extrair chave Pix e tipo do método configurado
-                let pixKey = '';
-                let pixKeyType = '';
-
-                pixKey = withdrawalMethod.details.pixKey;
-                // Determinar tipo da chave Pix baseado no formato
-                if (pixKey.includes('@')) {
-                    pixKeyType = 'email';
-                } else if (/^\d{11}$/.test(pixKey)) {
-                    pixKeyType = 'cpf';
-                } else if (/^\d{14}$/.test(pixKey)) {
-                    pixKeyType = 'cnpj';
-                } else if (pixKey.startsWith('+')) {
-                    pixKeyType = 'phone';
-                } else {
-                    pixKeyType = 'evp'; // Chave aleatória
-                }
-
-                // Iniciar saque via Pix
-                response = await api.withdrawViaPix(currentUser.id, calculation.diamonds, pixKey, pixKeyType);
-            } else if (methodName === 'bank') {
-                // Saque bancário internacional exige endereço fiscal completo (Receita Federal/BC)
-                const addr = withdrawalMethod.details?.address || {};
-                if (!addr.street || !addr.city || !addr.country) {
-                    addToast(ToastType.Error, "Saque internacional exige endereço fiscal completo. Atualize seu método de saque.");
-                    onConfigure();
-                    return;
-                }
-                // Iniciar saque bancário (EUR/USD)
-                response = await api.withdrawViaBank(currentUser.id, calculation.diamonds);
-            } else {
-                addToast(ToastType.Error, "Método de saque não suportado.");
-                return;
-            }
-            
             if (response.success) {
-                addToast(ToastType.Success, 
-                    `Saque de ${currencySymbol} ${calculation.local_net.toFixed(2)} iniciado! ` +
-                    `O dinheiro será transferido em até ${methodName === 'bank' ? '3 dias úteis' : '1 dia útil'}. ` +
-                    `ID da transferência: ${response.withdrawalId || response.transferId}`
+                const symbol = response.currency === 'EUR' ? '€' : response.currency === 'USD' ? 'US$' : 'R$';
+                addToast(ToastType.Success,
+                    `Saque de ${symbol} ${(response.quote?.local_net ?? 0).toFixed(2).replace('.', ',')} confirmado! ` +
+                    (response.statusNote ? response.statusNote : 'O Payoneer processará a transferência para sua conta.') +
+                    ` ID: ${response.withdrawalId}`
                 );
-                
+
                 // Atualizar dados do usuário após saque
                 const freshEarnings = await api.getEarnings(currentUser.id);
-                
+
                 if (freshEarnings) {
                     setEarningsInfo(freshEarnings);
                 }
-                
+
                 setWithdrawAmount('');
                 setCalculation(null);
             } else {
-                throw new Error(response.error || "Falha na solicitação de saque.");
+                throw new Error((response as any).error || "Falha na solicitação de saque.");
             }
         } catch (error) {
             addToast(ToastType.Error, (error as Error).message || "Falha na solicitação de saque.");
@@ -237,64 +190,41 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
     const formatCurrency = (value: number | undefined, symbol?: string) => `${symbol || 'R$'} ${(value ?? 0).toFixed(2).replace('.', ',')}`;
 
-    // Mostrar cálculo sempre, como na imagem de referência
+    // Mostrar cálculo sempre
     const shouldShowCalculation = true;
-    
-    // Usar valores locais, mesma conversão da imagem (304 diamantes = 2.66 BRL -> 2.66 / 304 = 0.00875)
-    // Se o input de saque estiver vazio, vamos assumir o valor de 0
+
     const displayAmount = withdrawAmount === '' ? 0 : (parseInt(withdrawAmount) || 0);
-    
+
+    // Estimativa local (fallback enquanto o backend responde): diamante → BRL → taxas → Payoneer
     const gross_brl = displayAmount * 0.00875;
     const platform_fee_brl = gross_brl * 0.20;
-    const net_brl = gross_brl * 0.80;
-    
-    const displayData: WithdrawalCalculation = calculation || {
-        diamonds: displayAmount,
-        currency: earningsInfo?.currency || 'BRL',
-        currency_symbol: earningsInfo?.currency_symbol || 'R$',
-        rate_source: earningsInfo?.rate_source || 'fallback',
-        gross_brl: gross_brl,
-        platform_fee_brl: platform_fee_brl,
-        net_brl: net_brl,
-        gross_eur: gross_brl * 0.1613,
-        platform_fee_eur: platform_fee_brl * 0.1613,
-        net_eur: net_brl * 0.1613,
-        gross_usd: gross_brl * 0.1786,
-        platform_fee_usd: platform_fee_brl * 0.1786,
-        net_usd: net_brl * 0.1786,
-        local_gross: gross_brl,
-        local_fee: platform_fee_brl,
-        local_net: net_brl,
-        breakdown: {
-            conversion: `${displayAmount} diamantes = R$ ${gross_brl.toFixed(2).replace('.', ',')}`,
-            fee: `Taxa da plataforma (20%): R$ ${platform_fee_brl.toFixed(2).replace('.', ',')}`,
-            final: `Valor a receber: R$ ${net_brl.toFixed(2).replace('.', ',')}`,
-        }
-    };
-    
-    // Se temos calculation do backend, usar os valores reais da API se combinarem com o amount atual
-    if (calculation && calculation.diamonds === displayAmount) {
-        displayData.gross_brl = calculation.gross_brl;
-        displayData.platform_fee_brl = calculation.platform_fee_brl;
-        displayData.net_brl = calculation.net_brl;
-        displayData.gross_eur = calculation.gross_eur;
-        displayData.platform_fee_eur = calculation.platform_fee_eur;
-        displayData.net_eur = calculation.net_eur;
-        displayData.gross_usd = calculation.gross_usd;
-        displayData.platform_fee_usd = calculation.platform_fee_usd;
-        displayData.net_usd = calculation.net_usd;
-        displayData.local_gross = calculation.local_gross;
-        displayData.local_fee = calculation.local_fee;
-        displayData.local_net = calculation.local_net;
-        displayData.currency = calculation.currency;
-        displayData.currency_symbol = calculation.currency_symbol;
-        displayData.breakdown = calculation.breakdown;
-    }
-    
-    const isWithdrawButtonDisabled = isWithdrawing || displayAmount <= 0 || displayAmount > (earningsInfo?.available_diamonds || 0);
+    const after_platform_brl = gross_brl - platform_fee_brl;
+    const payoneer_fee_brl_est = Math.min(after_platform_brl, after_platform_brl * 0.02 + 2);
+    const net_final_brl_est = after_platform_brl - payoneer_fee_brl_est;
 
-    const localCurrencySymbol = displayData.currency_symbol || 'R$';
-    const isBankMethod = ((earningsInfo?.withdrawal_method || currentUser.withdrawal_method)?.method || '').toString().toLowerCase() === 'bank';
+    const FX_EST: Record<string, number> = { BRL: 1, EUR: 0.1613, USD: 0.1786 };
+    const SYMBOL_MAP: Record<string, string> = { BRL: 'R$', USD: 'US$', EUR: '€' };
+    const sym = SYMBOL_MAP[displayCurrency] || 'R$';
+    const fxEst = FX_EST[displayCurrency] || 1;
+
+    // Quote real do Payoneer (backend) quando disponível para o valor digitado
+    const q = calculation as any;
+    const hasQuote = !!q?.diamonds && q.diamonds === displayAmount && typeof q.local_net === 'number';
+    const view = hasQuote ? {
+        gross: q.local_gross ?? q.gross_brl,
+        platformFee: q.local_platform_fee ?? q.platform_fee_brl,
+        payoneerFee: q.local_payoneer_fee ?? 0,
+        net: q.local_net ?? q.net_brl,
+        fxNote: q.note,
+    } : {
+        gross: gross_brl * fxEst,
+        platformFee: platform_fee_brl * fxEst,
+        payoneerFee: payoneer_fee_brl_est * fxEst,
+        net: net_final_brl_est * fxEst,
+        fxNote: undefined,
+    };
+
+    const isWithdrawButtonDisabled = isWithdrawing || displayAmount <= 0 || displayAmount > (earningsInfo?.available_diamonds || 0);
 
     if (isLoading) {
         return (
@@ -357,29 +287,36 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                     </div>
 
                     {(() => {
-                        const c = displayCurrency === 'EUR'
-                            ? { gross: displayData.gross_eur, fee: displayData.platform_fee_eur, net: displayData.net_eur, symbol: '€' }
-                            : displayCurrency === 'USD'
-                                ? { gross: displayData.gross_usd, fee: displayData.platform_fee_usd, net: displayData.net_usd, symbol: 'US$' }
-                                : { gross: displayData.gross_brl, fee: displayData.platform_fee_brl, net: displayData.net_brl, symbol: 'R$' };
                         return (
                             <>
                                 <div className="flex justify-between items-center">
                                     <span className="text-[#8a8894] font-bold text-[13px]">Valor Bruto ({displayCurrency})</span>
                                     <span className="text-white font-black text-[14px]">
-                                        {formatCurrency(c.gross, c.symbol)}
+                                        {formatCurrency(view.gross, sym)}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center mt-4">
-                                    <span className="text-[#8a8894] font-bold text-[13px]">Taxa de Saque (20%)</span>
+                                    <span className="text-[#8a8894] font-bold text-[13px]">Taxa da Plataforma (20%)</span>
                                     <span className="text-[#d97745] font-black text-[14px]">
-                                        - {formatCurrency(c.fee, c.symbol)}
+                                        - {formatCurrency(view.platformFee, sym)}
                                     </span>
                                 </div>
+                                <div className="flex justify-between items-center mt-4">
+                                    <span className="text-[#8a8894] font-bold text-[13px]">
+                                        Taxa do Payoneer (paga por você)
+                                        {displayCurrency !== 'BRL' && <span className="text-[10px] font-medium text-[#5c5966]"> · câmbio Payoneer</span>}
+                                    </span>
+                                    <span className="text-[#d97745] font-black text-[14px]">
+                                        - {formatCurrency(view.payoneerFee, sym)}
+                                    </span>
+                                </div>
+                                {view.fxNote && (
+                                    <p className="text-[10px] text-[#5c5966] font-medium mt-3 leading-snug">{view.fxNote}</p>
+                                )}
                                 <div className="flex justify-between items-center pt-5 pb-1">
-                                    <span className="text-white font-extrabold text-[15px]">Você Receberia</span>
+                                    <span className="text-white font-extrabold text-[15px]">Você Recebe</span>
                                     <span className="text-[#10b981] font-black text-[20px] tracking-tight">
-                                        {formatCurrency(c.net, c.symbol)}
+                                        {formatCurrency(view.net, sym)}
                                     </span>
                                 </div>
                             </>
@@ -399,19 +336,18 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                         {(earningsInfo?.withdrawal_method || currentUser.withdrawal_method) ? 
                             (() => {
                                 const method = (earningsInfo?.withdrawal_method || currentUser.withdrawal_method);
-                                const methodName = method.method.toUpperCase();
+                                const rawMethod = (method.method || '').toString();
+                                const methodName = rawMethod.toUpperCase();
                                 let maskedDetails = '';
-                                
-                                if (method.method === 'mercado_pago' && method.details.email) {
-                                    const email = method.details.email;
+                                let label = '';
+
+                                if (rawMethod === 'payoneer_account' || rawMethod === 'mercado_pago') {
+                                    label = 'Payoneer';
+                                    const email = method.details.payoneerEmail || method.details.email || '';
                                     const emailMatch = email.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
-                                    if (emailMatch) {
-                                        const domain = emailMatch[2];
-                                        maskedDetails = `*********@${domain}`;
-                                    } else {
-                                        maskedDetails = '***';
-                                    }
-                                } else if (method.method === 'pix' && method.details.pixKey) {
+                                    maskedDetails = emailMatch ? `*********@${emailMatch[2]}` : '***';
+                                } else if (rawMethod === 'pix' && method.details.pixKey) {
+                                    label = 'Pix (Payoneer)';
                                     const pixKey = method.details.pixKey;
                                     if (pixKey.includes('@')) {
                                         const emailMatch = pixKey.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
@@ -426,18 +362,25 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                     } else {
                                         maskedDetails = '***';
                                     }
-                                } else if (method.method === 'bank' && method.details.bankName) {
+                                } else if ((rawMethod === 'bank_eur' || rawMethod === 'bank_usd' || rawMethod === 'bank') && method.details.bankName !== undefined) {
+                                    label = rawMethod === 'bank_usd' ? 'Conta USD' : rawMethod === 'bank_eur' ? 'Conta EUR' : 'Conta Bancária';
                                     maskedDetails = `•••• ${(method.details.accountHolder || '').toUpperCase() || '...'}`;
+                                } else {
+                                    label = methodName;
                                 }
                                 
-                                return `${methodName === 'PIX' ? 'Pix' : methodName === 'BANK' ? 'Conta Bancária' : methodName}: ${maskedDetails}`;
+                                return `${label}: ${maskedDetails}`;
                             })()
                             : 'Configurar Método'
                         }
                     </span>
                     <ChevronRightIcon className="w-4 h-4 text-[#4b4a52]" />
                 </button>
-                <p className="text-[10px] text-[#5c5966] text-center font-medium mt-3 leading-none">{isBankMethod ? `O valor será convertido e enviado para sua conta bancária (${localCurrencySymbol}).` : 'O valor será enviado para sua conta cadastrada.'}</p>
+                <p className="text-[10px] text-[#5c5966] text-center font-medium mt-3 leading-none">
+                    {displayCurrency !== 'BRL'
+                        ? `O valor será convertido pelo Payoneer e enviado para sua conta (${displayCurrency}).`
+                        : 'Saques liquidados via Payoneer — Pix, dólar ou euro.'}
+                </p>
             </div>
 
             <div className="pt-6">

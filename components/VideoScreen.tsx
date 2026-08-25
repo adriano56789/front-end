@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { api, getCurrentUserId } from '../services/api';
+import { api } from '../services/api';
 import { FeedPhoto, User } from '../types';
 import { LoadingSpinner } from './Loading';
 import { useTranslation } from '../i18n';
@@ -18,8 +18,8 @@ const VideoScreen: React.FC<VideoScreenProps> = ({ onViewProfile, onOpenPhotoVie
 
   useEffect(() => {
     setIsLoading(true);
-    const currentUserId = getCurrentUserId();
-    api.getPhotoFeed(currentUserId)
+    // 🔒 Explorar mostra apenas o conteúdo do PRÓPRIO usuário (fotos postadas no perfil)
+    api.getPhotoFeed((window as any).currentUser?.id || undefined)
       .then(data => {
         setFeed(data || []);
       })

@@ -4,7 +4,7 @@ import { GiftPayload } from './GiftAnimationOverlay';
 import { Gift } from '../../types';
 import GiftLottiePlayer from './GiftLottiePlayer';
 import GiftAlphaVideoPlayer from './GiftAlphaVideoPlayer';
-import { preloadLottieJson } from '../../services/LottiePreloader';
+import { preloadLottieJson, preloadLottieAssets } from '../../services/LottiePreloader';
 import { giftCacheService } from '../../services/GiftCacheService';
 
 // ⏱ Duração REAL de cada animação (medida com ffprobe no mp4 original e
@@ -50,10 +50,14 @@ const GIFT_LOTTIE_URLS: Record<string, string> = {
     'Asas de Anjo': '/animations/asas_anjo.json',
 };
 
-// 🚀 Pré-carrega o JSON do Foguete assim que este módulo é importado (quando a
-// sala de live/PK abre) — com os dados em memória, a animação aparece no
-// instante em que o presente chega, sem atraso de download/parse.
+// 🚀 Pré-carrega JSON + FRAMES (webp) + áudio de TODOS os presentes assim que
+// este módulo é importado (quando a sala de live/PK abre) — com tudo no cache,
+// a animação aparece NO 1º envio, instantaneamente e sem atraso de download
+// (antes só o JSON era pré-carregado: os frames baixavam sob demanda no
+// momento do presente e o 1º envio ficava em branco — animação só aparecia
+// na 2ª vez).
 Object.values(GIFT_LOTTIE_URLS).forEach(preloadLottieJson);
+Object.values(GIFT_LOTTIE_URLS).forEach(preloadLottieAssets);
 
 const isLottieGift = (gift: Gift): boolean => Boolean(GIFT_LOTTIE_URLS[gift.name]);
 

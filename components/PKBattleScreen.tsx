@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useComposerKeyboard } from '../hooks/useComposerKeyboard';
-
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
@@ -10,8 +9,6 @@ import EntryChatMessage from './live/EntryChatMessage';
 import ToolsModal from './ToolsModal';
 const ToolsModalAny: any = ToolsModal;
 import ConnectionQualityIndicator from './live/ConnectionQualityIndicator';
-import ResolutionPanel from './live/ResolutionPanel';
-import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, ViewerIcon, StarIcon, HeartIcon, GoldCoinWithGIcon, BellIcon } from './icons';
 import { Streamer, User, Gift, RankedUser, LiveSessionState, ToastType } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
@@ -20,7 +17,6 @@ import GiftAnimationOverlay, { GiftPayload } from './live/GiftAnimationOverlay';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
-// Socket.IO removido — comunicação PK via REST API + SRS (WebSocket/WebRTC)
 import { LoadingSpinner } from './Loading';
 import UserActionModal from './UserActionModal';
 import FriendRequestNotification from './live/FriendRequestNotification';
@@ -28,9 +24,12 @@ import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import GiftQueueManager from './live/GiftQueueManager';
 import LivePlayer from './LivePlayer';
+import BeautyEffectsPanel from './live/BeautyEffectsPanel';
+import RouletteModal from './RouletteModal';
+const RouletteModalAny: any = RouletteModal;
 
 interface ChatMessageType {
-    id: number;
+    id: number | string;
     type: 'chat' | 'entry' | 'friend_request' | 'follow';
     user?: string;
     fullUser?: User;
@@ -42,6 +41,7 @@ interface ChatMessageType {
     avatar?: string;
     followedUser?: string;
     isModerator?: boolean;
+    isGift?: boolean;
     activeFrameId?: string | null;
     frameExpiration?: string | null;
     timestamp?: string | number;
@@ -108,15 +108,13 @@ export default function PKBattleScreen({
     const { t } = useTranslation();
     
     const [isUiVisible, setIsUiVisible] = useState(true);
+    const [isRouletteOpen, setIsRouletteOpen] = useState(false);
+    const [isRouletteMinimized, setIsRouletteMinimized] = useState(false);
+    const timeLeftRef = useRef(pkBattleDuration * 60);
     const [timeLeft, setTimeLeft] = useState(pkBattleDuration * 60);
-    const timeLeftRef = useRef(timeLeft);
-    useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
-    // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
-    // abre um SEGUNDO campo de digitação (composer) colado acima do teclado.
     const chatInputRef = useRef<HTMLButtonElement>(null);
     const {
         isComposerOpen,
@@ -133,6 +131,7 @@ export default function PKBattleScreen({
     const [myHearts, setMyHearts] = useState(0);
     const [opponentHearts, setOpponentHearts] = useState(0);
     const [hearts, setHearts] = useState<Heart[]>([]);
+    const nextGiftId = useRef(0);
 
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
@@ -155,11 +154,9 @@ export default function PKBattleScreen({
     const [isSendingGift, setIsSendingGift] = useState(false);
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
-    // 📡 useStreamChat: chat + presença via Socket.IO; convites via REST (SRS-only)
-    const lkConnectedRef = useRef(false);
-
-    // Declarado antes do useStreamChat (usado nos callbacks onConnected/isHost)
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+
+    const lkConnectedRef = useRef(false);
 
     const {
         connected: lkConnected,
@@ -167,13 +164,10 @@ export default function PKBattleScreen({
         sendMessage: lkSendMessage,
         disconnect: disconnectLkChat,
         setMetadata: lkChatSetMetadata,
-        // 📡 Convites co-host/PK via REST API
         inviteCoHost: lkInviteCoHost,
         invitePK: lkInvitePK,
-        // 📡 Reações e digitação (no-op)
         sendReaction: lkSendReaction,
         sendTyping: lkSendTyping,
-        // 📡 State Sync (no-op — mantido por compatibilidade)
         setParticipantRole: lkSetRole,
     } = useStreamChat({
         streamId: streamer.id,
@@ -183,12 +177,10 @@ export default function PKBattleScreen({
         disabled: false,
         onMessage: (data: any) => {
             if (!data || !data.type) return;
-            // Mensagens de chat
             if (data.type === 'chat_message' || data.type === 'chat') {
                 const stableId = Date.now() + Math.random();
                 setMessages(prev => [...prev, { ...data, type: 'chat', id: stableId }]);
             }
-            // 🚪 Entrada de espectador na sala (Socket.IO user_joined_stream/user:join → live_entry)
             else if (data.type === 'live_entry') {
                 if (data.fullUser && String(data.fullUser.id) === String(currentUser.id)) return;
                 const stableId = Date.now() + Math.random();
@@ -202,8 +194,12 @@ export default function PKBattleScreen({
                     }];
                 });
             }
-            // 🎁 Presentes em tempo real (Socket.IO + polling REST)
             else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
+                // 🔁 Echo do MEU próprio presente: o caminho otimista
+                // (handleSendGift) já exibiu animação + mensagem no chat.
+                // Sem este filtro, a animação tocava 2x e a mensagem duplicava.
+                const senderIsMe = String(data.from?.id || data.fromUser?.id || '') === String(currentUser?.id || '');
+                if (senderIsMe) return;
                 const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
                 const animationUrl = getAnimationUrl(rawGift);
                 const duration = getAnimationDuration(rawGift);
@@ -226,7 +222,6 @@ export default function PKBattleScreen({
                 setEffectsQueue(prev => [...prev, giftEvtPayload]);
                 postGiftChatMessage(giftEvtPayload);
             }
-            // Sync de estado PK (mantido para compatibilidade futura — via REST)
             else if (data.type === 'pk_state_sync') {
                 setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
                 if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
@@ -236,7 +231,6 @@ export default function PKBattleScreen({
                     setOpponentHearts(data.opponentHearts);
                 }
             }
-            // Comandos PK (end_battle etc)
             else if (data.type === 'pk_battle_command') {
                 if (data.command === 'end_battle') {
                     addToast(ToastType.Info, 'O oponente encerrou a batalha.');
@@ -245,28 +239,14 @@ export default function PKBattleScreen({
             }
         },
         onConnected: () => {
-            console.log('[PKBattle] Chat REST conectado!');
             lkConnectedRef.current = true;
-            // 📡 State Sync: sincronizar papel
             lkSetRole(isBroadcaster ? 'host' : 'viewer');
         },
     });
 
-    const [isOpponentConnected, setIsOpponentConnected] = useState(false);
-
-    // Cleanup on unmount
     useEffect(() => {
-        return () => {
-            lkConnectedRef.current = false;
-        };
+        return () => { lkConnectedRef.current = false; };
     }, []);
-
-    // 🚫 REMOVIDO: encerramento automático ao o host sair da tela (mudar de aba,
-    // abrir outro app etc). A transmissão SÓ encerra quando o host clica em
-    // "Encerrar Transmissão" — sair da tela nunca derruba a live.
-    
-    // O LivePlayer monta a URL WHEP automaticamente a partir do streamId
-    // (getWhepPlayUrl → /api/rtc/v1/whep/?app=live&stream=stream_{id})
 
     const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
         e.stopPropagation();
@@ -281,19 +261,13 @@ export default function PKBattleScreen({
         const userForModal = constructUserFromMessage(chatUser);
         setUserActionModalState({ isOpen: true, user: userForModal });
     };
-    const handleCloseUserActions = () => {
-        setUserActionModalState({ isOpen: false, user: null });
-    };
+    const handleCloseUserActions = () => { setUserActionModalState({ isOpen: false, user: null }); };
     const handleKickUser = (user: User) => {
-        // 🔐 PROTEÇÃO DO DONO - VERIFICAÇÃO DUPLA NO FRONTEND
         const APP_OWNER_ID = '65384127';
-        
         if (user.id === APP_OWNER_ID) {
-            console.log('🛡️ [FRONTEND_PROTECTION] Tentativa de expulsar dono bloqueada no frontend!');
             addToast(ToastType.Error, 'PROIBIDO: Este usuário não pode ser expulso!');
             return;
         }
-        
         api.kickUser(streamer.id, user.id, currentUser.id);
         addToast(ToastType.Info, `Usuário ${user.name} foi expulso.`);
     };
@@ -308,94 +282,74 @@ export default function PKBattleScreen({
     const totalScore = myScore + opponentScore;
     const myProgress = totalScore > 0 ? (myScore / totalScore) * 100 : 50;
     
-    const isStreamerFollowed = useMemo(() => followingUsers.some(u => String(u.id) === String(streamer.hostId)), [followingUsers, streamer.hostId]);
+    const isStreamerFollowed = useMemo(() => followingUsers.some(u => u.id === streamer.hostId), [followingUsers, streamer.hostId]);
 
     const streamerUser = useMemo(() => ({
         id: streamer.hostId, identification: streamer.hostId, name: streamer.name, avatarUrl: streamer.avatar,
-        coverUrl: `https://picsum.photos/seed/${streamer.hostId}/400/800`, country: streamer.country || 'global',
+        coverUrl: `https://picsum.photos/seed/${streamer.hostId}/400/800`, country: streamer.country || 'br',
         age: 23, gender: 'female' as 'female', level: 1, location: streamer.location, distance: 'desconhecida',
         fans: 0, following: 0, receptores: 0, enviados: 0, topFansAvatars: [], isLive: true,
-        diamonds: 0, earnings: 0, 
-        earnings_withdrawn: 0, bio: 'Amante de streams!', obras: [], curtidas: [], 
+        diamonds: 0, earnings: 0, earnings_withdrawn: 0, bio: 'Amante de streams!', obras: [], curtidas: [], 
         xp: 0, ownedFrames: [], activeFrameId: null, frameExpiration: null
     } as User), [streamer]);
 
     const streamerDisplayUser = isBroadcaster ? currentUser : streamerUser;
 
-    // Simplificado - sem frames para navegação isolada
-    const frameGlowClass = '';
-
-    const handleRecharge = () => {
-        setGiftModalOpen(false);
-    };
-
     const postGiftChatMessage = (payload: GiftPayload) => {
         const { fromUser, gift, toUser, quantity } = payload;
         const messageKey = quantity > 1 ? 'streamRoom.sentMultipleGiftsMessage' : 'streamRoom.sentGiftMessage';
         const messageOptions = { quantity, giftName: gift.name, receiverName: toUser.name };
-
         const giftMessage: ChatMessageType = {
             id: Date.now() + Math.random(),
             type: 'chat',
             user: fromUser.name,
             level: fromUser.level,
+            isGift: true,
             message: (
                 <span className="inline-flex items-center">
                     {t(messageKey, messageOptions)}
-                    {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-5 h-5 inline-block ml-1.5 object-contain" /> : <span className="ml-1.5">{gift.icon}</span>}
+                    {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-5 h-5 inline-block ml-1.5" }) : <span className="ml-1.5">{gift.icon}</span>}
                 </span>
             ),
-            avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
+            avatar: fromUser.avatarUrl,
             activeFrameId: fromUser.activeFrameId,
             frameExpiration: fromUser.frameExpiration,
-            timestamp: Date.now(),
         };
         setMessages(prev => [...prev, giftMessage]);
     };
 
-    const handleSendGift = async (gift: Gift, quantity: number) => {
+    const handleSendGift = async (gift: Gift, quantity: number, isSimulation?: boolean) => {
         if (isSendingGift) return;
         setIsSendingGift(true);
         try {
-            // 🚫 SEM optimistic UI: a animação do presente só aparece via socket
-            // (live_gift_received emitido pelo backend), para todos inclusive o remetente.
+            const giftPayload: GiftPayload = {
+                fromUser: currentUser,
+                toUser: { id: streamer.hostId, name: streamer.name },
+                gift, quantity, roomId: streamer.id,
+                id: Date.now() + Math.random()
+            };
+            postGiftChatMessage(giftPayload);
+            setEffectsQueue(prev => [...prev, giftPayload]);
+            const newBanner = { ...giftPayload, id: nextGiftId.current++ };
+            setBannerGifts(prev => [...prev, newBanner].slice(-5));
 
-            // Sincronizar via REST API
-            if (lkConnected) {
-                lkSendMessage({
-                    type: 'gift_sent',
-                    fromUser: { id: currentUser.id, name: currentUser.name, avatarUrl: currentUser.avatarUrl, level: currentUser.level },
-                    toUser: { id: streamer.hostId || streamer.id, name: streamer.name },
-                    gift: { name: gift.name, icon: gift.icon || '🎁', price: gift.price || 0 },
-                    quantity,
-                    roomId: streamer.id
-                });
-            }
-
-            // 🚫 ENVIO DE PRESENTE FAKE REMOVIDO — todo presente enviado
-            // passa obrigatoriamente pela API (api.sendGift). Nada de simulação.
+            if (isSimulation) return;
 
             const { success, error, updatedSender, updatedReceiver } = await api.sendGift(currentUser.id, streamer.id, streamer.id, gift.name, quantity);
-            
             if (success && updatedSender && updatedReceiver) {
-                // ✅ Sincronização dos dados reais do banco
                 updateUser(updatedSender);
                 updateUser(updatedReceiver);
-
-                if (gift.triggersAutoFollow && !isStreamerFollowed && !isBroadcaster) {
+                if (gift.triggersAutoFollow && !isStreamerFollowed) {
                     onFollowUser(streamerUser, streamer.id);
                 }
-        
                 const coinsAdded = gift.price || 0;
                 if (liveSession) {
                     updateLiveSession({ coins: (liveSession.coins || 0) + coinsAdded });
                     logLiveEvent('gift', { from: currentUser.id, to: streamer.hostId, gift: gift.name, coins: coinsAdded });
                 }
-                
                 refreshStreamRoomData(streamer.hostId);
-                
             } else if (error === 'Not enough diamonds') {
-                handleRecharge();
+                setGiftModalOpen(false);
             }
         } finally {
             setIsSendingGift(false);
@@ -407,11 +361,10 @@ export default function PKBattleScreen({
     };
 
     const constructUserFromMessage = (user: ChatMessageType): User => ({ 
-        avatar: user.avatar || '',
-        id: `user-${user.id}`, identification: `user-${user.id}`, name: user.user!, avatarUrl: user.avatar!, 
-        coverUrl: `https://picsum.photos/seed/${user.id}/400/600`, country: streamerUser?.country || 'global', 
+        id: `user-${user.id}`, identification: `user-${user.id}`, name: user.user!, avatar: user.avatar!, avatarUrl: user.avatar!, 
+        coverUrl: `https://picsum.photos/seed/${user.id}/400/600`, country: user.fullUser?.country || 'br', 
         gender: user.gender || 'not_specified', level: user.level || 1, xp: 0, age: user.age || 18, 
-        location: streamerUser?.location || 'Global', distance: 'desconhecida', fans: 0, following: 0, receptores: 0, enviados: 0,
+        location: user.fullUser?.location || user.fullUser?.residence || 'Brasil', distance: 'desconhecida', fans: 0, following: 0, receptores: 0, enviados: 0,
         topFansAvatars: [], isLive: false, diamonds: 0, earnings: 0, 
         earnings_withdrawn: 0, bio: 'Usuário da plataforma', obras: [], curtidas: [], 
         ownedFrames: [], activeFrameId: user.activeFrameId || null, frameExpiration: user.frameExpiration || null,
@@ -419,16 +372,26 @@ export default function PKBattleScreen({
     
     const handleViewChatUserProfile = (user: ChatMessageType) => {
         if (!user.user || !user.avatar) return;
-        const userProfile = constructUserFromMessage(user);
-        onViewProfile(userProfile);
+        onViewProfile(constructUserFromMessage(user));
     };
 
     useEffect(() => {
-        setMyScore(liveSession?.coins || 0);
-        // 🚫 SCORE FAKE REMOVIDO — o placar do oponente NUNCA é setado aqui.
-        // Só reflete dados reais (pk_state_sync / eventos CustomEvent) e inicia
-        // em 0 no useState. Não resetar aqui para não apagar score real sincronizado.
-    }, [liveSession?.coins]);
+        const handlePKScoreUpdate = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (!detail) return;
+            const myId = currentUser.id;
+            const isChallenger = String(streamer.hostId) === String(myId);
+            if (isChallenger) {
+                setMyScore(detail.scoreA || 0);
+                setOpponentScore(detail.scoreB || 0);
+            } else {
+                setMyScore(detail.scoreB || 0);
+                setOpponentScore(detail.scoreA || 0);
+            }
+        };
+        window.addEventListener('livego:pk_score_update', handlePKScoreUpdate);
+        return () => window.removeEventListener('livego:pk_score_update', handlePKScoreUpdate);
+    }, [currentUser.id, streamer.hostId]);
     
     const handleHeartClick = (e: React.MouseEvent) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -437,31 +400,15 @@ export default function PKBattleScreen({
       
       const newHeart: Heart = { id: Date.now() + Math.random(), x: e.clientX, y: e.clientY, side };
       setHearts(prev => [...prev, newHeart]);
-
       if (side === 'mine') setMyHearts(prev => prev + 1);
       else setOpponentHearts(prev => prev + 1);
-      
       api.sendPKHeart(streamer.id, side === 'mine' ? 'A' : 'B');
-
-      setTimeout(() => {
-        setHearts(prev => prev.filter(h => h.id !== newHeart.id));
-      }, 2000);
+      setTimeout(() => { setHearts(prev => prev.filter(h => h.id !== newHeart.id)); }, 2000);
     };
 
     useEffect(() => {
-        const currentUserEntryMessage: ChatMessageType = {
-            id: Date.now() + Math.random(),
-            type: 'entry',
-            fullUser: currentUser,
-            timestamp: Date.now(),
-        };
+        const currentUserEntryMessage: ChatMessageType = { id: Date.now(), type: 'entry', fullUser: currentUser };
         setMessages([currentUserEntryMessage]);
-    
-        // DESABILITADO: getOnlineUsers causando polling repetitivo
-        // api.getOnlineUsers(streamer.id).then(users => {
-        //     setOnlineUsers(users || []);
-        //     previousOnlineUsersRef.current = users || [];
-        // });
     }, [streamer.id, currentUser]);
 
     useEffect(() => {
@@ -469,17 +416,12 @@ export default function PKBattleScreen({
             if (data.roomId === streamer.id) {
                 const newUsers = data.users;
                 const previousUsers = previousOnlineUsersRef.current;
-
                 if (previousUsers.length > 0) {
                     const previousUserIds = new Set(previousUsers.map(u => u.id));
                     const newlyJoinedUsers = newUsers.filter(u => !previousUserIds.has(u.id) && u.id !== currentUser.id);
-
                     if (newlyJoinedUsers.length > 0) {
                         const entryMessages: ChatMessageType[] = newlyJoinedUsers.map(user => ({
-                            id: Date.now() + Math.random(),
-                            type: 'entry',
-                            fullUser: user,
-                            timestamp: Date.now(),
+                            id: Date.now() + Math.random(), type: 'entry', fullUser: user,
                         }));
                         setMessages(prev => [...prev, ...entryMessages]);
                     }
@@ -488,37 +430,12 @@ export default function PKBattleScreen({
                 previousOnlineUsersRef.current = newUsers;
             }
         };
-        // Socket.IO removido — eventos PK via REST API + CustomEvents
         const handleHeartUpdate = (data: { roomId: string, heartsA: number, heartsB: number }) => {
-             if (data.roomId === streamer.id) {
-                setMyHearts(data.heartsA);
-                setOpponentHearts(data.heartsB);
-            }
+            if (data.roomId === streamer.id) { setMyHearts(data.heartsA); setOpponentHearts(data.heartsB); }
         };
 
-        // Socket.IO removido — gifts via REST API
-        const handleFollowUpdate = (payload: { follower: User, followed: User, isUnfollow: boolean }) => {
-            if (payload.isUnfollow) return; 
-
-            const { follower, followed } = payload;
-            
-            const newMessage: ChatMessageType = (followed.id === currentUser.id)
-                ? { id: Date.now() + Math.random(), type: 'friend_request', follower: follower, timestamp: Date.now() }
-                : { id: Date.now() + Math.random(), type: 'follow', user: follower.name, followedUser: followed.name, avatar: follower.avatarUrl, timestamp: Date.now() };
-
-            setMessages(prev => [...prev, newMessage]);
-        };
-
-
-        // Socket.IO removido — mensagens/gifts/recebimento via REST API
-    
-        return () => {
-        };
-    }, [streamer.id, t, currentUser.id, onOpenFriendRequests]);
-
-    // 📡 onMessage do useStreamChat processa chat e pk sync (definido nas options do hook)
-
-    const handleFollowStreamer = (user: User) => onFollowUser(user, streamer.id);
+        return () => {};
+    }, [streamer.id, currentUser.id]);
 
     useEffect(() => {
         if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -526,86 +443,26 @@ export default function PKBattleScreen({
 
     useEffect(() => {
         if (!currentEffect && effectsQueue.length > 0) {
-            const nextInQueue = effectsQueue[0];
-            setCurrentEffect(nextInQueue);
+            setCurrentEffect(effectsQueue[0]);
             setEffectsQueue(prev => prev.slice(1));
         }
     }, [currentEffect, effectsQueue]);
 
-    // 📡 Enviar estado do PK via sendMessage (useStreamChat)
-    const sendPkState = () => {
-        if (!lkConnected || !lkConnectedRef.current) return;
-        try {
-            lkSendMessage({
-                type: 'pk_state_sync',
-                myScore,
-                opponentScore,
-                timeLeft,
-                myHearts,
-                opponentHearts,
-                timestamp: Date.now()
-            });
-        } catch (e) {
-            // silent fail
-        }
-    };
-    useEffect(() => {
-        if (!lkConnected) return;
-        const interval = setInterval(sendPkState, 5000);
-        return () => clearInterval(interval);
-    }, [lkConnected, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
-
-    // Escutar eventos CustomEvent para sincronização de score/timer vindos do backend
-    useEffect(() => {
-        const handleScoreSync = (e: Event) => {
-            const { scoreA, scoreB } = (e as CustomEvent).detail;
-            if (scoreA !== undefined) setMyScore(scoreA);
-            if (scoreB !== undefined) setOpponentScore(scoreB);
-        };
-        const handleTimerSync = (e: Event) => {
-            const { timeLeft: newTime } = (e as CustomEvent).detail;
-            if (newTime !== undefined) setTimeLeft(newTime);
-        };
-        const handleBattleEnded = () => {
-            handleEndBattle();
-        };
-
-        window.addEventListener('livego:pk_score_sync', handleScoreSync);
-        window.addEventListener('livego:pk_timer_sync', handleTimerSync);
-        window.addEventListener('livego:pk_battle_ended', handleBattleEnded);
-
-        return () => {
-            window.removeEventListener('livego:pk_score_sync', handleScoreSync);
-            window.removeEventListener('livego:pk_timer_sync', handleTimerSync);
-            window.removeEventListener('livego:pk_battle_ended', handleBattleEnded);
-        };
-    }, []);
-
-    // Timer countdown — ao expirar, usar handleEndBattle via ref para evitar re-registros
     useEffect(() => {
         if (timeLeft <= 0) {
-            handleEndBattleRef.current();
+            onEndPKBattle();
             return;
         }
-        const timerId = setInterval(() => setTimeLeft(t => t - 1), 1000);
+        timeLeftRef.current = timeLeft;
+        const timerId = setInterval(() => {
+            setTimeLeft(prev => {
+                const next = prev - 1;
+                timeLeftRef.current = next;
+                return next;
+            });
+        }, 1000);
         return () => clearInterval(timerId);
-    }, [timeLeft]);
-
-    // 📡 Reconexao tratada pelos callbacks onReconnecting/onReconnected/onDisconnected do hook
-
-    // Override do onEndPKBattle para enviar comando de fim antes de encerrar
-    const handleEndBattle = () => {
-        if (lkConnected) {
-            try {
-                lkSendMessage({ type: 'pk_battle_command', command: 'end_battle' });
-            } catch (e) {
-                // silent
-            }
-        }
-        onEndPKBattle();
-    };
-    const handleEndBattleRef = useRef(handleEndBattle);
-    handleEndBattleRef.current = handleEndBattle;
+    }, [timeLeft <= 0]);
 
     const formatTime = (seconds: number) => {
         const minutes = Math.floor(seconds / 60);
@@ -613,51 +470,16 @@ export default function PKBattleScreen({
         return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
     };
 
-    const handleToggleMicrophone = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!isBroadcaster) return;
-        const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
-        try {
-            await api.toggleMicrophone(streamer.id);
-            updateLiveSession({ isMicrophoneMuted: newMicState });
-        } catch (err) {
-            console.warn('[PKBattle] toggleMicrophone erro:', err);
-        }
-    };
-
-    const handleToggleSound = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!isBroadcaster) {
-            setIsLocalMuted(prev => {
-                const updatedMuted = !prev;
-                addToast(ToastType.Info, updatedMuted ? 'Áudio da live silenciado localmente.' : 'Áudio da live ativado localmente.');
-                return updatedMuted;
-            });
-            return;
-        }
-        const newSoundState = !(liveSession?.isStreamMuted ?? false);
-        try {
-            await api.toggleStreamSound(streamer.id);
-            updateLiveSession({ isStreamMuted: newSoundState });
-            addToast(ToastType.Info, newSoundState ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
-        } catch (err) {
-            console.warn('[PKBattle] toggleStreamSound erro:', err);
-            addToast(ToastType.Error, 'Falha ao alternar o áudio da live.');
-        }
-    };
-
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
         if (chatInput.trim() === '' || !currentUser) return;
-        
-        // Construir payload da mensagem
         const messagePayload: ChatMessageType = {
-            id: Date.now() + Math.random(),
+            id: String(Date.now()),
             type: 'chat',
             user: currentUser.name,
             level: currentUser.level,
             message: chatInput.trim(),
-            avatar: currentUser.avatarUrl || '',
+            avatar: currentUser.avatarUrl || currentUser.avatar,
             gender: currentUser.gender,
             age: currentUser.age,
             activeFrameId: currentUser.activeFrameId,
@@ -665,39 +487,25 @@ export default function PKBattleScreen({
             fullUser: currentUser,
             timestamp: Date.now(),
         };
-        
+        const stableId = String(Date.now() + Math.random());
         const safePayload = {
             ...messagePayload,
             avatar: messagePayload.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=random`,
-            roomId: streamer.id, // Incluir roomId para que receptores possam filtrar
+            id: stableId,
         };
-        
-        // Otimista: adicionar mensagem localmente
         setMessages(prev => [...prev, safePayload]);
-        
-        // Enviar via REST API (polling)
-        if (lkConnected) {
-            lkSendMessage(safePayload);
-        } else {
-            console.warn('[PKBattle] Chat não enviado — chat REST não conectado');
-        }
-        
+        lkSendMessage({ ...safePayload, type: 'chat_message' })
+            .catch((err: any) => console.warn('[PK CHAT] Erro ao enviar mensagem:', err));
         setChatInput('');
+        requestAnimationFrame(() => {
+            if (isComposerOpen) {
+                composerInputRef.current?.focus();
+            } else {
+                chatInputRef.current?.focus({ preventScroll: true } as any);
+            }
+        });
     };
 
-    const handleToggleAutoFollow = async (e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!isBroadcaster || !liveSession) return;
-        const newAutoFollowState = !liveSession.isAutoFollowEnabled;
-        try {
-            await api.toggleAutoFollow(streamer.id, newAutoFollowState);
-            updateLiveSession({ isAutoFollowEnabled: newAutoFollowState });
-            addToast(ToastType.Success, newAutoFollowState ? 'Seguimento automático ativado.' : 'Seguimento automático desativado.');
-        } catch (error) {
-            addToast(ToastType.Error, "Falha ao alterar a configuração.");
-        }
-    };
-    
     const handleToggleAutoPrivateInvite = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!isBroadcaster) return;
@@ -712,419 +520,303 @@ export default function PKBattleScreen({
         }
     };
 
+    const handleToggleMicrophone = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isBroadcaster) return;
+        await api.toggleMicrophone(streamer.id);
+    };
+
+    const handleToggleSound = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isBroadcaster) {
+            setIsLocalMuted(prev => {
+                addToast(ToastType.Info, !prev ? 'Áudio da live silenciado localmente.' : 'Áudio da live ativado localmente.');
+                return !prev;
+            });
+            return;
+        }
+        await api.toggleStreamSound(streamer.id);
+    };
+
+    const handleToggleAutoFollow = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isBroadcaster || !liveSession) return;
+        const newAutoFollowState = !liveSession.isAutoFollowEnabled;
+        try {
+            await api.toggleAutoFollow(streamer.id, newAutoFollowState);
+            updateLiveSession({ isAutoFollowEnabled: newAutoFollowState });
+            addToast(ToastType.Success, newAutoFollowState ? 'Seguimento automático ativado.' : 'Seguimento automático desativado.');
+        } catch (error) {
+            addToast(ToastType.Error, "Falha ao alterar a configuração.");
+        }
+    };
+
     if (!opponent) return <div className="absolute inset-0 bg-black flex items-center justify-center"><LoadingSpinner /></div>;
 
     return (
         <div className="absolute inset-0 bg-[#000000] flex flex-col font-sans text-white z-10 select-none">
-            {/* ═══════════════════════════════════════════════════════════
-               PK BATTLE LAYOUT — SPLIT SCREEN
-               
-               ARQUITETURA (apenas SRS):
-               - Lado esquerdo: Host video (SRS WHEP)
-               - Lado direito: Opponent video (SRS WHEP)
-               - Divider central: VS badge
-               - VS Banner: overlay centralizado no topo com placar e timer
-               - Chat: sobreposição no bottom
-               ═══════════════════════════════════════════════════════════ */}
-            
-            {/* Main Container — full height, split screen */}
-            <div 
-                className="relative w-full h-full bg-zinc-950 overflow-hidden flex"
-                onClick={handleHeartClick}
-            >
-                {/* ─── HOST VIDEO (Left Half) ─── */}
-                <div className="relative w-1/2 h-full bg-black overflow-hidden">
-                    <LivePlayer
-                        streamId={streamer.streamKey || streamer.id}
-                        isBroadcaster={isBroadcaster}
-                        userId={currentUser.id}
-                        muted={!isBroadcaster && isLocalMuted}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none" />
-                    <img 
-                        src={streamerUser.coverUrl} 
-                        alt="" 
-                        className="absolute inset-0 w-full h-full object-cover mix-blend-lighten pointer-events-none opacity-10" 
-                    />
-                    {/* Host name badge */}
-                    <div className="absolute bottom-0 left-0 right-0 z-10">
-                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-pink-500/30 ring-1 ring-white/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                    <img src={streamerDisplayUser.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                </div>
-                                <span className="text-white text-[9px] font-bold truncate drop-shadow-lg">
-                                    {streamerDisplayUser.name}
-                                </span>
-                                <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} className="ml-auto" />
-                            </div>
-                            <div className="flex items-center gap-1 mt-0.5">
-                                <span className="w-1.5 h-1.5 bg-pink-400 rounded-full" />
-                                <span className="text-pink-200/70 text-[7px] font-medium">
-                                    {myScore.toLocaleString()} pts ({myHearts}♥)
-                                </span>
-                            </div>
-                        </div>
+            {/* ═══ TOP: Split Video Area (52vh) ═══ */}
+            <div className="relative w-full h-[52vh] min-h-[280px] flex-shrink-0 bg-zinc-950 overflow-hidden" style={{ height: '52svh' }} onClick={handleHeartClick}>
+                <div className="absolute inset-0 grid grid-cols-2 bg-black">
+                    {/* Host Camera Stream (Left) */}
+                    <div className="relative w-full h-full bg-zinc-900 overflow-hidden">
+                        <LivePlayer
+                            streamId={streamer.streamKey || streamer.id}
+                            isBroadcaster={isBroadcaster}
+                            userId={currentUser.id}
+                            muted={!isBroadcaster && isLocalMuted}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none z-10" />
+                    </div>
+                    {/* Opponent Camera Stream (Right) */}
+                    <div className="relative w-full h-full bg-zinc-950 overflow-hidden">
+                        <LivePlayer
+                            streamId={opponent.id}
+                            userId={currentUser.id}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none z-10" />
                     </div>
                 </div>
 
-                {/* ─── CENTER VS DIVIDER ─── */}
-                <div 
-                    className="relative flex-shrink-0 z-10 flex items-center justify-center"
-                    style={{
-                        width: '3px',
-                        background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)',
-                    }}
-                >
-                    <div className="absolute bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[9px] text-black px-2.5 py-1 border border-white/60 shadow-lg shadow-yellow-500/30 z-10 select-none">
-                        VS
-                    </div>
+                {/* Golden Vertical Separator */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-[1.5px] bg-gradient-to-b from-[#fcd34d] via-[#f59e0b] to-[#fcd34d] -translate-x-1/2 z-10 pointer-events-none" />
+
+                {/* Banner Notifications */}
+                <div className="absolute top-28 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
+                    <GiftQueueManager gifts={bannerGifts} onAnimationEnd={handleBannerAnimationEnd} maxConcurrent={3} maxQueueSize={50} />
                 </div>
 
-                {/* ─── OPPONENT VIDEO (Right Half) ─── */}
-                <div className="relative w-1/2 h-full bg-black overflow-hidden">
-                    <LivePlayer
-                        streamId={opponent.id}
-                        userId={currentUser.id}
-                        onPlaying={() => setIsOpponentConnected(true)}
-                        onError={() => setIsOpponentConnected(false)}
-                    />
-                    {/* Placeholder when opponent not connected */}
-                    {!isOpponentConnected && (
-                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-br from-zinc-900/95 via-zinc-800/90 to-black/95 backdrop-blur-xl">
-                            <div className="relative mb-3">
-                                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-cyan-300 p-[2px] animate-pulse">
-                                    <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center">
-                                        <img 
-                                            src={opponent.avatarUrl} 
-                                            alt={opponent.name}
-                                            className="w-full h-full rounded-full object-cover"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none';
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center ring-2 ring-black">
-                                    <svg className="animate-spin w-3 h-3 text-white" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                </div>
+                {/* ═══ Header: Host + Opponent Info ═══ */}
+                <header className={`absolute top-0 left-0 right-0 p-3 z-20 flex justify-between items-start bg-gradient-to-b from-black/80 via-black/30 to-transparent transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    {/* Left: Host */}
+                    <div className="flex items-start space-x-2">
+                        <div className="relative">
+                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-[#FF2D55] via-purple-600 to-indigo-500 flex items-center justify-center">
+                                <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full rounded-full object-cover border border-black/50" />
                             </div>
-                            <p className="text-blue-200/70 text-[10px] font-medium tracking-wide">AGUARDANDO</p>
-                            <p className="text-white/50 text-[9px] mt-0.5">{opponent.name}</p>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onFollowUser(streamerUser, streamer.id); }}
+                                className="absolute -right-1 -bottom-1 w-[18px] h-[18px] bg-gradient-to-r from-pink-500 to-rose-500 rounded-full flex items-center justify-center text-white text-[12px] font-bold shadow-md hover:scale-110 active:scale-95 transition-all border-none cursor-pointer"
+                            >+</button>
                         </div>
-                    )}
-                    {/* Opponent name badge */}
-                    <div className={`absolute bottom-0 left-0 right-0 z-10 transition-opacity duration-500 ${
-                        isOpponentConnected ? 'opacity-100' : 'opacity-0'
-                    }`}>
-                        <div className="bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-6 pb-2 px-2.5">
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-blue-500/30 ring-1 ring-white/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                    <img src={opponent.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                </div>
-                                <span className="text-white text-[9px] font-bold truncate drop-shadow-lg">
-                                    {opponent.name}
-                                </span>
-                                <ConnectionQualityIndicator quality={lkConnectionQualities[opponent.id]} className="ml-auto" />
-                            </div>
-                            <div className="flex items-center gap-1 mt-0.5">
-                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                                <span className="text-blue-200/70 text-[7px] font-medium">
-                                    {opponentScore.toLocaleString()} pts ({opponentHearts}♥)
-                                </span>
+                        <div className="flex flex-col text-left">
+                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md">
+                                Live de {streamerDisplayUser.name}
+                            </h4>
+                            <p className="text-gray-350 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
+                                @{streamerDisplayUser.name}
+                            </p>
+                            <div className="flex items-center space-x-1 mt-0.5 text-yellow-400 text-[10px] bg-black/35 px-1.5 py-0.5 rounded-full w-max">
+                                <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full flex items-center justify-center text-[7px] text-black font-extrabold pb-[0.5px]">G</span>
+                                <span className="font-semibold">{myScore.toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {/* ─── LAYER 4: VS Battle Banner (centered top) ─── */}
-                <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    {/* Gradient header background */}
-                    <div className="bg-gradient-to-b from-black/70 via-black/30 to-transparent pb-12 pt-4 px-4">
-                        {/* VS Progress Bar */}
-                        <div className="relative w-full h-1.5 bg-zinc-800/60 rounded-full overflow-visible flex items-center">
-                            {/* Pink (host) bar */}
-                            <div 
-                                className="h-full bg-gradient-to-r from-pink-500 to-[#FF2D55] rounded-l-full transition-all duration-500 shadow-[0_0_8px_rgba(255,45,85,0.4)]" 
-                                style={{ width: `${myProgress}%` }}
-                            />
-                            {/* Blue (opponent) bar */}
-                            <div 
-                                className="h-full bg-gradient-to-r from-[#007AFF] to-[#0A84FF] rounded-r-full transition-all duration-500 flex-grow shadow-[0_0_8px_rgba(0,122,255,0.4)]" 
-                            />
-                            {/* VS badge — floating center */}
-                            <div 
-                                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[8px] text-black px-2 py-0.5 border border-white/60 shadow-lg shadow-yellow-500/30 z-10 select-none"
-                                style={{ left: `${myProgress}%` }}
+                    {/* Right: Opponent */}
+                    <div className="flex items-start space-x-2 text-right">
+                        <div className="flex flex-col items-end">
+                            <h4 className="text-white font-bold text-xs leading-tight tracking-wide drop-shadow-md flex items-center gap-1">
+                                {opponent.name}
+                            </h4>
+                            <p className="text-gray-300 text-[10px] mt-0.5 bg-black/35 px-1.5 py-0.5 rounded-full w-max select-none">
+                                @{opponent.name}
+                            </p>
+                        </div>
+                        <div className="relative">
+                            <div className="w-[42px] h-[42px] rounded-full p-[2.5px] bg-gradient-to-tr from-blue-500 via-cyan-400 to-teal-400 flex items-center justify-center">
+                                <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full rounded-full object-cover border border-black/50" />
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-1.5 ml-1.5">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
+                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
                             >
-                                VS
-                            </div>
-                        </div>
-
-                        {/* Score row: Host — Timer — Opponent */}
-                        <div className="flex justify-between items-center mt-3">
-                            {/* Host score */}
-                            <div className="flex items-center gap-1.5">
-                                <div className="flex items-center gap-1">
-                                    <div className="w-7 h-7 rounded-full ring-2 ring-pink-500/60 overflow-hidden flex-shrink-0">
-                                        <img src={streamerDisplayUser.avatarUrl} alt={streamerDisplayUser.name} className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <div className="flex items-center gap-1">
-                                            <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
-                                                {streamerDisplayUser.name}
-                                            </span>
-                                            <ConnectionQualityIndicator quality={lkConnectionQualities[streamer.hostId]} />
-                                        </div>
-                                        <span className="text-pink-300 text-[9px] font-bold">
-                                            {myScore.toLocaleString()}
-                                            <span className="text-pink-400/60 text-[7px] ml-0.5">({myHearts}♥)</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Timer */}
-                            <div className="bg-black/60 backdrop-blur-md rounded-full px-3 py-1 border border-white/10 shadow-lg">
-                                <span className="text-white font-mono text-[12px] font-bold tracking-wider">
-                                    {formatTime(timeLeft)}
-                                </span>
-                            </div>
-
-                            {/* Opponent score */}
-                            <div className="flex items-center gap-1.5 text-right">
-                                <div className="flex items-center gap-1 flex-row-reverse">
-                                    <div className="w-7 h-7 rounded-full ring-2 ring-blue-500/60 overflow-hidden flex-shrink-0">
-                                        <img src={opponent.avatarUrl} alt={opponent.name} className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                        <div className="flex items-center gap-1">
-                                            <ConnectionQualityIndicator quality={lkConnectionQualities[opponent.id]} />
-                                            <span className="text-white text-[10px] font-bold leading-tight truncate max-w-[80px]">
-                                                {opponent.name}
-                                            </span>
-                                        </div>
-                                        <span className="text-blue-300 text-[9px] font-bold">
-                                            {opponentScore.toLocaleString()}
-                                            <span className="text-blue-400/60 text-[7px] ml-0.5">({opponentHearts}♥)</span>
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
+                                <BellIcon className="w-4 h-4 text-yellow-400" />
+                            </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
+                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
+                            >
+                                <CloseIcon className="w-4 h-4 text-white" />
+                            </button>
                         </div>
                     </div>
-
-                    {/* Top-right action buttons */}
-                    <div className="absolute top-3 right-3 flex items-center gap-2 z-10">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
-                            className="bg-black/40 hover:bg-black/60 backdrop-blur-md p-2 rounded-full transition-all active:scale-90 border-none cursor-pointer"
-                        >
-                            <BellIcon className="w-4 h-4 text-yellow-400" />
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
-                            className="bg-black/40 hover:bg-black/60 backdrop-blur-md p-2 rounded-full transition-all active:scale-90 border-none cursor-pointer"
-                        >
-                            <CloseIcon className="w-4 h-4 text-white" />
-                        </button>
+                </header>
+                
+                {/* ═══ VS Progress Bar ═══ */}
+                <div className={`w-full px-4 absolute top-[68px] left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    <div className="relative w-full h-[10px] bg-zinc-850 rounded-full overflow-visible flex items-center">
+                        <div className="h-full bg-gradient-to-r from-pink-500 to-[#FF2D55] rounded-l-full transition-all duration-500" style={{ width: `${myProgress}%` }} />
+                        <div className="h-full bg-gradient-to-r from-[#007AFF] to-[#0A84FF] rounded-r-full transition-all duration-500 flex-grow" />
+                        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gradient-to-b from-yellow-300 to-yellow-500 rounded-full font-black text-[9px] text-black px-1.5 py-0.5 border border-white shadow-md z-30 select-none pb-[1px]" style={{ left: `${myProgress}%` }}>VS</div>
                     </div>
-                </div>
-
-                {/* ─── LAYER 5: Chat Overlay at Bottom ─── */}
-                <div className={`absolute bottom-0 left-0 right-0 z-20 transition-opacity duration-300 ${isUiVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} style={{ bottom: isComposerOpen ? `calc(${keyboardInset}px + env(safe-area-inset-bottom, 0px))` : `env(safe-area-inset-bottom, 0px)`, transition: 'opacity 0.3s ease, bottom 0.15s ease-out' }}>
-                    {/* Chat messages */}
-                    <div ref={chatContainerRef} className="overflow-y-auto no-scrollbar overscroll-contain px-2 pt-6 pb-2 flex flex-col gap-0.5 justify-end max-h-[22vh]" style={{ maxHeight: '22lvh',
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)'
-                    }}>
-                        {messages.map((msg) => {
-                            if (msg.type === 'entry' && msg.fullUser) {
-                                return <EntryChatMessage 
-                                    key={msg.id} 
-                                    user={msg.fullUser} 
-                                    currentUser={currentUser}
-                                    onClick={onViewProfile}
-                                    onFollow={onFollowUser}
-                                    isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)}
-                                    timestamp={msg.timestamp} />;
-                            }
-                            if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
-                                const chatUser = constructUserFromMessage(msg);
-                                const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
-                                return <ChatMessage 
-                                    key={msg.id} 
-                                    userObject={chatUser}
-                                    message={msg.message}
-                                    onAvatarClick={() => handleViewChatUserProfile(msg)} 
-                                    onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
-                                    isFollowed={followingUsers.some(f => f.id === chatUser.id)}
-                                    onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
-                                    isModerator={msg.isModerator}
-                                    timestamp={msg.timestamp}
-                                />;
-                            }
-                            if (msg.type === 'follow' && msg.user && msg.followedUser) {
-                                return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
-                            }
-                            if (msg.type === 'friend_request' && msg.follower) {
-                                return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
-                            }
-                            return null;
-                        })}
-                    </div>
-                </div>
-
-                    {/* Chat input footer */}
-                    <footer className={`absolute left-0 right-0 bottom-0 z-20 px-3 pb-3 pt-1 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                        <div className="flex items-center gap-2">
-                            <div className="flex-grow">
-                                <button
-                                    type="button"
-                                    ref={chatInputRef}
-                                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                                    className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2.5 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
-                                >
-                                    {chatInput ? (
-                                        <span className="text-white">{chatInput}</span>
-                                    ) : (
-                                        <span className="text-gray-400">{t('streamRoom.sayHi')}</span>
-                                    )}
-                                </button>
-                            </div>
-                            {/* 📡 Reaction buttons */}
-                            <div className="flex items-center gap-0.5 mr-1">
-                              {['❤️','🔥','👍','😂'].map(emoji => (
-                                <button
-                                  key={emoji}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    lkSendReaction(emoji, currentUser.name);
-                                  }}
-                                  className="text-xs w-6 h-6 rounded-full bg-white/5 hover:bg-white/15 active:scale-125 transition-all border-none cursor-pointer flex items-center justify-center"
-                                  title={`Enviar ${emoji}`}
-                                >
-                                  {emoji}
-                                </button>
-                              ))}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {/* Send button */}
-                                <button 
-                                    onClick={handleSendMessage} 
-                                    className="rounded-full p-2.5 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                                >
-                                    <SendIcon className="w-4 h-4 text-white" />
-                                </button>
-                                {/* Gift button */}
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
-                                    className="hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
-                                >
-                                    <img 
-                                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
-                                        alt="Gift" 
-                                        className="w-8 h-8 object-cover rounded-full shadow-lg" 
-                                    />
-                                </button>
-                                {/* More options */}
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
-                                    className="text-white/70 hover:text-white transition-opacity cursor-pointer shrink-0 border-none bg-transparent"
-                                >
-                                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <circle cx="5" cy="12" r="2"></circle>
-                                        <circle cx="12" cy="12" r="2"></circle>
-                                        <circle cx="19" cy="12" r="2"></circle>
-                                    </svg>
-                                </button>
-                            </div>
+                    <div className="flex justify-between items-center mt-2.5">
+                        <div className="flex items-center space-x-1 text-left">
+                            <StarIcon className="w-3.5 h-3.5 text-pink-500 fill-current" />
+                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">{myScore.toLocaleString()}</span>
+                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">({myHearts})</span>
                         </div>
-                    </footer>
-
-                {/* ⌨️ Composer flutuante (TikTok-style): abre COLADO no teclado quando
-                    o usuário toca na barra de mensagem fixa. A tela da live não se mexe. */}
-                {isComposerOpen && (
-                    <div
-                        ref={composerRef}
-                        className="fixed left-0 right-0 z-40"
-                        style={{ bottom: `calc(${chatBarBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 0.12s ease-out' }}
-                    >
-                        <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317]/95 backdrop-blur-md border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
-                            <div className="flex items-center gap-3">
-                                <div className="flex-grow">
-                                    <input
-                                        ref={composerInputRef}
-                                        type="text"
-                                        placeholder={t('streamRoom.sayHi')}
-                                        value={chatInput}
-                                        enterKeyHint="send"
-                                        autoComplete="off"
-                                        onChange={(e) => setChatInput(e.target.value)}
-                                        onBlur={() => {
-                                            // Só fecha se o foco saiu do composer por completo.
-                                            // Não fecha em blur transitório do navegador (mobile).
-                                            setTimeout(() => {
-                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
-                                                    closeComposer();
-                                                }
-                                            }, 120);
-                                        }}
-                                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(e)}
-                                        className="w-full bg-white/10 border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                                    />
-                                </div>
-                                <button
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
-                                    className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                                >
-                                    <SendIcon className="w-4 h-4 text-white" />
-                                </button>
-                            </div>
-                        </footer>
+                        <div className="bg-black/65 border border-white/[0.08] backdrop-blur-md rounded-full px-4 py-1 text-white font-mono text-[13px] font-bold shadow-lg flex items-center justify-center">
+                            {formatTime(timeLeft)}
+                        </div>
+                        <div className="flex items-center space-x-1 text-right">
+                            <span className="font-semibold text-[11px] text-gray-400 drop-shadow">({opponentHearts})</span>
+                            <StarIcon className="w-3.5 h-3.5 text-blue-500 fill-current" />
+                            <span className="font-extrabold text-[13px] text-white tracking-tight drop-shadow">{opponentScore.toLocaleString()}</span>
+                        </div>
                     </div>
-                )}
-
-                {/* ─── LAYER 6: Gift notifications ─── */}
-                <div className="absolute top-24 left-3 z-30 pointer-events-none flex flex-col-reverse items-start">
-                    <GiftQueueManager
-                        gifts={bannerGifts}
-                        onAnimationEnd={handleBannerAnimationEnd}
-                        maxConcurrent={3}
-                        maxQueueSize={50}
-                    />
                 </div>
-
-                <FullScreenGiftAnimation 
-                    payload={currentEffect}
-                    onEnd={() => setCurrentEffect(null)}
-                />
-
-                {/* ─── LAYER 7: Hearts on click ─── */}
-                {hearts.map(heart => (
-                    <div key={heart.id} className="heart-anim pointer-events-none fixed" style={{ left: `${heart.x - 16}px`, top: `${heart.y - 16}px` }}>
-                        <HeartIcon className={`w-8 h-8 ${heart.side === 'mine' ? 'text-pink-500' : 'text-blue-500'}`} />
-                    </div>
-                ))}
             </div>
 
-            {/* ─── MODAIS ─── */}
+            {/* ═══ BOTTOM: Chat Area — fixed bottom, matches StreamRoom style ═══ */}
+            <div className="fixed left-0 right-0 bottom-0 w-full z-30">
+                {/* Chat shading for text contrast */}
+                <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
+
+                <div ref={chatContainerRef} className="max-h-[33vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col pointer-events-auto px-1.5 pb-[env(safe-area-inset-bottom)] relative z-10" style={{ maxHeight: '33lvh' }}>
+                    <div className="flex flex-col gap-px mt-auto items-start w-full">
+                    {messages.map((msg) => {
+                        if (msg.type === 'entry' && msg.fullUser) {
+                            return <EntryChatMessage 
+                                key={msg.id} user={msg.fullUser} currentUser={currentUser}
+                                onClick={onViewProfile} onFollow={onFollowUser}
+                                isFollowed={followingUsers.some(u => u.id === msg.fullUser!.id)} />;
+                        }
+                        if (msg.type === 'chat' && msg.user && msg.avatar) {
+                            const chatUser = constructUserFromMessage(msg);
+                            const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
+                            return <ChatMessage 
+                                key={msg.id} userObject={chatUser} message={msg.message}
+                                avatarUrl={msg.avatar || chatUser.avatarUrl}
+                                onAvatarClick={msg.isGift ? () => setGiftModalOpen(true) : () => handleViewChatUserProfile(msg)} 
+                                onFollow={shouldShowFollow ? () => onFollowUser(chatUser, streamer.id) : undefined}
+                                isFollowed={followingUsers.some(f => f.id === chatUser.id)}
+                                onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                isModerator={msg.isModerator} />;
+                        }
+                        if (msg.type === 'follow' && msg.user && msg.followedUser) {
+                            return <FollowChatMessage key={msg.id} follower={msg.user} followed={msg.followedUser} />;
+                        }
+                        if (msg.type === 'friend_request' && msg.follower) {
+                            return <FriendRequestNotification key={msg.id} followerName={msg.follower.name} onClick={onOpenFriendRequests} />;
+                        }
+                        return null;
+                    })}
+                    </div>
+                </div>
+                <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+            </div>
+
+            <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div className="flex items-center gap-3" data-purpose="bottom-controls">
+                    <div className="flex-grow">
+                        <button
+                            type="button"
+                            ref={chatInputRef}
+                            tabIndex={-1}
+                            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
+                            className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
+                        >
+                            {chatInput ? (
+                                <span className="text-white">{chatInput}</span>
+                            ) : (
+                                <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
+                            )}
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => { console.log('[PK CHAT] onClick botão Enviar'); handleSendMessage(e); }} 
+                            className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                            style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                        >
+                            <SendIcon className="w-5 h-5 text-white" />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
+                            className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
+                        >
+                            <img 
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEbs37m8nkgg-zP8SbCVft7aJxxbBm2sKdQVF2GU_ZSmxX3PMz9RI3ATDH0saDgDw4_Kzh1Lbb49Ba-2lhchOXOjkAzfDYnUBZ17nBC-nrysuZv_hRFz_ebfhEXuZdFCrGlTodvT8qpZwnNC3T-d21GtVESWlzqUKYb7CMvWVujWAZ1acL0_0sOBh5GtWYFR3KcrMNlrM2gn2NFRlwXkdIj3oJHWAkTULf1Lye6X8mugRMzbHMhYAI9VzwsmA4hUZ0juciJgPK9Gw3" 
+                                alt="Gift" className="w-9 h-9 object-cover rounded-full shadow-lg" 
+                            />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
+                            className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                            title="Ferramentas"
+                        >
+                            <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <circle cx="5" cy="12" r="2"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                                <circle cx="19" cy="12" r="2"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </footer>
+
+            {/* ═══ Composer flutuante (TikTok-style) — matches StreamRoom exactly ═══ */}
+            {isComposerOpen && (
+                <div ref={composerRef} className="fixed left-0 right-0 z-40" style={{ bottom: `${chatBarBottom}px` }}>
+                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                        <div className="flex items-center gap-3">
+                            <div className="flex-grow">
+                                <input
+                                    ref={composerInputRef}
+                                    type="text"
+                                    placeholder={t('streamRoom.sayHi')}
+                                    value={chatInput}
+                                    enterKeyHint="send"
+                                    autoComplete="off"
+                                    onChange={(e) => setChatInput(e.target.value)}
+                                    onBlur={() => {
+                                        setTimeout(() => {
+                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                closeComposer();
+                                            }
+                                        }, 120);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
+                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                />
+                            </div>
+                            <button
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
+                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                            >
+                                <SendIcon className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            )}
+
+            {hearts.map(heart => (
+              <div key={heart.id} className="heart-anim pointer-events-none fixed" style={{ left: `${heart.x - 16}px`, top: `${heart.y - 16}px` }}>
+                <HeartIcon className={`w-8 h-8 ${heart.side === 'mine' ? 'text-pink-500' : 'text-blue-500'}`} />
+              </div>
+            ))}
+
+            {/* 🎁 ANIMAÇÃO DO PRESENTE EM TELA CHEIA — camada fixa sobre o app
+            INTEIRO (não só o vídeo de cima), sem bloquear toques. Acima do chat
+            (z-30) e do composer (z-40); abaixo dos modais (z-[100]). */}
+            <div className="fixed inset-0 pointer-events-none select-none" style={{ zIndex: 60, background: 'transparent' }}>
+                <FullScreenGiftAnimation payload={currentEffect} onEnd={() => setCurrentEffect(null)} />
+            </div>
+            
             {isOnlineUsersOpen && (
                 <OnlineUsersModal 
                     onClose={() => setIsOnlineUsersOpen(false)} 
-                    streamId={streamer.id} 
-                    userId={currentUser.id} 
-                    currentUser={currentUser} 
+                    streamId={streamer.id} userId={currentUser.id} currentUser={currentUser} 
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setIsOnlineUsersOpen(false);
-                        // Sempre abrir o perfil como página (também para o broadcaster).
-                        // Ações de moderação (expulsar/tornar mod) continuam disponíveis no chat.
                         onViewProfile(selectedUser);
                     }}
                 />
@@ -1132,11 +824,10 @@ export default function PKBattleScreen({
             {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={onlineUsers} />}
             
             <ToolsModalAny 
-                isOpen={isToolsOpen} 
-                onClose={() => setIsToolsOpen(false)} 
+                isOpen={isToolsOpen} onClose={() => setIsToolsOpen(false)} 
                 onOpenCoHostModal={handleOpenCoHostModal}
                 isPKBattleActive={true} 
-                onEndPKBattle={(e: any) => { e.stopPropagation(); handleEndBattle(); }}
+                onEndPKBattle={(e: any) => { e.stopPropagation(); onEndPKBattle(); }}
                 onOpenBeautyPanel={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setBeautyPanelOpen(true); }} 
                 onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }} 
                 onOpenPrivateInviteModal={(e: any) => { e.stopPropagation(); onOpenPrivateInviteModal(); }}
@@ -1152,35 +843,39 @@ export default function PKBattleScreen({
                 onToggleAutoFollow={handleToggleAutoFollow}
                 isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
                 onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
+                onOpenRoulette={(e: any) => { e.stopPropagation(); setIsRouletteOpen(true); setIsRouletteMinimized(false); }}
                 isHost={isBroadcaster}
                 addToast={addToast}
+            />
+            <RouletteModalAny
+                isOpen={isRouletteOpen}
+                isMinimized={isRouletteMinimized}
+                onClose={() => { setIsRouletteOpen(false); setIsRouletteMinimized(false); }}
+                onMinimize={() => setIsRouletteMinimized(true)}
+                onMaximize={() => setIsRouletteMinimized(false)}
+                currentUser={currentUser}
+                updateUser={updateUser}
+                addToast={addToast}
+                ownerId={streamer.hostId}
+                streamId={streamer.id}
+                canEdit={isBroadcaster}
             />
             <GiftModal isOpen={isGiftModalOpen} onClose={() => setGiftModalOpen(false)} userDiamonds={currentUser.diamonds ?? 0} onSendGift={handleSendGift} onRecharge={() => setGiftModalOpen(false)} gifts={gifts} receivedGifts={receivedGifts} isBroadcaster={isBroadcaster} onOpenVIPCenter={onOpenVIPCenter} isVIP={currentUser.isVIP || false} currentUser={currentUser} />
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             {isCoHostModalOpen && (
                 <CoHostModal 
-                    isOpen={isCoHostModalOpen} 
-                    mode={coHostModalMode} 
+                    isOpen={isCoHostModalOpen} mode={coHostModalMode} 
                     onClose={() => setIsCoHostModalOpen(false)} 
-                    onInvite={()=>{}} 
-                    onOpenTimerSettings={onOpenPKTimerSettings} 
-                    currentUser={currentUser} 
-                    addToast={addToast} 
-                    streamId={streamer.id}
+                    onInvite={()=>{}} onOpenTimerSettings={onOpenPKTimerSettings} 
+                    currentUser={currentUser} addToast={addToast} streamId={streamer.id}
                 />
             )}
-            <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={()=>{}} currentResolution={"480p"} />
-
             <UserActionModal 
-                isOpen={userActionModalState.isOpen} 
-                onClose={handleCloseUserActions} 
-                user={userActionModalState.user}
-                currentUser={currentUser}
+                isOpen={userActionModalState.isOpen} onClose={handleCloseUserActions} 
+                user={userActionModalState.user} currentUser={currentUser}
                 streamer={streamerUser as any}
                 onViewProfile={(user) => { handleCloseUserActions(); onViewProfile(user); }}
-                onMention={handleMentionUser}
-                onMakeModerator={handleMakeModerator}
-                onKick={handleKickUser}
+                onMention={handleMentionUser} onMakeModerator={handleMakeModerator} onKick={handleKickUser}
             />
         </div>
     );

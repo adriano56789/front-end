@@ -355,8 +355,8 @@
         "description": "Select how you would like to receive your money.",
         "pixKey": "PIX Key",
         "pixPlaceholder": "CPF, email or phone",
-        "mercadoPagoEmail": "Email",
-        "mercadoPagoPlaceholder": "Mercado Pago account email"
+        "payoneerEmail": "Email",
+        "payoneerPlaceholder": "Payoneer account email"
     }
   },
   "confirmPurchase": {

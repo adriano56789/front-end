@@ -177,7 +177,7 @@ interface ToolButtonProps {
 }
 
 const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, hasDot, isActive, onClick, disabled }) => (
-    <div className="flex flex-col items-center space-y-2 text-center w-[76px] select-none">
+    <div className="flex flex-col items-center space-y-2 text-center w-full max-w-[78px] select-none">
         <button 
             onClick={onClick} 
             disabled={disabled} 
@@ -192,7 +192,10 @@ const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, hasDot, isActive, 
                 <div className="absolute top-2.5 right-2.5 w-[11px] h-[11px] bg-[#FC10B8] rounded-full ring-2 ring-[#131124]" />
             )}
         </button>
-        <span className="text-[12px] font-medium text-gray-400 leading-tight block truncate w-full px-1">{label}</span>
+        {/* Nome do item SEM cortar e SEM quebrar palavra no meio (break-words
+            fazia "Seguir Auto" virar "Segui/r Auto" — nomes colados). Agora a
+            quebra é só na fronteira da palavra, em até 2 linhas limpas. */}
+        <span className="text-[12px] font-medium text-gray-300 leading-snug block w-full px-0.5 line-clamp-2 break-normal hyphens-none normal-case tracking-normal">{label}</span>
     </div>
 );
 
@@ -361,37 +364,39 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
         },
         { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Convidar', hasDot: false, onClick: createAndCloseHandler(onOpenPrivateInviteModal) },
         { icon: <ChamadaIcon className="w-7 h-7" />, label: 'Chamada', hasDot: true, onClick: createAndCloseHandler(onOpenVideoCall) },
-        { 
-            icon: <TrocarCamIcon className="w-7 h-7" />, 
-            label: 'Trocar Câm', 
-            hasDot: false, 
-            onClick: async (e: React.MouseEvent) => { 
-                e.stopPropagation(); 
-                try {
-                    await streamPublishService.switchCamera();
-                    if (addToast) {
-                        addToast('success', 'Câmera alterada com sucesso! 🔄');
-                    }
-                } catch (err) {
-                    console.error('Failed to switch camera from ToolsModal:', err);
-                    if (addToast) {
-                        addToast('error', 'Não foi possível alternar a câmera.');
-                    }
-                }
-                onClose();
-            } 
-        },
     ];
 
     const anchorTools = [
         { icon: <EmbelezarIcon className="w-7 h-7" />, label: 'Embelezar', hasDot: true, onClick: createAndCloseHandler(onOpenBeautyPanel) },
         { icon: isMicrophoneMuted ? <MicrophoneOffIconCustom className="w-7 h-7" /> : <MicrophoneIconCustom className="w-7 h-7" />, label: 'Microfone', hasDot: false, isActive: !isMicrophoneMuted, onClick: onToggleMicrophone },
         { icon: isSoundMuted ? <SoundOffIconCustom className="w-7 h-7" /> : <SoundOnIconCustom className="w-7 h-7" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
+        {
+            // 🔄 Trocar câmera frontal/traseira DIRETO no modal da âncora
+            // (antes existia só nas ferramentas de co-host).
+            icon: <TrocarCamIcon className="w-7 h-7" />,
+            label: 'Trocar Câm',
+            hasDot: false,
+            onClick: async (e: React.MouseEvent) => {
+                e.stopPropagation();
+                try {
+                    await streamPublishService.switchCamera();
+                    if (addToast) {
+                        addToast('success', 'Câmera alterada com sucesso! 🔄');
+                    }
+                } catch (err) {
+                    console.error('Failed to switch camera from anchor tools:', err);
+                    if (addToast) {
+                        addToast('error', 'Não foi possível alternar a câmera.');
+                    }
+                }
+                onClose();
+            }
+        },
         { icon: <ModerarIcon className="w-7 h-7" />, label: 'Moderar', hasDot: false, isActive: isModerationActive, onClick: onToggleModeration },
         { icon: <ClarezaIcon className="w-7 h-7" />, label: 'Clareza', hasDot: false, onClick: createAndCloseHandler(onOpenClarityPanel) },
         { icon: <ChatBubbleIconCustom className="w-7 h-7" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
         { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Seguir Auto', hasDot: false, isActive: isAutoFollowEnabled, onClick: onToggleAutoFollow },
-        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Auto Convite', hasDot: false, isActive: isAutoPrivateInviteEnabled, onClick: onToggleAutoPrivateInvite },
+        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Convite Auto', hasDot: false, isActive: isAutoPrivateInviteEnabled, onClick: onToggleAutoPrivateInvite },
         { icon: <ShareIcon className="w-7 h-7" />, label: 'Compartilhar', hasDot: false, onClick: handleShare },
     ];
 
@@ -428,14 +433,15 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                     <>
                         <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
                             <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Interação</h3>
-                            <div className="grid grid-cols-5 gap-y-4 gap-x-1.5 justify-items-center">
+                            <div className="grid grid-cols-5 gap-y-4 gap-x-2 justify-items-center">
                                 {cohostTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
                             </div>
                         </div>
 
                         <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
-                            <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Âncora</h3>
-                            <div className="grid grid-cols-4 gap-y-5 gap-x-2.5 justify-items-center">
+                            <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-normal">Ferramentas de Âncora</h3>
+                            {/* 5 colunas: 9 itens em 2 linhas, nomes em até 2 linhas, sem truncar */}
+                            <div className="grid grid-cols-5 gap-y-4 gap-x-2 justify-items-center">
                                 {anchorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
                             </div>
                         </div>
@@ -520,7 +526,7 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                 ) : (
                     <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
                         <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ações do Espectador</h3>
-                        <div className="grid grid-cols-5 gap-y-4 gap-x-1.5 justify-items-center">
+                        <div className="grid grid-cols-5 gap-y-4 gap-x-2 justify-items-center">
                             {spectatorTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
                         </div>
                     </div>

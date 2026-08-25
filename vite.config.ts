@@ -4,7 +4,21 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
 
-  base: './',
+  // '/' ABSOLUTO: com './' os assets viram relativos e quebram ao dar refresh
+  // em rotas aninhadas (/live/...) — o browser pedia /live/assets/*.js,
+  // o nginx devolvia index.html (text/html) e a tela morria.
+  base: '/',
+
+  build: {
+    // ⚡ Abertura mais rápida: chunks de vendor separados (cache entre versões)
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
 
   server: {
     host: 'localhost',

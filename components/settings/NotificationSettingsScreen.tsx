@@ -151,9 +151,21 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
               <p className="text-[13px] text-green-200 leading-snug">Notificações ativadas neste dispositivo. Você recebe avisos de live mesmo com o app fechado.</p>
             </div>
           ) : permStatus === 'denied' ? (
-            <div className="flex items-start gap-3 bg-red-500/[0.08] border border-red-500/20 rounded-2xl px-4 py-3">
-              <span className="text-lg">🔕</span>
-              <p className="text-[13px] text-red-200 leading-snug flex-1">Permissão negada no navegador. Para ativar: toque no 🔒 do endereço → Permissões → Notificações → Permitir.</p>
+            <div className="space-y-2">
+              <div className="flex items-start gap-3 bg-red-500/[0.08] border border-red-500/20 rounded-2xl px-4 py-3">
+                <span className="text-lg">🔕</span>
+                <div className="flex-1">
+                  <p className="text-[13px] text-red-200 leading-snug">Permissão negada no navegador.</p>
+                  <p className="text-[11px] text-red-300/60 mt-1">Ative em: 🔒 endereço → Permissões → Notificações → Permitir</p>
+                </div>
+              </div>
+              <button
+                onClick={handleEnableNotifications}
+                className="w-full flex items-center justify-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5 active:scale-[0.98] transition-all"
+              >
+                <span className="text-sm">🔄</span>
+                <span className="text-[13px] font-medium text-red-200">Tentar novamente</span>
+              </button>
             </div>
           ) : permStatus === 'unsupported' ? (
             <div className="flex items-start gap-3 bg-zinc-500/[0.08] border border-white/10 rounded-2xl px-4 py-3">
@@ -225,7 +237,7 @@ const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProps> = ({
                   <RightArrowIcon />
                 </button>
 
-                {/* Row 4: Pessoa em seguida postou um vídeo LiveGo - NOW IN ROW 4! */}
+                {/* Row 4: Pessoa em seguida postou um vídeo LiveGo */}
                 <div className="flex items-center justify-between px-5 py-[18px]">
                   <span className="text-[15px] font-normal text-zinc-100 max-w-[70%] leading-snug">
                     {t('settings.notifications.followedPosts') || 'Pessoa em seguida postou um vídeo LiveGo'}

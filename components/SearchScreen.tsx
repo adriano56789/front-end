@@ -11,7 +11,7 @@ interface SearchScreenProps {
   onFollowUser: (user: User) => void;
 }
 
-const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFollow: (user: User) => void; }> = ({ user, onViewProfile, onFollow }) => {
+const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFollow: (user: User) => void; isLocallyFollowed?: boolean; }> = ({ user, onViewProfile, onFollow, isLocallyFollowed }) => {
     const { t } = useTranslation();
 
     const handleFollow = (e: React.MouseEvent) => {
@@ -19,15 +19,19 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
         onFollow(user);
     };
 
+    // ✅ Seguido = estado do servidor OU marcado localmente ao tocar
+    // (o botão vira "Seguindo" e o '+' some NA HORA).
+    const followed = !!user.isFollowed || !!isLocallyFollowed;
+
     // 🔒 Não dá pra seguir a SI MESMO — esconde o botão (e o ícone +) na própria conta.
     const isSelf = String(user.id) === String((window as any).currentUser?.id);
 
     return (
         <div className="flex items-center justify-between p-4 hover:bg-gray-800/50 cursor-pointer" onClick={() => onViewProfile(user)}>
             <div className="flex items-center space-x-4 min-w-0">
-                <img 
-                    src={user.avatarUrl} 
-                    alt={user.name} 
+                <img
+                    src={user.avatarUrl}
+                    alt={user.name}
                     className="w-14 h-14 rounded-full object-cover"
                     onError={(e) => {
                         (e.target as HTMLImageElement).src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><rect width="56" height="56" fill="#333"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="24">?</text></svg>');
@@ -47,13 +51,13 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
                 <button
                     onClick={handleFollow}
                     className={`text-sm font-semibold px-4 py-1.5 rounded-full transition-all duration-200 flex items-center space-x-1 shrink-0 ${
-                        user.isFollowed
+                        followed
                             ? 'bg-green-600 text-white hover:bg-green-700 scale-95 shadow-inner'
                             : 'bg-purple-600 text-white hover:bg-purple-700 hover:scale-105 shadow-md'
                     }`}
                 >
-                    {!user.isFollowed && <PlusIcon className="w-4 h-4" />}
-                    <span>{user.isFollowed ? t('common.following') : t('common.follow')}</span>
+                    {!followed && <PlusIcon className="w-4 h-4" />}
+                    <span>{followed ? t('common.following') : t('common.follow')}</span>
                 </button>
             )}
         </div>
@@ -154,7 +158,15 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
     const [results, setResults] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [locallyFollowed, setLocallyFollowed] = useState<Set<string>>(new Set());
     const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ✅ Ao seguir um resultado da busca: marca LOCALMENTE na hora —
+    // botão vira "Seguindo" e o '+' some imediatamente.
+    const handleFollowUser = (user: User) => {
+        setLocallyFollowed(prev => new Set(prev).add(String(user.id)));
+        onFollowUser(user);
+    };
 
     useEffect(() => {
         const searchUsers = async () => {
@@ -225,7 +237,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
                     </div>
                 )}
                 {!isLoading && !error && query && results.length > 0 && (
-                    results.map(user => <UserItem key={user.id} user={user} onViewProfile={onViewProfile} onFollow={onFollowUser} />)
+                    results.map(user => <UserItem key={user.id} user={user} onViewProfile={onViewProfile} onFollow={handleFollowUser} isLocallyFollowed={locallyFollowed.has(String(user.id))} />)
                 )}
                 {!isLoading && !error && query && results.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">

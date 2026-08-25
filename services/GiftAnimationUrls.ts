@@ -49,11 +49,11 @@ export const GIFT_ANIMATION_DURATIONS: Record<string, number> = {
 };
 
 /**
- * 🔒 NUNCA buscar mídia do Firebase. Firebase é SÓ push — mídia/vídeo/arquivos
+ * 🔒 NUNCA buscar mídia externa — sempre usar URLs locais.
  * são sempre locais (nginx). Se o banco ou um evento socket trouxer uma URL do
- * Firebase Storage, converte para o caminho LOCAL equivalente (mesmo path) —
+ * URLs de storage antigo, converte para o caminho LOCAL equivalente (mesmo path) —
  * o arquivo existe localmente se o path bater; senão a animação cai no fallback.
- * URL do Firebase: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path>?alt=media...
+ * URL antiga de storage: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path>?alt=media...
  */
 export function sanitizeMediaUrl(url?: string): string | undefined {
   if (!url) return undefined;
@@ -77,7 +77,7 @@ export function sanitizeMediaUrl(url?: string): string | undefined {
  * O mapa local tem PRIORIDADE para os presentes com arquivo controlado no
  * repo (o banco ainda pode apontar um arquivo antigo, ex.: musicbox.mp4);
  * o `animationUrl` da API vale apenas para gifts fora desse mapa
- * (ex.: /uploads/animations/*.webm). Sempre sanitizada (nunca Firebase).
+ * (ex.: /uploads/animations/*.webm). Sempre sanitizada.
  */
 export function getAnimationUrl(gift: { name: string; animationUrl?: string }): string | undefined {
   if (GIFT_ANIMATION_URLS[gift.name]) return GIFT_ANIMATION_URLS[gift.name];

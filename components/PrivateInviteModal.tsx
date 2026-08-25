@@ -140,18 +140,20 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
   };
 
   const getButtonState = (userId: string) => {
+      // 🔧 FIX: o convite NÃO desabilita mais o botão — pode reconvidar quando
+      // quiser (só trava durante a própria requisição).
       if (invitingUserId === userId || isInvitingAll) {
           return { 
               text: "CONVIDANDO...", 
               disabled: true, 
-              className: "bg-[#1d2026] text-[#d4c0d7]/40 border border-white/5 cursor-wait" 
+              className: "bg-gray-200 text-gray-400 cursor-wait" 
           };
       }
       if (invitedUsers.has(userId)) {
           return { 
-              text: "CONVIDADO", 
-              disabled: true, 
-              className: "bg-[#1d2026] text-[#d4c0d7]/40 border border-white/5 cursor-not-allowed" 
+              text: "RECONVIDAR", 
+              disabled: false, 
+              className: "bg-gradient-to-r from-[#e7006e] to-[#ffb1c3] text-white hover:opacity-90 active:scale-95 shadow-[0_0_12px_rgba(231,0,110,0.25)]" 
           };
       }
       return { 
@@ -163,15 +165,15 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
 
   return (
     <div className={`absolute inset-0 z-40 flex items-end justify-center transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={onClose}>
-      {/* Backdrop 100% opaco — bloqueia qualquer vaza do vídeo da live */}
-      <div className="absolute inset-0 bg-black" />
-      <div className={`relative z-10 bg-[#0f1115] w-full h-[75%] rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.8)] border-t border-white/5 transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
+      {/* Fundo claro — transmissão bem visível atrás do modal */}
+      <div className="absolute inset-0 bg-black/25" />
+      <div className={`relative z-10 bg-white w-full h-[75%] rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.35)] transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`} onClick={e => e.stopPropagation()}>
         
         {/* Header Block exactly matching image 2 */}
         <header className="relative flex items-center justify-between p-4 flex-shrink-0">
           <button 
             onClick={onClose} 
-            className="text-white hover:opacity-80 transition-opacity bg-transparent border-none cursor-pointer p-1"
+            className="text-gray-800 hover:opacity-70 transition-opacity bg-transparent border-none cursor-pointer p-1"
           >
             <svg className="w-5 h-5 stroke-current fill-none" strokeWidth="2.5" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -179,7 +181,7 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
             </svg>
           </button>
           
-          <h2 className="text-md font-bold text-white tracking-wide absolute left-1/2 -translate-x-1/2">
+          <h2 className="text-md font-bold text-gray-900 tracking-wide absolute left-1/2 -translate-x-1/2">
             Convidar para Sala Privada
           </h2>
           
@@ -191,15 +193,15 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
           <button 
             onClick={handleFollowAll} 
             disabled={isFollowingAll || !hasUnfollowedUsers}
-            className="py-2.5 rounded-2xl font-bold text-sm bg-[#6d28d9] disabled:opacity-50 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-purple-900/20"
+            className="py-2.5 rounded-2xl font-bold text-sm bg-[#6d28d9] disabled:opacity-40 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-purple-900/20"
           >
             {isFollowingAll ? 'Seguindo...' : 'Seguir Todos'}
           </button>
           
           <button 
             onClick={handleInviteAll} 
-            disabled={isInvitingAll || eligibleUsers.every(u => invitedUsers.has(u.id))}
-            className="py-2.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-[#e11d48] to-[#f43f5e] disabled:opacity-50 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-pink-900/20"
+            disabled={isInvitingAll || eligibleUsers.length === 0}
+            className="py-2.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-[#e11d48] to-[#f43f5e] disabled:opacity-40 text-white transition-all transform active:scale-95 cursor-pointer border-none focus:outline-none shadow-md shadow-pink-900/20"
           >
             {isInvitingAll ? 'Convidando...' : 'Convidar Todos'}
           </button>
@@ -211,7 +213,6 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
             <div className="flex justify-center py-12"><LoadingSpinner /></div>
           ) : eligibleUsers.length > 0 ? (
             eligibleUsers.map(user => {
-              const buttonState = getButtonState(user.id);
               const isFollowed = followingUsers.some(f => f.id === user.id);
               
               const aggregatedGiftsWithPrice = user.giftsSent.reduce((acc, gift) => {
@@ -231,7 +232,7 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
                 : null;
 
               return (
-                <div key={user.id} className="flex items-center justify-between p-3 rounded-2xl bg-[#14161d] border border-white/[0.02]">
+                <div key={user.id} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 border border-gray-100">
                   
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
                     <div className="relative flex-shrink-0">
@@ -245,15 +246,15 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
                         }}
                       />
                       {/* Online state indicator matching image */}
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-[#14161d]"></span>
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm tracking-wide truncate">{user.name}</p>
+                      <p className="text-gray-900 font-bold text-sm tracking-wide truncate">{user.name}</p>
                       
                       <div className="flex items-center gap-2 mt-1">
                         {/* Custom Badge containing the indicator hand/thumb and quantity */}
-                        <div className="flex items-center gap-1 bg-[#2e261f] text-[#f59e0b] px-2 py-0.5 rounded-full border border-yellow-600/20">
+                        <div className="flex items-center gap-1 bg-amber-50 text-[#b45309] px-2 py-0.5 rounded-full border border-amber-200">
                           <span className="text-[10px]">🌭</span>
                           <span className="text-[10px] font-extrabold font-mono">x{mostExpensiveUserGift?.quantity || 1}</span>
                         </div>
@@ -281,14 +282,14 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
                     
                     <button 
                       onClick={() => handleInvite(user)} 
-                      disabled={buttonState.disabled}
+                      disabled={getButtonState(user.id).disabled}
                       className={`font-bold px-5 py-2 rounded-full transition-all text-sm text-center border-none cursor-pointer ${
-                        buttonState.disabled 
-                          ? 'bg-[#1e2025] text-gray-600 cursor-not-allowed'
+                        getButtonState(user.id).disabled 
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           : 'bg-[#ec4899] hover:bg-[#db2777] text-white shadow-sm'
                       }`}
                     >
-                      Convidar
+                      {getButtonState(user.id).text}
                     </button>
                   </div>
 
@@ -297,17 +298,17 @@ const PrivateInviteModal: React.FC<PrivateInviteModalProps> = ({ isOpen, onClose
             })
           ) : (
             <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-              <div className="w-14 h-14 rounded-full bg-[#14161d] flex items-center justify-center mb-4">
-                <GiftIcon className="w-7 h-7 text-gray-600" />
+              <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                <GiftIcon className="w-7 h-7 text-gray-400" />
               </div>
-              <p className="text-sm font-bold text-gray-400">Ninguém enviou presentes</p>
-              <p className="text-xs text-gray-600 mt-1.5 max-w-xs">Os apoiadores que enviarem presentes aparecerão aqui para poderem ser convidados.</p>
+              <p className="text-sm font-bold text-gray-600">Ninguém enviou presentes</p>
+              <p className="text-xs text-gray-400 mt-1.5 max-w-xs">Os apoiadores que enviarem presentes aparecerão aqui para poderem ser convidados.</p>
             </div>
           )}
         </div>
 
-        {/* Footer info: LUMINA STREAM DESIGN SYSTEM */}
-        <div className="text-center py-4 bg-[#0a0b0e] flex-shrink-0 tracking-widest text-[9px] font-bold text-gray-600 select-none">
+        {/* Footer info */}
+        <div className="text-center py-4 bg-gray-50 flex-shrink-0 tracking-widest text-[9px] font-bold text-gray-300 select-none">
           LUMINA STREAM DESIGN SYSTEM
         </div>
 

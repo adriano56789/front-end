@@ -670,7 +670,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
               <button onClick={onOpenFans} className="text-center p-2 rounded-lg hover:bg-gray-800/50 transition-colors focus:outline-none">
 
-                  <p className="text-xl font-bold">{formatNumber(displayUser.fans)}</p>
+                  <p className="text-xl font-bold">{formatNumber(Math.max(0, displayUser.fans))}</p>
 
                   <p className="text-sm text-gray-400">{t('profile.fans')}</p>
 

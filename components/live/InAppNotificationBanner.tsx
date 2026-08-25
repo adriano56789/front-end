@@ -89,8 +89,9 @@ const BannerAvatar: React.FC<{ n: InAppNotification; theme: typeof THEMES.live; 
           </div>
         )}
       </div>
-      <div className={`absolute -bottom-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full border border-black/60 ${theme.badgeClass}`}>
-        {theme.badgeText}
+      {/* 🏷️ Quadradinho = LOGO DO APP (pedido do dono) */}
+      <div className="absolute -bottom-1 -right-1 w-[18px] h-[18px] rounded-[5px] overflow-hidden border border-black/60 bg-black shadow-sm">
+        <img src="/android-chrome-192x192.png" alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
       </div>
     </div>
   );

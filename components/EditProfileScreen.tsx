@@ -5,6 +5,7 @@ import { BackIcon, PlusIcon, ChevronRightIcon, TrashIcon, PlayIcon, MaleIcon, Fe
 import { EditTextModal, EditTextAreaModal, EditGenderModal, EditBirthdayModal } from './modals/edit-profile';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api'; // Import api service
+import { checkAvatarIsCopy } from '../services/avatarGuard';
 import { processUserImages } from '../services/base64ConversionService';
 
 interface EditProfileScreenProps {
@@ -304,6 +305,17 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
       const file = (event.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
+      // 🛡️ BLOQUEIO DE FOTO COPIADA: se a imagem escolhida é igual à foto de
+      // outra conta (host), NÃO aplica — mostra "Não permitido". O nome e o
+      // restante do perfil continuam salvando normalmente.
+      try {
+        const check = await checkAvatarIsCopy(file);
+        if (check.blocked) {
+          alert('Não permitido');
+          return;
+        }
+      } catch { /* verificação falhou => não bloqueia */ }
+
       try {
         const result = await api.uploadAvatar(user.id, file);
         console.log('📸 Resultado do upload:', result);
@@ -361,6 +373,12 @@ const EditProfileScreen: React.FC<EditProfileScreenProps> = ({ user, onBack, onS
           let newAvatarUrl: string;
 
           if (file.type.startsWith('image/')) {
+              // 🛡️ Bloqueia foto copiada de outra conta ANTES do upload
+              const guard = await checkAvatarIsCopy(file);
+              if (guard.blocked) {
+                  alert('Não permitido');
+                  return;
+              }
               // Usar upload de avatar (arquivo) - retorna URL persistida, sem bloqueio de Base64
               const uploadResp = await api.uploadAvatar(user.id, file);
               newAvatarUrl = uploadResp.avatarUrl;

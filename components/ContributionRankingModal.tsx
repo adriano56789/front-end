@@ -41,6 +41,10 @@ interface ContributionRankingModalProps {
 }
 
 const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onClose, liveRanking, currentUser }) => {
+    // Avatar neutro (silhueta) — NUNCA fotos aleatórias externas
+    const PLACEHOLDER_AVATAR = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#27272a"/><circle cx="100" cy="78" r="34" fill="#52525b"/><path d="M40 168c0-33 27-56 60-56s60 23 60 56v32H40z" fill="#52525b"/></svg>'
+    );
     const [activeTab, setActiveTab] = useState<Period>('Live');
     const [data, setData] = useState<RankedUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +74,7 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                     }
                     
                     const mappedData = liveRanking
-                        .filter(u => u && u.value > 0)
+                        .filter(u => u && u.value > 0 && /^[0-9]+$/.test(String(u.id)))
                         .map(u => ({
                             ...u,
                             contribution: u.value,
@@ -94,11 +98,12 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                     } else if (!Array.isArray(rankingData)) {
                         setData([]);
                     } else {
-                        // Validar e formatar dados
+                        // Validar e formatar dados — SÓ contas reais (ID numérico)
                         const validData = rankingData.filter(user => 
                             user && 
                             typeof user === 'object' && 
-                            user.id && 
+                            user.id &&
+                            /^[0-9]+$/.test(String(user.id)) &&
                             user.name
                         ).map(user => ({
                             ...user,
@@ -141,13 +146,13 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm" onClick={onClose}>
-            {/* Backdrop to close */}
-            <div className="absolute inset-0 bg-black/40" />
-            
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-transparent transition-opacity duration-300" onClick={onClose}>
+            {/* Estilo painel de presente: bottom-sheet — a live CONTINUA visível
+                acima do painel (não sai da tela da transmissão). */}
+
             {/* Modal Content */}
             <div
-                className="relative w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl bg-[#0a0a0c]/95 backdrop-blur-xl flex flex-col overflow-hidden shadow-2xl border border-white/10"
+                className="relative w-full max-h-[88vh] h-auto rounded-t-3xl bg-[#0a0a0c]/95 backdrop-blur-xl flex flex-col overflow-hidden shadow-2xl border border-white/10"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Decorative background gradients */}
@@ -227,11 +232,11 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                                     <div className="w-20 h-20 rounded-full p-[2px] bg-gradient-to-b from-yellow-300 via-yellow-500 to-yellow-700 shadow-[0_0_20px_rgba(234,179,8,0.3)] relative z-10">
                                         <div className="w-full h-full rounded-full border-[2px] border-[#0a0a0c] overflow-hidden bg-gray-800">
                                             <img 
-                                                src={topUser.avatarUrl || 'https://picsum.photos/seed/default-avatar/200/200.jpg'} 
+                                                src={topUser.avatarUrl || PLACEHOLDER_AVATAR} 
                                                 alt={topUser.name || 'Usuário'} 
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
-                                                    e.currentTarget.src = 'https://picsum.photos/seed/fallback-avatar/200/200.jpg';
+                                                    e.currentTarget.src = PLACEHOLDER_AVATAR;
                                                 }}
                                             />
                                         </div>
@@ -304,11 +309,11 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
 
                                         <div className={`w-10 h-10 rounded-full p-[1.5px] ${index === 0 ? 'bg-pink-400' : index === 1 ? 'bg-blue-400' : 'bg-gray-600'} overflow-hidden`}>
                                             <img 
-                                                src={user.avatarUrl || 'https://picsum.photos/seed/default-avatar/200/200.jpg'} 
+                                                src={user.avatarUrl || PLACEHOLDER_AVATAR} 
                                                 alt={user.name || 'Usuário'} 
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => {
-                                                    e.currentTarget.src = 'https://picsum.photos/seed/fallback-avatar/200/200.jpg';
+                                                    e.currentTarget.src = PLACEHOLDER_AVATAR;
                                                 }}
                                             />
                                         </div>

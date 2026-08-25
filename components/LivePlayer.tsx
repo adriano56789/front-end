@@ -60,12 +60,12 @@ export default function LivePlayer({
         onPlaying?.();
       }
 
-      // Check periodically in case stream wasn't ready on first mount
+      // Check periodically: cobre stream não pronto no mount E o upgrade
+      // cru → processado (quando o filtro fica pronto depois do preview).
       const checkInterval = setInterval(() => {
-        if (video.srcObject) return;
         const currentLocal = streamPublishService.getBeautyProcessedStream()
           || streamPublishService.getCurrentStream();
-        if (currentLocal) {
+        if (currentLocal && video.srcObject !== currentLocal) {
           video.srcObject = currentLocal;
           video.play().catch(e => console.warn('[LivePlayer] Erro ao reproduzir preview local (retrying):', e));
           onPlaying?.();
@@ -85,10 +85,33 @@ export default function LivePlayer({
       console.log(`📡 [LivePlayer] [SRS] Iniciando player para stream ID: ${streamId}`);
       console.log('📡 [SRS] Conectando ao SRS...');
 
+      // 🔄 RESTAURAÇÃO APÓS F5: tentativas de reconexão — se a assinatura WHEP
+      // falhar (sessão antiga morta / host re-negociando), tentamos de novo
+      // antes de declarar erro. Evita tela preta ao recarregar a página.
+      let retryCount = 0;
+      const MAX_RETRIES = 3;
+      let retryTimer: ReturnType<typeof setTimeout> | null = null;
+      let destroyed = false;
+
       const engine = new SrsPlayerEngine({
         autoMuteRetry: true,
         userMuted: mutedRef.current,
       });
+
+      const connect = () => {
+        if (destroyed) return;
+        engine.start(streamId, video).catch((err) => {
+          console.error('[LivePlayer] Error running SrsPlayerEngine:', err);
+          if (destroyed) return;
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            console.warn(`🔄 [LivePlayer] Reconectando à live (tentativa ${retryCount}/${MAX_RETRIES})...`);
+            retryTimer = setTimeout(connect, 1500 * retryCount);
+          } else {
+            onError?.();
+          }
+        });
+      };
 
       const unsubState = engine.on('stateChanged', (prev: string, next: string) => {
         console.log(`[LivePlayer] [SRS] Estado mudou: ${prev} -> ${next}`);
@@ -102,16 +125,22 @@ export default function LivePlayer({
           onPlaying?.();
         } else if (next === 'error') {
           console.error('❌ [LivePlayer] FALHA ao conectar na live (verifique se o streamer está transmitindo)');
-          onError?.();
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            console.warn(`🔄 [LivePlayer] Reconectando à live (tentativa ${retryCount}/${MAX_RETRIES})...`);
+            if (retryTimer) clearTimeout(retryTimer);
+            retryTimer = setTimeout(connect, 1500 * retryCount);
+          } else {
+            onError?.();
+          }
         }
       });
 
-      engine.start(streamId, video).catch(err => {
-        console.error('[LivePlayer] Error running SrsPlayerEngine:', err);
-        onError?.();
-      });
+      connect();
 
       return () => {
+        destroyed = true;
+        if (retryTimer) clearTimeout(retryTimer);
         unsubState();
         engine.destroy();
       };
@@ -131,6 +160,7 @@ export default function LivePlayer({
         muted={isBroadcaster || muted}
         controls={false}
         className="w-full h-full object-cover"
+        style={{ filter: 'contrast(1.08) brightness(1.1) saturate(1.08)' }}
       />
     </div>
   );

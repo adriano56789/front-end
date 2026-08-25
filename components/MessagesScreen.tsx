@@ -1,6 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Conversation, User, Streamer } from '../types';
+import { api } from '../services/api';
 import { useTranslation } from '../i18n';
 import { FriendRequestListIcon, MaleIcon, FemaleIcon, RankIcon } from './icons';
 import { formatConvoTime } from '../utils/formatConvoTime';
@@ -19,6 +20,8 @@ interface MessagesScreenProps {
     liveStreamers?: Streamer[];
     onSelectStreamer?: (streamer: Streamer) => void;
     onOpenLive?: (user: User) => void;
+    // 🗑️ Chamado após apagar o histórico de uma conversa (remove da lista)
+    onConversationDeleted?: (friendId: string) => void;
 }
 
 const AgeBadge: React.FC<{ user: User }> = ({ user }) => (
@@ -80,17 +83,46 @@ interface ConversationItemProps {
     onStartChat: (user: User) => void;
     onViewProfile: (user: User) => void;
     onOpenLive?: (user: User) => void;
+    // 🗑️ Pressionar (long-press) na conversa → apagar histórico
+    onLongPress?: (conversation: Conversation) => void;
 }
 
 const isUserLive = (u: User) => !!u.isLive || (u as any).streamStatus === 'active' || !!(u as any).currentStreamId;
 
-const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onStartChat, onViewProfile, onOpenLive }) => {
+const ConversationItem: React.FC<ConversationItemProps> = ({ conversation, onStartChat, onViewProfile, onOpenLive, onLongPress }) => {
+    // 🗑️ LONG-PRESS: segurar o dedo ~500ms sobre a conversa abre opção de apagar
+    const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const longPressFired = useRef(false);
+
     const friend = conversation.friend;
     if (!friend) return null; // Guard: never render without a friend object
     const live = isUserLive(friend);
-    
+
+    const handleTouchStart = () => {
+        if (!onLongPress) return;
+        longPressFired.current = false;
+        pressTimer.current = setTimeout(() => {
+            longPressFired.current = true;
+            onLongPress(conversation);
+        }, 500);
+    };
+
+    const clearPressTimer = () => {
+        if (pressTimer.current) {
+            clearTimeout(pressTimer.current);
+            pressTimer.current = null;
+        }
+    };
+
     return (
-        <div className="flex items-center pl-4 pr-3 pt-3 cursor-pointer hover:bg-gray-800/50 transition-colors" onClick={() => onStartChat(friend)}>
+        <div
+            className="flex items-center pl-4 pr-3 pt-3 cursor-pointer hover:bg-gray-800/50 transition-colors select-none"
+            onClick={() => { if (!longPressFired.current) onStartChat(friend); }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={clearPressTimer}
+            onTouchMove={clearPressTimer}
+            onContextMenu={(e) => { e.preventDefault(); onLongPress?.(conversation); }}
+        >
             <button onClick={(e) => { e.stopPropagation(); onViewProfile(friend); }} className="relative flex-shrink-0 focus:outline-none rounded-full mr-3.5 mb-3 self-start mt-0.5">
                 <img 
                     src={friend.avatarUrl || `https://picsum.photos/seed/${friend.id || 'default'}/200/200.jpg`} 
@@ -224,10 +256,13 @@ const FriendItem: React.FC<FriendItemProps> = ({ friend, onStartChat, onViewProf
     );
 };
 
-const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, initialChatUserId, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer, onOpenLive }) => {
+const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProfile, conversations, friends, initialTab, initialChatUserId, onOpenFriendRequests, fans, followingUsers, liveStreamers, onSelectStreamer, onOpenLive, onConversationDeleted }) => {
     const [activeTab, setActiveTab] = useState(initialTab || 'messages');
     const { t } = useTranslation();
     const autoOpenedRef = React.useRef(false);
+    // 🗑️ Conversa selecionada via long-press para apagar histórico
+    const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         if (initialTab) {
@@ -255,6 +290,23 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
     const fanIds = new Set(safeFans.map(f => f.id));
     const outgoingRequests = safeFollowingUsers.filter(followed => !fanIds.has(followed.id));
     const latestOutgoingRequest = outgoingRequests.length > 0 ? outgoingRequests[outgoingRequests.length - 1] : null;
+
+    // 🗑️ Confirma e apaga o histórico do chat privado com a pessoa selecionada
+    const handleConfirmDelete = async () => {
+        if (!deleteTarget?.friend || isDeleting) return;
+        const meId = (window as any).currentUser?.id;
+        if (!meId) { setDeleteTarget(null); return; }
+        setIsDeleting(true);
+        try {
+            await api.deleteChatHistory(meId, deleteTarget.friend.id);
+            onConversationDeleted?.(deleteTarget.friend.id);
+        } catch (err) {
+            console.error('Erro ao apagar histórico:', err);
+        } finally {
+            setIsDeleting(false);
+            setDeleteTarget(null);
+        }
+    };
 
     return (
         <div className="h-full flex flex-col bg-[#111111] text-white">
@@ -320,7 +372,7 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
                         {safeConversations.length > 0 && safeConversations
                             .filter(convo => convo && convo.friend) // guard against missing friend
                             .map(convo => (
-                                <ConversationItem key={convo.id} conversation={convo} onStartChat={onStartChat} onViewProfile={onViewProfile} onOpenLive={onOpenLive} />
+                                <ConversationItem key={convo.id} conversation={convo} onStartChat={onStartChat} onViewProfile={onViewProfile} onOpenLive={onOpenLive} onLongPress={setDeleteTarget} />
                             ))}
 
                         {safeConversations.length === 0 && safeFriends.length > 0 && (
@@ -349,6 +401,37 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
                     </div>
                 ) : null}
             </main>
+
+            {/* 🗑️ Modal: apagar histórico da conversa (long-press) — fundo transparente, sem escurecer a tela */}
+            {deleteTarget?.friend && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center" onClick={() => !isDeleting && setDeleteTarget(null)}>
+                    <div
+                        className="bg-[#1c1c1e] border border-white/10 rounded-2xl p-5 mx-6 w-full max-w-xs shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3 className="text-white font-semibold text-base mb-1.5">Apagar conversa?</h3>
+                        <p className="text-[#A0A0A5] text-sm leading-relaxed mb-5">
+                            Todo o histórico de mensagens com <span className="text-white font-medium">{deleteTarget.friend.name || 'este usuário'}</span> será apagado permanentemente.
+                        </p>
+                        <div className="flex gap-2.5">
+                            <button
+                                onClick={() => setDeleteTarget(null)}
+                                disabled={isDeleting}
+                                className="flex-1 py-2.5 rounded-xl bg-white/[0.06] text-zinc-200 text-sm font-medium hover:bg-white/10 transition-colors disabled:opacity-50"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleConfirmDelete}
+                                disabled={isDeleting}
+                                className="flex-1 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                                {isDeleting ? 'Apagando...' : 'Apagar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

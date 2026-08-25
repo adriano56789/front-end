@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BackIcon, PixIcon, MercadoPagoIcon, BankIcon, CheckCircleIcon, BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
+import { BackIcon, PixIcon, BankIcon, CheckCircleIcon, BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
@@ -12,7 +12,7 @@ interface ConfigureWithdrawalMethodScreenProps {
   addToast: (type: ToastType, message: string) => void;
 }
 
-type PaymentMethod = 'pix' | 'mercado_pago' | 'bank_eur' | 'bank_usd';
+type PaymentMethod = 'pix' | 'payoneer_account' | 'bank_eur' | 'bank_usd';
 
 const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenProps> = ({ onClose, currentUser, updateUser, addToast }) => {
   const { t } = useTranslation();
@@ -42,11 +42,15 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
         if (method === 'pix' && details.pixKey) {
             setSelectedMethod('pix');
             setPixKey(details.pixKey);
+        } else if (method === 'payoneer_account' && details.payoneerEmail) {
+            setSelectedMethod('payoneer_account');
+            setMercadoPagoEmail(details.payoneerEmail);
         } else if (method === 'mercado_pago' && details.email) {
-            setSelectedMethod('mercado_pago');
+            // Migração: contas antigas de Mercado Pago viram conta Payoneer
+            setSelectedMethod('payoneer_account');
             setMercadoPagoEmail(details.email);
-        } else if (method === 'bank') {
-            if ((details.currency || '').toUpperCase() === 'USD') {
+        } else if (method === 'bank' || method === 'bank_eur' || method === 'bank_usd') {
+            if (method === 'bank_usd' || (details.currency || '').toUpperCase() === 'USD') {
                 setSelectedMethod('bank_usd');
             } else {
                 setSelectedMethod('bank_eur');
@@ -84,13 +88,13 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
         }
         method = 'pix';
         details = { pixKey };
-    } else if (selectedMethod === 'mercado_pago') {
+    } else if (selectedMethod === 'payoneer_account') {
         if (!mercadoPagoEmail.trim() || !/\S+@\S+\.\S+/.test(mercadoPagoEmail)) {
-            addToast(ToastType.Error, "Por favor, insira um e-mail válido do Mercado Pago.");
+            addToast(ToastType.Error, "Por favor, insira um e-mail válido da conta Payoneer.");
             return;
         }
-        method = 'mercado_pago';
-        details = { email: mercadoPagoEmail };
+        method = 'payoneer_account';
+        details = { payoneerEmail: mercadoPagoEmail };
     } else {
         if (!accountHolder.trim()) {
             addToast(ToastType.Error, "Por favor, insira o nome do titular da conta.");
@@ -100,7 +104,7 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
             addToast(ToastType.Error, "Por favor, insira o nome do banco.");
             return;
         }
-        method = 'bank';
+        method = selectedMethod; // 'bank_eur' | 'bank_usd' — chave exata usada pelo fluxo Payoneer
         const addrComplete = addrStreet.trim() && addrCity.trim() && addrCountry.trim() &&
             addrNumber.trim() && addrNeighborhood.trim() && addrState.trim() && addrZip.trim();
         if (!addrComplete) {
@@ -221,7 +225,7 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
         <div className="space-y-4">
           <div className="flex gap-4">
             <PaymentMethodButton method="pix" label="PIX" icon={<PixIcon className="w-[45px] h-[45px]" />} />
-            <PaymentMethodButton method="mercado_pago" label="Mercado Pago" icon={<MercadoPagoIcon className="w-[45px] h-[45px]" />} />
+            <PaymentMethodButton method="payoneer_account" label="Payoneer" icon={<BankIcon className="w-[45px] h-[45px]" />} />
           </div>
 
           <div className="flex gap-4">
@@ -244,15 +248,15 @@ const ConfigureWithdrawalMethodScreen: React.FC<ConfigureWithdrawalMethodScreenP
           </div>
         )}
 
-        {selectedMethod === 'mercado_pago' && (
+        {selectedMethod === 'payoneer_account' && (
             <div className="space-y-2 mt-8">
-                <label htmlFor="mercado-pago-email" className="text-[12px] font-bold text-[#8e9196] block ml-1">E-mail do Mercado Pago</label>
+                <label htmlFor="payoneer-email" className="text-[12px] font-bold text-[#8e9196] block ml-1">E-mail da conta Payoneer</label>
                 <input
-                    id="mercado-pago-email"
+                    id="payoneer-email"
                     type="email"
                     value={mercadoPagoEmail}
                     onChange={(e) => setMercadoPagoEmail(e.target.value)}
-                    placeholder="Seu e-mail da conta"
+                    placeholder="Seu e-mail da conta Payoneer"
                     className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[18px] focus:outline-none border border-white/[0.05]"
                 />
             </div>

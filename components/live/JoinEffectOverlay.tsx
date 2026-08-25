@@ -43,8 +43,8 @@ const JoinEffectOverlay: React.FC<JoinEffectOverlayProps> = ({ userName, avatarU
   const onEndRef = useRef(onEnd);
   useEffect(() => { onEndRef.current = onEnd; }, [onEnd]);
 
-  // 🔒 Firebase é SÓ push — efeitos de entrada sempre locais (sanitize converte
-  // qualquer URL de Firebase Storage para o caminho local equivalente).
+  // 🔒 Efeitos de entrada sempre locais (sanitize converte
+  // qualquer URL externa para o caminho local equivalente).
   const EFFECT_URL = sanitizeMediaUrl(entranceEffect?.url) || ENTRANCE_EFFECT_URL;
   const EFFECT_CONFIG_URL = sanitizeMediaUrl(entranceEffect?.configUrl) || ENTRANCE_VAP_CONFIG_URL;
   const EFFECT_W = entranceEffect?.w || ENTRANCE_W;
@@ -143,7 +143,7 @@ const JoinEffectOverlay: React.FC<JoinEffectOverlayProps> = ({ userName, avatarU
   }, [userName, avatarUrl, entranceEffect]);
 
   return (
-    <div className="fixed inset-0 pointer-events-none select-none flex items-center justify-center" style={{ zIndex: 5 }}>
+    <div className="fixed inset-0 pointer-events-none select-none flex items-end justify-center pb-[calc(env(safe-area-inset-bottom,0px)+64px)]" style={{ zIndex: 5 }}>
       <div
         className="relative"
         style={{

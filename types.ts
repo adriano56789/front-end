@@ -191,6 +191,8 @@ export interface User {
   coverUrl?: string;
   photos?: string[];
   country?: string;
+  /** 🌐 Idioma preferido do usuário (i18n) — ex: 'pt', 'en', 'es' */
+  language?: string;
   age?: number;
   gender?: 'male' | 'female' | 'not_specified';
   level: number;
@@ -305,7 +307,10 @@ export interface Message {
   // 💬 Resposta a outra mensagem (estilo WhatsApp)
   replyTo?: {
     text?: string;
-    imageUrl?: string;
+  imageUrl?: string;
+  // 🔞 Classificação de conteúdo adulto (+18): proteção reforçada —
+  // sem print, sem gravação, sem download, blob revogável na sessão.
+  isAdultContent?: boolean;
     from?: string;
     senderName?: string;
   };
@@ -313,6 +318,8 @@ export interface Message {
   senderName?: string;
   senderAvatar?: string;
   senderAge?: number;
+  /** 🔞 Mídia adulta (+18): carregada como blob sem cache e revogada */
+  isAdultContent?: boolean;
   senderLevel?: number;
   senderIdentification?: string;
   senderBirthday?: string;
@@ -365,6 +372,7 @@ export interface EndStreamSummary {
   user: {
     name: string;
     avatarUrl: string;
+    country?: string;
   };
 }
 
@@ -377,6 +385,10 @@ export interface NotificationSettings {
 }
 
 export interface BeautySettings {
+    // 🎨 AUTO-BELEZA — chave mestre: liga sozinha ao entrar ao vivo.
+    // 0 = desligado; 1-100 = intensidade (padrão natural 35). Salva no banco
+    // junto com os demais efeitos e é carregada automaticamente na live.
+    'Suavização do rosto'?: number;
     // Efeitos de beleza com valores numéricos
     'Branquear'?: number;
     'Alisar a pele'?: number;

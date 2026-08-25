@@ -343,8 +343,8 @@
         "description": "Selecione como você gostaria de receber seu dinheiro.",
         "pixKey": "Chave PIX",
         "pixPlaceholder": "CPF, e-mail ou telefone",
-        "mercadoPagoEmail": "E-Mail",
-        "mercadoPagoPlaceholder": "E-mail da conta Mercado Pago"
+        "payoneerEmail": "E-Mail",
+        "payoneerPlaceholder": "E-mail da conta Payoneer"
     }
   },
   "confirmPurchase": {

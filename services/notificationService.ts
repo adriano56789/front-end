@@ -1,13 +1,13 @@
 import { api } from './api';
-import { requestFcmToken, getFcmToken } from './firebase';
+import { ensurePushSubscription, unsubscribePush, isWebPushSupported, cleanupOldServiceWorkers } from './webPushService';
 
 export type NotifPermissionStatus = 'granted' | 'denied' | 'default' | 'unsupported';
 
-// Lógica única de permissão: granted → registra token; denied → retorna;
+// Lógica única de permissão: granted → registra subscription; denied → retorna;
 // default → pede permissão (deve ser chamado dentro de gesto do usuário no
 // celular — Chrome Android / iOS PWA ignoram requestPermission fora de um toque).
 async function ensurePermission(userId: string): Promise<NotifPermissionStatus> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (!isWebPushSupported()) {
     return 'unsupported';
   }
 
@@ -35,17 +35,28 @@ async function ensurePermission(userId: string): Promise<NotifPermissionStatus> 
  * silenciosamente (aí o CTA com gesto do usuário cobre).
  */
 export async function initNotifications(userId: string): Promise<NotifPermissionStatus> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (!isWebPushSupported()) {
     return 'unsupported';
   }
 
-  // Já ativa: registra o token direto (sem re-pedir permissão).
+  // 🧹 SEMPRE limpa SW antigo (firebase-messaging-sw.js) no boot — mesmo
+  // sem permissão concedida. Isso garante que o SW novo (/sw.js) assume
+  // o controle dos pushes. SEM isso, o SW antigo interceptava o push
+  // e só mostrava notificação DENTRO do app (postMessage), nunca fora
+  // (showNotification).
+  await cleanupOldServiceWorkers();
+
+  // Já ativa: registra a subscription direto (sem re-pedir permissão).
   if (Notification.permission === 'granted') {
     await registerToken(userId);
+    console.log('[NOTIFICATION] Permissão já concedida — subscription registrada');
     return 'granted';
   }
 
-  return ensurePermission(userId);
+  // ⚠️ NÃO pede permissão aqui (sem gesto do usuário = navegador ignora).
+  // Retorna o status atual pra quem chamou decidir mostrar o CTA.
+  console.log('[NOTIFICATION] Permissão:', Notification.permission, '— aguardando gesto do usuário');
+  return Notification.permission as NotifPermissionStatus;
 }
 
 /**
@@ -56,30 +67,17 @@ export async function requestNotificationPermission(userId: string): Promise<Not
   return ensurePermission(userId);
 }
 
-async function registerToken(userId: string) {
+async function registerToken(_userId: string) {
   try {
-    const token = await requestFcmToken();
-    if (token) {
-      await api.post('/api/notifications/register-token', {
-        userId,
-        token,
-        platform: 'web',
-      });
-      console.log('[NOTIFICATION] Token registrado no servidor');
+    const endpoint = await ensurePushSubscription();
+    if (endpoint) {
+      console.log('[NOTIFICATION] Subscription Web Push registrada no servidor');
     }
   } catch (error) {
-    console.error('[NOTIFICATION] Erro ao registrar token:', error);
+    console.error('[NOTIFICATION] Erro ao registrar subscription:', error);
   }
 }
 
 export async function unregisterToken() {
-  const token = getFcmToken();
-  if (!token) return;
-
-  try {
-    await api.delete('/api/notifications/unregister-token', { data: { token } });
-    console.log('[NOTIFICATION] Token removido do servidor');
-  } catch (error) {
-    console.error('[NOTIFICATION] Erro ao remover token:', error);
-  }
+  await unsubscribePush();
 }

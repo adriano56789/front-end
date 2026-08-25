@@ -6,16 +6,16 @@ import { useTranslation } from '../i18n';
 import { api } from '../services/api';
 import { useComposerKeyboard, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
-import { LoadingSpinner } from './Loading';
 import LiveBadge from './ui/LiveBadge';
 import { formatMessageTime } from '../utils/formatMessageTime';
 import { syncServerTime } from '../utils/serverTime';
 import { emitChatTyping, connectSocket } from '../services/socketService';
 import { translateText } from '../services/translate';
+
 // 💬 Chat privado via WebSocket (Socket.IO): o socketService faz a ponte do
 // evento `newChatMessage` do backend para o window (abaixo). A busca inicial
 // usa REST e o envio usa REST (persiste no banco); a entrega em tempo real é
-// via WebSocket — sem Firebase. Comportamento estilo WhatsApp: indicador
+// via WebSocket. Comportamento estilo WhatsApp: indicador
 // "digitando...", ✓✓ azul em tempo real, responder mensagem e separadores de
 // data (Hoje/Ontem).
 
@@ -123,6 +123,30 @@ const ChatMessageBubble: React.FC<{
     const senderLevel = message.senderLevel || user.level;
     const senderBirthday = message.senderBirthday || user.birthday;
 
+    // 🔞 Conteúdo +18 (remetente maior de idade OU flag explícita): proteção
+    // TOTAL — a imagem é baixada como BLOB sem cache de disco e o objeto é
+    // revogado quando a mensagem sai da tela. Nada fica salvo/exportável.
+    const isAdultMedia = message.isAdultContent === true || (message.senderAge ?? 0) >= 18;
+    const [adultBlobUrl, setAdultBlobUrl] = useState<string | null>(null);
+    useEffect(() => {
+        if (!isAdultMedia || !message.imageUrl) return;
+        let revoked: string | null = null;
+        fetch(message.imageUrl, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.blob() : null))
+            .then((b) => {
+                if (b) {
+                    revoked = URL.createObjectURL(b);
+                    setAdultBlobUrl(revoked);
+                }
+            })
+            .catch(() => {});
+        return () => {
+            if (revoked) URL.revokeObjectURL(revoked);
+            setAdultBlobUrl(null);
+        };
+    }, [isAdultMedia, message.imageUrl]);
+    const protectedImageUrl = adultBlobUrl || message.imageUrl || null;
+
     // Verificar se hoje é aniversário
     const isBirthday = () => {
         if (!senderBirthday) return false;
@@ -132,13 +156,30 @@ const ChatMessageBubble: React.FC<{
                today.getMonth() === birthday.getMonth();
     };
 
-    // 📌 Long-press (estilo WhatsApp): segurar na mensagem abre "Responder"
+    // 📌 Long-press (estilo WhatsApp): segurar na mensagem abre "Responder".
+    // 🖐️ MAS se o usuário estiver SELECIONANDO TEXTO (pra copiar), o "Responder"
+    // é CANCELADO na hora — seleção nativa tem prioridade (copiar/colar funciona).
     const pressTimerRef = useRef<number | null>(null);
     const pressTriggeredRef = useRef(false);
+    const onSelectionChange = () => {
+        try {
+            const sel = document.getSelection?.();
+            if (sel && !sel.isCollapsed && String(sel).length > 0 && pressTimerRef.current) {
+                window.clearTimeout(pressTimerRef.current);
+                pressTimerRef.current = null;
+            }
+        } catch { /* ignora */ }
+    };
     const onPressStart = () => {
         if (!onReply) return;
         pressTriggeredRef.current = false;
+        document.addEventListener('selectionchange', onSelectionChange);
         pressTimerRef.current = window.setTimeout(() => {
+            // Se já começou a seleção de texto, NÃO abre "Responder"
+            try {
+                const sel = document.getSelection?.();
+                if (sel && !sel.isCollapsed && String(sel).length > 0) return;
+            } catch { /* segue */ }
             pressTriggeredRef.current = true;
             onReply(message);
             navigator.vibrate?.(30);
@@ -149,6 +190,7 @@ const ChatMessageBubble: React.FC<{
             window.clearTimeout(pressTimerRef.current);
             pressTimerRef.current = null;
         }
+        document.removeEventListener('selectionchange', onSelectionChange);
     };
 
     return (
@@ -161,6 +203,10 @@ const ChatMessageBubble: React.FC<{
             onMouseUp={onPressEnd}
             onMouseLeave={onPressEnd}
             onContextMenu={(e) => {
+                // 🖐️ Toque longo no celular = seleção nativa de texto (copiar).
+                // Só intercepta o clique DIREITO do MOUSE (desktop) para "Responder".
+                const isTouch = typeof PointerEvent !== 'undefined' && e.nativeEvent instanceof PointerEvent && e.nativeEvent.pointerType === 'touch';
+                if (isTouch) return;
                 e.preventDefault();
                 if (onReply) onReply(message);
             }}
@@ -179,8 +225,12 @@ const ChatMessageBubble: React.FC<{
                 />
             </div>
             
-            {/* Chat Message Box with gorgeous live stream semi-transparent glass style matching feed */}
-            <div className={`relative z-10 max-w-[80%] md:max-w-[70%] rounded-2xl ${message.imageUrl && !message.text ? (isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none p-1' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none p-1') : `${isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none pr-6 pl-3.5' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none pl-6 pr-3.5'} py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.25)]`}`}>
+            {/* 💬 Bolha — MESMA RECEITA DO CHAT DA LIVE (live/ChatMessage.tsx):
+                whitespace-normal + break-words garantem quebra automática;
+                min-w-0 permite o item de flex encolher de verdade;
+                [overflow-wrap:anywhere] quebra até palavras gigantes.
+                Resultado: texto grande vira várias linhas, uma abaixo da outra. */}
+            <div className={`relative z-10 min-w-0 max-w-[80%] md:max-w-[70%] whitespace-normal break-words [overflow-wrap:anywhere] rounded-2xl ${message.imageUrl && !message.text ? (isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none p-1' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none p-1') : `${isMe ? 'bg-[#911eff]/20 border border-[#b91bff]/30 rounded-tr-none pr-6 pl-3.5' : 'bg-white/[0.04] border border-white/[0.06] rounded-tl-none pl-6 pr-3.5'} py-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.25)]`}`}>
                 {/* 📌 Citação da mensagem respondida (estilo WhatsApp) */}
                 {message.replyTo && (
                     <div className={`mb-1.5 rounded-lg border-l-4 px-2.5 py-1.5 text-xs ${isMe ? 'bg-[#3a1a52]/60 border-[#d21fff]' : 'bg-black/30 border-[#00e5ff]'}`}>
@@ -258,15 +308,30 @@ const ChatMessageBubble: React.FC<{
                 )}
                 {message.imageUrl && (
                     <button
-                        onClick={() => onImageClick(message.imageUrl!)}
+                        onClick={() => onImageClick(protectedImageUrl!)}
                         className={`focus:outline-none rounded-lg overflow-hidden transition-transform hover:scale-105 active:scale-95 ${message.text ? 'mb-2' : ''}`}
                         aria-label="View image full screen"
                     >
-                        <img
-                            src={message.imageUrl}
-                            alt="Chat attachment"
-                            className="max-w-[220px] sm:max-w-[260px] max-h-[300px] w-auto h-auto object-contain rounded-lg bg-black/20"
-                        />
+                        {/* FORA da sala de transmissao: SEM protecao de captura
+                            (regra do dono). +18 continua usando blob revogavel. */}
+                        <span
+                            className="relative block"
+                        >
+                            <img
+                                src={protectedImageUrl || undefined}
+                                alt="Chat attachment"
+                                className="max-w-[220px] sm:max-w-[260px] max-h-[300px] w-auto h-auto object-contain rounded-lg bg-black/20"
+                                draggable={false}
+                            />
+                            {isAdultMedia && (
+                                <span
+                                    style={{ opacity: 0.22, transition: 'all .6s ease', top: '6%', right: '8%' }}
+                                    className="absolute z-[5] pointer-events-none select-none text-white text-[9px] font-mono font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap"
+                                >
+                                    @{senderName} · 🔞 LiveGO
+                                </span>
+                            )}
+                        </span>
                     </button>
                 )}
                 {message.text && (
@@ -275,9 +340,11 @@ const ChatMessageBubble: React.FC<{
                             <span className="text-[10px] text-zinc-400/70 font-mono whitespace-nowrap">{formatTimestamp(message.timestamp)}</span>
                             {isMe && <MessageStatus status={message.status} />}
                         </div>
-                        <p className="text-zinc-100 font-sans tracking-wide break-words text-[13.5px] leading-relaxed font-semibold">{message.text}</p>
+                        {/* whitespace-pre-line: preserva as quebras de linha (\n) do texto
+                            enviado — cada parte aparece uma abaixo da outra, igual WhatsApp/live */}
+                        <p className="text-zinc-100 font-sans tracking-wide break-words whitespace-pre-line [overflow-wrap:anywhere] text-[13.5px] leading-relaxed font-semibold">{message.text}</p>
                         {showTranslated && translatedText && (
-                            <p className="text-zinc-300 italic font-sans tracking-wide break-words text-[13.5px] leading-relaxed border-t border-white/10 mt-1 pt-1">🔤 {translatedText}</p>
+                            <p className="text-zinc-300 italic font-sans tracking-wide break-words whitespace-pre-line [overflow-wrap:anywhere] text-[13.5px] leading-relaxed border-t border-white/10 mt-1 pt-1">🔤 {translatedText}</p>
                         )}
                     </div>
                 )}
@@ -307,6 +374,11 @@ const BecameFriendsIndicator: React.FC<{ onNavigate: () => void }> = ({ onNaviga
 
 const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentUser, onOpenProfile, onNavigateToFriends, onFollowUser, onBlockUser, onReportUser, onOpenPhotoViewer, messages: propMessages, sendFile: propSendFile, onOpenLive }) => {
     const [messages, setMessages] = useState<Message[]>([]);
+    // 💬 Histórico: enquanto a API não responde, NÃO mostramos a tela
+    // "Nenhuma mensagem ainda". Se a conversa JÁ TEM mensagens, o chat abre
+    // DIRETO com elas (sem passar pela tela vazia); se realmente não tiver
+    // nenhuma, aí sim mostramos o estado vazio.
+    const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(!propMessages || propMessages.length === 0);
     const effectiveMessages = useMemo(() => {
         const base = propMessages || messages;
         const sortTime = (m: any) => {
@@ -316,7 +388,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         return [...base].sort((a, b) => sortTime(a) - sortTime(b));
     }, [propMessages, messages]);
     const [newMessage, setNewMessage] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
     const [userStatus, setUserStatus] = useState<{ isOnline?: boolean; lastSeen?: string } | null>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
@@ -343,6 +414,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     } = useComposerKeyboard();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const blobUrlsRef = useRef<string[]>([]);
+
+    // 📝 Auto-resize textarea: ajusta a altura automaticamente
+    const autoResizeTextarea = useCallback(() => {
+        const ta = composerInputRef.current;
+        if (!ta) return;
+        ta.style.height = 'auto';
+        const maxH = 120; // ~5 linhas
+        ta.style.height = Math.min(ta.scrollHeight, maxH) + 'px';
+    }, []);
     const { t } = useTranslation();
     const chatKey = useMemo(() => {
         const cId = currentUser?.id;
@@ -408,13 +488,8 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     };
 
     const fetchInitialData = useCallback(async () => {
-        setIsLoading(true);
-        
-        // 📂 SEM cache: as mensagens vivem no BANCO (REST), então sempre
-        // buscamos do servidor ao abrir. O MERGE garante que nada some: mescla
-        // as do servidor com as que já estavam na tela (envios otimistas,
-        // recebidas por socket que ainda não foram persistidas). Servidor
-        // vence em conflito de ID; o resto local é mantido.
+        // ⚡ SEM spinner: carrega do banco e renderiza direto.
+        setIsLoadingHistory(true);
         try {
             const [fetchedMessages, status] = await Promise.all([
                 api.getChatMessages(user.id, currentUser.id),
@@ -431,8 +506,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             setUserStatus(status);
             syncFromMessages(fetched);
         } catch (error) {
+            // Falhou a busca: tenta mais uma vez antes de decidir mostrar vazio
+            try {
+                const retry = await api.getChatMessages(user.id, currentUser.id);
+                setMessages(prev => (prev && prev.length > 0 ? prev : (retry || [])));
+                syncFromMessages(retry || []);
+            } catch (_) { /* mantém o que temos */ }
         } finally {
-            setIsLoading(false);
+            setIsLoadingHistory(false);
         }
     }, [user.id, currentUser.id]);
 
@@ -489,6 +570,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
             setTimeout(scrollMessagesToBottom, 60);
         }
     }, [effectiveMessages.length]);
+
+    // 📝 Quando o texto é limpo (após enviar), reseta a altura do textarea
+    useEffect(() => {
+        if (!newMessage) {
+            const ta = composerInputRef.current as HTMLTextAreaElement | null;
+            if (ta) ta.style.height = 'auto';
+        }
+    }, [newMessage]);
 
     // ⌨️ Quando o teclado abre (keyboardInset sobe), rolar a última mensagem
     // para cima do input — rolagem INTERNA, sem mover a página nem a barra.
@@ -838,11 +927,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     {/* overscroll-contain: a rolagem existe SÓ aqui (mensagens);
                         não propaga para a tela/página de jeito nenhum */}
                     <div ref={messagesScrollRef} className="absolute inset-0 overflow-y-auto no-scrollbar overscroll-contain">
-                    {isLoading ? (
-                        <div className="flex items-center justify-center h-full">
-                            <LoadingSpinner />
-                        </div>
-                    ) : effectiveMessages.length === 0 ? (
+                    {!isLoadingHistory && effectiveMessages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center text-center px-8 py-4 select-none h-full">
                             <div className="relative mb-6">
                                 <div className="w-[90px] h-[90px] bg-[#1a1721] rounded-[32px] flex items-center justify-center">
@@ -914,8 +999,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                 {/* ⌨️ Barra de mensagem 100% FIXA: bottom é SEMPRE
                     safe-area-inset-bottom — o teclado NUNCA a move. Ao digitar,
                     ela fica apenas INVISÍVEL (opacity) e o composer (SEGUNDA
-                    barra) aparece colado acima do teclado, por cima dela. */}
-                <footer className={`fixed left-0 right-0 z-10 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128] transition-all duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                    barra) aparece colado acima do teclado, por cima dela.
+                    z-30 > avatar das bolhas (z-20): ao rolar, o avatar passa
+                    POR BAIXO da barra, nunca por cima. */}
+                <footer className={`fixed left-0 right-0 z-30 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128] transition-all duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     {replyTo && (
                         <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
                             <div className="min-w-0 flex-1">
@@ -964,16 +1051,16 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                         >
                             <GalleryIcon className="w-5 h-5" />
                         </button>
-                        <div className="flex-grow h-10">
+                        <div className="flex-grow min-h-[40px] flex items-center">
                             <button
                                 type="button"
                                 ref={chatInputRef}
                                 tabIndex={-1}
                                 onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                                className="w-full h-full bg-transparent text-[14px] px-2 text-left focus:outline-none cursor-pointer select-none"
+                                className="w-full bg-transparent text-[14px] px-2 py-2 text-left focus:outline-none cursor-pointer select-none whitespace-normal break-words [overflow-wrap:anywhere] leading-relaxed line-clamp-2 overflow-hidden"
                             >
                                 {newMessage ? (
-                                    <span className="text-white">{newMessage}</span>
+                                    <span className="text-white whitespace-normal break-words [overflow-wrap:anywhere]">{newMessage}</span>
                                 ) : (
                                     <span className="text-[#5a5860]">Diga oi...</span>
                                 )}
@@ -1037,15 +1124,15 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                 </div>
                             )}
                             <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
-                                <div className="flex-grow h-10">
-                                    <input
+                                <div className="flex-grow min-h-[40px]">
+                                    <textarea
                                         ref={composerInputRef}
-                                        type="text"
+                                        rows={1}
                                         placeholder="Diga oi..."
                                         value={newMessage}
                                         enterKeyHint="send"
                                         autoComplete="off"
-                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); }}
+                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); autoResizeTextarea(); }}
                                         onBlur={() => {
                                             // Só fecha se o foco saiu do composer por completo.
                                             // Não fecha em blur transitório do navegador (mobile).
@@ -1055,8 +1142,14 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                                 }
                                             }, 120);
                                         }}
-                                        onKeyPress={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(); } }}
-                                        className="w-full h-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 focus:outline-none"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                        className="w-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 py-2.5 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
+                                        style={{ height: 'auto', minHeight: '40px' }}
                                     />
                                 </div>
                                 <button

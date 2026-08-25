@@ -27,6 +27,7 @@ import { streamPublishService } from '../services/streamPublishService';
 import { api } from '../services/api';
 import { videoProcessor, DEFAULT_BEAUTY_SETTINGS } from '../services/VideoProcessor';
 import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
+import { fetchAndApplyAutoBeauty } from '../services/autoBeauty';
 import { setPreferredCameraResolution, getVideoConstraints } from '../services/cameraService';
 
 // Interface para propriedades globais da window
@@ -206,33 +207,9 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
             // ✅ Se o usuário tem configurações salvas, elas VENCEM o padrão.
             // Chaves não salvas mantêm o DEFAULT (imagem limpa/jovem/nítida) —
-            // não zeram como antigamente.
-            try {
-                if (currentUser?.id) {
-                    const saved = await api.getBeautySettings(currentUser.id);
-                    const s = saved || {};
-                    const num = (v: any, fallback: number) => (typeof v === 'number' ? v : fallback);
-                    videoProcessor.updateBeautySettings({
-                        ...DEFAULT_BEAUTY_SETTINGS,
-                        whitening: num(s['Branquear'], DEFAULT_BEAUTY_SETTINGS.whitening),
-                        smoothing: num(s['Alisar a pele'], DEFAULT_BEAUTY_SETTINGS.smoothing),
-                        saturation: num(s['Ruborizar'], DEFAULT_BEAUTY_SETTINGS.saturation),
-                        contrast: num(s['Contraste'], DEFAULT_BEAUTY_SETTINGS.contrast),
-                        whiteBalance: num(s['Balanço de Branco'], DEFAULT_BEAUTY_SETTINGS.whiteBalance),
-                        acneRemoval: num(s['Remover manchas'], DEFAULT_BEAUTY_SETTINGS.acneRemoval),
-                        wrinkleSmoothing: num(s['Suavizar rugas'], DEFAULT_BEAUTY_SETTINGS.wrinkleSmoothing),
-                        darkCircle: num(s['Clarear olheiras'], DEFAULT_BEAUTY_SETTINGS.darkCircle),
-                        shineReduction: num(s['Reduzir brilho'], DEFAULT_BEAUTY_SETTINGS.shineReduction),
-                        babyFace: num(s['Rosto Bebê'], DEFAULT_BEAUTY_SETTINGS.babyFace),
-                        teethWhitening: num(s['Clarear dentes'], DEFAULT_BEAUTY_SETTINGS.teethWhitening),
-                        sharpness: num(s['Nitidez'], DEFAULT_BEAUTY_SETTINGS.sharpness),
-                        faceVolume3D: num(s['Efeito 3D'], DEFAULT_BEAUTY_SETTINGS.faceVolume3D),
-                        noiseReduction: num(s['Limpar Chiado'], DEFAULT_BEAUTY_SETTINGS.noiseReduction)
-                    });
-                }
-            } catch (e) {
-                // Mantém o filtro padrão se não conseguir carregar as salvas
-            }
+            // não zeram como antigamente. (Lógica compartilhada com a sala de
+            // transmissão — services/autoBeauty.ts)
+            await fetchAndApplyAutoBeauty(currentUser?.id);
 
             console.log('✅ [GOLIVE] Filtro padrão aplicado na abertura da câmera (nitidez + 3D)');
         } catch (e) {

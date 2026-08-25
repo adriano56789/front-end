@@ -1,7 +1,7 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
-// (v12: push do chat estilo WhatsApp com vibração de alerta)
 // (v14: deploy roleta host-only + notificações WhatsApp + painel de beleza)
-const CACHE_NAME = 'livenza-cache-v14';
+// (v16: Web Push NATIVO — push via protocolo Web Push + VAPID)
+const CACHE_NAME = 'livenza-cache-v16';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -114,51 +114,33 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Firebase Cloud Messaging (FCM) — Notificações Push
+// Web Push NATIVO (protocolo Web Push + VAPID)
+//
+// O servidor envia JSON: { title, body, tag?, image?, data? { type, ... } }
+// - App em segundo plano/fechado → showNotification (estilo WhatsApp).
+// - App aberto e visível   → postMessage para a página (banner in-app),
+//   replicando o comportamento do push em foreground.
 // ═══════════════════════════════════════════════════════════════════════════
 
-importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
-
-firebase.initializeApp({
-  apiKey: 'AIzaSyDU8JgZnLW1o_B7q2fmG1IoYrXSAybNFRo',
-  authDomain: 'livego-54bb7.firebaseapp.com',
-  projectId: 'livego-54bb7',
-  storageBucket: 'livego-54bb7.firebasestorage.app',
-  messagingSenderId: '359465743060',
-  appId: '1:359465743060:web:e53ff179a5e9ee42164141',
-  measurementId: 'G-610W32XQJC',
-});
-
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage(async (payload) => {
-  console.log('[FCM-SW] Mensagem em background:', payload);
-
-  const d = payload.data || {};
-  const n = payload.notification || {};
+async function buildAndShowNotification(raw) {
+  const d = raw.data || {};
 
   // 💬 Mensagem de chat: título = NOME do remetente, corpo = texto da mensagem.
-  // Funciona tanto com notification({title,body}) quanto com data-only
-  // ({senderName, text}) — o SW monta a notificação sozinho.
-  let notificationTitle = n.title || 'LiveGo';
-  let notificationBody = n.body || '';
-  let notifTag = d.conversationId || '';
+  let notificationTitle = raw.title || 'LiveGo';
+  let notificationBody = raw.body || '';
+  let notifTag = d.conversationId || raw.tag || d.senderId || d.senderName || 'livego-notif';
 
   if (d.type === 'new_message') {
-    notificationTitle = d.senderName || n.title || 'Nova mensagem';
-    notificationBody = d.text || d.message || n.body || 'Enviou uma mensagem';
+    notificationTitle = d.senderName || d.title || 'Nova mensagem';
+    notificationBody = d.text || d.message || notificationBody || 'Enviou uma mensagem';
     notifTag = d.conversationId || d.senderId || 'chat';
   } else if (!notificationBody && d.title && d.message) {
-    // fallback genérico para payloads data-only de outros tipos
     notificationTitle = d.title;
     notificationBody = d.message;
   }
 
-  // 🔔 Firebase/FCM serve SÓ para push na tela: ícone SEMPRE o favicon LOCAL
-  // (nunca icon remoto vindo do payload). A imagem GRANDE (Big Picture) é
-  // exibida ampliada na notificação de 'live_started' (avatar do streamer).
-  // A foto é tirada do payload OU buscada na API se o payload não trouxer.
+  // 🔔 Ícone SEMPRE o favicon LOCAL. A imagem GRANDE (Big Picture) só na
+  // 'live_started' — foto vem do payload OU é buscada na API.
   const notificationOptions = {
     body: notificationBody,
     icon: '/favicon.svg',
@@ -170,8 +152,16 @@ messaging.onBackgroundMessage(async (payload) => {
     data: d,
   };
 
+  if (d.type === 'new_message') {
+    // 📸 Estilo WhatsApp: FOTO de quem mandou como ícone da notificação
+    const senderPhoto = d.senderAvatar || d.avatar || d.avatarUrl || '';
+    if (senderPhoto) notificationOptions.icon = senderPhoto;
+    // 💬 Botão "Responder": abre direto na conversa pronta pra digitar
+    notificationOptions.actions = [{ action: 'reply', title: '💬 Responder' }];
+  }
+
   if (d.type === 'live_started') {
-    let liveImage = n.image || d.image || d.avatar || d.avatarUrl || d.streamerAvatar || '';
+    let liveImage = raw.image || d.image || d.avatar || d.avatarUrl || d.streamerAvatar || '';
     if (!liveImage) {
       const streamerId = d.streamerId || d.hostId || d.senderId || '';
       if (streamerId) {
@@ -188,7 +178,7 @@ messaging.onBackgroundMessage(async (payload) => {
             clearTimeout(timer);
           }
         } catch (err) {
-          console.warn('[FCM-SW] Sem foto do streamer para ampliar:', err);
+          console.warn('[WEB-PUSH SW] Sem foto do streamer para ampliar:', err);
         }
       }
     }
@@ -197,7 +187,70 @@ messaging.onBackgroundMessage(async (payload) => {
     }
   }
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  await self.registration.showNotification(notificationTitle, notificationOptions);
+}
+
+self.addEventListener('push', (event) => {
+  console.log('[WEB-PUSH SW] ⚡ Push recebido!');
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: 'LiveGo', body: (event.data && event.data.text()) || '' };
+  }
+  console.log('[WEB-PUSH SW] Payload:', JSON.stringify(payload).substring(0, 200));
+
+  event.waitUntil((async () => {
+    // ════════════════════════════════════════════════════════════════════
+    // 🔔 GARANTE que showNotification é chamado — é isso que faz a
+    // notificação aparecer NA TELA DO CELULAR (fora do app, estilo Zap).
+    // Mesmo que buildAndShowNotification falhe, o fallback garante a tela.
+    // ════════════════════════════════════════════════════════════════════
+    try {
+      await buildAndShowNotification(payload);
+      console.log('[WEB-PUSH SW] ✅ showNotification chamado com sucesso');
+    } catch (err) {
+      // Fallback: se qualquer erro acontecer (fetch de avatar, parsing, etc.),
+      // AINDA assim mostra a notificação básica — é melhor algo que nada.
+      console.error('[WEB-PUSH SW] Erro em buildAndShowNotification, usando fallback:', err);
+      try {
+        const d = payload.data || {};
+        const title = d.senderName || payload.title || 'LiveGo';
+        const body = d.text || d.message || payload.body || 'Nova mensagem';
+        await self.registration.showNotification(title, {
+          body,
+          icon: '/favicon.svg',
+          badge: '/favicon.svg',
+          tag: d.conversationId || d.senderId || 'livego-fallback',
+          renotify: true,
+          requireInteraction: true,
+          vibrate: [180, 80, 180],
+          data: d,
+        });
+        console.log('[WEB-PUSH SW] ✅ Fallback showNotification OK');
+      } catch (fallbackErr) {
+        console.error('[WEB-PUSH SW] ❌ Fallback também falhou:', fallbackErr);
+      }
+    }
+
+    // 📱 Notificação sempre enviada — agora manda pra página se estiver aberta
+    try {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const visibleClients = clientList.filter((c) => c.visibilityState === 'visible');
+      visibleClients.forEach((client) => {
+        client.postMessage({
+          type: 'PUSH_FOREGROUND',
+          payload: {
+            title: payload.title || '',
+            body: payload.body || '',
+            data: payload.data || {},
+          },
+        });
+      });
+    } catch {
+      // Sem clientes visíveis — tudo bem, a notificação do SO já foi mostrada
+    }
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -206,7 +259,34 @@ self.addEventListener('notificationclick', (event) => {
 
   const data = notification.data || {};
   const type = data.type;
-  console.log('[FCM-SW] notificationclick:', type, data);
+  console.log('[WEB-PUSH SW] notificationclick:', event.action || 'body', type, data);
+
+  // 💬 Mensagem de chat (clique na notificação OU botão "Responder"):
+  // foca o app aberto e manda abrir a conversa certa; se o app estava
+  // fechado, abre com deep-link /?openchat=<senderId>.
+  if (type === 'new_message' || event.action === 'reply') {
+    const senderId = data.senderId || data.from || '';
+    const openMsg = {
+      type: 'OPEN_CONVERSATION',
+      senderId,
+      senderName: data.senderName || data.fromUserName || '',
+      conversationId: data.conversationId || '',
+    };
+    event.waitUntil((async () => {
+      const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windowClients) {
+        try {
+          client.postMessage(openMsg);
+          if ('focus' in client) await client.focus();
+          return;
+        } catch (e) { /* tenta o próximo */ }
+      }
+      if (clients.openWindow) {
+        await clients.openWindow(senderId ? `/?openchat=${encodeURIComponent(senderId)}` : '/');
+      }
+    })());
+    return;
+  }
 
   let urlToOpen = '/';
 
@@ -219,12 +299,8 @@ self.addEventListener('notificationclick', (event) => {
   } else if (type === 'live_started' || type === 'live_invite_response') {
     const streamId = data.streamKey || data.streamId;
     urlToOpen = streamId ? `/stream/${streamId}` : '/';
-  } else if (type === 'new_message') {
-    // 💬 Mensagem de chat: abre diretamente a conversa específica com o remetente
-    const senderId = data.senderId || data.from || '';
-    urlToOpen = senderId ? `/messages?chat=${encodeURIComponent(senderId)}` : '/messages';
   } else {
-    urlToOpen = data.url || data.streamId ? `/${data.streamId || data.streamKey || ''}` : '/';
+    urlToOpen = '/';
   }
 
   event.waitUntil(

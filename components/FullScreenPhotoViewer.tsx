@@ -7,6 +7,7 @@ import { FeedPhoto, User } from '../types';
 import { CloseIcon, HeartIcon, PlayIcon } from './icons';
 
 import { api } from '../services/api';
+import { ContentWatermark } from './ContentShield';
 
 
 
@@ -112,6 +113,8 @@ const MediaItem: React.FC<{
 
     return (
         <div className="w-full h-full flex-shrink-0 relative flex items-center justify-center bg-black">
+            {/* FORA da sala de transmissao: SEM protecao de captura (regra do dono). */}
+            <div className="absolute inset-0">
             {isVideo ? (
                 <div className="relative w-full h-full flex items-center justify-center" onClick={togglePlay}>
                      <video 
@@ -120,6 +123,9 @@ const MediaItem: React.FC<{
                         className="max-w-full max-h-full object-contain" 
                         playsInline 
                         loop 
+                        controlsList="nodownload noremoteplayback"
+                        disablePictureInPicture
+                        onContextMenu={(e) => e.preventDefault()}
                     />
                     {!isPlaying && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
@@ -132,6 +138,7 @@ const MediaItem: React.FC<{
                     src={mediaUrl} 
                     alt="Full screen view" 
                     className="w-full h-full object-contain"
+                    draggable={false}
                     style={{
                         maxWidth: '100vw',
                         maxHeight: '100vh',
@@ -140,6 +147,8 @@ const MediaItem: React.FC<{
                     }}
                 />
             )}
+            <ContentWatermark userId={photo.user?.id} />
+            </div>
 
             {/* Bottom Overlay Controls */}
             <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none">

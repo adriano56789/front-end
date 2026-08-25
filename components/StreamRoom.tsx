@@ -1,4 +1,4 @@
-                  import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿                  import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import OnlineUsersModal from './live/OnlineUsersModal';
 const OnlineUsersModalAny: any = OnlineUsersModal;
 import ChatMessage from './live/ChatMessage';
@@ -28,6 +28,8 @@ import { RankedAvatar } from './live/RankedAvatar';
 import GiftAnimationPanel, { GiftAnimationPanelHandle } from './live/GiftAnimationPanel';
 import JoinEffectOverlay from './live/JoinEffectOverlay';
 import { streamPublishService } from '../services/streamPublishService';
+import { setProtectionContext } from '../services/contentProtection';
+import { onSocketEvent } from '../services/socketService';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 // Chat e presença via Socket.IO (useStreamChat) com sync inicial REST
 import AvatarWithFrame from './ui/AvatarWithFrame';
@@ -39,6 +41,8 @@ import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '..
 
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
+import { ensureLiveBeautyInRoom } from '../services/autoBeauty';
+import { videoProcessor } from '../services/VideoProcessor';
 
 interface ChatMessageType {
     id: string | number;
@@ -53,15 +57,23 @@ interface ChatMessageType {
     avatar?: string;
     followedUser?: string;
     isModerator?: boolean;
+    // 🎁 Mensagem de presente: clicar abre o modal de presentes (NÃO o perfil)
+    isGift?: boolean;
     activeFrameId?: string | null;
     frameExpiration?: string | null;
     timestamp?: string | number;
+    // 🔒 Denúncia automática de captura (print/gravação) — host pode banir
+    violationUserId?: string;
+    violationUserName?: string;
+    violationType?: 'print' | 'record' | 'capture' | 'contextmenu';
 }
 
 interface StreamRoomProps {
     streamer: Streamer;
     onRequestEndStream: () => void;
     onLeaveStreamView: () => void;
+    /** ⛔ Chamado quando o usuário está BANIDO pelo host → redireciona pra lista de bloqueio */
+    onBannedFromStream?: () => void;
     onStartPKBattle: (opponent: User) => void;
     onViewProfile: (user: User) => void;
     currentUser: User;
@@ -94,38 +106,38 @@ interface StreamRoomProps {
 const FollowChatMessage: React.FC<{ follower: string; followed: string; level?: number }> = ({ follower, followed, level }) => {
     const { t } = useTranslation();
     return (
-        <div className="flex items-center gap-0.5 text-[8px] bg-transparent rounded-[10px] px-1 py-px my-px max-w-[95%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/10 hover:scale-[1.01] active:scale-[0.98] animate-chat-message whitespace-normal break-words flex flex-wrap">
+        <div className="text-[8px] bg-purple-950/40 backdrop-blur-sm border border-purple-500/30 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-purple-900/50 animate-chat-message break-words leading-tight">
             <span 
-                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[8px]"
+                className="text-[#c084fc] font-extrabold tracking-wide font-sans text-[8px] shrink-0"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {follower}
             </span>
             
-            {/* Glossy Silver metal level badge matching the screenshot */}
-            <span className="bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[6px] font-black px-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans flex items-center h-[9px]">
+            <span className="inline-flex items-center bg-gradient-to-b from-zinc-200 via-white to-zinc-450 text-zinc-900 border border-zinc-200 text-[6px] font-black px-0.5 rounded-full shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.9),_0_1px_2px_rgba(0,0,0,0.2)] tracking-wide shrink-0 font-sans h-[9px] align-middle">
                 Lvl. {level || 1}
             </span>
 
             <span 
-                className="text-zinc-300 font-sans font-semibold text-[8px] tracking-wide"
+                className="text-zinc-300 font-sans font-semibold text-[8px] tracking-wide break-words"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {t('streamRoom.followed')}
             </span>
             <span 
-                className="text-[#c084fc] font-extrabold font-sans text-[8px]"
+                className="text-[#c084fc] font-extrabold font-sans text-[8px] shrink-0"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
-                {followed}! 🎉
+                {followed}!
             </span>
         </div>
     );
 };
 
-const MAX_CHAT_MESSAGES = 200;
+// 📱 Ritmo TikTok: chat efêmero — só as mensagens recentes ficam na sala
+const MAX_CHAT_MESSAGES = 50;
 
-const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
+const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, onLeaveStreamView, onBannedFromStream, onStartPKBattle, onViewProfile, currentUser, onOpenWallet, onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, setActiveScreen, onStartChatWithStreamer, onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, updateUser, liveSession, updateLiveSession, logLiveEvent, onStreamUpdate, refreshStreamRoomData, addToast, followingUsers, streamers, onSelectStream, onOpenVIPCenter, rankingData }) => {
     const { t } = useTranslation();
 
     // Early validation for required props
@@ -141,11 +153,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     }
 
     const [isUiVisible, setIsUiVisible] = useState(true);
-    const [showChatScreen, setShowChatScreen] = useState(false);
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
     const [isCoHostModalOpen, setIsCoHostModalOpen] = useState(false);
-    const [coHostModalMode, setCoHostModalMode] = useState<'cohost' | 'battle'>('cohost');
+    const [coHostModalMode, setCoHostModalMode] = useState<'cohost' | 'battle' | 'call'>('cohost');
     const [isOnlineUsersOpen, setOnlineUsersOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
@@ -167,8 +178,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [isModerationMode, setIsModerationMode] = useState(false);
     const [isVideoCallPiPOpen, setIsVideoCallPiPOpen] = useState(false);
+    // 📞 Dados do outro participante da chamada (para o PiP tocar o stream remoto certo)
+    const [remoteCallUser, setRemoteCallUser] = useState<{ streamId: string; name: string; avatar?: string } | null>(null);
     const chatInputRef = useRef<HTMLButtonElement>(null);
-    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
+    // ✨ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
     // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
     // abre um SEGUNDO campo de digitação (composer) colado acima do teclado.
     const {
@@ -180,6 +193,13 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         bottom: chatBarBottom,
     } = useComposerKeyboard();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
+
+    // ⚡ Sincronizar isAutoPrivateInviteEnabled quando liveSession carrega (null → dados)
+    useEffect(() => {
+        if (liveSession && liveSession.isAutoPrivateInviteEnabled !== undefined) {
+            setIsAutoPrivateInviteEnabled(liveSession.isAutoPrivateInviteEnabled);
+        }
+    }, [liveSession?.isAutoPrivateInviteEnabled]);
     const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
     const previousOnlineUsersRef = useRef<(User & { value: number })[]>([]);
@@ -190,7 +210,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    // 🎁 Ref para o GiftAnimationPanel (painel independente de animação de presentes)
+    // 🎁 Ref para o GiftAnimationPanel (painel independente de animação de presentes)
     const giftPanelRef = useRef<GiftAnimationPanelHandle>(null);
 
     // 📡 Cleanup do typingTimeout ao desmontar
@@ -248,6 +268,8 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isLocalMuted, setIsLocalMuted] = useState(false);
     // 🔴 Live encerrada pelo broadcaster: mantém a sala aberta e o chat visível
     const [streamEnded, setStreamEnded] = useState(false);
+    const streamEndedRef = useRef(false);
+    useEffect(() => { streamEndedRef.current = streamEnded; }, [streamEnded]);
 
     // Native PiP (out-of-app) — minimizar automático via botão HOME/VOLTAR do
     // celular (autoPictureInPicture ativado no hook). Sem botão extra na sala.
@@ -285,6 +307,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const joinEffectShownRef = useRef(false);
     const [pinnedGifts, setPinnedGifts] = useState<{ gift: Gift; label: string }[]>([]);
     const [activeLiveInvite, setActiveLiveInvite] = useState<{ inviteId: string; type: string; from: string; fromName: string; streamId: string } | null>(null);
+    // Espelho em ref para leitura dentro de handlers de socket (sem recriar o effect)
+    const activeLiveInviteRef = useRef(activeLiveInvite);
+    useEffect(() => { activeLiveInviteRef.current = activeLiveInvite; }, [activeLiveInvite]);
 
     // Estado para monitoramento de publish SRS
     const [publishStatus, setPublishStatus] = useState<SrsPublishStatus>({
@@ -299,7 +324,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // - SRS: Publica mídia (câmera/microfone) via WHIP (WebRTC)
     // - Socket.IO: Chat, presentes, likes e presença em tempo real (useStreamChat)
     //   com sincronização inicial única via REST (histórico, online, presentes, likes)
-    // - Firebase (FCM): Notificações push
+    // - Push nativo: Notificações push
     // - SRS WHEP: Playback dos espectadores
     // ═══════════════════════════════════════════════════════════════════
 
@@ -347,11 +372,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           return [...prev, { id: stableId, type: 'entry', user: data.user || data.userName, fullUser: data.fullUser || null, timestamp: data.timestamp || Date.now() }];
         });
         // 🔔 Notificar o host quando um espectador entra na sala (além da msg no chat)
-        // 🖼️ Com a FOTO DE PERFIL do usuário no banner — estilo app de mensagens.
+        // 🖼️¸ Com a FOTO DE PERFIL do usuário no banner — estilo app de mensagens.
         if (isBroadcaster) {
           const entryName = data.fullUser?.name || data.userName || data.user?.name || 'Alguém';
           const entryAvatar = data.fullUser?.avatarUrl || data.user?.avatarUrl || '';
-          addToast(ToastType.Info, 'entrou na sala', { title: entryName, avatar: entryAvatar });
+          addToast(ToastType.Info, t('streamRoom.enteredRoom'), { title: entryName, avatar: entryAvatar });
           // 🚪 VIP com efeito de entrada → HOST vê a animação (anúncio de chegada,
           // estilo Bigo/ti.live: "you can easily be noticed by the host").
           if (data.entranceEffect) {
@@ -359,7 +384,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           }
         }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
-        const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
+        const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
         const animationUrl = getAnimationUrl(rawGift);
         const duration = getAnimationDuration(rawGift);
         const giftEvtPayload: any = {
@@ -444,9 +469,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       const reasonCode = typeof reason === 'number' ? reason : (reason?.code ?? -1);
       console.log('[CHAT] Chat REST desconectado! Reason:', reasonCode);
       // 🔴 Code 5 = live encerrada (404 na API ou evento socket stream_ended)
-      if (reasonCode === 5 && !isBroadcaster) {
+      if (reasonCode === 5) {
         console.log('[CHAT] 🔴 Live encerrada pelo broadcaster. Limpando chat da tela...');
-        // 🧹 Chat morre com a transmissão: apaga TODAS as mensagens da tela.
+        // 🧹 Chat morre com a transmissão: apaga TODAS as mensagens da tela
+        // (host E espectadores — ritmo TikTok: live acabou, histórico some).
         // A sala continua aberta (sem auto-redirecionamento), mas fica zerada.
         setStreamEnded(true);
         setMessages([]);
@@ -476,6 +502,56 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
 
     const publishEngineRef = useRef<PublishEngine | null>(null);
 
+    // 🔒 Proteção de conteúdo: contexto para denúncia automática — toda
+    // tentativa de print/gravação nesta sala é denunciada via API no chat.
+    useEffect(() => {
+        setProtectionContext({
+            userId: currentUser.id,
+            userName: currentUser.name,
+            streamId: streamer.streamKey || streamer.id,
+            hostId: streamer.hostId,
+        });
+        return () => setProtectionContext({});
+    }, [currentUser.id, currentUser.name, streamer.streamKey, streamer.id, streamer.hostId]);
+
+    // 🚨 Denúncia em TEMPO REAL: aviso ⚠️¸ no chat da transmissão com o nome de
+    // quem tentou capturar. O HOST vê e pode bloquear o usuário PRA SEMPRE.
+    useEffect(() => {
+        const unsub = onSocketEvent('content_violation', (data: any) => {
+            if (!data || !data.violationUserId) return;
+            if (!isBroadcaster) return; // só o dono vê a denúncia detalhada
+            setMessages(prev => {
+                const id = `viol_${data.timestamp || Date.now()}_${data.violationUserId}`;
+                if (prev.some(m => String(m.id) === id)) return prev;
+                return [...prev, {
+                    id,
+                    type: 'chat',
+                    user: data.userName || 'Proteção de Conteúdo',
+                    message: data.text || '⚠️ Tentativa de captura detectada!',
+                    avatar: '',
+                    level: 1,
+                    violationUserId: data.violationUserId,
+                    violationUserName: data.violationUserName,
+                    violationType: data.violationType || 'capture',
+                    timestamp: data.timestamp || Date.now(),
+                } as ChatMessageType];
+            });
+        });
+        return () => { unsub(); };
+    }, [isBroadcaster]);
+
+    // 🔒 Ban permanente direto do chat (host)
+    const handleBanViolator = async (userId: string, userName: string, violationType: 'print' | 'record' | 'capture' | 'contextmenu' = 'print') => {
+        try {
+            await api.banUserForever(streamer.hostId, userId, userName, violationType);
+            addToast(ToastType.Success, `${userName} bloqueado das suas lives nesta conta.`);
+            setMessages(prev => prev.filter(m => m.violationUserId !== userId));
+        } catch (e) {
+            console.error('[PROTECTION] Falha ao banir:', e);
+            addToast(ToastType.Error, 'Não foi possível bloquear o usuário.');
+        }
+    };
+
     const publishMedia = useCallback(async () => {
         if (isPublishingRef.current || isConnectingRef.current) {
             console.log('[HOST] Já publicando ou conectando, ignorando...');
@@ -485,6 +561,13 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         isConnectingRef.current = true;
         
         try {
+            // 🛡️¸ GUARD ANTI-VOZ-DUPLA: se já existe publicação WHIP ativa (host saiu
+            // e voltou na própria live), NÃO publicar de novo — dois publicadores no
+            // mesmo streamKey fazem o SRS entregar áudio duplicado/estragado.
+            if (streamPublishService.isPublishing()) {
+                console.log('[HOST] ⏭️¸ Publicação já ativa — reaproveitando sessão WHIP existente');
+                return;
+            }
             // 🔌 FLUXO REAL (WHIP — sdk.publish do srs.sdk.js):
             // 1. PublishEngine inicia a sessão WHIP no SRS (POST SDP offer)
             // 2. O SDK captura câmera/mic (getUserMedia) e a mídia flui via WebRTC
@@ -496,7 +579,7 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             engine.on('stateChanged', (prev: string, next: string) => {
                 console.log(`[HOST] WHIP publish state: ${prev} → ${next}`);
             });
-            // 🎀 Quando o ICE conectar (senders existem), aplicar beleza pré-configurada
+            // 🎁€ Quando o ICE conectar (senders existem), aplicar beleza pré-configurada
             // via replaceTrack real no sender do engine — path robusto pós-publicação.
             engine.on('connected', () => {
                 streamPublishService.updateBeautyTrack();
@@ -511,35 +594,46 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // 📺 Quando o engine capturar a mídia (via WHIP), registrar
             // no streamPublishService para o LivePlayer (modo broadcaster) exibir o preview.
             engine.on('mediaReady', (stream: MediaStream) => {
-                console.log('[HOST] 🎥 Mídia capturada via WHIP — registrando preview');
-                streamPublishService.setCurrentStream(stream);
+                console.log('[HOST] 🎁¥ Mídia capturada via WHIP — registrando preview');
+                // 🛡️ Guardar como "current" só se não há câmera crua viva — quando
+                // publicamos a stream PROCESSADA, o engine devolve ela aqui e
+                // sobrescreveria a fonte CRUA usada pelo filtro (flip/amostragem).
+                const cur = streamPublishService.getCurrentStream();
+                if (!cur || !cur.getVideoTracks().some(t => t.readyState === 'live')) {
+                    streamPublishService.setCurrentStream(stream);
+                }
                 streamPublishService.setPublishing(true);
+                // 🎨 Rede de segurança: se publicamos cru (filtro falhou), liga o
+                // auto-beleza agora e faz replaceTrack assim que ficar pronto.
+                void ensureLiveBeautyInRoom(currentUser.id);
             });
 
-            // 🔧 REUTILIZAR o stream do preview (GoLiveScreen já capturou a câmera).
-            // No celular, capturar a câmera DE NOVO aqui causa NotReadableError
-            // (câmera em uso) → publish falha antes de chegar ao SRS. Passando o
-            // stream existente, o engine pula o getUserMedia e publica direto.
-            const previewStream = streamPublishService.getCurrentStream();
-            // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
-            // anteriormente parou os tracks — o stream morto não serve para publicar).
-            let mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
-                ? previewStream
-                : undefined;
-
-            // 🎨 EMBELEZAMENTO DIRETO NO WHIP (SRS/WebRTC): se o filtro já foi
-            // aplicado (videoProcessor → canvas → processedStream), publicar A
-            // STREAM PROCESSADA logo de cara — o SRS recebe o vídeo embelezado
-            // desde o 1º frame, sem depender do replaceTrack após o 'connected'
-            // (que podia perder o efeito se o processamento ainda não tivesse
-            // terminado). Mantém o áudio original do preview.
-            const beautyStream = streamPublishService.getBeautyProcessedStream();
-            if (mediaForPublish && beautyStream && beautyStream.getVideoTracks().some(t => t.readyState === 'live')) {
-                const withBeauty = streamPublishService.applyBeautyToStream(mediaForPublish);
-                mediaForPublish = withBeauty && withBeauty.getVideoTracks().length > 0 ? withBeauty : mediaForPublish;
-                console.log('[HOST] 🎨 Embelezamento aplicado diretamente na stream WHIP (SRS)');
+            // 🎨 ORDEM CORRETA (captura → filtra → transmite): liga o auto-beleza
+            // ANTES de abrir a sessão WHIP — o SRS recebe o vídeo JÁ filtrado
+            // desde o 1º frame (pele limpa/sem manchas/jovem automaticamente).
+            // Se falhar, devolve null e publicamos a câmera crua (live nunca trava).
+            let mediaForPublish: MediaStream | undefined;
+            try {
+                const beauty = await ensureLiveBeautyInRoom(currentUser.id);
+                if (beauty && beauty.getVideoTracks().some(t => t.readyState === 'live')) {
+                    mediaForPublish = beauty;
+                    console.log('[HOST] 🎨 Publicando stream PROCESSADA (filtro desde o 1º frame)');
+                }
+            } catch (beautyErr) {
+                console.warn('[HOST] Filtro não ficou pronto antes do publish:', beautyErr);
             }
-            console.log('[HOST] 🎥 Reutilizando preview do GoLive para publish:', !!mediaForPublish);
+
+            // Fallback: sem filtro pronto → usa o preview cru existente (ou deixa
+            // o engine capturar), como antes. O mediaReady re-tenta ligar o filtro
+            // e faz replaceTrack assim que ficar pronto.
+            if (!mediaForPublish) {
+                const previewStream = streamPublishService.getCurrentStream();
+                // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
+                // anteriormente parou os tracks — o stream morto não serve para publicar).
+                mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
+                    ? previewStream
+                    : undefined;
+            }
 
             // WHIP inicia a sessão e captura a mídia (getUserMedia) ao publicar
             await engine.start(streamer.streamKey || streamer.id, mediaForPublish, currentUser.id);
@@ -556,11 +650,11 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         }
     }, [streamer.id, streamer.streamKey, currentUser.id]);
 
-    // 🎯 Publica mídia no SRS via WHIP imediatamente (independente do chat REST)
+    // 🎁¯ Publica mídia no SRS via WHIP imediatamente (independente do chat REST)
     useEffect(() => {
         if (!isBroadcaster) return;
 
-        console.log('[HOST] 🎬 Iniciando publicacao via WHIP (SRS)...');
+        console.log('[HOST] 🎁¬ Iniciando publicacao via WHIP (SRS)...');
         const timer = setTimeout(() => {
             publishMedia();
         }, 300);
@@ -615,10 +709,17 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         // Também escutar evento global window (caso socket.ts dispare via CustomEvent)
         const handleWindowChat = (e: Event) => {
             const detail = (e as CustomEvent).detail;
-            if (detail) {
-                handleNewChatMessage(detail);
+            if (!detail) return;
+            // 💬 Mensagem PRIVADA (payload de /api/messages tem chatId + from):
+            // mostra notificação em tempo real para o destinatário, em qualquer
+            // ponto da sala — antes só mensagens da live eram tratadas aqui.
+            if (detail.chatId && detail.from && String(detail.from) !== String(currentUser.id)) {
+                const preview = detail.text ? String(detail.text).slice(0, 60) : (detail.imageUrl ? '📷 Foto' : 'Nova mensagem');
+                addToast(ToastType.Info, `💬 ${detail.senderName || 'Nova mensagem'}: ${preview}`);
+                return;
             }
-        };
+            handleNewChatMessage(detail);
+        }
         window.addEventListener('livego:chat_message', handleWindowChat);
 
         return () => {
@@ -709,10 +810,49 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         };
 
         fetchInitialLikes();
+
+        // 🔒 BANIMENTO POR CONTA: usuário bloqueado pelo dono não entra na sala
+        // e é redirecionado pra tela de lista de bloqueio (perfil do host some pra ele).
+        if (!isBroadcaster && streamer.hostId) {
+            api.checkStreamBan(streamer.hostId, currentUser.id).then((r) => {
+                if (r && r.banned) {
+                    console.log('[PROTECTION] Usuário banido desta sala — saída forçada');
+                    addToast(ToastType.Error, 'Você foi bloqueado pelo host desta transmissão.');
+                    setTimeout(() => { try { onBannedFromStream(); } catch { try { onLeaveStreamView(); } catch {} } }, 1600);
+                }
+            }).catch(() => {});
+        }
+        // 👢 EXPULSÃO DA SESSÃO: se o usuário já foi expulso desta live,
+        // ele ENTRA e é expulso automaticamente de novo. Só volta quando
+        // a host encerrar a transmissão e abrir uma nova.
+        let kickCheckId = 0;
+        if (!isBroadcaster) {
+            kickCheckId = window.setTimeout(() => {
+                api.checkStreamKicked(streamer.id, currentUser.id).then((r) => {
+                    if (r && r.kicked) {
+                        console.log('[PROTECTION] Usuário expulso desta sessão — auto-expulsão na reentrada');
+                        addToast(ToastType.Error, 'Você foi expulso desta transmissão.');
+                        setTimeout(() => { try { onLeaveStreamView(); } catch {} }, 1600);
+                    }
+                }).catch(() => {});
+            }, 1200);
+        }
+        // 👢 Kick em TEMPO REAL: host expulsou este espectador agora
+        const unsubKicked = onSocketEvent('user_kicked', (data: any) => {
+            if (data?.userId === String(currentUser.id)) {
+                addToast(ToastType.Error, data.reason || 'Você foi expulso da transmissão.');
+                try { onLeaveStreamView(); } catch {}
+            }
+        });
         // Presença/chat em tempo real via Socket.IO (useStreamChat) — online users sync inicial REST
 
-        // Buscar histórico de mensagens do banco
+        // Buscar histórico de mensagens do banco — 🚫 NUNCA carregar se a live já
+        // encerrou (ritmo TikTok: sala de live encerrada fica SEM histórico).
         api.get("/api/streams/" + streamer.id + "/live-messages?limit=50").then((res: any) => {
+            if (streamEndedRef.current) {
+                console.log('[CHAT] Live já encerrada — histórico ignorado');
+                return;
+            }
             if (res && res.messages && Array.isArray(res.messages)) {
                 const history = res.messages.map((m: any) => ({
                     id: String(m._id || m.id || Date.now() + Math.random()),
@@ -729,10 +869,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             }
         }).catch(() => {});
 
-        // ⚠️ REMOVIDO: api.leaveStream — essa chamada no backend pode encerrar a live inteira.
+        // ⚠️¸ REMOVIDO: api.leaveStream — essa chamada no backend pode encerrar a live inteira.
         // A transmissão SÓ deve ser encerrada pelo dono ao clicar "Encerrar Transmissão".
         // Sair da tela não pode derrubar a transmissão.
         return () => {
+            if (kickCheckId) window.clearTimeout(kickCheckId);
+            try { unsubKicked && unsubKicked(); } catch {}
             // Socket.IO leaveRoom removido
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
@@ -749,6 +891,47 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             if (!d) return;
             setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: "call", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || streamer.id });
         };
+        // 📞 PONTE SOCKET → UI: o backend emite 'call_invitation' para as salas
+        // user_<id>; sem essa ponte a notificação NUNCA chega na tela.
+        const offCallInv = onSocketEvent('call_invitation', (data: any) => {
+            try {
+                const inv = data?.invitation || {};
+                switch (data?.type) {
+                    case 'invitation_received': {
+                        // Destinatário (guest): mostra banner Aceitar/Recusar
+                        window.dispatchEvent(new CustomEvent('livego:call_invitation', { detail: {
+                            inviteId: inv.id, from: inv.hostId, fromName: inv.hostName,
+                            streamId: inv.streamId,
+                        }}));
+                        break;
+                    }
+                    case 'invitation_sent':
+                    case 'call_request_sent': {
+                        addToast(ToastType.Info, `Convite de chamada enviado para ${inv.guestName || ''}. Aguardando resposta...`);
+                        break;
+                    }
+                    case 'invitation_accepted': {
+                        // Host: convidado aceitou — abre o PiP com o stream do convidado
+                        addToast(ToastType.Success, `${inv.guestName || 'Convidado'} aceitou a chamada!`);
+                        setRemoteCallUser({ streamId: `guest_${inv.guestId}`, name: inv.guestName || 'Convidado', avatar: inv.guestAvatar });
+                        setIsVideoCallPiPOpen(true);
+                        break;
+                    }
+                    case 'call_joined': {
+                        // Guest: chamada confirmada — PiP com o stream do host
+                        if (activeLiveInviteRef.current) {
+                            setRemoteCallUser({ streamId: inv.streamId || activeLiveInviteRef.current.streamId, name: activeLiveInviteRef.current.fromName });
+                        } else if (inv.streamId) {
+                            setRemoteCallUser({ streamId: inv.streamId, name: 'Host' });
+                        }
+                        setIsVideoCallPiPOpen(true);
+                        break;
+                    }
+                }
+            } catch (err) {
+                console.warn('[StreamRoom] call_invitation handler:', err);
+            }
+        });
         const clearInvite = () => setActiveLiveInvite(null);
         window.addEventListener("livego:live_invite", handleLiveInvite);
         window.addEventListener("livego:call_invitation", handleCallInvite);
@@ -759,6 +942,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             window.removeEventListener("livego:call_invitation", handleCallInvite);
             window.removeEventListener("livego:live_invite_timeout", clearInvite);
             window.removeEventListener("livego:live_invite_response", clearInvite);
+            offCallInv();
         };
     }, [streamer.id]);
 
@@ -774,12 +958,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 id: String(Date.now() + Math.random()),
                 type: 'chat',
                 user: 'Sistema', // Under 'Sistema', ChatMessage styles it with a gorgeous purple glowing border
+                isGift: true, // 🎁 clicar nesta mensagem abre o GiftModal (não o perfil)
                 level: fromUser.level || 1,
                 message: (
                     <span className="inline-flex items-center gap-1">
                         <span className="font-extrabold text-[#c084fc] hover:underline text-[10px]">{fromUser.name}</span>
                         <span className="text-purple-250 text-[10px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
-                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-3 h-3 inline-block" }) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-3 h-3 inline-block object-contain" /> : <span className="text-xs">{gift.icon || '🎁'}</span>}
+                        {gift.component ? React.cloneElement(gift.component as React.ReactElement<any>, { className: "w-3 h-3 inline-block" }) : typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-3 h-3 inline-block object-contain" /> : <span className="text-xs">{gift.icon || '🎁'}</span>}
                     </span>
                 ),
                 // 🔧 Fallback de avatar para garantir renderização (msg.avatar obrigatório no chat)
@@ -795,7 +980,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         }
     };
 
-    // 🎁 Fila central de presentes → painel independente (GiftAnimationPanel).
+    // 🎁 Fila central de presentes → painel independente (GiftAnimationPanel).
     // Usada pelo caminho OTIMISTA (quem envia, ver handleSendGift) e pelo
     // caminho do SOCKET (demais espectadores).
     const enqueueGift = (payload: any) => {
@@ -821,16 +1006,32 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
 
 
+    // 📝 Altura EXTRA do textarea quando o texto quebra em várias linhas
+    // (cada linha nova = +20px). Serve para a lista de mensagens continuar
+    // parando EXATAMENTE acima da barra, mesmo com o campo crescendo.
+    const [composerExtraHeight, setComposerExtraHeight] = useState(0);
+
+    const autoResizeComposer = () => {};
+
+    // Campo vazio (enviou/apagou) → reset
+    useEffect(() => {
+        if (chatInput === '') {
+            setComposerExtraHeight(0);
+        }
+    }, [chatInput]);
+
+    const MAX_CHAT_MESSAGE_LENGTH = 120;
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
-        console.log('[CHAT] handleSendMessage chamado, input:', chatInput.trim(), 'user:', currentUser?.id, 'isBroadcaster:', isBroadcaster, 'lkChatConnected:', lkChatConnected);
-        if (chatInput.trim() === '' || !currentUser) return;
+        const rawText = chatInput.trim();
+        if (rawText === '' || !currentUser) return;
+        const text = rawText.slice(0, MAX_CHAT_MESSAGE_LENGTH);
         const messagePayload: ChatMessageType = {
             id: String(Date.now()),
             type: 'chat',
             user: currentUser.name,
             level: currentUser.level,
-            message: chatInput.trim(),
+            message: text,
             avatar: currentUser.avatarUrl || currentUser.avatar,
             gender: currentUser.gender,
             age: currentUser.age,
@@ -877,7 +1078,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     const handleFollowStreamer = () => {
-        // 🛡️ Não permite seguir a si mesmo (própria stream)
+        // 🛡️¸ Não permite seguir a si mesmo (própria stream)
         if (!streamerUser || String(streamerUser.id) === String(currentUser?.id)) return;
         if (streamerUser) {
             onFollowUser(streamerUser, streamer.id);
@@ -916,7 +1117,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     // Scroll inteligente: só vai para o fim se usuário NÃO tiver scrollado para cima
-    // ⚡ Optimização: medições de layout no máximo 1x por frame (rAF-throttle) e scroll
+    // ⚠️ Optimização: medições de layout no máximo 1x por frame (rAF-throttle) e scroll
     // automático agendado via requestAnimationFrame para evitar "forced reflow" a cada
     // mensagem nova do chat.
     const scrollFrameRef = useRef<number>(0);
@@ -1006,21 +1207,34 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     }, [isBroadcaster, streamer.streamKey, streamer.playbackUrl]);
 
     
-    // Cleanup apenas do sistema de beleza ao desmontar
-    // NÃO parar WebRTC automaticamente - live só encerra por ação do usuário
+    // 🛑 REMOVIDO: cleanup que parava o processamento de beleza ao desmontar.
+    // Ele DESLIGAVA o filtro enquanto a live CONTINUAVA no ar (só encerra por
+    // ação do usuário) — os espectadores voltavam a ver a câmera crua/envelhecida
+    // após qualquer navegação. O pipeline é singleton e se auto-gerencia;
+    // o watchdog abaixo religa caso algo caia.
+
+    // 🩺 WATCHDOG DO FILTRO NA SALA: a cada 4s verifica se o stream processado
+    // está produzindo frames. Se não estiver (crash do MediaPipe, contexto
+    // WebGL perdido, F5, reconexão), RELIGA o auto-beleza e faz replaceTrack.
+    // Garante a regra do produto: abriu a sala → rosto limpo/jovem SEMPRE.
     useEffect(() => {
-        return () => {
-            // Parar processamento de beleza ao sair da sala
-            if (beautyWebRTCIntegration.isBeautyActive()) {
-                beautyWebRTCIntegration.stopBeautyProcessing();
-                console.log('Sistema de beleza limpo ao sair da sala');
-            }
-            
-            // IMPORTANTE: NÃO parar WebRTC ao sair da sala
-            // A live só deve ser encerrada quando usuário clicar em "encerrar transmissão"
-            // Sair da tela não pode derrubar a transmissão
-        };
-    }, []); // Sem dependências para evitar re-execução
+        if (!isBroadcaster) return;
+        const wd = setInterval(() => {
+            try {
+                if (!streamPublishService.isPublishing()) return;
+                // Usuário pediu câmera crua de propósito? (zerou tudo no painel agora)
+                const st = videoProcessor.getBeautySettings();
+                const allOff = Object.entries(st).filter(([k]) => k !== 'selectedFilter')
+                    .every(([, v]) => typeof v !== 'number' || v === 0);
+                if (allOff) return;
+                if (!videoProcessor.isFramesFlowing()) {
+                    console.warn('[HOST] 🩺 Watchdog: filtro sem fluxo — religando auto-beleza');
+                    void ensureLiveBeautyInRoom(currentUser.id);
+                }
+            } catch { /* nunca derruba a live por causa do watchdog */ }
+        }, 4000);
+        return () => clearInterval(wd);
+    }, [isBroadcaster, currentUser.id]);
 
     // Keyboard removed: usar position:fixed no footer mantém o chat sempre visível
     // sem empurrar o layout. O teclado não desce ao enviar porque mantemos o foco no input.
@@ -1034,10 +1248,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
     const handleInvite = (opponent: User) => {
         setIsCoHostModalOpen(false);
+        if (coHostModalMode === 'call') {
+            // 📞 Convite de chamada já enviado dentro do modal (api.call.invite);
+            // o PiP abre quando o convidado aceitar (socket 'invitation_accepted').
+            return;
+        }
         onStartPKBattle(opponent);
     };
 
-    const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle') => {
+    const handleOpenCoHostModal = (e: React.MouseEvent, mode?: 'cohost' | 'battle' | 'call') => {
         e.stopPropagation();
         setIsToolsOpen(false);
         setCoHostModalMode(mode || 'cohost');
@@ -1284,7 +1503,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         const APP_OWNER_ID = ':98501723';
         
         if (user.id === APP_OWNER_ID) {
-            console.log('🛡️ [FRONTEND_PROTECTION] Tentativa de expulsar dono bloqueada no frontend!');
+            console.log('🛡️¸ [FRONTEND_PROTECTION] Tentativa de expulsar dono bloqueada no frontend!');
             addToast(ToastType.Error, 'PROIBIDO: Este usuário não pode ser expulso!');
             return;
         }
@@ -1311,15 +1530,23 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         e.stopPropagation();
         if (!isBroadcaster) return;
         const newMicState = !(liveSession?.isMicrophoneMuted ?? false);
+        // ⚡ Resposta IMEDIATA no clique: estado otimista + track de áudio
+        // publicada no SRS liga/desliga já (a API só confirma).
+        updateLiveSession({ isMicrophoneMuted: newMicState });
+        const micStream = streamPublishService.getBeautyProcessedStream() || streamPublishService.getCurrentStream();
+        micStream?.getAudioTracks().forEach(t => { try { t.enabled = !newMicState; } catch {} });
+        addToast(ToastType.Success, newMicState ? 'Microfone desativado.' : 'Microfone ativado.');
+        if (lkChatConnected) {
+          lkSetMicStatus(newMicState);
+        }
         try {
-          await api.toggleMicrophone(streamer.id);
-          updateLiveSession({ isMicrophoneMuted: newMicState });
-          addToast(ToastType.Success, newMicState ? 'Microfone desativado.' : 'Microfone ativado.');
-          if (lkChatConnected) {
-            lkSetMicStatus(newMicState);
-          }
+          // 🔊 Envia o estado DESEJADO explícito — backend e front nunca dessincronizam
+          await api.toggleMicrophone(streamer.id, currentUser.id, !newMicState);
         } catch (err) {
           console.warn('[StreamRoom] toggleMicrophone erro:', err);
+          // Reverte ao falhar
+          updateLiveSession({ isMicrophoneMuted: !newMicState });
+          micStream?.getAudioTracks().forEach(t => { try { t.enabled = newMicState; } catch {} });
           addToast(ToastType.Error, 'Falha ao alternar o microfone.');
         }
     };
@@ -1335,12 +1562,20 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             return;
         }
         const newSoundState = !(liveSession?.isStreamMuted ?? false);
+        // ⚡ Resposta IMEDIATA no clique: estado otimista + track de áudio
+        // publicada no SRS liga/desliga já (a API só confirma).
+        updateLiveSession({ isStreamMuted: newSoundState });
+        const sndStream = streamPublishService.getBeautyProcessedStream() || streamPublishService.getCurrentStream();
+        sndStream?.getAudioTracks().forEach(t => { try { t.enabled = !newSoundState; } catch {} });
+        addToast(ToastType.Info, newSoundState ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
         try {
-            await api.toggleStreamSound(streamer.id);
-            updateLiveSession({ isStreamMuted: newSoundState });
-            addToast(ToastType.Info, newSoundState ? 'Áudio da live silenciado.' : 'Áudio da live ativado.');
+            // 🔇 Envia o estado DESEJADO explícito — backend e front nunca dessincronizam
+            await api.toggleStreamSound(streamer.id, currentUser.id, !newSoundState);
         } catch (err) {
             console.warn('[StreamRoom] toggleStreamSound erro:', err);
+            // Reverte ao falhar
+            updateLiveSession({ isStreamMuted: !newSoundState });
+            sndStream?.getAudioTracks().forEach(t => { try { t.enabled = newSoundState; } catch {} });
             addToast(ToastType.Error, 'Falha ao alternar o áudio da live.');
         }
     };
@@ -1349,12 +1584,17 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         e.stopPropagation();
         if (!isBroadcaster || !liveSession) return;
         const newAutoFollowState = !liveSession.isAutoFollowEnabled;
+        // ⚡ Aplica NA HORA do clique. Com a caixa ATIVA, o host passa a seguir
+        // automaticamente quem MANDAR PRESENTE na live; quem não manda
+        // presente NÃO é seguido.
+        updateLiveSession({ isAutoFollowEnabled: newAutoFollowState });
+        addToast(ToastType.Success, newAutoFollowState ? 'Seguir automático ativado: quem mandar presente será seguido.' : 'Seguir automático desativado.');
         try {
-            await api.toggleAutoFollow(streamer.id, newAutoFollowState);
-            updateLiveSession({ isAutoFollowEnabled: newAutoFollowState });
-            addToast(ToastType.Success, newAutoFollowState ? 'Seguimento automático ativado.' : 'Seguimento automático desativado.');
+            await api.toggleAutoFollow(streamer.id, newAutoFollowState, currentUser.id);
         } catch (error) {
-            addToast(ToastType.Error, "Falha ao alterar a configuração.");
+            // Reverte ao falhar
+            updateLiveSession({ isAutoFollowEnabled: !newAutoFollowState });
+            addToast(ToastType.Error, 'Falha ao alterar a configuração.');
         }
     };
 
@@ -1362,13 +1602,17 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         e.stopPropagation();
         if (!isBroadcaster) return;
         const newAutoInviteState = !isAutoPrivateInviteEnabled;
+        // ⚡ Aplica NA HORA do clique (otimista), confirma na API.
+        setIsAutoPrivateInviteEnabled(newAutoInviteState);
+        updateLiveSession({ isAutoPrivateInviteEnabled: newAutoInviteState });
+        addToast(ToastType.Success, newAutoInviteState ? 'Convite automático ativado.' : 'Convite automático desativado.');
         try {
-            await api.toggleAutoPrivateInvite(streamer.id, newAutoInviteState);
-            setIsAutoPrivateInviteEnabled(newAutoInviteState);
-            updateLiveSession({ isAutoPrivateInviteEnabled: newAutoInviteState });
-            addToast(ToastType.Success, newAutoInviteState ? 'Convite automático ativado.' : 'Convite automático desativado.');
+            await api.toggleAutoPrivateInvite(streamer.id, newAutoInviteState, currentUser.id);
         } catch (error) {
-            addToast(ToastType.Error, "Falha ao alterar a configuração.");
+            // Reverte ao falhar
+            setIsAutoPrivateInviteEnabled(!newAutoInviteState);
+            updateLiveSession({ isAutoPrivateInviteEnabled: !newAutoInviteState });
+            addToast(ToastType.Error, 'Falha ao alterar a configuração.');
         }
     };
 
@@ -1382,22 +1626,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             onTouchStart={(e) => handlePointerDown(e.targetTouches[0].clientX, e.targetTouches[0].clientY)}
             onTouchEnd={(e) => handlePointerUp(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}
         >
-            {/* Renderizar ChatScreen quando showChatScreen for true */}
-            {showChatScreen && (
-                <ChatScreen
-                    currentUser={currentUser}
-                    onOpenProfile={onViewProfile}
-                    onBack={() => setShowChatScreen(false)}
-                    isModal={false}
-                    user={currentUser}
-                    onNavigateToFriends={() => { }}
-                    onFollowUser={onFollowUser}
-                    onBlockUser={() => { }}
-                    onReportUser={() => { }}
-                    onOpenPhotoViewer={() => { }}
-                />
-            )}
-
             {/* 1. Video Layer (Bottom) */}
             <div className="absolute inset-0 z-0 bg-black" onClick={() => { if (chatInputRef.current && document.activeElement === chatInputRef.current) chatInputRef.current.blur(); }}>
                 {/* Loading state - mostra gradiente sutil + spinner enquanto vídeo não carrega */}
@@ -1411,17 +1639,20 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                 )}
 
-                {/* Video Layer - SRS WHEP (WebRTC) */}
-                <LivePlayer
-                    streamId={streamer.streamKey || streamer.id}
-                    isBroadcaster={isBroadcaster}
-                    quality={isBroadcaster ? 'auto' : viewerQuality}
-                    userId={currentUser.id}
-                    onPlaying={() => setIsVideoPlaying(true)}
-                    onError={() => setIsVideoPlaying(false)}
-                    muted={!isBroadcaster && isLocalMuted}
-                    onVideoRef={setVideoRef}
-                />
+                {/* 🔒 Proteção SEM escurecer: print/gravação/download bloqueados.
+                    Marca d'água REMOVIDA da tela (o nome atrapalhava a live). */}
+                <div data-protected="true" className="absolute inset-0 no-capture-media">
+                    <LivePlayer
+                        streamId={streamer.streamKey || streamer.id}
+                        isBroadcaster={isBroadcaster}
+                        quality={isBroadcaster ? 'auto' : viewerQuality}
+                        userId={currentUser.id}
+                        onPlaying={() => setIsVideoPlaying(true)}
+                        onError={() => setIsVideoPlaying(false)}
+                        muted={!isBroadcaster && isLocalMuted}
+                        onVideoRef={setVideoRef}
+                    />
+                </div>
 
 
 
@@ -1509,7 +1740,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                 </div>
                             </div>
                         </button>
-                        {!isFollowed && String(currentUser.id) !== String(streamer.hostId) && (
+                        {/* 🚫 O dono NUNCA vê botão de seguir a si mesmo — só o
+                            espectador vê. Checa isBroadcaster E hostId (cobre
+                            streamer.hostId indefinido na entrada do host). */}
+                        {!isFollowed && !isBroadcaster && String(currentUser.id) !== String(streamer.hostId) && (
                             <button onClick={(e) => { e.stopPropagation(); handleFollowStreamer(); }} className="w-7 h-7 bg-gradient-to-br from-[#bd00ff] to-[#e7006e] rounded-full flex items-center justify-center text-white shrink-0 transition-all transform active:scale-90 cursor-pointer ml-1">
                                 <PlusIcon className="w-3.5 h-3.5" />
                              </button>
@@ -1624,7 +1858,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         {isBroadcaster ? (
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleTogglePrivacy(); }}
-                                className="text-white/80 hover:text-white cursor-pointer select-none focus:outline-none hover:underline border-none bg-transparent"
+                                className="text-[13px] font-medium text-white/90 hover:text-white cursor-pointer select-none focus:outline-none border-none bg-transparent transition-colors"
                             >
                                 {streamer.isPrivate ? 'Privada' : 'Pública'}
                             </button>
@@ -1651,8 +1885,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[33vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col pointer-events-auto px-1.5 pb-[env(safe-area-inset-bottom)] relative z-10" style={{ maxHeight: '33lvh' }}>
-                        <div className="flex flex-col gap-px mt-auto items-start w-full">
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[20vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '20lvh' }}>
+                        <div className="flex flex-col gap-px items-start w-full">
                             {messages.map((msg, index) => {
                                 if (msg.type === 'entry' && msg.fullUser) {
                                     const entryProps: any = {
@@ -1667,6 +1901,23 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     };
                                     return <EntryChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} {...entryProps} />;
                                 }
+                                // 🚨 DENÚNCIA DE CAPTURA — bolha dedicada com botão
+                                // de BANIMENTO PERMANENTE (só o host da sala vê).
+                                if (msg.type === 'chat' && msg.violationUserId && isBroadcaster) {
+                                    return (
+                                        <div key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} className="w-full self-stretch bg-red-950/70 border border-red-500/40 rounded-xl px-2.5 py-1.5 my-0.5 animate-chat-message">
+                                            <p className="text-[11px] leading-snug text-red-100 font-semibold break-words">{msg.message}</p>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleBanViolator(msg.violationUserId!, msg.violationUserName || msg.violationUserId!, msg.violationType || 'print'); }}
+                                                className="mt-1 w-full flex items-center justify-center gap-1 bg-red-600/90 hover:bg-red-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-full transition-colors cursor-pointer border-none"
+                                                title="Bloquear este usuário das suas lives (nesta conta)"
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>
+                                                Bloquear {msg.violationUserName} das minhas lives
+                                            </button>
+                                        </div>
+                                    );
+                                }
                                 if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
                                     const chatUser = constructUserFromMessage(msg);
                                     const shouldShowFollow = !isBroadcaster && chatUser.id !== currentUser.id && chatUser.name !== streamer.name;
@@ -1674,7 +1925,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     return<ChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`}
                                         userObject={chatUser}
                                         message={msg.message}
-                                        onAvatarClick={() => handleViewChatUserProfile(msg)}
+                                        avatarUrl={msg.avatar || chatUser.avatarUrl}
+                                        onAvatarClick={msg.isGift ? () => setGiftModalOpen(true) : () => handleViewChatUserProfile(msg)}
                                         onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
                                         isFollowed={followedUsers.has(chatUser.id)}
                                         onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
@@ -1695,7 +1947,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     {/* Espaçador FORA da área rolável: reserva o espaço do fundo
                         (1ª barra ou composer + teclado) sem esconder as mensagens —
                         elas ficam sempre visíveis acima dele. */}
-                    <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                    <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT + composerExtraHeight : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                 </div>
 
                 <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
@@ -1708,22 +1960,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         }
                       </div>
                     )}
-                    {/* 📡 Reaction buttons */}
-                    <div className="flex items-center gap-1 px-2 pb-1">
-                      {['❤️','🔥','👍','😂'].map(emoji => (
-                        <button
-                          key={emoji}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            lkSendReaction(emoji, currentUser.name);
-                          }}
-                          className="text-sm w-7 h-7 rounded-full bg-white/5 hover:bg-white/15 active:scale-125 transition-all border-none cursor-pointer flex items-center justify-center"
-                          title={`Enviar ${emoji}`}
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
                                 <button
@@ -1750,8 +1986,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             >
                                 <SendIcon className="w-5 h-5 text-white" />
                             </button>
-                            {/* Gift Action — host vê o histórico de presentes recebidos
-                                (Galeria); espectador vê os presentes para enviar. */}
+                            {/* Gift Action */}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
                                 className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
@@ -1762,7 +1997,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     className="w-9 h-9 object-cover rounded-full shadow-lg" 
                                 />
                             </button>
-                            {/* Roleta — alterna o widget FIXO na tela da live */}
+                            {/* Roleta */}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setIsRouletteOpen(v => !v); }} 
                                 className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
@@ -1802,6 +2037,61 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     </div>
                 </footer>
 
+            {isComposerOpen && (
+                <div
+                    ref={composerRef}
+                    className="fixed left-0 right-0 z-40"
+                    style={{ bottom: `${chatBarBottom}px` }}
+                >
+                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                        <div className="flex items-center gap-3">
+                            <div className="flex-grow">
+                                <input
+                                    ref={composerInputRef}
+                                    type="text"
+                                    placeholder={t('streamRoom.sayHi')}
+                                    value={chatInput}
+                                    enterKeyHint="send"
+                                    autoComplete="off"
+                                    onChange={(e) => {
+                                        setChatInput(e.target.value);
+                                        if (lkChatConnected && e.target.value.length > 0) {
+                                            lkSendTyping(true, currentUser.name);
+                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                            typingTimeoutRef.current = setTimeout(() => {
+                                                lkSendTyping(false, currentUser.name);
+                                            }, 2000);
+                                        }
+                                    }}
+                                    onBlur={() => {
+                                        setTimeout(() => {
+                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                if (lkChatConnected && typingTimeoutRef.current) {
+                                                    clearTimeout(typingTimeoutRef.current);
+                                                    lkSendTyping(false, currentUser.name);
+                                                }
+                                                closeComposer();
+                                            }
+                                        }, 120);
+                                    }}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
+                                    maxLength={120}
+                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                />
+                            </div>
+                            <button
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
+                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                            >
+                                <SendIcon className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+                    </footer>
+                </div>
+            )}
+
             {/* 📌 Presentes Fixados — CANTO inferior direito da transmissão. Só o
                 host fixa via Ferramentas (até 5); todos veem os presentes fixados
                 enquanto a live estiver no ar. O NOME aparece EM CIMA, editável pelo
@@ -1830,74 +2120,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 </div>
             )}
 
-            {/* ⌨️ Composer flutuante (TikTok-style): abre COLADO no teclado quando
-                o usuário toca na barra de mensagem fixa. A tela da live não se mexe.
-                Sem transition de bottom: o fixedBottom já acompanha o teclado
-                frame-a-frame; transition faria a barra ficar perseguindo o valor
-                e oscilar para cima e para baixo. */}
-            {isComposerOpen && (
-                <div
-                    ref={composerRef}
-                    className="fixed left-0 right-0 z-40"
-                    style={{ bottom: `${chatBarBottom}px` }}
-                >
-                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
-                        <div className="flex items-center gap-3">
-                            <div className="flex-grow">
-                                <input
-                                    ref={composerInputRef}
-                                    type="text"
-                                    placeholder={t('streamRoom.sayHi')}
-                                    value={chatInput}
-                                    enterKeyHint="send"
-                                    autoComplete="off"
-                                    onChange={(e) => {
-                                        setChatInput(e.target.value);
-                                        // 📡 Data Packet: sinalizar digitação
-                                        if (lkChatConnected && e.target.value.length > 0) {
-                                            lkSendTyping(true, currentUser.name);
-                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                            typingTimeoutRef.current = setTimeout(() => {
-                                                lkSendTyping(false, currentUser.name);
-                                            }, 2000);
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        // Só fecha se o foco saiu do composer por completo (teclado
-                                        // fechado / toque fora). Não fecha em blur transitório — ex.:
-                                        // o navegador tentando focar o input readOnly da 1ª barra.
-                                        setTimeout(() => {
-                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
-                                                if (lkChatConnected && typingTimeoutRef.current) {
-                                                    clearTimeout(typingTimeoutRef.current);
-                                                    lkSendTyping(false, currentUser.name);
-                                                }
-                                                closeComposer();
-                                            }
-                                        }, 120);
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
-                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                                />
-                            </div>
-                            <button
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
-                        </div>
-                    </footer>
-                </div>
-            )}
-
             {/* Native PiP Active Indicator */}
             {nativePiPActive && (
                 <div className="absolute top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
                     <div className="bg-purple-600/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1.5 rounded-full border border-purple-400/30 shadow-lg animate-in fade-in zoom-in-95">
-                        🎬 Picture-in-Picture ativo — vídeo continua fora do app
+                        Picture-in-Picture ativo — vídeo continua fora do app
                     </div>
                 </div>
             )}
@@ -1941,7 +2168,14 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onToggleAutoFollow={handleToggleAutoFollow}
                     isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
                     onToggleAutoPrivateInvite={handleToggleAutoPrivateInvite}
-                    onOpenVideoCall={(e: any) => { e.stopPropagation(); setIsToolsOpen(false); setIsVideoCallPiPOpen(true); }}
+                    onOpenVideoCall={(e: any) => {
+                        // 📞 Chamada de vídeo na live: abre o seletor e ENVIA o convite.
+                        // O PiP só abre quando o outro lado ACEITA (socket call_invitation).
+                        e.stopPropagation();
+                        setIsToolsOpen(false);
+                        setCoHostModalMode('call');
+                        setIsCoHostModalOpen(true);
+                    }}
                     isHost={isBroadcaster}
                     addToast={addToast}
                     gifts={gifts}
@@ -2045,11 +2279,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 nas ferramentas de interação (ícone Chamada). */}
             <VideoCallPiP
                 isOpen={isVideoCallPiPOpen}
-                onClose={() => setIsVideoCallPiPOpen(false)}
+                onClose={() => { setIsVideoCallPiPOpen(false); setRemoteCallUser(null); }}
                 localStreamId={streamer.streamKey || streamer.id}
-                remoteStreamId={streamer.streamKey || streamer.id}
-                remoteUserName={streamer.name}
-                remoteUserAvatar={streamer.avatar}
+                remoteStreamId={remoteCallUser?.streamId || streamer.streamKey || streamer.id}
+                remoteUserName={remoteCallUser?.name || streamer.name}
+                remoteUserAvatar={remoteCallUser?.avatar || streamer.avatar}
                 localUserId={currentUser.id}
             />
 
@@ -2058,7 +2292,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 <div className="absolute inset-0 z-[99999998] flex items-center justify-center pointer-events-none">
                     <div className="pointer-events-auto bg-gray-900/95 border border-purple-500/60 rounded-2xl p-5 mx-4 max-w-xs w-full shadow-2xl">
                         <p className="text-white text-sm font-semibold text-center mb-1">
-                            {activeLiveInvite.type === "call" ? "📞 Chamada de vídeo" : "🎬 Convite para live"}
+                            {activeLiveInvite.type === "call" ? "Chamada de vídeo" : "Convite para live"}
                         </p>
                         <p className="text-gray-300 text-xs text-center mb-4">
                             <span className="font-bold text-purple-300">{activeLiveInvite.fromName}</span>{" "}
@@ -2066,11 +2300,31 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         </p>
                         <div className="flex gap-3">
                             <button className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
-                                onClick={() => { api.respondToLiveInvite(activeLiveInvite.inviteId, "declined").catch(() => {}); setActiveLiveInvite(null); }}>
+                                onClick={() => {
+                                    if (activeLiveInvite.type === "call") {
+                                        // 📞 Recusa via API de chamada (backend notifica o host)
+                                        api.call.respond(activeLiveInvite.inviteId, "decline").catch(() => {});
+                                    } else {
+                                        api.respondToLiveInvite(activeLiveInvite.inviteId, "declined").catch(() => {});
+                                    }
+                                    setActiveLiveInvite(null);
+                                }}>
                                 Recusar
                             </button>
                             <button className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
                                 onClick={() => {
+                                    if (activeLiveInvite.type === "call") {
+                                        // 📞 Aceite via API de chamada; o evento 'call_joined'
+                                        // (socket) abre o PiP com o stream do host.
+                                        const invite = activeLiveInvite;
+                                        setActiveLiveInvite(null);
+                                        addToast(ToastType.Info, 'Aceitando a chamada...');
+                                        api.call.respond(invite.inviteId, "accept").catch((err) => {
+                                            console.warn('[StreamRoom] call respond erro:', err);
+                                            addToast(ToastType.Error, 'Não foi possível entrar na chamada.');
+                                        });
+                                        return;
+                                    }
                                     api.respondToLiveInvite(activeLiveInvite.inviteId, "accepted").catch(() => {});
                                     if (activeLiveInvite.type === "co-host" || activeLiveInvite.type === "pk-battle") {
                                         lkSetRole("co-host");
@@ -2089,4 +2343,6 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 };
 
 export default StreamRoom;
+
+
 

@@ -105,7 +105,8 @@ interface MainScreenProps {
   showLocationBanner: boolean;
   unreadCount?: number;
   invitedStreamIds?: string[];
-
+  // 🔄 Recarrega os cards da API (pull-to-refresh + auto-refresh)
+  onRefresh?: () => void | Promise<void>;
 }
 
 const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer) => void; invited: boolean}> = ({ streamer, onSelect, invited }) => {
@@ -152,8 +153,10 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
                 alt={streamer.name} 
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
             />
-            {/* Prévia ao vivo (opcional): transmissão passando direto no card */}
-            {previewEnabled && previewStreamId && (
+            {/* Prévia ao vivo: 🔒 sala PRIVADA = prévia SEMPRE desativada
+                (nada é mostrado antes de entrar); 🌐 pública = prévia ativa
+                automática (se o usuário tiver a opção ligada). */}
+            {previewEnabled && !isPrivateRoom && previewStreamId && (
                 <StreamPreviewVideo streamId={previewStreamId} visible={inView} />
             )}
             {/* Dynamic black-transparent gradient layers */}
@@ -218,7 +221,7 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 };
 
 
-const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [] }) => {
+const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [], onRefresh }) => {
   const { t } = useTranslation();
   const mainRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -303,6 +306,53 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     }
   }, [activeTab]);
 
+  // 🔄 PULL-TO-REFRESH: arrastar para baixo no topo recarrega os cards
+  const [pullDist, setPullDist] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const refreshRef = useRef(onRefresh);
+  refreshRef.current = onRefresh;
+
+  const triggerRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    Promise.resolve(refreshRef.current?.()).catch(() => {}).finally(() => {
+      setTimeout(() => setIsRefreshing(false), 400);
+    });
+  };
+
+  // ⏱️ AUTO-REFRESH: recarrega os cards a cada 30s sem precisar arrastar
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refreshRef.current?.();
+      }
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleMainTouchStart = (e: React.TouchEvent) => {
+    if (mainRef.current && mainRef.current.scrollTop <= 0) {
+      pullStartY.current = e.touches[0].clientY;
+    } else {
+      pullStartY.current = null;
+    }
+  };
+
+  const handleMainTouchMove = (e: React.TouchEvent) => {
+    if (pullStartY.current === null || isRefreshing) return;
+    const dist = e.touches[0].clientY - pullStartY.current;
+    setPullDist(dist > 0 ? Math.min(dist * 0.4, 80) : 0);
+  };
+
+  const handleMainTouchEnd = () => {
+    if (pullStartY.current !== null && pullDist > 50 && !isRefreshing) {
+      triggerRefresh();
+    }
+    pullStartY.current = null;
+    setPullDist(0);
+  };
+
   const tabs = [
     { key: 'popular', label: t('main.popular') },
     { key: 'followed', label: t('main.followed') },
@@ -372,7 +422,22 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                 <ChevronRightIcon className="w-4 h-4 text-zinc-500" />
             </button>
         </div>
-      )}      <main ref={mainRef} className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar">
+      )}      <main
+        ref={mainRef}
+        className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar"
+        onTouchStart={handleMainTouchStart}
+        onTouchMove={handleMainTouchMove}
+        onTouchEnd={handleMainTouchEnd}
+      >
+        {/* 🔄 Indicador de refresh (pull-to-refresh / auto-refresh) */}
+        {(pullDist > 0 || isRefreshing) && (
+          <div
+            className="flex items-center justify-center overflow-hidden"
+            style={{ height: isRefreshing ? 36 : pullDist, transition: pullStartY.current === null ? 'height 0.25s ease' : 'none' }}
+          >
+            <LoadingSpinner />
+          </div>
+        )}
         {isLoading && (!Array.isArray(streamers) || streamers.length === 0) ? (
             <div className="h-full flex items-center justify-center">
                 <LoadingSpinner />

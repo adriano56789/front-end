@@ -491,9 +491,9 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
     // O overlay inset-0 usa pointer-events-none pra não bloquear os toques
     // na live; só o widget em si é clicável (pointer-events-auto).
     return (
-        <div className="fixed inset-0 z-40 flex items-center justify-center text-white animate-fade-in select-none pointer-events-none">
+        <div className="fixed inset-0 z-40 flex items-start justify-center pt-[12vh] text-white animate-fade-in select-none pointer-events-none">
             <div
-                className="relative w-[340px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2 pointer-events-auto"
+                className="relative w-[290px] flex flex-col items-center justify-center text-white max-h-[85vh] overflow-y-auto no-scrollbar py-2 pointer-events-auto"
                 style={keyboardOffset > 0 ? { transform: `translateY(${-keyboardOffset}px)`, transition: 'transform 0.15s ease' } : undefined}
             >
                 {/* Header Actions — só título + fechar (sem minimizar) */}
@@ -559,13 +559,13 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                 )}
 
                 {/* Main Wheel Wrapper */}
-                <div className="relative w-[320px] h-[320px] flex items-center justify-center my-4">
+                <div className="relative w-[260px] h-[260px] flex items-center justify-center my-3">
                     <div className="absolute inset-0 rounded-full p-3 bg-gradient-to-tr from-amber-600 via-amber-300 to-amber-700 shadow-[0_0_35px_rgba(245,158,11,0.5)] border-2 border-amber-200 flex items-center justify-center">
                         {[...Array(12)].map((_, i) => (
                             <div
                                 key={i}
-                                className="absolute w-2.5 h-2.5 rounded-full bg-amber-200 border border-amber-500 shadow-[0_0_6px_#fde047]"
-                                style={{ transform: `rotate(${i * 30}deg) translate(0, -162px)` }}
+                                className="absolute w-2 h-2 rounded-full bg-amber-200 border border-amber-500 shadow-[0_0_6px_#fde047]"
+                                style={{ transform: `rotate(${i * 30}deg) translate(0, -132px)` }}
                             />
                         ))}
                     </div>
@@ -587,7 +587,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
 
                     {/* Rotating Wheel Container */}
                     <div
-                        className="w-[290px] h-[290px] rounded-full relative overflow-hidden border-4 border-amber-300 shadow-inner"
+                        className="w-[235px] h-[235px] rounded-full relative overflow-hidden border-4 border-amber-300 shadow-inner"
                         style={{
                             transform: `rotate(${rotationDeg}deg)`,
                             transition: isSpinning ? 'transform 3.5s cubic-bezier(0.15, 0.85, 0.20, 1.00)' : 'none'
@@ -652,7 +652,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                     <button
                         onClick={handleSpin}
                         disabled={isSpinning || isHost}
-                        className="absolute z-20 w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 p-1 shadow-[0_0_25px_rgba(245,158,11,0.8)] border-2 border-amber-200 hover:scale-105 active:scale-95 disabled:opacity-80 transition-all cursor-pointer flex flex-col items-center justify-center text-purple-950 font-black"
+                        className="absolute z-20 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 p-1 shadow-[0_0_25px_rgba(245,158,11,0.8)] border-2 border-amber-200 hover:scale-105 active:scale-95 disabled:opacity-80 transition-all cursor-pointer flex flex-col items-center justify-center text-purple-950 font-black"
                     >
                         <div className="w-full h-full rounded-full bg-gradient-to-b from-purple-900 via-purple-950 to-purple-900 flex flex-col items-center justify-center border border-amber-300/60 shadow-inner">
                             <span className="text-2xl sm:text-3xl font-black text-amber-300 tracking-wider drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">

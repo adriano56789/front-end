@@ -99,12 +99,13 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
   
   return (
     <div 
-      className={`fixed inset-0 z-[100] flex items-stretch sm:items-center sm:justify-center transition-all duration-300 ${isOpen ? 'bg-black/90 backdrop-blur-sm pointer-events-auto' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
+      className={`fixed inset-0 z-[100] flex items-end justify-center transition-all duration-300 ${isOpen ? 'bg-transparent pointer-events-auto' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
       onClick={onClose}
     >
-      {/* Pitch black design plate: bg-black / placa preta, rounded, full height so the live video is NOT visible behind */}
+      {/* Estilo painel de presente: bottom-sheet translúcido — a live CONTINUA
+          visível acima do painel (não vira página fullscreen). */}
       <div
-        className={`bg-black w-full h-full sm:max-w-lg sm:h-[92vh] sm:rounded-3xl border sm:border-zinc-900 flex flex-col transform transition-transform duration-300 ease-out shadow-[0_-20px_50px_rgba(0,0,0,0.9)] ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`bg-[#060608]/95 border border-gray-900/60 w-full max-h-[88vh] h-auto rounded-t-3xl flex flex-col transform transition-transform duration-300 ease-out shadow-[0_-20px_50px_rgba(0,0,0,0.9)] ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Modern clean drag handle indicator */}

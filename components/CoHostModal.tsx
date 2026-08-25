@@ -23,7 +23,7 @@ interface CoHostModalProps {
   currentUser: User;
   addToast: (type: ToastType, message: string) => void;
   streamId: string;
-  mode?: 'cohost' | 'battle';
+  mode?: 'cohost' | 'battle' | 'call';
 }
 
 const CoHostModal: React.FC<CoHostModalProps> = ({ 
@@ -40,10 +40,49 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
   const [friends, setFriends] = useState<User[]>([]);
   const [liveUsers, setLiveUsers] = useState<LiveUserEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
-  const [searchTerm, setSearchTerm] = useState('');
+  // 🔁 Sem estado "invitedFriends": convite pode ser reenviado ilimitadamente
   const [invitingFriendId, setInvitingFriendId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [acceptFriendsOnly, setAcceptFriendsOnly] = useState(true);
+  // 🔎 Busca REAL no servidor por ID ou NOME — qualquer conta cadastrada
+  // aparece ao digitar, mesmo que não seja amigo nem esteja ao vivo.
+  const [remoteResults, setRemoteResults] = useState<User[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) { setRemoteResults([]); return; }
+    const q = searchTerm.trim();
+    if (q.length < 2) { setRemoteResults([]); return; }
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.searchUsers(q, 10);
+        if (!alive) return;
+        const users = (res?.users || []).map((u: any) => ({
+          avatar: '',
+          id: String(u.id || u.userId || ''),
+          identification: String(u.id || u.userId || ''),
+          name: u.name || u.displayName || String(u.id || ''),
+          avatarUrl: u.avatarUrl || '',
+          username: u.username || u.name,
+          isLive: false,
+          isOnline: false,
+          level: u.level || 1,
+          fans: u.fans || 0,
+          following: u.following || 0,
+          receptores: 0,
+          enviados: 0,
+          diamonds: 0,
+          earnings: 0,
+          earnings_withdrawn: 0,
+          ownedFrames: [],
+        } as User)).filter((u: User) => u.id && u.id !== currentUser?.id);
+        setRemoteResults(users);
+      } catch {
+        if (alive) setRemoteResults([]);
+      }
+    }, 350);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [searchTerm, isOpen, currentUser?.id]);
 
   // Atualiza lista de live users
   const fetchLiveUsers = useCallback(async () => {
@@ -113,7 +152,6 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
       Promise.all([fetchFriends, fetchLive])
         .finally(() => setIsLoading(false));
     } else if (!isOpen) {
-      setInvitedFriends(new Set());
       setSearchTerm('');
       setInvitingFriendId(null);
       setLiveUsers([]);
@@ -152,6 +190,15 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
       }
     });
 
+    // 🔎 Resultados da busca REAL no servidor (ID ou nome) — dedup com locais
+    const knownIds = new Set<string>(merged.map(u => u.id));
+    remoteResults.forEach(r => {
+      if (!knownIds.has(r.id)) {
+        knownIds.add(r.id);
+        merged.push(r);
+      }
+    });
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       merged = merged.filter(u => u.name?.toLowerCase().includes(term) || u.id?.toLowerCase().includes(term));
@@ -164,22 +211,34 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
     }
 
     return merged;
-  }, [friends, liveUsers, searchTerm, mode]);
+  }, [friends, liveUsers, searchTerm, mode, remoteResults]);
 
   const handleInviteClick = async (friend: User) => {
-    if (invitedFriends.has(friend.id) || invitingFriendId === friend.id) return;
+    if (invitingFriendId === friend.id) return;
     
     setInvitingFriendId(friend.id);
-    const inviteTypeLabel = mode === 'battle' ? 'desafio de batalha' : 'co-host';
+    const inviteTypeLabel = mode === 'battle' ? 'desafio de batalha' : mode === 'call' ? 'chamada de vídeo' : 'co-host';
     addToast(ToastType.Info, `Convidando ${friend.name} para ${inviteTypeLabel}...`);
 
     try {
       // 📡 Enviar convite via REST API
+      if (mode === 'call') {
+        // 📞 Chamada de vídeo: convite dedicado (notificação em tempo real no destinatário)
+        const { success, error } = await api.call.invite(friend.id, friend.name, streamId);
+        if (success) {
+          addToast(ToastType.Success, `Chamada enviada para ${friend.name}. Aguardando resposta...`);
+          onInvite(friend);
+        } else {
+          addToast(ToastType.Error, error || 'Falha ao enviar o convite de chamada.');
+        }
+        return;
+      }
       const inviteType = mode === 'battle' ? 'pk-battle' : 'co-host';
       const { success, message, error } = await api.inviteFriendForCoHost(streamId, friend.id, inviteType);
       if (success) {
+        // 🔁 REENVIO LIVRE: pode mandar o convite de novo quantas vezes quiser
+        // até a pessoa entrar na sala.
         addToast(ToastType.Success, message || `Convite para ${friend.name} enviado.`);
-        setInvitedFriends(prev => new Set(prev).add(friend.id));
         onInvite(friend);
       } else {
         addToast(ToastType.Error, error || 'Falha ao enviar convite.');
@@ -209,11 +268,10 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
       if (invitingFriendId === friendId) {
           return { text: "Convidando", disabled: true, className: "bg-gray-800 text-gray-500 cursor-wait" };
       }
-      if (invitedFriends.has(friendId)) {
-          return { text: t('common.invited') || "Convidado", disabled: true, className: "bg-gray-800 text-gray-500 cursor-not-allowed" };
-      }
+      // 🔁 Sem trava de "Convidado": o convite pode ser reenviado quantas
+      // vezes quiser até a pessoa entrar na sala.
       return { 
-          text: mode === 'battle' ? 'Batalha' : 'Convidar', 
+          text: mode === 'battle' ? 'Batalha' : mode === 'call' ? 'Chamar' : 'Convidar', 
           disabled: false, 
           className: "bg-[#FF2D55] text-white hover:bg-[#E02447] active:scale-95" 
       };
@@ -240,7 +298,7 @@ const CoHostModal: React.FC<CoHostModalProps> = ({
           
           <div className="flex flex-col items-center text-center justify-center">
             <h2 className="text-[17px] font-bold text-white tracking-wide leading-snug">
-              {mode === 'battle' ? 'Batalha PK com' : 'Co-apresentador com'}
+              {mode === 'battle' ? 'Batalha PK com' : mode === 'call' ? 'Chamada de vídeo com' : 'Co-apresentador com'}
             </h2>
             <h2 className="text-[17px] font-bold text-white tracking-wide leading-none">
               {mode === 'battle' ? 'criadores' : 'criadores'}

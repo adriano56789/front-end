@@ -12,9 +12,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=overlays-content" />
     <meta name="theme-color" content="#000000" />
     <title>Livenza App</title>
+    <!-- ⚡ Abertura instantânea: pré-conexão com os CDNs usados no boot -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <script src="https://cdn.tailwindcss.com" defer></script>
-    <script src="https://sdk.mercadopago.com/js/v2" defer></script>
+    <!-- Mercado Pago SDK REMOVIDO — LiveGo usa somente Payoneer (saques Pix/USD/EUR) -->
     <!-- ⚠️ NÃO remover o query string ?v= — evita que browsers usem um srs.sdk.js
          antigo em cache (o arquivo era servido com expires 30d sem versionamento,
          causando 'Failed to construct URL: Invalid base URL' no play WHEP). -->
@@ -672,7 +677,29 @@
 </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
+    <div id="root">
+      <!-- ⚡ BOOT SPLASH INTELIGENTE:
+           • Primeiro acesso (sem sessão): mostra LOGO + spinner enquanto carrega.
+           • Já logado: NENHUM logo, NENHUM loading — tela preta pura por
+             milissegundos até o app montar instantâneo (cache do usuário).
+           O React substitui este conteúdo ao montar. -->
+      <div id="boot-splash" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000;z-index:9999;">
+        <div style="font-size:2.2rem;font-weight:900;letter-spacing:-1px;background:linear-gradient(90deg,#a855f7,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent;font-family:'Inter',system-ui,sans-serif;">Livenza</div>
+        <div id="boot-spinner" style="margin-top:20px;width:32px;height:32px;border:3px solid rgba(255,255,255,.14);border-top-color:#a855f7;border-radius:50%;animation:bsspin .8s linear infinite;"></div>
+      </div>
+      <style>@keyframes bsspin{to{transform:rotate(360deg)}}</style>
+      <script>
+        // Usuário já logado? → pula o logo completamente (entrada instantânea)
+        try {
+          var _lgCached = localStorage.getItem('livego_cached_user');
+          var _lgToken = localStorage.getItem('livego_auth_token');
+          if (_lgCached && _lgToken) {
+            var _sp = document.getElementById('boot-splash');
+            if (_sp) { _sp.style.background = '#000'; _sp.innerHTML = ''; }
+          }
+        } catch (e) { /* modo privado: mantém o logo */ }
+      </script>
+    </div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

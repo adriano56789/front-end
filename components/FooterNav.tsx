@@ -28,7 +28,8 @@ const FooterNav: React.FC<FooterNavProps> = ({ currentUser, onOpenGoLive, active
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             <polyline points="9 22 9 12 15 12 15 22" />
           </svg>
-          <span className="text-[10px] font-bold tracking-wider">AO VIVO</span>
+          {/* Espaço invisível: mantém a casinha alinhada com os ícones das outras abas */}
+          <span className="text-[10px] leading-none opacity-0 select-none">.</span>
         </button>
 
         {/* VÍDEO */}
@@ -45,16 +46,58 @@ const FooterNav: React.FC<FooterNavProps> = ({ currentUser, onOpenGoLive, active
           <span className="text-[10px] font-bold tracking-wider">VÍDEO</span>
         </button>
 
-        {/* GO LIVE PLay Button (Center) */}
-        <div className="w-1/5 flex justify-center -translate-y-2">
-          <button 
+        {/* GO LIVE Play Button (Center) */}
+        <div className="w-1/5 flex flex-col items-center justify-end -translate-y-2">
+          {/* ✨ Efeito "vivo": pulso vermelho respirando */}
+          <style>{`
+            @keyframes aovivo-dot {
+              0%, 100% { transform: scale(1); box-shadow: 0 0 5px rgba(239,68,68,.9); opacity: 1; }
+              50% { transform: scale(1.35); box-shadow: 0 0 11px rgba(239,68,68,1); opacity: .85; }
+            }
+            @keyframes aovivo-ring {
+              0% { transform: scale(1); opacity: .55; }
+              100% { transform: scale(2.1); opacity: 0; }
+            }
+            @keyframes aovivo-halo {
+              0%, 100% { transform: scale(.85); opacity: .45; }
+              50% { transform: scale(1.3); opacity: .9; }
+            }
+            @keyframes aovivo-glow {
+              0%, 100% { text-shadow: 0 0 6px rgba(239,68,68,.85), 0 0 14px rgba(239,68,68,.45); }
+              50% { text-shadow: 0 0 11px rgba(239,68,68,1), 0 0 24px rgba(239,68,68,.7); }
+            }
+          `}</style>
+          {/* Nome AO VIVO EM CIMA do botão GoLive */}
+          <span
+            className="text-[9px] font-extrabold tracking-[0.14em] leading-none mb-1 select-none"
+            style={{
+              animation: 'aovivo-glow 1.6s ease-in-out infinite',
+              backgroundImage: 'linear-gradient(90deg,#f87171,#fda4af,#f87171)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              color: 'transparent'
+            }}
+          >
+            AO VIVO
+          </span>
+          <button
             onClick={onOpenGoLive}
-            className="w-14 h-14 bg-gradient-to-tr from-[#9c27b0] to-[#e040fb] rounded-full flex items-center justify-center shadow-lg shadow-purple-500/20 active:scale-90 transition-transform cursor-pointer border-none focus:outline-none"
+            className="relative w-14 h-14 bg-gradient-to-tr from-[#9c27b0] to-[#e040fb] rounded-full flex items-center justify-center shadow-lg shadow-purple-500/20 active:scale-90 transition-transform cursor-pointer border-none focus:outline-none"
           >
             <svg className="w-6 h-6 text-white fill-current ml-0.5" viewBox="0 0 24 24">
               <path d="M8 5v14l11-7z" />
             </svg>
           </button>
+          {/* Bolinha pulsando abaixo do botão */}
+          <span className="relative flex items-center justify-center h-2.5 mt-0.5 select-none">
+            <span
+              className="absolute w-7 h-7 rounded-full pointer-events-none"
+              style={{ background: 'radial-gradient(circle, rgba(239,68,68,.38) 0%, rgba(239,68,68,.12) 55%, transparent 72%)', animation: 'aovivo-halo 1.6s ease-in-out infinite' }}
+            />
+            <span className="absolute w-[7px] h-[7px] rounded-full bg-red-500/75" style={{ animation: 'aovivo-ring 1.5s ease-out infinite' }} />
+            <span className="absolute w-[7px] h-[7px] rounded-full bg-red-500/75" style={{ animation: 'aovivo-ring 1.5s ease-out .55s infinite' }} />
+            <span className="w-[5px] h-[5px] rounded-full bg-red-500 relative" style={{ animation: 'aovivo-dot 1.2s ease-in-out infinite' }} />
+          </span>
         </div>
 
         {/* CHAT (Messages) */}

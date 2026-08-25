@@ -117,11 +117,15 @@ import LoginScreen from './components/LoginScreen';
 
 import MainScreen from './components/MainScreen';
 
-import ProfileScreen from './components/ProfileScreen';
+// ⚡ CODE-SPLITTING: telas pesadas carregam sob demanda (chunks separados),
+// deixando o bundle inicial MUITO menor → app abre instantâneo.
+import { lazy, Suspense } from 'react';
 
-import MessagesScreen from './components/MessagesScreen';
+const ProfileScreen = lazy(() => import('./components/ProfileScreen'));
 
-import ChatScreen from './components/ChatScreen';
+const MessagesScreen = lazy(() => import('./components/MessagesScreen'));
+
+const ChatScreen = lazy(() => import('./components/ChatScreen'));
 
 import FooterNav from './components/FooterNav';
 
@@ -129,16 +133,18 @@ import ReminderModal from './components/ReminderModal';
 
 import RegionModal from './components/RegionModal';
 
-import GoLiveScreen, { InviteData } from './components/GoLiveScreen';
+const GoLiveScreen = lazy(() => import('./components/GoLiveScreen'));
+import type { InviteData } from './components/GoLiveScreen';
 
-import StreamRoom from './components/StreamRoom';
+const StreamRoom = lazy(() => import('./components/StreamRoom'));
 import { enrichGiftsWithComponents } from './components/live/GiftSvgHelper';
 
-import PKBattleScreen from './components/PKBattleScreen';
+const PKBattleScreen = lazy(() => import('./components/PKBattleScreen'));
 
 import { ToastType, ToastData, Streamer, User, Gift, StreamSummaryData, LiveSessionState, RankedUser, Conversation, Country, NotificationSettings, BeautySettings, FeedPhoto, StreamHistoryEntry, Visitor, PurchaseRecord, Message, EndStreamSummary, PurchaseCurrency, PurchasePackage } from './types';
 
 import Toast from './components/Toast';
+import FloatingChatNotification, { FloatingNotificationData } from './components/FloatingChatNotification';
 
 
 import UserProfileScreen from './components/BroadcasterProfileScreen';
@@ -192,6 +198,7 @@ import PWAInstallBanner from './components/PWAInstallBanner';
 import EndStreamSummaryScreen from './components/EndStreamSummaryScreen';
 
 import PrivateChatModal from './components/PrivateChatModal';
+import { installContentProtection } from './services/contentProtection';
 
 import PKBattleTimerSettingsScreen from './components/settings/PKBattleTimerSettingsScreen';
 
@@ -380,13 +387,70 @@ const AppContentWithRouter: React.FC = () => {
   return <AppContent navigate={navigate} location={location} />;
 };
 
+// 🔄 RENOVAÇÃO AUTOMÁTICA DE TOKEN (validação automática)
+// A cada abertura do app e sempre que ele VOLTA do segundo plano (troca de
+// aplicativo, tela bloqueada), pedimos ao backend um token NOVO (365d) e
+// guardamos em silêncio — a sessão se renova sozinha para sempre.
+// Throttle de 12h para não martelar a API. Se falhar, ignora: o token atual
+// continua valendo e NUNCA deslogamos por isso.
+const TOKEN_REFRESH_AT_KEY = 'livego_token_refresh_at';
+const TOKEN_REFRESH_MIN_INTERVAL_MS = 12 * 60 * 60 * 1000;
+const maybeRefreshTokenSilently = async (): Promise<void> => {
+  try {
+    if (!(window as any).currentUser?.id) return;
+    const last = parseInt(localStorage.getItem(TOKEN_REFRESH_AT_KEY) || '0', 10);
+    if (Date.now() - last < TOKEN_REFRESH_MIN_INTERVAL_MS) return;
+    const result = await api.refreshSession();
+    if (result && result.success && result.token) {
+      const { setAuthToken } = await import('./services/api');
+      setAuthToken(result.token);
+      localStorage.setItem(TOKEN_REFRESH_AT_KEY, String(Date.now()));
+      // Dados frescos do usuário vieram junto? Atualiza o cache em silêncio
+      const freshUser = (result as any).user;
+      if (freshUser && freshUser.id) {
+        try { localStorage.setItem('livego_cached_user', JSON.stringify(freshUser)); } catch { }
+      }
+      console.log('[AUTH] 🔄 Token renovado automaticamente');
+    }
+  } catch {
+    // Silêncio total: renovação é best-effort, nunca derruba sessão
+  }
+};
+
 const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, location }) => {
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // 🔐 SESSÃO PERSISTENTE — REGRA DO DONO:
+  // "Tela de login SÓ na 1ª vez ou se deslogou. Se já entrou → mantém-se
+  // dentro, NUNCA volta pro login."
+  // Por isso isAuthenticated/currentUser JÁ INICIALIZAM do cache de forma
+  // SINCRONA (antes do 1º paint): nenhum recarregamento da WebView pisca a
+  // tela de login nem "refaz entrada". O restoreSession abaixo só CONFIRMA/
+  // atualiza os dados com a API em background — e NUNCA desloga quem tem
+  // usuário em cache (só logout explícito derruba a sessão).
+  const readCachedUser = (): User | null => {
+    try {
+      const u = JSON.parse(localStorage.getItem('livego_cached_user') || 'null');
+      return u && u.id ? u : null;
+    } catch { return null; }
+  };
+  const cachedUserAtBoot = readCachedUser();
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => !!cachedUserAtBoot);
 
-  const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState<boolean>(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => cachedUserAtBoot);
+
+  // Espelho síncrono do cache para o restoreSession e o gate de render.
+  const cachedUserRef = useRef<User | null>(cachedUserAtBoot);
+
+  // ⚡ ENTRADA INSTANTÂNEA: se já existe usuário em cache (localStorage),
+  // NUNCA mostramos tela de loading — o estado já inicia como "pronto".
+  const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('livego_cached_user');
+    } catch {
+      return true;
+    }
+  });
 
   const [isEnteringStream, setIsEnteringStream] = useState<boolean>(false);
 
@@ -411,10 +475,13 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [showLocationBanner, setShowLocationBanner] = useState(false);
 
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  // 💬 Notificações flutuantes estilo WhatsApp (fica parada, arrasta pra descartar)
+  const [floatingNotifs, setFloatingNotifs] = useState<FloatingNotificationData[]>([]);
   // 🔔 CTA de permissão de notificação (PWA): o pedido precisa de gesto do usuário
   const [showNotifCta, setShowNotifCta] = useState(false);
   const notifDeniedShownRef = useRef(false);
   const notifCtaShownRef = useRef(false);
+  const swMessageHandlerRef = useRef<((e: MessageEvent) => void) | null>(null);
 
   const [activeStream, setActiveStream] = useState<Streamer | null>(null);
 
@@ -598,20 +665,32 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   // trocada — tratado no listener de 'newChatMessage' (upsert da conversa).
 
   // Sempre buscar dados da API - não usar localStorage
-
   useEffect(() => {
 
     const restoreSession = async () => {
 
-      setIsLoadingCurrentUser(true);
+      // 🔐 REGRA DO DONO: login SÓ na 1ª vez ou após logout explícito.
+      // Quem tem usuário em cache ENTRA DIRETO e NUNCA é jogado pra tela de
+      // login — nem com rede ruim, nem com token expirado, nem com resposta
+      // vazia da API. A API abaixo apenas ATUALIZA os dados em background.
+      const cachedUser = readCachedUser();
+      cachedUserRef.current = cachedUser;
+
+      if (cachedUser) {
+        setCurrentUser(cachedUser);
+        (window as any).currentUser = cachedUser;
+        setIsAuthenticated(true);
+        setIsLoadingCurrentUser(false);
+      }
 
       try {
 
-        // Tentar restaurar token do banco de dados (TokenStorage)
-        const { getAuthToken, setAuthToken } = await import('./components/utils/TokenStorage');
-        let token = await getAuthToken();
-        
-        if (!token) {
+        // Aquece o token na memória da API (lê do localStorage)
+        const { getAuthToken } = await import('./components/utils/TokenStorage');
+        const token = await getAuthToken();
+
+        if (!token && !cachedUser) {
+          // Primeira vez MESMO (nada salvo) → tela de login
           console.warn('⚠️ Token não encontrado no banco de dados');
           setIsAuthenticated(false);
           setCurrentUser(null);
@@ -619,63 +698,40 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           return;
         }
 
-        // ⚡ ABERTURA RÁPIDA: se já temos o usuário em cache (localStorage),
-        // mostra a tela imediatamente e valida em segundo plano. Evita o
-        // spinner preto esperando a rede. A API atualiza o cache no sucesso.
-        let cachedUser: User | null = null;
-        try {
-          cachedUser = JSON.parse(localStorage.getItem('livego_cached_user') || 'null');
-        } catch {
-          cachedUser = null;
-        }
-        if (cachedUser && cachedUser.id) {
-          setCurrentUser(cachedUser);
-          (window as any).currentUser = cachedUser;
-          setIsAuthenticated(true);
-          setIsLoadingCurrentUser(false);
-        }
-
         // Tentar buscar usuário atual da API
-
         try {
           const user = await api.getCurrentUser();
 
-          if (user) {
-
+          if (user && (user as any).id) {
+            // Dados frescos do banco → atualiza em silêncio (sem flash)
             setCurrentUser(user);
             (window as any).currentUser = user;
             setIsAuthenticated(true);
+            cachedUserRef.current = user;
             try { localStorage.setItem('livego_cached_user', JSON.stringify(user)); } catch { }
-
-          } else {
-
+          } else if (!cachedUser) {
+            // Sem usuário válido na API e sem cache → login
             setIsAuthenticated(false);
             setCurrentUser(null);
-            try { localStorage.removeItem('livego_cached_user'); } catch { }
-
           }
+          // ⚠️ COM cache: resposta vazia/inválida NÃO desloga — permanece dentro.
+
         } catch {
-          // Rede falhou: se não havia cache, vai para o login. Se havia cache,
-          // mantém o usuário em tela (tolerante a offline momentâneo).
-          if (!cachedUser || !cachedUser.id) {
+          // Rede falhou OU token expirado: SEM cache → login; COM cache → PERMANECE.
+          if (!cachedUser) {
             setIsAuthenticated(false);
             setCurrentUser(null);
           }
         }
 
       } catch {
-
-        // Usuário não autenticado
-
-        setIsAuthenticated(false);
-
-        setCurrentUser(null);
-
+        // Erro inesperado: mantém o que temos (nunca derruba sessão ativa)
       } finally {
-
         setIsLoadingCurrentUser(false);
-
       }
+
+      // 🔄 Validação automática: renova o token em background (throttle 12h)
+      maybeRefreshTokenSilently();
 
     };
 
@@ -683,6 +739,16 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, []);
 
+  // 🔄 Sempre que o app VOLTA do segundo plano → valida/renova o token
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        maybeRefreshTokenSilently();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
 
 
   // Aplicar configurações de zoom quando usuário está disponível
@@ -875,21 +941,36 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   useEffect(() => {
 
-    if (!currentUser?.id) return;
-
-
-
-    const loadUserData = async () => {
+    if (!currentUser?.id) return;    const loadUserData = async () => {
 
       try {
 
-        const [convs, friendList, following, fans, streamHistory, visitors, withdrawalHistory] = await Promise.allSettled([
+        // ⚡ FASE 1: Dados críticos (conversas, amigos, seguindo) — carrega PRIMEIRO
+        // pra tela de mensagens ficar instantânea.
+        const [convs, friendList, following] = await Promise.allSettled([
 
           api.getConversations(currentUser.id),
 
           api.getFriends(currentUser.id),
 
           api.getFollowingUsers(currentUser.id),
+
+        ]);
+
+        if (convs.status === 'fulfilled' && Array.isArray(convs.value)) {
+          setConversations(convs.value);
+        }
+        if (friendList.status === 'fulfilled' && Array.isArray(friendList.value)) {
+          setFriends(friendList.value);
+        }
+        if (following.status === 'fulfilled' && Array.isArray(following.value)) {
+          setFollowingUsers(following.value);
+          setCurrentUser(prev => prev ? { ...prev, following: following.value.length } : prev);
+        }
+
+        // ⚡ FASE 2: Dados secundários (fans, histórico, visitantes) — em background,
+        // NÃO bloqueia a UI.
+        Promise.allSettled([
 
           api.getFansUsers(currentUser.id),
 
@@ -899,49 +980,14 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
           api.getWithdrawalHistory(currentUser.id),
 
-        ]);
+        ]).then(([fans, streamHistory, visitors, withdrawalHistory]) => {
 
+          if (fans.status === 'fulfilled' && Array.isArray(fans.value)) setFans(fans.value);
+          if (streamHistory.status === 'fulfilled' && Array.isArray(streamHistory.value)) setStreamHistory(streamHistory.value);
+          if (visitors.status === 'fulfilled' && Array.isArray(visitors.value)) setVisitors(visitors.value);
+          if (withdrawalHistory.status === 'fulfilled' && Array.isArray(withdrawalHistory.value)) setPurchaseHistory(withdrawalHistory.value);
+        });
 
-
-        if (convs.status === 'fulfilled' && Array.isArray(convs.value)) {
-
-          setConversations(convs.value);
-
-        }
-
-        if (friendList.status === 'fulfilled' && Array.isArray(friendList.value)) {
-
-          setFriends(friendList.value);
-
-        }
-        if (following.status === 'fulfilled' && Array.isArray(following.value)) {
-
-          setFollowingUsers(following.value);
-
-          setCurrentUser(prev => prev ? { ...prev, following: following.value.length } : prev);
-
-        }
-        if (fans.status === 'fulfilled' && Array.isArray(fans.value)) {
-
-          setFans(fans.value);
-
-        }
-        if (streamHistory.status === 'fulfilled' && Array.isArray(streamHistory.value)) {
-
-          setStreamHistory(streamHistory.value);
-
-        }
-        if (visitors.status === 'fulfilled' && Array.isArray(visitors.value)) {
-
-          setVisitors(visitors.value);
-
-        }
-        if (withdrawalHistory.status === 'fulfilled' && Array.isArray(withdrawalHistory.value)) {
-
-          setPurchaseHistory(withdrawalHistory.value);
-
-        }
-        
       } catch (error) {
 
         console.error('❌ [App] Erro ao carregar dados do usuário:', error);
@@ -1001,8 +1047,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     const handlePKBattleStarted = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       console.log("⚔️ [PK-STARTED] Battle started event:", detail);
-      if (detail && detail.opponentId) {
-        const opponentUser = streamers.find((s: any) => s.id === detail.opponentId || s.hostId === detail.opponentId);
+      if (!detail) return;
+      const opponentId = detail.opponentId || detail.streamerB;
+      if (opponentId) {
+        const opponentUser = streamers.find((s: any) => s.id === opponentId || s.hostId === opponentId);
         if (opponentUser) {
           setPkOpponent(opponentUser as unknown as User);
           setIsPKBattleActive(true);
@@ -1021,6 +1069,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       addToast(ToastType.Info, detail?.reason || 'Batalha PK encerrada.');
       setIsPKBattleActive(false);
       setPkOpponent(null);
+      setActivePKInvite(null);
     };
 
     const handlePKScoreUpdate = (e: Event) => {
@@ -1077,9 +1126,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   const [listScreenUsers, setListScreenUsers] = useState<User[]>([]);
 
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(INITIAL_DATA.notificationSettings);
-
-  // 🔔 Notificações in-app GLOBAIS (Socket.IO + bridge FCM): faixa de ao vivo,
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(INITIAL_DATA.notificationSettings);   // 🔔 Notificações in-app GLOBAIS (Socket.IO + push nativo): faixa de ao vivo,
   // convite privado e convite PK aparecem mesmo fora da StreamRoom.
   useGlobalNotifications({
     enabled: isAuthenticated && !!currentUser?.id,
@@ -1155,6 +1202,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       initPrivateChatSocket();
     });
 
+    // 🔒 Proteção de conteúdo: bloqueio de print/gravação/download em live e
+    // mídia protegida (instala UMA vez — service é idempotente).
+    installContentProtection();
+
     return () => {
       disposed = true;
       if (socket) {
@@ -1214,7 +1265,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const pipStreamerRef = useRef(pipStreamer);
   useEffect(() => { pipStreamerRef.current = pipStreamer; }, [pipStreamer]);
   const handleSelectStreamRef = useRef<((streamer: Streamer) => Promise<void>) | null>(null);
-  const fcmInitializedRef = useRef(false);
+  const swInitializedRef = useRef(false);
   // Refs de estado para uso em listeners globais (SW auto-update)
   const activeStreamRef = useRef(activeStream);
   useEffect(() => { activeStreamRef.current = activeStream; }, [activeStream]);
@@ -1252,17 +1303,30 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, []);
 
-  // 🛡️ Proteção de tela: ativa quando o usuário liga 'screenSecurityEnabled'
-  // (própria conta), OU quando está vendo o perfil de alguém que ativou a
-  // proteção (viewingProtectedProfile), OU quando está NA SALA DE TRANSMISSÃO
-  // de um host com proteção ativa (activeStream.screenSecurityEnabled), OU no
-  // CHAT PRIVADO com alguém protegido (chattingWith.screenSecurityEnabled).
-  // Enquanto ativa: bloqueia print/gravador (tela preta no app Android),
-  // salvar/copiar/arrastar/baixar imagens e compartilhar FOTO/VIDEO (ex.: bot
-  // do Telegram). A LIVE continua podendo ser compartilhada.
+  // 💬 Handlers da notificação flutuante estilo WhatsApp
+  const handleDismissFloatingNotif = useCallback((id: string) => {
+    setFloatingNotifs(prev => prev.filter(n => n.id !== id));
+  }, []);
+
+  const handleTapFloatingNotif = useCallback((sender: User) => {
+    // Remove a notificação
+    setFloatingNotifs(prev => prev.filter(n => n.sender.id !== sender.id));
+    // Abre o chat com o remetente (limpa badge + abre tela)
+    setConversations(prev => prev.map(c =>
+      c.friend?.id === sender.id ? { ...c, unreadCount: 0 } : c
+    ));
+    setChattingWith(sender);
+  }, []);
+
+  // 🛡️ REGRA DO DONO: proteção de tela funciona SOMENTE DENTRO DA SALA DE
+  // TRANSMISSÃO (activeStream definido ao entrar na live e limpo ao sair).
+  // FORA da sala — cards, listas, perfil, chat — NENHUMA proteção, bloqueio
+  // ou mensagem deve aparecer.
+  // Enquanto DENTRO da sala: print/gravação dispara aviso "NÃO PERMITIDO",
+  // app Android nativo fica PRETO na gravação (FLAG_SECURE), e salvar/copiar/
+  // arrastar imagens é bloqueado. A LIVE continua podendo ser compartilhada.
   useEffect(() => {
-    const enabled = !!currentUser?.screenSecurityEnabled || viewingProtectedProfile
-      || !!activeStream?.screenSecurityEnabled || !!chattingWith?.screenSecurityEnabled;
+    const enabled = !!activeStream;
     if (!enabled) return;
 
     const root = document.documentElement;
@@ -1396,7 +1460,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       if (restoredShare) restoredShare();
     };
 
-  }, [currentUser?.screenSecurityEnabled, viewingProtectedProfile, activeStream?.screenSecurityEnabled, chattingWith?.screenSecurityEnabled, addToast]);
+  }, [activeStream, addToast]);
 
   // 🔔 Ativa notificações via gesto do usuário — navegadores móveis ignoram
   // requestPermission fora de um toque, então o CTA/botão é o gatilho correto.
@@ -1494,6 +1558,25 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
   }, [viewingProfile, pkOpponent, activeStream]);
 
+  // 💎 Atualização de saldo em tempo real via socket: quando o backend emite
+  // diamonds_updated (roleta, presentes, etc.), atualiza o saldo do usuário
+  // local imediatamente sem precisar recarregar a página.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const handleDiamondsUpdated = (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      if (!data || !data.userId) return;
+      if (String(data.userId) === String(currentUser.id) && typeof data.diamonds === 'number') {
+        const updated = { ...currentUserRef.current, diamonds: data.diamonds };
+        if (typeof data.receptores === 'number') (updated as any).receptores = data.receptores;
+        if (typeof data.earnings === 'number') (updated as any).earnings = data.earnings;
+        updateUserEverywhere(updated);
+      }
+    };
+    window.addEventListener('livego:diamonds_updated', handleDiamondsUpdated);
+    return () => window.removeEventListener('livego:diamonds_updated', handleDiamondsUpdated);
+  }, [currentUser?.id, updateUserEverywhere]);
+
 
 
   // ... (keeping existing handlers like handleLeaveStreamView, handleLogout, etc.) ...
@@ -1511,6 +1594,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       setActiveStream(null);
       setIsPKBattleActive(false);
       setPkOpponent(null);
+      setActivePKInvite(null);
       setLiveSession(null);
       setStreamRoomData(null);
       navigate('/', { replace: true });
@@ -1522,6 +1606,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     setActiveStream(null);
     setIsPKBattleActive(false);
     setPkOpponent(null);
+    setActivePKInvite(null);
     setLiveSession(null);
     setStreamRoomData(null);
     navigate('/', { replace: true });
@@ -1554,6 +1639,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     setActiveStream(null);
     setIsPKBattleActive(false);
     setPkOpponent(null);
+    setActivePKInvite(null);
     setLiveSession(null);
     setStreamRoomData(null);
     navigate('/', { replace: true });
@@ -1585,10 +1671,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
 
     removeAuthToken();
 
-    // Limpar token persistido (REMOVIDO - não usa mais localStorage/sessionStorage)
-    // sessionStorage.removeItem('authToken');
-
-
+    // 🔐 LOGOUT REAL: limpar TAMBÉM o usuário em cache — sem isso, qualquer
+    // recarregamento reentrava sozinho ("login automático" indevido).
+    try { localStorage.removeItem('livego_cached_user'); } catch { }
+    cachedUserRef.current = null;
 
     // Limpar estado - não usar localStorage
 
@@ -1710,12 +1796,12 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   useEffect(() => {
 
     // 📲 PWA: registrar Service Worker (obrigatório para instalação do app + push notifications)
-    // O firebase-messaging-sw.js usa Network-First: online sempre busca conteúdo fresco,
+    // O sw.js usa Network-First: online sempre busca conteúdo fresco,
     // cache é só fallback offline — não causa "assets antigos" para usuários conectados.
-    if ('serviceWorker' in navigator && !fcmInitializedRef.current) {
-      fcmInitializedRef.current = true;
-      navigator.serviceWorker.register('/firebase-messaging-sw.js').then((reg) => {
-        console.log('[FCM] Service Worker registrado (única vez)');
+    if ('serviceWorker' in navigator && !swInitializedRef.current) {
+      swInitializedRef.current = true;
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        console.log('[SW] Service Worker registrado (única vez)');
         // 🚀 AUTO-UPDATE: se uma versão nova do app for detectada no servidor,
         // ativa o service worker novo e recarrega a página automaticamente.
         // Assim o usuário nunca fica preso na versão antiga (sem limpar cache).
@@ -1746,7 +1832,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           window.location.reload();
         });
       }).catch((err) => {
-        console.warn('[FCM] Erro ao registrar Service Worker:', err);
+        console.warn('[SW] Erro ao registrar Service Worker:', err);
       });
     }
 
@@ -1805,10 +1891,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     // (não cleanup: o var persiste para toda a vida do app;
     //  se o componente desmontar, o var permanece com o último valor — inócuo)
 
-    // 🔔 FIREBASE SERVE SÓ PARA NOTIFICAÇÃO NA TELA — o tempo real do app é
-    // 100% WebSocket (socketService). Por isso o FCM é carregado DEPOIS da
-    // interface abrir (idle com timeout), sem competir com o feed no boot.
-    const initFirebaseOnlyNotifications = () => {
+    // 🔔 WEB PUSH NATIVO serve só para notificação na tela — o tempo real do
+    // app é 100% WebSocket (socketService). Por isso o push é carregado DEPOIS
+    // da interface abrir (idle com timeout), sem competir com o feed no boot.
+    const initPushNotifications = () => {
       if (!currentUserRef.current) return;
       import('./services/notificationService').then(async ({ initNotifications }) => {
         const notifStatus = await initNotifications(currentUserRef.current.id);
@@ -1822,20 +1908,59 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           setShowNotifCta(true);
         }
       });
-      import('./services/firebase').then(({ onForegroundMessage }) => {
+      import('./services/webPushService').then(({ listenForegroundPush }) => {
+        // 💬 Abre a conversa com quem mandou a mensagem (clique na notificação
+        // do sistema ou botão "Responder" — o SW repassa via postMessage).
+        const openChatFromPush = async (senderId: string, senderName?: string) => {
+          if (!senderId || !currentUserRef.current) return;
+          try {
+            const u: any = await api.getUser(senderId);
+            const user = u?.user || u;
+            if (user?.id) {
+              setConversations(prev => prev.map(c => c.friend?.id === user.id ? { ...c, unreadCount: 0 } : c));
+              setChattingWith(user);
+              return;
+            }
+          } catch { /* cai no fallback minimalista */ }
+          setChattingWith({ id: senderId, name: senderName || '', photos: [] } as any);
+        };
+        const onSwMessage = (event: MessageEvent) => {
+          const msg: any = event.data;
+          if (msg?.type === 'OPEN_CONVERSATION' && msg.senderId) {
+            openChatFromPush(String(msg.senderId), msg.senderName);
+          }
+        };
+        navigator.serviceWorker.addEventListener('message', onSwMessage);
+        swMessageHandlerRef.current = onSwMessage;
+
+        // 🔗 Cold start por deep-link /?openchat=<senderId> (notificação com app fechado)
+        const wAny = window as any;
+        if (!wAny.__lgOpenChatHandled) {
+          wAny.__lgOpenChatHandled = true;
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const oc = params.get('openchat');
+            if (oc) {
+              params.delete('openchat');
+              const qs = params.toString();
+              window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+              setTimeout(() => openChatFromPush(oc), 1500); // espera auth hidratar
+            }
+          } catch { /* URL malformada — ignora */ }
+        }
+
         const recentPushKeys: string[] = [];
-        onForegroundMessage((payload) => {
-          const title = payload.notification?.title || payload.data?.title || 'Nova notificação';
-          const body = payload.notification?.body || payload.data?.body || '';
+        listenForegroundPush((payload) => {
+          const title = payload.title || payload.data?.title || 'Nova notificação';
+          const body = payload.body || '';
           const type = payload.data?.type;
           if (type === 'new_message') {
             // 💬 FALLBACK do CHAT PRIVADO: com o app aberto a mensagem chega em
             // tempo real pelo WebSocket (socketService → evento 'newChatMessage').
-            // O FCM em foreground entra só como reserva quando o socket está
-            // desconectado — o dedup evita banner duplicado (WS + FCM).
-            // 🔑 "from" é reservada no FCM v1 (o backend remove) — usar senderId
-            const senderIdFcm = payload.data?.senderId || payload.data?.from || '';
-            const key = `nm|${senderIdFcm}|${payload.data?.fromUserName || title}|${body}`;
+            // O push em foreground entra só como reserva quando o socket está
+            // desconectado — o dedup evita banner duplicado (WS + push).
+            const senderIdPush = payload.data?.senderId || payload.data?.from || '';
+            const key = `nm|${senderIdPush}|${payload.data?.fromUserName || title}|${body}`;
             if (recentPushKeys.includes(key)) return;
             recentPushKeys.push(key);
             if (recentPushKeys.length > 20) recentPushKeys.shift();
@@ -1844,7 +1969,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
             if (!isSocketConnected()) {
               window.dispatchEvent(new CustomEvent('newChatMessage', {
                 detail: {
-                  id: `fcm_${Date.now()}_${Math.random()}`,
+                  id: `push_${Date.now()}_${Math.random()}`,
                   from: payload.data?.senderId || payload.data?.from || '',
                   to: uid,
                   senderName: payload.data?.fromUserName || title,
@@ -1856,7 +1981,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
               }));
             }
           } else if (type === 'live_started') {
-            // 🔔 Firebase/FCM serve SÓ para push na tela: NUNCA carrega avatar,
+            // 🔔 Push nativo serve SÓ para push na tela: NUNCA carrega avatar,
             // foto ou ícone. A faixa in-app usa apenas os dados de roteamento
             // (ids) — o avatar vem exclusivamente do Socket.IO em tempo real.
             window.dispatchEvent(new CustomEvent('app:show_in_app_notification', {
@@ -1875,14 +2000,19 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     };
     const w = window as any;
     if (w.requestIdleCallback) {
-      w.requestIdleCallback(initFirebaseOnlyNotifications, { timeout: 3000 });
+      w.requestIdleCallback(initPushNotifications, { timeout: 3000 });
     } else {
-      w.setTimeout(initFirebaseOnlyNotifications, 2000);
+      w.setTimeout(initPushNotifications, 2000);
     }
 
-    return () => {};
+    return () => {
+      if (swMessageHandlerRef.current && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', swMessageHandlerRef.current);
+        swMessageHandlerRef.current = null;
+      }
+    };
 
-  }, [activeStream]);
+  }, [currentUser?.id]);
 
 
 
@@ -2207,6 +2337,33 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         return;
 
       }
+
+      // 💬 NOTIFICAÇÃO FLUTUANTE estilo WhatsApp: aparece no topo, fica parada,
+      // só some quando o usuário arrasta pra descartar ou toca pra abrir o chat.
+      const senderUser = {
+        id: message.from,
+        name: message.senderName || message.from,
+        avatarUrl: message.senderAvatar || '',
+        level: message.senderLevel || 1,
+        birthday: message.senderBirthday,
+      } as User;
+      setFloatingNotifs(prev => {
+        // Evitar duplicata: se já tem notificação deste remetente, atualiza em vez de criar nova
+        const existing = prev.findIndex(n => n.sender.id === message.from);
+        const updated = [...prev];
+        const notif: FloatingNotificationData = {
+          id: `flnoti_${message.from}_${Date.now()}`,
+          sender: senderUser,
+          text: message.text || (message.imageUrl ? '📷 Foto' : ''),
+          timestamp: Date.now(),
+        };
+        if (existing > -1) {
+          updated[existing] = notif;
+        } else {
+          updated.push(notif);
+        }
+        return updated.slice(-5); // Máximo 5 na fila
+      });
 
       // Caso contrário, atualiza a lista de conversas em tempo real (badge + última mensagem)
 
@@ -3104,6 +3261,8 @@ const logLiveEvent = (type: string, data: any) => {
 
         setPkOpponent(null);
 
+        setActivePKInvite(null);
+
         setLiveSession(null);
 
         navigate('/');
@@ -3212,6 +3371,7 @@ const logLiveEvent = (type: string, data: any) => {
       setActiveStream(null);
       setIsPKBattleActive(false);
       setPkOpponent(null);
+      setActivePKInvite(null);
       setLiveSession(null);
       setStreamRoomData(null);
       navigate('/');
@@ -3223,6 +3383,7 @@ const logLiveEvent = (type: string, data: any) => {
     setActiveStream(null);
     setIsPKBattleActive(false);
     setPkOpponent(null);
+    setActivePKInvite(null);
     setLiveSession(null);
     setStreamRoomData(null);
 
@@ -3248,15 +3409,13 @@ const logLiveEvent = (type: string, data: any) => {
 
 
   const handleEndPKBattle = () => {
-
-    if (!activeStream) return;
-
     addToast(ToastType.Info, "Batalha PK encerrada.");
-
     setIsPKBattleActive(false);
-
     setPkOpponent(null);
-
+    setActivePKInvite(null);
+    if (activeStream && currentUser) {
+      api.endPKBattle(currentUser.id, activeStream.id).catch(() => {});
+    }
   };
 
 
@@ -3336,13 +3495,21 @@ const logLiveEvent = (type: string, data: any) => {
 
     const userToView = user.id === currentUser?.id ? currentUser : (fullUserFromState || user);
 
+    // 🔧 Estado REAL do follow na abertura: a lista/origem pode vir sem a flag
+    // isFollowed (ou errada) — sincroniza com quem EU realmente sigo.
+    const reallyFollowing = currentUser && userToView.id !== currentUser.id
+      ? followingUsers.some(u => String(u.id) === String(userToView.id))
+      : false;
+
+    const userToViewEnriched: User = { ...userToView, isFollowed: !!userToView.isFollowed || reallyFollowing };
+
     if (currentUser && userToView.id !== currentUser.id) {
       api.recordVisit(userToView.id, currentUser.id).catch(err => {
         console.error('[API] Erro ao registrar visita no perfil:', err);
       });
     }
 
-    setViewingProfile(userToView);
+    setViewingProfile(userToViewEnriched);
 
   };
 
@@ -3394,7 +3561,13 @@ const logLiveEvent = (type: string, data: any) => {
 
       if (response.success) {
 
-        const isNowFollowing = !userToFollow.isFollowed;
+        // 🔧 VERDADE DO SERVIDOR: o backend responde o estado REAL depois do
+        // toggle (isFollowing). Antes usávamos a flag do cliente (user.isFollowed),
+        // que podia vir errada de onde o perfil foi aberto — o botão invertia
+        // ("Seguir" mesmo já seguindo) e podia DESSEGUIR sem querer.
+        const isNowFollowing = typeof (response as any).isFollowing === 'boolean'
+          ? (response as any).isFollowing
+          : !userToFollow.isFollowed;
 
         const updatedFollowed = { ...userToFollow, isFollowed: isNowFollowing };
 
@@ -3849,6 +4022,8 @@ const logLiveEvent = (type: string, data: any) => {
     setIsAuthenticated(true);
     // Cache para a próxima abertura abrir instantânea
     try { localStorage.setItem('livego_cached_user', JSON.stringify(user)); } catch { }
+    // 🔄 Login acabou de emitir token novo — marca o momento da última renovação
+    try { localStorage.setItem(TOKEN_REFRESH_AT_KEY, String(Date.now())); } catch { }
   }, []);
 
 
@@ -3856,13 +4031,16 @@ const logLiveEvent = (type: string, data: any) => {
   // Mostrar loading enquanto restaura sessão
   if (isLoadingCurrentUser) return <div className="h-full w-full bg-black flex items-center justify-center"><LoadingSpinner /></div>;
 
-  if (!isAuthenticated) return <LoginScreen onLogin={handleLogin} />;
+  // 🔐 Tela de login SÓ na 1ª vez ou após logout explícito. Se existe usuário
+  // em cache, NUNCA mostramos login aqui — evita qualquer flash/redirecionamento.
+  if (!isAuthenticated && !cachedUserRef.current) return <LoginScreen onLogin={handleLogin} />;
 
   if (!currentUser) return <div className="h-full w-full bg-black flex items-center justify-center"><LoadingSpinner /></div>;
 
 
 
   return (
+    <Suspense fallback={null}>
     <div className={`app-container bg-black text-white font-sans ${((activeStream && streamRoomData) || chattingWith) && currentUser ? 'live-fixed' : ''}`}>
 
 
@@ -3971,8 +4149,48 @@ const logLiveEvent = (type: string, data: any) => {
       )}
 
       {/* ChatScreen com prioridade absoluta - sobre todas as outras telas */}
+      {/* 💬 DENTRO da transmissão abre como MODAL (por cima da live, sem sair);
+          FORA dela abre como página normal. */}
 
       {chattingWith && currentUser && (
+        activeStream ? (
+          <div className="fixed inset-0 z-[999999] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={() => setChattingWith(null)}>
+            <div
+              className="w-full max-w-lg h-[85dvh] bg-[#09080b] rounded-t-3xl overflow-hidden shadow-[0_-20px_50px_rgba(0,0,0,0.9)] border border-white/10 flex flex-col animate-in fade-in slide-in-from-bottom-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ChatScreen
+
+                user={chattingWith}
+
+                onBack={() => setChattingWith(null)}
+
+                isModal={false}
+
+                currentUser={currentUser}
+
+                onNavigateToFriends={handleNavigateToFriends}
+
+                onFollowUser={handleFollowUser}
+
+                onBlockUser={handleBlockUser}
+
+                onReportUser={handleReportUser}
+
+                onOpenPhotoViewer={(photos, index) => {
+
+                    setPhotoViewerData({ photos, initialIndex: index });
+
+                }}
+
+                onOpenLive={handleOpenUserLive}
+
+                onOpenProfile={setViewingProfile}
+
+              />
+            </div>
+          </div>
+        ) : (
 
         <div className="fixed top-0 left-0 right-0 z-[999999]" style={{ height: 'var(--app-height, 100dvh)' }}>
 
@@ -4008,6 +4226,8 @@ const logLiveEvent = (type: string, data: any) => {
 
         </div>
 
+        )
+
       )}
 
 
@@ -4026,73 +4246,7 @@ const logLiveEvent = (type: string, data: any) => {
 
       {activeStream && streamRoomData && currentUser ? (
 
-        isPKBattleActive && pkOpponent ? (
-
-          <PKBattleScreen
-
-            streamer={activeStream}
-
-            opponent={pkOpponent}
-
-            onEndPKBattle={handleEndPKBattle}
-
-            onRequestEndStream={handleRequestEndStream}
-
-            onViewProfile={handleViewProfile}
-
-            currentUser={currentUser}
-
-            onFollowUser={handleFollowUser}
-
-            onOpenPrivateChat={() => setIsPrivateChatModalOpen(true)}
-
-            onStartChatWithStreamer={handleStartChatWithStreamer}
-
-            onOpenPKTimerSettings={handleOpenPKTimerSettings}
-
-            gifts={streamRoomData.gifts}
-
-            receivedGifts={streamRoomData.receivedGifts}
-
-            liveSession={liveSession}
-
-            updateLiveSession={updateLiveSession}
-
-            logLiveEvent={logLiveEvent}
-
-            updateUser={updateUserEverywhere}
-
-            setActiveScreen={handleNavigation} // Mantido para compatibilidade, mas agora usa navigate
-
-            onStreamUpdate={handleStreamUpdate}
-
-            rankingData={rankingData}
-
-            addToast={addToast}
-
-            refreshStreamRoomData={refreshStreamRoomData}
-
-            onLeaveStreamView={handleLeaveStreamView}
-
-            onOpenPrivateInviteModal={() => setIsPrivateInviteModalOpen(true)}
-
-            onOpenFans={() => handleOpenListScreen('fans')}
-
-            onOpenFriendRequests={() => setIsFriendRequestsScreenOpen(true)}
-
-            followingUsers={followingUsers}
-
-            pkBattleDuration={pkBattleDuration}
-
-            streamers={streamers}
-
-            onSelectStream={handleSelectStream}
-
-            onOpenVIPCenter={handleOpenVIPCenter}
-
-          />
-
-        ) : (
+        <>
 
           <StreamRoom
 
@@ -4128,7 +4282,7 @@ const logLiveEvent = (type: string, data: any) => {
 
             logLiveEvent={logLiveEvent}
 
-            setActiveScreen={handleNavigation} // Mantido para compatibilidade, mas agora usa navigate
+            setActiveScreen={handleNavigation}
 
             onStreamUpdate={handleStreamUpdate}
 
@@ -4137,6 +4291,8 @@ const logLiveEvent = (type: string, data: any) => {
             addToast={addToast}
 
             onLeaveStreamView={handleLeaveStreamView}
+
+            onBannedFromStream={() => { try { handleLeaveStreamView(); } catch {} setTimeout(() => setIsBlockListScreenOpen(true), 350); }}
 
             onOpenPrivateInviteModal={() => setIsPrivateInviteModalOpen(true)}
 
@@ -4158,7 +4314,75 @@ const logLiveEvent = (type: string, data: any) => {
 
           />
 
-        )
+          {isPKBattleActive && pkOpponent && (
+
+            <PKBattleScreen
+
+              streamer={activeStream}
+
+              opponent={pkOpponent}
+
+              onEndPKBattle={handleEndPKBattle}
+
+              onRequestEndStream={handleRequestEndStream}
+
+              onViewProfile={handleViewProfile}
+
+              currentUser={currentUser}
+
+              onFollowUser={handleFollowUser}
+
+              onOpenPrivateChat={() => setIsPrivateChatModalOpen(true)}
+
+              onStartChatWithStreamer={handleStartChatWithStreamer}
+
+              onOpenPKTimerSettings={handleOpenPKTimerSettings}
+
+              gifts={streamRoomData.gifts}
+
+              receivedGifts={streamRoomData.receivedGifts}
+
+              liveSession={liveSession}
+
+              updateLiveSession={updateLiveSession}
+
+              logLiveEvent={logLiveEvent}
+
+              updateUser={updateUserEverywhere}
+
+              setActiveScreen={handleNavigation}
+
+              onStreamUpdate={handleStreamUpdate}
+
+              rankingData={rankingData}
+
+              addToast={addToast}
+
+              refreshStreamRoomData={refreshStreamRoomData}
+
+              onLeaveStreamView={handleLeaveStreamView}
+
+              onOpenPrivateInviteModal={() => setIsPrivateInviteModalOpen(true)}
+
+              onOpenFans={() => handleOpenListScreen('fans')}
+
+              onOpenFriendRequests={() => setIsFriendRequestsScreenOpen(true)}
+
+              followingUsers={followingUsers}
+
+              pkBattleDuration={pkBattleDuration}
+
+              streamers={streamers}
+
+              onSelectStream={handleSelectStream}
+
+              onOpenVIPCenter={handleOpenVIPCenter}
+
+            />
+
+          )}
+
+        </>
 
       ) : (
 
@@ -4183,6 +4407,12 @@ const logLiveEvent = (type: string, data: any) => {
                     showLocationBanner={showLocationBanner}
                     unreadCount={totalUnreadMessages}
                     invitedStreamIds={invitedStreamIds}
+                    onRefresh={() => {
+                      // 🔄 Recarrega os cards da aba atual (pull-to-refresh / auto-refresh)
+                      if (activeCategory !== 'nearby' || locationPermissionStatus === 'granted') {
+                        handleTabChange(activeCategory);
+                      }
+                    }}
                 />
               ) : location.pathname.startsWith('/live/') && location.pathname !== '/live' ? (
                 <LiveLoadingRedirect />
@@ -4207,6 +4437,7 @@ const logLiveEvent = (type: string, data: any) => {
                   liveStreamers={streamers}
                   onSelectStreamer={handleSelectStream}
                   onOpenLive={handleOpenUserLive}
+                  onConversationDeleted={(friendId) => setConversations(prev => prev.filter(c => c.friend?.id !== friendId))}
                 />
               ) : location.pathname === '/profile' ? (
                 <ProfileScreen
@@ -4499,7 +4730,17 @@ const logLiveEvent = (type: string, data: any) => {
         </div>
       )}
 
-      <div className="absolute top-4 right-4 left-4 sm:left-auto space-y-2 z-[9999] pointer-events-none">
+      {/* 💬 Notificações flutuantes estilo WhatsApp — no topo, arrasta pra descartar */}
+      <FloatingChatNotification
+        notifications={floatingNotifs}
+        onDismiss={handleDismissFloatingNotif}
+        onTap={handleTapFloatingNotif}
+      />
+
+      {/* 🔔 Notificações/toasts — embaixo, PERTO da barra de mensagens (pedido do
+          dono: "X entrou na sala" não pode ficar lá no alto). bottom-24 (96px)
+          folga os composers das telas (~58-92px). Toasts seguem clicáveis. */}
+      <div className="absolute bottom-24 right-4 left-4 sm:left-auto space-y-2 z-[9999] pointer-events-none">
 
         {toasts.map(toast => (
 
@@ -4514,7 +4755,7 @@ const logLiveEvent = (type: string, data: any) => {
       </div>
 
     </div>
-
+    </Suspense>
   );
 
 };

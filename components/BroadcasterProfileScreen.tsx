@@ -378,11 +378,18 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
         }
     }
 
+    // 🔧 Follow OTIMISTA: o botão responde NA HORA ("Seguindo" ao tocar) e
+    // ressincroniza quando a prop chegar atualizada do pai/servidor.
+    const [followedLocal, setFollowedLocal] = useState<boolean>(!!user.isFollowed);
+    useEffect(() => { setFollowedLocal(!!user.isFollowed); }, [user.isFollowed]);
+
     const handleFollowClick = () => {
+        setFollowedLocal(v => !v);
         onFollow(user);
     };
 
     const handleUnfriend = () => {
+        setFollowedLocal(false);
         onFollow(user); 
         setIsModalOpen(false);
     };
@@ -731,8 +738,8 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
             {!isCurrentUser && (
                 <footer className="absolute bottom-0 left-0 right-0 bg-black p-3 flex-shrink-0 z-10 border-t border-gray-800/50">
                     <div className="flex items-center space-x-3">
-                        <button onClick={handleFollowClick} className={`flex-1 font-bold py-3 rounded-full transition-colors ${user.isFollowed ? 'bg-gray-700 text-gray-300' : 'bg-purple-600 text-white'}`}>
-                            {user.isFollowed ? t('common.following') : t('common.follow')}
+                        <button onClick={handleFollowClick} className={`flex-1 font-bold py-3 rounded-full transition-colors ${followedLocal ? 'bg-gray-700 text-gray-300' : 'bg-purple-600 text-white'}`}>
+                            {followedLocal ? t('common.following') : t('common.follow')}
                         </button>
                         <button onClick={() => onStartChat(user)} className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-full transition-colors">
                             {t('common.chat')}
@@ -746,7 +753,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                 onClose={() => setIsModalOpen(false)} 
                 onBlock={handleBlock}
                 onReport={handleReport} 
-                onUnfriend={user.isFollowed ? handleUnfriend : undefined} 
+                onUnfriend={followedLocal ? handleUnfriend : undefined} 
             />
         </div>
     );

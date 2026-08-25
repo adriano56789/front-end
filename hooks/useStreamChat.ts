@@ -461,6 +461,30 @@ export function useStreamChat(options: StreamChatOptions) {
         if (disposed || !data) return;
         window.dispatchEvent(new CustomEvent('livego:earnings_updated', { detail: data }));
       }));
+
+      // ⚔️ PK battle end — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_battle_end', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_battle_ended', { detail: data }));
+      }));
+
+      // ⚔️ PK battle start — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_battle_start', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_battle_started', { detail: data }));
+      }));
+
+      // ⚔️ PK score update — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_score_update', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_score_update', { detail: data }));
+      }));
+
+      // ⚔️ PK invite — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_invite', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_invite', { detail: data }));
+      }));
     };
 
     setup();

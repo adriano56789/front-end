@@ -2,6 +2,7 @@
 // Implementação completa com WebGL para performance via GPU
 
 import { BabyFaceProcessor } from './BabyFaceProcessor';
+import { FaceSkinMask } from './FaceSkinMask';
 import { getVideoConstraints } from './cameraService';
 
 export interface VideoProcessorConfig {
@@ -45,28 +46,30 @@ export interface BeautyEffectSettings {
 // Balanço de branco em ~5400K + brilho/contraste sutis.
 // Ao entrar na live o usuário JÁ PEGA a imagem limpa, cor viva e nitidez total.
 export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
-  whitening: 38,
-  smoothing: 34,
-  saturation: 30,
-  contrast: 16,
-  whiteBalance: 42,
-  babyFace: 32,
-  teethWhitening: 22,
-  lipFill: 0,
-  lipAugment: 0,
-  smileAdjust: 0,
-  browThickness: 0,
-  browCurve: 0,
-  browDefinition: 0,
-  wrinkleSmoothing: 35,
-  darkCircle: 30,
-  noseRefine: 0,
-  jawChin: 0,
-  eyeRefine: 0,
-  browColor: '',
-  browColorStrength: 0,
-  acneRemoval: 55,
-  shineReduction: 25,
+    whitening: 38,
+    smoothing: 36,
+    saturation: 30,
+    contrast: 16,
+    whiteBalance: 42,
+    // 🍼 Rosto Bebê mais presente (era 32 — usuário reportou efeito fraco/invisível).
+    babyFace: 38,
+    teethWhitening: 22,
+    lipFill: 0,
+    lipAugment: 0,
+    smileAdjust: 0,
+    browThickness: 0,
+    browCurve: 0,
+    browDefinition: 0,
+    wrinkleSmoothing: 42,
+    darkCircle: 32,
+    noseRefine: 0,
+    jawChin: 0,
+    eyeRefine: 0,
+    browColor: '',
+    browColorStrength: 0,
+    // 🧼 Remoção de manchas mais forte (era 55 — manchas do rosto ainda visíveis).
+    acneRemoval: 68,
+    shineReduction: 25,
   // 🔍 Nitidez equilibrada (Tencent Sharpness ~65) — alta demais (80) amplifica
   // o ruído do sensor e vira CHIADO na imagem; baixa demais deixa embaçado.
   // Combinada com o smoothing (34) que segura o ruído, a imagem fica limpa e
@@ -75,8 +78,9 @@ export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
   faceVolume3D: 48,
   // 🧹 Limpar Chiado — redução de ruído bilateral ANTES dos efeitos: remove o
   // grão da câmera (chiado de sensor/ISO) da imagem INTEIRA preservando bordas.
-  // É o que tira aquele aspecto feio de "TV velha" sem embaçar o rosto.
-  noiseReduction: 45,
+  // ✅ o que tira aquele aspecto feio de "TV velha" sem embaçar o rosto.
+  // 60 = limpeza mais agressiva para a live ficar lisa mesmo com pouca luz.
+  noiseReduction: 60,
   selectedFilter: '',
 };
 
@@ -95,6 +99,15 @@ export class VideoProcessor {
   
   private animationId: number | null = null;
   private isProcessing = false;
+  // ⏱️ Heartbeat do loop de render: timestamp do último frame desenhado.
+  // Usado para SABER se o stream processado está produzindo frames de verdade
+  // (ex.: sala de transmissão só publica depois do filtro estar fluindo).
+  private lastRenderAt = 0;
+
+  /** O pipeline está rodando E produziu frame nos últimos 600ms? */
+  isFramesFlowing(): boolean {
+    return !!this.isProcessing && performance.now() - this.lastRenderAt < 600;
+  }
   
   // WebGL resources
   private program: WebGLProgram | null = null;
@@ -111,6 +124,8 @@ export class VideoProcessor {
     beautySettings3: WebGLUniformLocation | null;
     beautySettings4: WebGLUniformLocation | null;
     featureSettings: WebGLUniformLocation | null;
+    faceMask: WebGLUniformLocation | null;
+    faceMaskActive: WebGLUniformLocation | null;
   } = {
     resolution: null,
     time: null,
@@ -118,7 +133,9 @@ export class VideoProcessor {
     beautySettings2: null,
     beautySettings3: null,
     beautySettings4: null,
-    featureSettings: null
+    featureSettings: null,
+    faceMask: null,
+    faceMaskActive: null
   };
   
   // Current beauty settings
@@ -131,8 +148,7 @@ export class VideoProcessor {
     teethWhitening: 0,
     lipFill: 0,
     lipAugment: 0,
-    smileAdjust: 0,
-    browThickness: 0,
+    smileAdjust: 0,    browThickness: 0,
     browCurve: 0,
     browDefinition: 0,
     wrinkleSmoothing: 0,
@@ -154,6 +170,11 @@ export class VideoProcessor {
   // Baby face (warp por landmarks MediaPipe)
   private babyFaceProcessor: BabyFaceProcessor | null = null;
   private meshActive = false;
+
+  // 🧑 Máscara de PELE do rosto (MediaPipe) — restringe suavização/clareamento
+  // ao oval do rosto, preservando olhos, sobrancelhas, boca e fundo.
+  private faceSkinMask: FaceSkinMask | null = null;
+  private maskTexture: WebGLTexture | null = null;
   
   private config: VideoProcessorConfig = {
     width: 1920,
@@ -223,6 +244,10 @@ export class VideoProcessor {
       // Obter stream original do vídeo
       this.stream = await this.getVideoStream();
 
+      // 🧑 Máscara de pele do rosto: anexa ao vídeo DEDICADO de processamento e
+      // pré-carrega o Face Landmarker em paralelo (não bloqueia o pipeline).
+      this.initFaceSkinMask();
+
       // Garantir que o processamento por malha facial (Rosto Bebê / lábios / sobrancelha) seja iniciado se já estiver ativo
       if (this.meshActive) {
         this.ensureBabyFace().then((ok) => {
@@ -238,6 +263,29 @@ export class VideoProcessor {
     } catch (error) {
       console.error('❌ [VIDEO_PROCESSOR] Erro na inicialização:', error);
       return false;
+    }
+  }
+
+  /**
+   * 🧑 Inicializa (lazy) a máscara de pele via MediaPipe. Amostra SEMPRE o vídeo
+   * dedicado de processamento (câmera crua) — nunca o preview, que pode exibir
+   * o canvas processado (feedback loop). Falha é silenciosa: sem máscara o
+   * shader usa só detecção por cor, como antes.
+   */
+  private initFaceSkinMask(): void {
+    try {
+      if (!this.faceSkinMask) {
+        this.faceSkinMask = new FaceSkinMask();
+      }
+      const sampleVideo = this.processingVideoElement || this.videoElement;
+      if (sampleVideo) {
+        this.faceSkinMask.attach(sampleVideo);
+      }
+      this.faceSkinMask.preload().then((ok) => {
+        if (ok) console.log('✅ [VIDEO_PROCESSOR] Máscara de pele facial ativa (suavização só no rosto)');
+      });
+    } catch (e) {
+      console.warn('⚠️ [VIDEO_PROCESSOR] Máscara facial não iniciada:', e);
     }
   }
 
@@ -463,6 +511,8 @@ export class VideoProcessor {
       uniform vec4 u_beautySettings3; // x: acneRemoval, y: shineReduction, z: sharpness, w: faceVolume3D
       uniform vec4 u_beautySettings4; // x: whiteBalance (balanço de branco ~5400K)
       uniform vec4 u_featureSettings; // x: featureActive, y: edgeStrength, z: preserveLips, w: preserveEyes
+      uniform sampler2D u_faceMask; // máscara de pele do rosto (MediaPipe): r=1 pele, r=0 preservado
+      uniform float u_faceMaskActive; // 1.0 = máscara disponível (rosto detectado)
       
       varying vec2 v_texCoord;
       
@@ -657,12 +707,17 @@ export class VideoProcessor {
       // --- Nitidez (unsharp mask) estilo Tencent Sharpness ---
       // Aumenta o contraste local de MICRO-detalhe (poros, fios, contornos finos)
       // sem estourar bordas fortes. Aplica no resultado final, ponderado pela pele.
+      // 🧹 ANTI-CHUVISCO: em áreas PLANAS o "detalhe" é só grão do sensor — a
+      // nitidez NÃO amplia ruído (textureGate), só textura/contorno reais.
+      // Resultado: imagem limpa de HD sem cara de plástico.
       vec3 applySharpness(vec3 rgb, vec2 uv, vec2 texelSize, float strength, float skinMask) {
         vec3 blurred = gaussianBlurLight(uv, texelSize);
         vec3 detail = rgb - blurred;
+        float detailMag = length(detail);
+        float textureGate = smoothstep(0.008, 0.055, detailMag);
         // Escala o detalhe: forte na pele, mais contido em features/bordas fortes
         float featureFactor = 1.0 - edgeDetection(uv, texelSize) * 0.45;
-        float amount = strength * 0.45 * mix(1.0, 1.25, skinMask) * featureFactor;
+        float amount = strength * 0.45 * mix(1.0, 1.25, skinMask) * featureFactor * textureGate;
         return clamp(rgb + detail * amount, 0.0, 1.0);
       }
       
@@ -748,22 +803,32 @@ export class VideoProcessor {
       // saturação não amplificarem o grão no final.
       vec3 applyDenoise(vec3 rgb, vec2 uv, vec2 texelSize, float strength) {
         float radius = 1.0 + strength * 1.5;
-        float sigmaL = 0.10 + strength * 0.28;
+        float sigmaL = 0.10 + strength * 0.32;
         vec3 sum = rgb;
         float wsum = 1.0;
         float axisW = 0.85;
         float diagW = 0.55;
-        for (int i = 0; i < 8; i++) {
+        // Anel duplo (8 vizinhos próximos + 8 a 2x distância): remove grão
+        // digital em área maior mantendo o filtro bilateral (bordas intactas).
+        for (int i = 0; i < 16; i++) {
           vec2 dir;
           float w;
-          if (i == 0) { dir = vec2(1.0, 0.0); w = axisW; }
-          else if (i == 1) { dir = vec2(-1.0, 0.0); w = axisW; }
-          else if (i == 2) { dir = vec2(0.0, 1.0); w = axisW; }
-          else if (i == 3) { dir = vec2(0.0, -1.0); w = axisW; }
-          else if (i == 4) { dir = vec2(1.0, 1.0); w = diagW; }
-          else if (i == 5) { dir = vec2(-1.0, -1.0); w = diagW; }
-          else if (i == 6) { dir = vec2(1.0, -1.0); w = diagW; }
-          else { dir = vec2(-1.0, 1.0); w = diagW; }
+          if (i == 0)       { dir = vec2(1.0, 0.0);  w = axisW; }
+          else if (i == 1)  { dir = vec2(-1.0, 0.0); w = axisW; }
+          else if (i == 2)  { dir = vec2(0.0, 1.0);  w = axisW; }
+          else if (i == 3)  { dir = vec2(0.0, -1.0); w = axisW; }
+          else if (i == 4)  { dir = vec2(1.0, 1.0);  w = diagW; }
+          else if (i == 5)  { dir = vec2(-1.0, -1.0); w = diagW; }
+          else if (i == 6)  { dir = vec2(1.0, -1.0); w = diagW; }
+          else if (i == 7)  { dir = vec2(-1.0, 1.0); w = diagW; }
+          else if (i == 8)  { dir = vec2(2.0, 0.0);  w = axisW * 0.6; }
+          else if (i == 9)  { dir = vec2(-2.0, 0.0); w = axisW * 0.6; }
+          else if (i == 10) { dir = vec2(0.0, 2.0);  w = axisW * 0.6; }
+          else if (i == 11) { dir = vec2(0.0, -2.0); w = axisW * 0.6; }
+          else if (i == 12) { dir = vec2(2.0, 2.0);  w = diagW * 0.6; }
+          else if (i == 13) { dir = vec2(-2.0, -2.0); w = diagW * 0.6; }
+          else if (i == 14) { dir = vec2(2.0, -2.0); w = diagW * 0.6; }
+          else              { dir = vec2(-2.0, 2.0); w = diagW * 0.6; }
           vec3 nb = texture2D(u_texture, uv + dir * radius * texelSize).rgb;
           float ldiff = abs(luminance(nb) - luminance(rgb));
           float wI = exp(-ldiff / max(sigmaL, 0.01));
@@ -821,6 +886,16 @@ export class VideoProcessor {
         
         // Máscara final: só aplica suavização onde é pele E não é feature
         float skinMask = skinProb * (1.0 - preserveMask);
+
+        // 🧑 Máscara de PELE do rosto (MediaPipe Face Landmarker): branco=pele
+        // dentro do oval do rosto, preto=olhos/sobrancelhas/boca/fundo. Ativa,
+        // a suavização/clareamento passam a valer SÓ no rosto — parede bege,
+        // madeira e roupa clara deixam de receber blur de pele.
+        if (u_faceMaskActive > 0.5) {
+          float m = texture2D(u_faceMask, uv).r;
+          float fm = smoothstep(0.10, 0.70, m);
+          skinMask = skinProb * fm;
+        }
         
         // --- 4. Aplicar efeitos ---
         vec3 result = rgb;
@@ -990,6 +1065,8 @@ export class VideoProcessor {
     this.uniformLocations.beautySettings3 = this.gl.getUniformLocation(this.program, 'u_beautySettings3');
     this.uniformLocations.beautySettings4 = this.gl.getUniformLocation(this.program, 'u_beautySettings4');
     this.uniformLocations.featureSettings = this.gl.getUniformLocation(this.program, 'u_featureSettings');
+    this.uniformLocations.faceMask = this.gl.getUniformLocation(this.program, 'u_faceMask');
+    this.uniformLocations.faceMaskActive = this.gl.getUniformLocation(this.program, 'u_faceMaskActive');
     
     return true;
   }
@@ -1052,6 +1129,17 @@ export class VideoProcessor {
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+
+    // Textura da máscara de pele (unidade 1) — mesmos parâmetros LINEAR/CLAMP
+    // para a borda do oval sair suave (feather) sem serrilhado.
+    this.maskTexture = this.gl.createTexture();
+    this.gl.activeTexture(this.gl.TEXTURE1);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.maskTexture);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    this.gl.activeTexture(this.gl.TEXTURE0);
     
     // 🎨 NÃO deixar o WebGL converter o espaço de cor do vídeo novamente ao
     // subir a textura. O <video> já entrega RGB (sRGB); com BROWSER_DEFAULT o
@@ -1156,6 +1244,7 @@ export class VideoProcessor {
     
     const render = () => {
       if (!this.isProcessing) return;
+      this.lastRenderAt = performance.now();
       
       // 📏 Canvas acompanha a resolução nativa da câmera (cap 1080p, casa com o
       // bitrate de publicação) — sem upscale borrado de 640x480.
@@ -1238,6 +1327,28 @@ export class VideoProcessor {
         // x: featureActive (1.0 = ligado), y: edgeStrength (1.0 padrão), z: preserveLips (1.0 = ligado), w: preserveEyes (1.0 = ligado)
         gl.uniform4f(uFeature, 1.0, 1.0, 1.0, 1.0);
       }
+
+      // 🧑 Máscara de pele do rosto (MediaPipe): atualiza detecção (throttled),
+      // sobe o canvas da máscara para a textura (unidade 1) e liga o uniform.
+      // Sem rosto detectado / landmarker indisponível → uniform 0 = comportamento
+      // antigo (só detecção por cor).
+      if (this.faceSkinMask) {
+        this.faceSkinMask.update(performance.now());
+      }
+      const maskCanvas = this.faceSkinMask?.canvas ?? null;
+      const faceMaskOn = !!(this.faceSkinMask?.isReady() && this.faceSkinMask.hasFace() && maskCanvas && uniformLocs.faceMask);
+      if (uniformLocs.faceMaskActive) {
+        gl.uniform1f(uniformLocs.faceMaskActive, faceMaskOn ? 1.0 : 0.0);
+      }
+      if (faceMaskOn && maskCanvas && this.maskTexture) {
+        try {
+          gl.activeTexture(gl.TEXTURE1);
+          gl.bindTexture(gl.TEXTURE_2D, this.maskTexture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, maskCanvas);
+          gl.uniform1i(uniformLocs.faceMask!, 1);
+        } catch { /* máscara ainda sem frame — próximo frame tenta de novo */ }
+        gl.activeTexture(gl.TEXTURE0);
+      }
       
       // Configurar atributos
       const positionLocation = gl.getAttribLocation(program, 'a_position');
@@ -1273,6 +1384,7 @@ export class VideoProcessor {
     
     const render = () => {
       if (!this.isProcessing) return;
+      this.lastRenderAt = performance.now();
 
       // 📏 Canvas acompanha a resolução nativa da câmera (cap 1080p)
       this.syncCanvasToSource();
@@ -1358,6 +1470,13 @@ export class VideoProcessor {
     }
     
     return filters.join(' ') || 'none';
+  }
+
+  /**
+   * Configurações de beleza atuais (leitura p/ watchdog da sala etc.)
+   */
+  getBeautySettings(): BeautyEffectSettings {
+    return { ...this.beautySettings };
   }
 
   /**
@@ -1455,10 +1574,23 @@ export class VideoProcessor {
     const sampleVideo = this.processingVideoElement || this.videoElement;
     if (!sampleVideo) return false;
     if (this.babyFaceProcessor) {
-      return this.babyFaceProcessor.isReady() || this.babyFaceProcessor.initialize(sampleVideo);
+      const ok = this.babyFaceProcessor.isReady() || await this.babyFaceProcessor.initialize(sampleVideo);
+      if (!ok) this.warnMeshInitFailed();
+      return ok;
     }
     this.babyFaceProcessor = new BabyFaceProcessor();
-    return this.babyFaceProcessor.initialize(sampleVideo);
+    const ok = await this.babyFaceProcessor.initialize(sampleVideo);
+    if (!ok) this.warnMeshInitFailed();
+    return ok;
+  }
+
+  /** Log com rate-limit (1×/10s) quando a malha facial não consegue carregar. */
+  private lastMeshWarnAt = 0;
+  private warnMeshInitFailed(): void {
+    const now = performance.now();
+    if (now - this.lastMeshWarnAt < 10000) return;
+    this.lastMeshWarnAt = now;
+    console.warn('⚠️ [VIDEO_PROCESSOR] Malha facial (Rosto Bebê/lábios/sobrancelha) indisponível — tentará novamente no próximo update');
   }
 
   private syncNativeBeautySettings(): void {
@@ -1565,6 +1697,11 @@ export class VideoProcessor {
         this.gl.deleteTexture(this.videoTexture);
         this.videoTexture = null;
       }
+
+      if (this.maskTexture) {
+        this.gl.deleteTexture(this.maskTexture);
+        this.maskTexture = null;
+      }
     }
     
     this.videoElement = null;
@@ -1577,6 +1714,11 @@ export class VideoProcessor {
       this.babyFaceProcessor = null;
     }
     this.meshActive = false;
+
+    if (this.faceSkinMask) {
+      this.faceSkinMask.destroy();
+      this.faceSkinMask = null;
+    }
     
     this.cleanupProcessingVideo();
     

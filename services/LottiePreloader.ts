@@ -61,3 +61,80 @@ export function ensureLottieJson(url: string): Promise<any> {
     preloadLottieJson(url);
     return inflight.get(url)!;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🖼️ PRÉ-AQUECIMENTO DOS FRAMES (webp) — resolve o bug "animação só aparece na
+// 2ª vez": o lottie-web baixa as imagens sob demanda NO MOMENTO do presente,
+// então o 1º envio ficava em branco/enquanto os frames baixavam; no 2º envio
+// eles vinham do cache HTTP e a animação aparecia na hora.
+//
+// Aqui baixamos os frames ANTES (quando a sala abre), com FILA de concorrência
+// limitada (3 por vez) para NÃO repetir a enxurrada de requisições que gerava
+// erros 408 no servidor.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const warmedImages = new Set<string>();
+const IMAGE_CONCURRENCY = 3;
+let activeImageJobs = 0;
+const imageQueue: Array<() => void> = [];
+
+function pumpImageQueue(): void {
+    while (activeImageJobs < IMAGE_CONCURRENCY && imageQueue.length > 0) {
+        const job = imageQueue.shift();
+        if (!job) break;
+        activeImageJobs++;
+        job();
+    }
+}
+
+function fetchImageWarm(url: string): Promise<void> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const done = () => {
+            activeImageJobs--;
+            pumpImageQueue();
+            resolve();
+        };
+        img.onload = done;
+        img.onerror = done; // erro não bloqueia a fila
+        img.src = url;
+    });
+}
+
+function enqueueImageWarm(url: string): Promise<void> {
+    if (warmedImages.has(url)) return Promise.resolve();
+    warmedImages.add(url);
+    return new Promise((resolve) => {
+        imageQueue.push(() => {
+            fetchImageWarm(url).then(resolve);
+        });
+        pumpImageQueue();
+    });
+}
+
+/** URL exata que o lottie-web vai pedir para cada asset do JSON. */
+function lottieAssetUrl(jsonUrl: string, asset: any): string | null {
+    // Assets embutidos (data URI / `e:1`) não precisam de rede.
+    if (!asset?.p || asset.e === 1 || String(asset.p).startsWith('data:')) return null;
+    const base = jsonUrl.replace(/\.json$/, '') + '/';
+    const p = String(asset.p);
+    if (/^https?:\/\//i.test(p)) return p;
+    return base + (asset.u ? String(asset.u) : '') + p;
+}
+
+/**
+ * Pré-aquece JSON + FRAMES + áudio externo de uma animação Lottie de presente.
+ * Chame quando a sala de live/PK abrir (idempotente). Com tudo no cache, o
+ * 1º envio do presente já toca a animação instantaneamente, em tela cheia.
+ */
+export function preloadLottieAssets(url: string): void {
+    ensureLottieJson(url)
+        .then((data) => {
+            if (!data || !Array.isArray(data.assets)) return;
+            data.assets.forEach((asset: any) => {
+                const assetUrl = lottieAssetUrl(url, asset);
+                if (assetUrl) enqueueImageWarm(assetUrl);
+            });
+        })
+        .catch(() => { /* silencioso — fallback do player cobre */ });
+}

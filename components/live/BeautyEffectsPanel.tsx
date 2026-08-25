@@ -54,6 +54,16 @@ const DenoiseIcon = ({ className = "w-7 h-7 text-white" }) => (
   </svg>
 );
 
+const FaceSmoothIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 8C20.9 8 12 16.9 12 28C12 41 24 50 32 56C40 50 52 41 52 28C52 16.9 43.1 8 32 8Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+    <path d="M23 27C24.3 28.3 26.2 28.3 27.5 27" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M36.5 27C37.8 28.3 39.7 28.3 41 27" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M27 38C29.5 40 34.5 40 37 38" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M46 12L47.2 15.8L51 17L47.2 18.2L46 22L44.8 18.2L41 17L44.8 15.8L46 12Z" fill="currentColor" stroke="currentColor" strokeWidth="1" />
+  </svg>
+);
+
 interface BeautyEffectsPanelProps {
     onClose: () => void;
     currentUser: User;
@@ -70,6 +80,7 @@ interface SimpleEffect {
 // 🎛️ Painel SIMPLES: só o essencial para deixar a imagem bonita, colorida e
 // nítida. 'Ruborizar' é a chave do banco para COR VIVA (saturação).
 const SIMPLE_EFFECTS: SimpleEffect[] = [
+    { key: 'Suavização do rosto', label: 'Suavização do rosto', icon: (c) => <FaceSmoothIcon className={c} /> },
     { key: 'Branquear', label: 'Branquear', icon: (c) => <WhitenIcon className={c} /> },
     { key: 'Alisar a pele', label: 'Alisar a pele', icon: (c) => <SmoothIcon className={c} /> },
     { key: 'Limpar Chiado', label: 'Limpar Chiado', icon: (c) => <DenoiseIcon className={c} /> },
@@ -81,6 +92,9 @@ const SIMPLE_EFFECTS: SimpleEffect[] = [
 // salvos junto com o básico — assim a live já entra bonita mesmo se o usuário
 // só mexeu no painel simples.
 const DEFAULT_KEYS: Record<string, number> = {
+    // 🎨 Chave mestre do AUTO-BELEZA (liga sozinho ao entrar ao vivo).
+    // 0 = desligado; 1-100 = intensidade. Padrão natural: 35.
+    'Suavização do rosto': 35,
     'Branquear': DEFAULT_BEAUTY_SETTINGS.whitening,
     'Alisar a pele': DEFAULT_BEAUTY_SETTINGS.smoothing,
     'Ruborizar': DEFAULT_BEAUTY_SETTINGS.saturation,
@@ -234,6 +248,7 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         if (!video) return;
 
         const effectMap: Record<string, (int: number) => string> = {
+            'Suavização do rosto': (int) => `brightness(${1 + int / 900})`,
             'Branquear': (int) => `brightness(${1 + (int / 180)})`,
             'Alisar a pele': (int) => `contrast(${1 - (int / 1200)}) brightness(${1 + (int / 1500)}) blur(${Math.min(int / 140, 0.75)}px)`,
             'Ruborizar': (int) => `saturate(${1 + (int / 120)})`,
@@ -290,6 +305,17 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         };
         setSettings(newSettings);
         saveSettings(newSettings);
+
+        // 🎨 Chave mestre do auto-beleza: a intensidade controla suavização +
+        // clareamento JUNTOS (proporção natural do preset padrão). 0 = desliga.
+        if (selectedEffect === 'Suavização do rosto') {
+            videoProcessor.updateBeautySettings({
+                smoothing: value,
+                whitening: Math.min(60, Math.round(value * 1.15))
+            });
+            applyEffectToVideo(selectedEffect, value);
+            return;
+        }
 
         videoProcessor.updateBeautySettings(convertSettingsToBeautySettings(newSettings));
         applyEffectToVideo(selectedEffect, value);

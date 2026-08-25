@@ -15,7 +15,7 @@ import type { InAppNotification } from '../components/live/InAppNotificationBann
  *   - live_invite          (inviteType 'pk-battle')→ faixa de convite PK
  *
  * Também aceita um evento de janela 'app:show_in_app_notification' (bridge
- * para o FCM em foreground) com { type: 'live_started', streamerId, ... }.
+ * para push em foreground) com { type: 'live_started', streamerId, ... }.
  * ═══════════════════════════════════════════════════════════════════════
  */
 
@@ -77,11 +77,23 @@ export function useGlobalNotifications(options: UseGlobalNotificationsOptions) {
       data: d,
     });
 
-    const handleLiveStarted = (d: any) => {
+    const handleLiveStarted = async (d: any) => {
       if (!d || d.type !== 'live_started') return;
       if (!optsRef.current.streamerLiveEnabled) return;
       if (d.streamerId && d.streamerId === optsRef.current.userId) return;
-      push(buildLive(d));
+      // 🖼️ FOTO SEMPRE no banner: se o evento veio SEM avatar, busca o
+      // usuário na API (mesma receita do convite PK abaixo). Nada de letra
+      // "L"/inicial no lugar da foto.
+      let avatar = d.avatar || d.streamerAvatar || '';
+      const whoId = d.streamerId || d.hostId || '';
+      if (whoId && !avatar) {
+        try {
+          const u = await api.getUser(String(whoId));
+          avatar = u?.avatarUrl || '';
+        } catch { /* segue sem avatar */ }
+      }
+      if (disposed) return;
+      push(buildLive({ ...d, avatar }));
     };
 
     const setup = async () => {
@@ -149,7 +161,7 @@ export function useGlobalNotifications(options: UseGlobalNotificationsOptions) {
     };
     setup();
 
-    // Bridge para FCM foreground (quando o push chega com o app aberto)
+    // Bridge para push foreground (quando o push chega com o app aberto)
     const onBridge = (e: Event) => {
       const d = (e as CustomEvent).detail;
       if (!d) return;

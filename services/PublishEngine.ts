@@ -282,8 +282,11 @@ export class PublishEngine {
       const params = sender.getParameters();
       if (params.encodings && params.encodings.length > 0) {
         const max = this._config.maxVideoBitrate * 1000;
-        params.encodings[0].minBitrate = 2500000;
-        params.encodings[0].maxBitrate = Math.max(max, 2500000);
+        // 🧹 Piso de 3 Mbps: em cena escura/movimento o encoder não "espreme"
+        // o vídeo em macro-blocos (aspecto TV velha). Teto 6 Mbps = HD estável.
+        // minBitrate é extensão não-padrão (Chrome) — cast necessário.
+        (params.encodings[0] as any).minBitrate = 3000000;
+        params.encodings[0].maxBitrate = Math.max(max, 3000000);
         params.encodings[0].maxFramerate = 30;
         (params as any).degradationPreference = 'maintain-resolution';
         await sender.setParameters(params);
@@ -316,7 +319,20 @@ export class PublishEngine {
   async replaceTrack(kind: 'audio' | 'video', track: MediaStreamTrack | null): Promise<void> {
     const pc = this._pc;
     if (!pc) return;
-    const sender = pc.getSenders().find(s => s.track?.kind === kind);
+    // 🔧 Busca robusta: primeiro por track.kind, depois por transceiver,
+    // senão fallback para o primeiro sender (evita null quando track antigo
+    // foi stopped/nulled antes do replace).
+    let sender = pc.getSenders().find(s => s.track?.kind === kind);
+    if (!sender) {
+      sender = pc.getSenders().find(s => {
+        const mid = s.mid || '';
+        return kind === 'video' ? mid.includes('video') || mid === '0' : mid.includes('audio') || mid === '1';
+      });
+    }
+    if (!sender && pc.getSenders().length > 0) {
+      const kindSenders = pc.getSenders().filter(s => !s.track || s.track.kind === kind);
+      sender = kindSenders[0] || pc.getSenders().find(s => s.track?.kind === kind) || pc.getSenders()[kind === 'video' ? 0 : 1] || pc.getSenders()[0];
+    }
     if (!sender) return;
     if (track) {
       await sender.replaceTrack(track);

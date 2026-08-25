@@ -471,6 +471,9 @@ export const api = {
 
     getCurrentUser: () => callApi<User>('GET', '/api/users/me'),
 
+    // 🔄 Renovação automática: emite um NOVO token (365d) para a sessão atual
+    refreshSession: () => callApi<{ success: boolean; token: string; user?: User }>('POST', '/api/auth/refresh'),
+
     getAllUsers: () => callApi<User[]>('GET', '/api/users'),
 
     getUser: (userId: string) => callApi<User>('GET', `/api/users/${userId}`),
@@ -479,7 +482,7 @@ export const api = {
 
     updateProfile: (userId: string, updates: Partial<User>) => callApi<{ success: boolean, user: User }>('PATCH', `/api/users/${userId}`, updates),
 
-    followUser: (followerId: string, followedId: string, streamId?: string) => callApi<{ success: boolean, updatedFollower: User, updatedFollowed: User, isFriendship?: boolean }>('POST', `/api/users/${followedId}/toggle-follow`, { streamId }),
+    followUser: (followerId: string, followedId: string, streamId?: string) => callApi<{ success: boolean, updatedFollower: User, updatedFollowed: User, isFriendship?: boolean, isFollowing?: boolean }>('POST', `/api/users/${followedId}/toggle-follow`, { streamId }),
 
     blockUser: (userIdToBlock: string) => callApi<{ success: boolean }>('POST', `/api/users/${userIdToBlock}/block`),
 
@@ -494,6 +497,36 @@ export const api = {
     getFriends: (userId: string) => callApi<User[]>('GET', `/api/users/${userId}/friends`),
 
     getConversations: (userId: string) => callApi<Conversation[]>('GET', `/api/users/${userId}/messages`),
+
+    // 🗑️ Apaga TODO o histórico de mensagens do chat privado entre os dois usuários
+    deleteChatHistory: (userId: string, partnerId: string) => callApi<{ success: boolean; deletedCount: number }>('DELETE', `/api/users/${userId}/messages/${partnerId}?requesterId=${userId}`),
+
+    // --- 🔒 Proteção de Conteúdo (print/gravação/captura + ban permanente) ---
+
+    reportViolation: (data: { userId: string; userName?: string; streamId?: string; hostId?: string; type: 'print' | 'record' | 'capture' | 'contextmenu' }) =>
+        callApi<{ ok: boolean; throttled?: boolean; banned?: boolean }>('POST', '/api/protection/violation', data),
+
+    getViolations: (params: { hostId?: string; streamId?: string; limit?: number }) => {
+        const qs = new URLSearchParams();
+        if (params.hostId) qs.set('hostId', params.hostId);
+        if (params.streamId) qs.set('streamId', params.streamId);
+        qs.set('limit', String(params.limit || 100));
+        return callApi<any[]>('GET', `/api/protection/violations?${qs.toString()}`);
+    },
+
+    banUserForever: (hostId: string, userId: string, userName?: string, violationType: 'print' | 'record' | 'capture' | 'contextmenu' = 'capture') =>
+        callApi<{ ok: boolean; banned: boolean; message: string }>('POST', '/api/protection/ban', { hostId, userId, userName, violationType }),
+
+    unbanUser: (hostId: string, userId: string) =>
+        callApi<{ ok: boolean; banned: boolean }>('POST', '/api/protection/unban', { hostId, userId }),
+
+    checkStreamBan: (hostId: string, userId: string) =>
+        callApi<{ banned: boolean; bannedUserName?: string; reason?: string }>('GET', `/api/protection/ban/check?hostId=${encodeURIComponent(hostId)}&userId=${encodeURIComponent(userId)}`),
+
+    checkStreamKicked: (streamId: string, userId: string) =>
+        callApi<{ kicked: boolean }>('GET', `/api/protection/kick/check?streamId=${encodeURIComponent(streamId)}&userId=${encodeURIComponent(userId)}`),
+
+    getHostBans: (hostId: string) => callApi<any[]>('GET', `/api/protection/bans/${encodeURIComponent(hostId)}`),
 
     getBlockedUsers: () => callApi<User[]>('GET', '/api/users/me/blocklist'),
 
@@ -788,7 +821,21 @@ export const api = {
         // Log mascarado - userId e details sensíveis ocultos
         safeLog('[API] setWithdrawalMethod:', { userId, method, details });
 
-        return callApi<{ success: boolean, user: User }>('POST', `/api/wallet/earnings/method/set/${userId}`, { method, details });
+        // Payoneer — único provedor de saques (Pix BRL / USD / EUR)
+        return callApi<{ success: boolean, withdrawal_method?: any, user?: User }>('POST', '/api/payoneer/method', { method, details });
+    },
+
+    // --- Payoneer (único provedor de pagamentos/saques) ---
+
+    getPayoneerStatus: () =>
+        callApi<{ provider: string; configured: boolean; environment: string; currencies: string[]; fees: any }>('GET', '/api/payoneer/status'),
+
+    getPayoneerQuote: (amount: number, currency: string) =>
+        callApi<{ success: boolean; diamonds: number; currency: string; symbol?: string; gross_brl: number; platform_fee_brl: number; platform_fee_pct: number; payoneer_fee_brl: number; payoneer_fee_pct: number; net_brl: number; estimated_fx_rate: number | null; local_gross: number; local_platform_fee: number; local_payoneer_fee: number; local_net: number; note?: string }>('GET', `/api/payoneer/quote?amount=${amount}&currency=${currency}`),
+
+    payoneerWithdraw: (userId: string, amount: number, currency: string) => {
+        const userIdFinal = getCurrentUserId() || userId;
+        return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/payoneer/withdraw', { userId: userIdFinal, amount, currency });
     },
 
     // ... (rest of the code remains the same)
@@ -1294,7 +1341,7 @@ export const api = {
     respondToPKInvite: (inviteId: string, status: 'accepted' | 'declined') => callApi<{ success: boolean, invite: any }>('POST', `/api/pk/invites/${inviteId}/respond`, { status }),
 
     respondToLiveInvite: (inviteId: string, status: 'accepted' | 'declined') =>
-        callApi<{ success: boolean }>('POST', '/api/live/invite/respond', { inviteId, status }),
+        callApi<{ success: boolean }>('POST', '/api/live/invite/respond', { inviteId, action: status }),
 
 
     getGiftSendersForStream: (streamId: string) => callApi<any>('GET', `/api/interactions/presents/live/${streamId}`),
@@ -1334,7 +1381,7 @@ export const api = {
 
     // --- Stream Controls ---
 
-    toggleStreamSound: (streamId: string) => callApi<{ success?: boolean }>('POST', `/api/streams/${streamId}/toggle-sound`),
+    toggleStreamSound: (streamId: string, userId?: string, soundEnabled?: boolean) => callApi<{ success?: boolean, soundEnabled?: boolean }>('POST', `/api/streams/${streamId}/toggle-sound`, { userId: userId || getCurrentUserId() || undefined, soundEnabled }),
 
 
 
@@ -1443,11 +1490,11 @@ export const api = {
         }
     },
 
-    toggleMicrophone: (streamId: string) => callApi<{ success?: boolean }>('POST', `/api/streams/${streamId}/toggle-mic`),
+    toggleMicrophone: (streamId: string, userId?: string, microphoneEnabled?: boolean) => callApi<{ success?: boolean, microphoneEnabled?: boolean }>('POST', `/api/streams/${streamId}/toggle-mic`, { userId: userId || getCurrentUserId() || undefined, microphoneEnabled }),
 
-    toggleAutoFollow: (streamId: string, isEnabled: boolean) => callApi<void>('POST', `/api/streams/${streamId}/toggle-auto-follow`, { isEnabled }),
+    toggleAutoFollow: (streamId: string, isEnabled: boolean, userId?: string) => callApi<{ success?: boolean, autoFollowEnabled?: boolean }>('POST', `/api/streams/${streamId}/toggle-auto-follow`, { isEnabled, userId: userId || getCurrentUserId() || undefined }),
 
-    toggleAutoPrivateInvite: (streamId: string, isEnabled: boolean) => callApi<void>('POST', `/api/streams/${streamId}/toggle-auto-invite`, { isEnabled }),
+    toggleAutoPrivateInvite: (streamId: string, isEnabled: boolean, userId?: string) => callApi<{ success?: boolean, autoInviteEnabled?: boolean }>('POST', `/api/streams/${streamId}/toggle-auto-invite`, { isEnabled, userId: userId || getCurrentUserId() || undefined }),
 
     purchaseFrame: (userId: string, frameId: string) => callApi<{ success: boolean, user: User }>('POST', `/api/effects/purchase-frame/${userId}`, { frameId }),
 
@@ -1507,7 +1554,7 @@ export const api = {
 
     toggleAvatarProtection: (userId: string, isEnabled: boolean) => callApi<{ success: boolean, user: User }>('POST', `/api/users/${userId}/avatar-protection`, { isEnabled }),
 
-    kickUser: (streamId: string, userId: string, kickerId: string) => callApi<void>('POST', `/api/streams/${streamId}/kick`, { userId, kickerId }),
+    kickUser: (streamId: string, userId: string, kickerId: string) => callApi<void>('POST', `/api/interactions/streams/${streamId}/kick`, { userId, kickerId }),
 
     makeModerator: (streamId: string, userId: string, hostId: string) => callApi<void>('POST', `/api/streams/${streamId}/moderator`, { userId, hostId }),
 
@@ -2164,6 +2211,19 @@ export const api = {
     },
 
     sfuCallJoin: (roomId: string) => callApi<{ success: boolean; signalingUrl: string }>('POST', '/api/call-invitation/sfu/join', { roomId }),
+
+    // 📞 Chamadas na live (usado por services/callService.ts)
+    call: {
+        request: (hostId: string, streamId: string) =>
+            callApi<{ success: boolean; invitationId: string; guestStreamKey?: string }>('POST', '/api/call-invitation/request', { hostId, streamId }),
+        // Host convida um usuário para chamada de vídeo na live
+        invite: (guestId: string, guestName: string, streamId: string) =>
+            callApi<{ success: boolean; invitationId?: string; resent?: boolean; error?: string }>('POST', '/api/call-invitation/invite', { guestId, guestName, streamId }),
+        respond: (invitationId: string, response: 'accept' | 'decline') =>
+            callApi<{ success: boolean; guestStreamKey?: string }>('POST', '/api/call-invitation/respond', { invitationId, response }),
+        end: (invitationId: string) =>
+            callApi<{ success: boolean }>('POST', '/api/call-invitation/end', { invitationId }),
+    },
 
 
     rtc: {

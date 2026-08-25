@@ -153,7 +153,13 @@ export class BabyFaceProcessor {
   private detectionBusy = false;
   private lastDetection = 0;
   private detectionIntervalMs = 100;
+  // Frames SEM rosto detectado (normal — pessoa saiu do quadro). Zera ao detectar.
   private detectionFailedFrames = 0;
+  // EXCEÇÕES da detecção (crash real, ex.: contexto WebGL do delegate GPU perdido).
+  // Chegou no limite → recria o landmarker com delegate CPU (recuperação automática).
+  private detectionErrors = 0;
+  private rebuildingLandmarker = false;
+  private lastWarnLog = 0;
 
   // Malha atual (escala do canvas)
   private meshPoints: Point[] = [];
@@ -352,6 +358,8 @@ export class BabyFaceProcessor {
       if (result && result.faceLandmarks && result.faceLandmarks.length > 0) {
         this.updateMesh(result.faceLandmarks[0]);
         this.detectionFailedFrames = 0;
+        // Sucesso → zera o contador de EXCEÇÕES (crash real) também.
+        if (this.detectionErrors > 0) this.detectionErrors = 0;
       } else {
         this.detectionFailedFrames++;
         if (this.detectionFailedFrames > 5) {
@@ -359,9 +367,54 @@ export class BabyFaceProcessor {
         }
       }
     } catch (error) {
+      // ⚠️ EXCEÇÃO = crash real (ex.: contexto WebGL do delegate GPU perdido).
+      // Antes falava em silêncio PARA SEMPRE — sem warp, sem log. Agora:
+      // loga com rate-limit e recria o landmarker com delegate CPU.
+      this.detectionErrors++;
+      const now = performance.now();
+      if (now - this.lastWarnLog > 5000) {
+        this.lastWarnLog = now;
+        console.warn(`⚠️ [BABY_FACE] detectForVideo falhou (${this.detectionErrors}x seguidas):`, error);
+      }
       this.meshValid = false;
+      if (this.detectionErrors >= 8 && !this.rebuildingLandmarker) {
+        void this.rebuildLandmarkerWithCpu();
+      }
     } finally {
       this.detectionBusy = false;
+    }
+  }
+
+  /**
+   * 🔁 Recuperação automática: destrói o landmarker atual e recria com delegate
+   * CPU (o GPU crasheado nunca se recupera sozinho). Se falhar, limpa o
+   * initPromise para o próximo ensureBabyFace()/preload() tentar de novo.
+   */
+  private async rebuildLandmarkerWithCpu(): Promise<void> {
+    this.rebuildingLandmarker = true;
+    try {
+      console.warn('🔁 [BABY_FACE] Recriando Face Landmarker com delegate CPU...');
+      try { this.landmarker?.close(); } catch { /* ignora */ }
+      this.landmarker = null;
+      this.landmarkerReady = false;
+
+      const fileset = await FilesetResolver.forVisionTasks(WASM_BASE);
+      this.landmarker = await FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
+        runningMode: 'VIDEO',
+        numFaces: 1,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false
+      });
+      this.landmarkerReady = true;
+      this.detectionErrors = 0;
+      console.log('✅ [BABY_FACE] Face Landmarker recriado com CPU — efeito restaurado');
+    } catch (error) {
+      console.error('❌ [BABY_FACE] Falha ao recriar landmarker:', error);
+      this.landmarkerReady = false;
+      this.initPromise = null; // permite retry pelo preload()/ensureBabyFace()
+    } finally {
+      this.rebuildingLandmarker = false;
     }
   }
 
@@ -657,6 +710,17 @@ export class BabyFaceProcessor {
       const d1 = this.targetPoints[a];
       const d2 = this.targetPoints[b];
       const d3 = this.targetPoints[c];
+
+      // ⚡ Poda de triângulos PARADOS: longe do rosto os pontos-alvo ≈ origem.
+      // Desenhar esses triângulos é custo puro (centenas de clip+drawImage do
+      // frame inteiro). Pular os que se movem < 0.35px não muda nada visível
+      // e corta a maior parte do trabalho por frame em cenas normais.
+      const disp =
+        Math.max(Math.abs(d1.x - s1.x), Math.abs(d1.y - s1.y),
+          Math.max(Math.abs(d2.x - s2.x), Math.abs(d2.y - s2.y)),
+          Math.max(Math.abs(d3.x - s3.x), Math.abs(d3.y - s3.y)));
+      if (disp < 0.35) continue;
+
       const m = this.transforms[t];
 
       // Inflar triângulo alvo para reduzir costuras entre triângulos

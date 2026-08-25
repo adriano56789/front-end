@@ -14,14 +14,11 @@ import { useKeyboardInset, getLastKnownKeyboardHeight, rememberKeyboardHeight } 
  * navegador não fazer "pan" da página inteira (que fazia a 1ª barra subir).
  */
 
-// Altura do composer (pt-2 + input py-2 + pb-3 ≈ 58px). Usado para parar a
-// lista de mensagens EXATAMENTE acima da barra (nada de texto atrás dela).
-export const COMPOSER_BAR_HEIGHT = 58;
+// Altura do composer aberto (input + padding).
+export const COMPOSER_BAR_HEIGHT = 56;
 
-// Altura da 1ª barra fechada (barra de mensagem): p-3 (12+12) + linha de
-// reações (h-7 + pb-1 ≈ 32) + input (text-sm py-2 ≈ 36) ≈ 92px. Usada para a
-// lista de mensagens parar ACIMA da barra — sem texto escondido atrás dela.
-export const MESSAGE_BAR_HEIGHT = 92;
+// Altura da 1ª barra fechada (input + enviar + presente + roleta + 3pts + padding).
+export const MESSAGE_BAR_HEIGHT = 72;
 
 export function useComposerKeyboard() {
   const { inset: keyboardInset, fixedBottom } = useKeyboardInset();
@@ -29,7 +26,9 @@ export function useComposerKeyboard() {
   const [gluedBottom, setGluedBottom] = useState(0);
   const [vkBottom, setVkBottom] = useState(0);
   const [composerFocused, setComposerFocused] = useState(false);
-  const composerInputRef = useRef<HTMLInputElement>(null);
+  // 📝 any = o mesmo ref atende <input> (ChatScreen/PK) e <textarea>
+  // (StreamRoom — campo "Diga oi" quebra linha em várias linhas).
+  const composerInputRef = useRef<any>(null);
   const composerRef = useRef<HTMLDivElement>(null);
 
   // 📱 VirtualKeyboard API (Android WebView/Chrome 94+): dá a altura EXATA do
@@ -74,11 +73,14 @@ export function useComposerKeyboard() {
     let raf = 0;
     const glue = () => {
       const vv = window.visualViewport;
-      const layoutH = Math.max(
-        document.documentElement?.clientHeight || 0,
-        window.innerHeight || 0
-      );
-      const visibleH = Math.min(vv ? vv.height : Infinity, window.innerHeight || Infinity);
+      // 🔧 Conservador: usa o MENOR entre clientHeight e innerHeight como
+      // altura de layout — se um dos dois vier inflado (WebView bugado),
+      // chutar alto deixava a barra FLUTUANDO acima do teclado (reclamação:
+      // "teclado tem que abrir mais baixo"). Menor = barra mais baixa/colada.
+      const ch = document.documentElement?.clientHeight || 0;
+      const ih = window.innerHeight || 0;
+      const layoutH = Math.min(ch > 0 ? ch : Infinity, ih > 0 ? ih : Infinity);
+      const visibleH = Math.min(vv ? vv.height : Infinity, ih > 0 ? ih : Infinity);
       const keyboardH = Math.max(0, layoutH - visibleH);
       if (keyboardH > 0) rememberKeyboardHeight(keyboardH);
       setGluedBottom((prev) => (Math.abs(prev - keyboardH) > 2 ? keyboardH : prev));
@@ -181,18 +183,28 @@ export function useComposerKeyboard() {
   // ⚠️ iOS NÃO entra aqui: lá o navegador auto-sobe a barra (inset > 0), então
   // empurrar de novo deixaria a barra alta demais.
   const lastKnown = getLastKnownKeyboardHeight();
+  // 🔧 Fallback mais baixo (30% em vez de 38%): chute alto = barra flutuando
+  // longe do teclado ("abrir mais baixo" — pedido do usuário). Chute baixo só
+  // cobre a base, o resto fica visível e colado.
   const keyboardEstimate =
-    lastKnown > 0 ? lastKnown : Math.round(window.innerHeight * 0.38);
+    lastKnown > 0 ? Math.round(lastKnown * 0.9) : Math.round(window.innerHeight * 0.32);
   // 🧲 Posição final da 2ª barra, em ordem de confiabilidade:
   //   1. VirtualKeyboard API (altura EXATA, quando o aparelho suporta)
-  //   2. Sonda real / cola-corretor (aparelhos que reportam o teclado)
+  //   2. Sonda real / cola-corretor: se AMBOS mediram >0, vale o MENOR dos
+  //      dois — o menor é o que NÃO passa da borda do teclado (barra nunca
+  //      "flutua" alta demais com folga); se só um mediu, usa ele.
   //   3. Fallback estimado (último recurso)
   // ⚠️ O clamp de segurança (não passar do topo da tela) só se aplica ao
   // FALLBACK ESTIMADO — as medições reais (vkBottom/fixedBottom/gluedBottom)
   // são ground truth e NUNCA são clampeadas (clampar contra um innerHeight
   // que pode encolher em WebView resizes-content empurraria a barra para
   // trás do teclado — o bug original).
-  const measured = vkBottom > 0 ? vkBottom : Math.max(fixedBottom, gluedBottom);
+  const bothMeasured = fixedBottom > 0 && gluedBottom > 0;
+  const measured = vkBottom > 0
+    ? vkBottom
+    : bothMeasured
+      ? Math.min(fixedBottom, gluedBottom)
+      : Math.max(fixedBottom, gluedBottom);
   const fallbackBottom =
     isComposerOpen &&
     composerFocused &&
@@ -203,7 +215,11 @@ export function useComposerKeyboard() {
           Math.max(0, window.innerHeight - COMPOSER_BAR_HEIGHT - 12)
         )
       : 0;
-  const bottom = measured > 0 ? measured : fallbackBottom;
+  const rawBottom = measured > 0 ? measured : fallbackBottom;
+  // 🛡️ CAP: nunca subir mais que 34% da tela — teclados típicos têm 25–32%;
+  // o cap antigo (42%) deixava a barra "flutuar" alto demais quando o
+  // WebView/VK reporta uma altura exagerada do teclado.
+  const bottom = Math.min(rawBottom, Math.round(window.innerHeight * 0.38));
 
   // Offsets do CHAT quando o composer está aberto:
   //  - chatInset: quanto a lista de mensagens precisa subir para a ÚLTIMA
