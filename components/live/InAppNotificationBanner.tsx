@@ -84,8 +84,8 @@ const BannerAvatar: React.FC<{ n: InAppNotification; theme: typeof THEMES.live; 
         {src && !failed ? (
           <img src={src} alt={n.name} className="w-full h-full object-cover" onError={() => setFailed(true)} />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl font-black uppercase bg-zinc-800 text-white">
-            {n.name?.charAt(0) || '?'}
+          <div className="w-full h-full flex items-center justify-center bg-zinc-800">
+            <img src="/android-chrome-192x192.png" alt="" className="w-10 h-10 object-cover rounded-lg" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
         )}
       </div>
