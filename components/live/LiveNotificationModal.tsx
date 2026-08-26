@@ -60,12 +60,18 @@ const LiveNotificationModal: React.FC<LiveNotificationModalProps> = ({ isOpen, o
       >
         {/* Avatar */}
         <div className="relative flex-shrink-0 cursor-pointer">
-          <div className="w-10 h-10 rounded-full p-[1px] bg-gradient-to-tr from-purple-500 to-pink-500">
-            <img 
-                src={data.streamerAvatar} 
-                alt={data.streamerName} 
-                className="w-full h-full rounded-full object-cover border-2 border-[#2b2b2b]" 
-            />
+          <div className="w-10 h-10 rounded-full p-[1px] bg-gradient-to-tr from-purple-500 to-pink-500 overflow-hidden">
+            {data.streamerAvatar ? (
+              <img 
+                  src={data.streamerAvatar} 
+                  alt={data.streamerName} 
+                  className="w-full h-full rounded-full object-cover border-2 border-[#2b2b2b]"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+              />
+            ) : null}
+            <div className={`w-full h-full flex items-center justify-center border-2 border-[#2b2b2b] rounded-full bg-zinc-800 ${data.streamerAvatar ? 'hidden' : ''}`}>
+              <img src="/android-chrome-192x192.png" alt="" className="w-6 h-6 object-cover rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            </div>
           </div>
           <div className="absolute -bottom-1 -right-1">
              <LiveBadge label="" showLabel={false} iconClassName="w-3 h-3" className="rounded-full p-[2px]" />
