@@ -122,8 +122,8 @@ const AvatarViewer: React.FC<{ n: InAppNotification; onClose: () => void }> = ({
           />
         ) : null}
         {!src && (
-          <div className="mx-auto w-40 h-40 rounded-full flex items-center justify-center text-6xl font-black uppercase bg-zinc-800 text-white shadow-[0_0_60px_rgba(0,0,0,0.8)]">
-            {n.name?.charAt(0) || '?'}
+          <div className="mx-auto w-40 h-40 rounded-full flex items-center justify-center bg-zinc-800 shadow-[0_0_60px_rgba(0,0,0,0.8)] overflow-hidden">
+            <img src="/android-chrome-192x192.png" alt="" className="w-24 h-24 object-cover rounded-2xl" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
         )}
         <p className="mt-5 text-white font-bold text-lg drop-shadow-lg">{n.name}</p>

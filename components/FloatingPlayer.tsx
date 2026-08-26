@@ -152,8 +152,8 @@ const FloatingPlayer: React.FC<FloatingPlayerProps> = ({ streamer, onClose, onRe
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-white text-[8px] font-bold">
-                      {streamer.name?.charAt(0).toUpperCase()}
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 overflow-hidden">
+                      <img src="/android-chrome-192x192.png" alt="" className="w-[60%] h-[60%] object-cover rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                     </div>
                   )}
                 </div>

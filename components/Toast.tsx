@@ -51,8 +51,8 @@ const Toast: React.FC<ToastProps> = ({ data, onClose }) => {
             <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 border-2 border-[#121218] animate-pulse" />
           </div>
         ) : (
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br from-white/15 to-white/5 flex-shrink-0">
-            <span className="text-white/80 text-sm font-bold">{data.title?.charAt(0)?.toUpperCase() || '•'}</span>
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-zinc-800 flex-shrink-0 overflow-hidden">
+            <img src="/android-chrome-192x192.png" alt="" className="w-7 h-7 object-cover rounded" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           </div>
         )}
 
