@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { User } from '../types';
+import { LiveGoLogo } from './icons';
 
 interface LoginScreenProps {
   onLogin: (user: User, token: string) => void;
@@ -49,9 +50,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         
         {/* Seção do Logo */}
         <div className="mb-10 text-center flex flex-col items-center">
-            <h1 className="text-5xl font-black italic tracking-tighter text-white drop-shadow-xl" style={{ fontFamily: 'Arial, sans-serif' }}>
-                Livenza
-            </h1>
+            <LiveGoLogo className="w-40 h-auto" />
             <p className="text-xs font-bold tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500 uppercase mt-2 drop-shadow-sm">
                 EXPERIÊNCIA VIP REAL
             </p>

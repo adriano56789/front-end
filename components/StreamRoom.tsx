@@ -33,9 +33,12 @@ import { onSocketEvent } from '../services/socketService';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 // Chat e presença via Socket.IO (useStreamChat) com sync inicial REST
 import AvatarWithFrame from './ui/AvatarWithFrame';
-import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
+
 import LivePlayer from './LivePlayer';
 import VideoCallPiP from './VideoCallPiP';
+import { participationService } from '../services/participationService';
+import { callService } from '../services/callService';
+import type { ParticipationRequest } from './ToolsModal';
 import { useStreamChat } from '../hooks/useStreamChat';
 import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
@@ -180,6 +183,10 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [isVideoCallPiPOpen, setIsVideoCallPiPOpen] = useState(false);
     // 📞 Dados do outro participante da chamada (para o PiP tocar o stream remoto certo)
     const [remoteCallUser, setRemoteCallUser] = useState<{ streamId: string; name: string; avatar?: string } | null>(null);
+    // 🎥 Participação por vídeo (convidado dentro da live) — pedidos pendentes recebidos pelo HOST
+    const [participationRequests, setParticipationRequests] = useState<ParticipationRequest[]>([]);
+    const [activeParticipantName, setActiveParticipantName] = useState<string | null>(null);
+    const [participationBadge, setParticipationBadge] = useState<string>('');
     const chatInputRef = useRef<HTMLButtonElement>(null);
     // ✨ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
     // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
@@ -262,6 +269,35 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // Estado para likes da transmissão
     const [likes, setLikes] = useState(0);
     const [isLiked, setIsLiked] = useState(false);
+
+    // 🖼️ ATUALIZAR AVATAR EM TEMPO REAL: quando qualquer usuário troca a foto
+    // de perfil, atualiza o avatar em TODAS as mensagens do chat (entry + chat)
+    // e no objeto do streamer — sem precisar sair/entrar na sala.
+    useEffect(() => {
+      const handleAvatarChanged = (e: Event) => {
+        const data = (e as CustomEvent).detail;
+        if (!data || !data.userId || !data.avatarUrl) return;
+        const changedUserId = String(data.userId);
+        const newAvatarUrl = String(data.avatarUrl);
+        // Atualizar todas as mensagens que contenham esse userId
+        setMessages(prev => prev.map(msg => {
+          // Entry messages: fullUser.id ou user.id
+          if (msg.fullUser && String((msg.fullUser as any).id) === changedUserId) {
+            return { ...msg, fullUser: { ...(msg.fullUser as any), avatarUrl: newAvatarUrl } };
+          }
+          if (msg.user && typeof msg.user === 'object' && String((msg.user as any).id) === changedUserId) {
+            return { ...msg, user: { ...(msg.user as any), avatarUrl: newAvatarUrl } };
+          }
+          // Chat messages: avatar pode estar em msg.avatar
+          if (String(msg.userId) === changedUserId && msg.avatar !== undefined) {
+            return { ...msg, avatar: newAvatarUrl };
+          }
+          return msg;
+        }));
+      };
+      window.addEventListener('livego:user_avatar_changed', handleAvatarChanged);
+      return () => window.removeEventListener('livego:user_avatar_changed', handleAvatarChanged);
+    }, []);
 
     // State to track if video is actually playing to hide the cover image
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
@@ -384,17 +420,23 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
           }
         }
       } else if (data.type === 'live_gift_received' || data.type === 'gift_received') {
-        const rawGift = data.gift || { name: data.giftName, price: 0, icon: '🎁', category: 'Popular' };
+        // 🔧 NORMALIZAÇÃO: extrair dados de múltiplos formatos possíveis do backend
+        const rawGift = data.gift || { name: data.giftName || data.name || '', price: data.giftPrice || 0, icon: data.giftIcon || '🎁', category: data.giftCategory || 'Popular' };
         const animationUrl = getAnimationUrl(rawGift);
         const duration = getAnimationDuration(rawGift);
+        // 🔧 fromId normalizado: funciona com qualquer formato que o backend envie
+        const senderId = data.from?.id || data.fromUser?.id || data.userId || data.senderId || data.fromUserId || '';
+        const senderName = data.from?.name || data.fromUser?.name || data.senderName || data.userName || 'Usuário';
+        const senderAvatar = data.from?.avatarUrl || data.fromUser?.avatarUrl || data.senderAvatar || data.avatarUrl || '';
+        const senderLevel = data.from?.level || data.fromUser?.level || data.level || 1;
         const giftEvtPayload: any = {
-          fromUser: { id: data.from?.id || data.fromUser?.id, identification: data.from?.identification || data.fromUser?.identification || data.from?.id, name: data.from?.name || data.fromUser?.name || 'Usuário', avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '', level: data.from?.level || data.fromUser?.level || 1, fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [] },
-          toUser: { id: data.toUser?.id, name: data.toUser?.name || 'Streamer' },
+          fromUser: { id: senderId, identification: senderId, name: senderName, avatarUrl: senderAvatar, level: senderLevel, fans: 0, following: 0, receptores: 0, enviados: 0, diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [] },
+          toUser: { id: data.toUser?.id || streamer.id, name: data.toUser?.name || 'Streamer' },
           gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
-          quantity: data.quantity || 1, roomId: streamer.id,id: String(data.id || Date.now() + Math.random()),
+          quantity: data.quantity || 1, roomId: streamer.id, id: String(data.id || Date.now() + Math.random()),
         };
-        const senderIsMe = String(data.from?.id || data.fromUser?.id || '') === String(currentUser?.id || '');
-        console.log('[STREAM]礼物 evento recebido:', rawGift?.name, 'senderIsMe:', senderIsMe, 'from:', data.from?.id);
+        const senderIsMe = String(senderId) === String(currentUser?.id || '');
+        console.log('[STREAM]🎁 evento recebido:', rawGift?.name, 'senderIsMe:', senderIsMe, 'from:', senderId);
         if (senderIsMe) return;
         enqueueGift(giftEvtPayload);
       } else if (data.type === 'stream_liked' && data.streamId === streamer.id) {
@@ -477,6 +519,30 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         setStreamEnded(true);
         setMessages([]);
         setBannerGifts([]);
+      }
+    },
+    // 🚫 Mensagem rejeitada pelo backend (usuário bloqueado pelo host da live):
+    // não foi persistida nem enviada a ninguém. Avisa o remetente e remove a
+    // mensagem otimista que ele viu.
+    onBlocked: (data) => {
+      addToast(ToastType.Error, data?.reason || 'Você foi proibido de falar');
+      const bannedText = data?.text || '';
+      if (bannedText && currentUser) {
+        setMessages(prev => {
+          let idx = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            const m: any = prev[i];
+            const sender = String(m?.user || m?.userName || m?.userId || '');
+            if ((sender === String(currentUser.name) || sender === String(currentUser.id)) && String(m?.message || '') === bannedText) {
+              idx = i;
+              break;
+            }
+          }
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy.splice(idx, 1);
+          return copy;
+        });
       }
     },
   });
@@ -729,6 +795,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
     const isFollowed = useMemo(() => followingUsers.some(u => String(u.id) === String(streamer.hostId)), [followingUsers, streamer.hostId]);
 
+    // 📊 Ranking ao vivo: memoizar para evitar re-criação do array a cada render
+    const memoizedLiveRanking = useMemo(() => {
+        return Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }));
+    }, [rankingData]);
+
     const [streamerUser, setStreamerUser] = useState<User | null>(null);
 
     useEffect(() => {
@@ -884,7 +955,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         const handleLiveInvite = (e: Event) => {
             const d = (e as CustomEvent<any>).detail;
             if (!d) return;
-            setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: d.type || "co-host", from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || "" });
+            // ⚔️ Convite PK é tratado pelo modal global (PKInviteModal no App),
+            // aqui só co-host/call para não duplicar a notificação.
+            const type = d.type || d.inviteType || "co-host";
+            if (type === 'pk-battle') return;
+            setActiveLiveInvite({ inviteId: d.inviteId || d.id || "", type: type === 'call' ? 'call' : 'co-host', from: d.from || d.fromId || "", fromName: d.fromName || d.from || "Usuário", streamId: d.streamId || "" });
         };
         const handleCallInvite = (e: Event) => {
             const d = (e as CustomEvent<any>).detail;
@@ -918,13 +993,25 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         break;
                     }
                     case 'call_joined': {
-                        // Guest: chamada confirmada — PiP com o stream do host
-                        if (activeLiveInviteRef.current) {
-                            setRemoteCallUser({ streamId: inv.streamId || activeLiveInviteRef.current.streamId, name: activeLiveInviteRef.current.fromName });
-                        } else if (inv.streamId) {
-                            setRemoteCallUser({ streamId: inv.streamId, name: 'Host' });
-                        }
+                        // Guest: chamada confirmada — PiP com o stream do host.
+                        // 📸 Publica a câmera do convidado no SRS sob guest_<id>,
+                        // para o PiP do HOST exibir o vídeo do convidado (antes mostrava preto).
+                        setRemoteCallUser({ streamId: inv.streamId || activeLiveInviteRef.current?.streamId || streamer.id, name: activeLiveInviteRef.current?.fromName || 'Host' });
                         setIsVideoCallPiPOpen(true);
+                        const guestKey = `guest_${currentUser.id}`;
+                        callService.publishGuestStream(guestKey).catch((err: any) => {
+                            console.warn('[StreamRoom] Falha ao publicar câmera do convidado:', err);
+                            addToast(ToastType.Error, 'Não foi possível publicar sua câmera na chamada.');
+                        });
+                        break;
+                    }
+                    case 'call_ended':
+                    case 'call_removed':
+                    case 'call_left': {
+                        // Chamada encerrada por qualquer lado — para a publicação do convidado.
+                        callService.stopGuestPublish();
+                        setIsVideoCallPiPOpen(false);
+                        setRemoteCallUser(null);
                         break;
                     }
                 }
@@ -944,7 +1031,76 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             window.removeEventListener("livego:live_invite_response", clearInvite);
             offCallInv();
         };
-    }, [streamer.id]);
+    }, [streamer.id, currentUser.id]);
+
+    // 🎥 PARTICIPAÇÃO POR VÍDEO — wiring (serve listener + disponibiliza handlers)
+    // para o HOST receber pedidos do espectador e o espectador pedir para entrar.
+    const handleParticipantRequestTap = useCallback(async () => {
+        const res = await participationService.requestToJoin(streamer.id, streamer.id);
+        if (!res.ok) {
+            addToast(ToastType.Error, res.message || 'Não foi possível pedir participação.');
+            return;
+        }
+        addToast(ToastType.Info, 'Pedido enviado ao anfitrião. Aguarde a resposta...');
+        setParticipationBadge('Aguardando anfitrião...');
+    }, [streamer.id, addToast]);
+
+    const handleAcceptParticipation = useCallback(async (invitationId: string) => {
+        const req = participationRequests.find(r => r.invitationId === invitationId);
+        const ok = await participationService.hostAccept(invitationId);
+        if (!ok) {
+            addToast(ToastType.Error, 'Não foi possível aceitar o pedido.');
+            return;
+        }
+        setParticipationRequests(prev => prev.filter(r => r.invitationId !== invitationId));
+        const guestName = req?.guestName || 'Convidado';
+        setActiveParticipantName(guestName);
+        // Abre o PiP do convidado (o convidado publica em guest_<id> via WHIP no SRS)
+        setRemoteCallUser({ streamId: `guest_${req?.guestId || ''}`, name: guestName, avatar: req?.guestAvatar });
+        setIsVideoCallPiPOpen(true);
+        addToast(ToastType.Success, 'Você aceitou a participação por vídeo!');
+    }, [participationRequests, addToast]);
+
+    const handleRejectParticipation = useCallback(async (invitationId: string) => {
+        await participationService.hostReject(invitationId);
+        setParticipationRequests(prev => prev.filter(r => r.invitationId !== invitationId));
+    }, []);
+
+    const handleRemoveParticipant = useCallback(async () => {
+        await participationService.hostRemove();
+        setActiveParticipantName(null);
+        setIsVideoCallPiPOpen(false);
+        addToast(ToastType.Info, 'Participante removido do vídeo.');
+    }, [addToast]);
+
+    useEffect(() => {
+        participationService.init();
+        const offSub = participationService.subscribe((state, info) => {
+            if (state === 'CONNECTED' && info?.guestName) {
+                setActiveParticipantName(info.guestName);
+            }
+            // Estado terminal → limpa o painel do host
+            if (state === 'ENDED' || state === 'REJECTED') {
+                setActiveParticipantName(null);
+            }
+        });
+        const handleParticipationRequest = (e: Event) => {
+            const d = (e as CustomEvent<any>).detail as any;
+            if (!d || !d.invitationId) return;
+            setParticipationRequests(prev =>
+                prev.some(r => r.invitationId === d.invitationId)
+                    ? prev
+                    : [...prev, { invitationId: d.invitationId, guestId: d.guestId || '', guestName: d.guestName || 'Convidado', guestAvatar: d.guestAvatar, requestedAt: Date.now() }]
+            );
+            addToast(ToastType.Info, `${d.guestName || 'Um espectador'} quer entrar no vídeo!`);
+        };
+        window.addEventListener('livego:participation_request', handleParticipationRequest);
+        return () => {
+            window.removeEventListener('livego:participation_request', handleParticipationRequest);
+            offSub();
+        };
+    }, [addToast]);
+
 
     const postGiftChatMessage = (payload: GiftPayload) => {
         try {
@@ -984,18 +1140,31 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     // Usada pelo caminho OTIMISTA (quem envia, ver handleSendGift) e pelo
     // caminho do SOCKET (demais espectadores).
     const enqueueGift = (payload: any) => {
-        const fromId = payload?.fromUser?.id || '';
-        const giftName = payload?.gift?.name || '';
-        if (!fromId || !giftName) {
-            console.warn('[STREAM] enqueueGift: payload inválido (fromId ou giftName ausente)', { fromId, giftName, payload });
+        const fromId = payload?.fromUser?.id || payload?.from?.id || payload?.userId || payload?.senderId || '';
+        const giftName = payload?.gift?.name || payload?.giftName || '';
+        if (!giftName) {
+            console.warn('[STREAM] enqueueGift: giftName ausente, ignorando', { payload });
             return;
         }
-        // Enfileira no painel independente de animação
-        if (giftPanelRef.current) {
-            giftPanelRef.current.pushGift(payload);
-        } else {
-            console.warn('[STREAM] enqueueGift: giftPanelRef.current é NULL — ref não montada!');
+        // 🔧 Garantir fromId preenchido (fallback para não dropar a animação)
+        if (!payload?.fromUser?.id) {
+            if (!payload.fromUser) payload.fromUser = {} as any;
+            payload.fromUser.id = fromId || 'unknown';
         }
+        // Enfileira no painel independente de animação
+        // 🔧 RETRY: se giftPanelRef.current é null (componente ainda não montou),
+        // espera 200ms e tenta de novo — corrige race condition no 1º gift
+        // quando o socket é mais rápido que o React mount.
+        const tryPush = (attempt: number) => {
+            if (giftPanelRef.current) {
+                giftPanelRef.current.pushGift(payload);
+            } else if (attempt < 5) {
+                setTimeout(() => tryPush(attempt + 1), 200);
+            } else {
+                console.warn('[STREAM] enqueueGift: giftPanelRef.current é NULL após 5 tentativas — animação não exibida');
+            }
+        };
+        tryPush(0);
         postGiftChatMessage(payload);
     };
 
@@ -1475,17 +1644,22 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         setIsWalletOpen(false);
     };
 
-    const handleConfirmPurchase = async (pkg: PurchasePackage) => {
+    const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'payoneer' = 'payoneer') => {
         try {
-            // Confirmar compra após pagamento aprovado
-            const updatedUser = await api.getCurrentUser();
-            if (updatedUser) {
-                updateUser(updatedUser);
-                addToast(ToastType.Success, `Compra de ${pkg.diamonds} diamantes realizada com sucesso!`);
+            if (!currentUser) return;
+            const res = await api.createPayoneerDepositSession({
+                userId: currentUser.id,
+                amountBRL: pkg.price,
+                diamonds: pkg.diamonds,
+                method,
+            });
+            if (res && res.redirectUrl) {
+                window.location.href = res.redirectUrl;
+                return;
             }
-            setSelectedPackage(null);
+            addToast(ToastType.Error, 'Pagamento indisponível no momento.');
         } catch (error) {
-            addToast(ToastType.Error, 'Erro ao atualizar dados do usuário');
+            addToast(ToastType.Error, 'Pagamento indisponível no momento.');
         }
     };
 
@@ -1950,7 +2124,12 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT + composerExtraHeight : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                 </div>
 
-                <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''} ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                {/* 📝 1ª barra: renderiza APENAS quando o composer está fechado.
+                    Antes usávamos opacity-0 + pointer-events-none, mas isso mantinha
+                    a barra no DOM visível durante a transição de 200ms, causando
+                    overlap visual com a 2ª barra (composer) e o teclado. Agora o
+                    footer é removido do DOM quando o composer abre. */}
+                {!isComposerOpen && <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     {/* 📡 Typing indicator */}
                     {typingUsers.length > 0 && (
                       <div className="px-2 py-1 text-xs text-gray-400 italic">
@@ -2019,23 +2198,21 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                     <MessageIcon className="w-5 h-5 text-white" />
                                 </button>
                             )}
-                            {/* More Options */}
-                            {isBroadcaster && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
-                                    className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
-                                    title="Ferramentas"
-                                >
-                                    <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <circle cx="5" cy="12" r="2"></circle>
-                                        <circle cx="12" cy="12" r="2"></circle>
-                                        <circle cx="19" cy="12" r="2"></circle>
-                                    </svg>
-                                </button>
-                            )}
+                            {/* More Options (host: ferramentas de interação; espectador: pedir participação por vídeo) */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setIsToolsOpen(true); }} 
+                                className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                                title="Ferramentas"
+                            >
+                                <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="5" cy="12" r="2"></circle>
+                                    <circle cx="12" cy="12" r="2"></circle>
+                                    <circle cx="19" cy="12" r="2"></circle>
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                </footer>
+                </footer>}
 
             {isComposerOpen && (
                 <div
@@ -2140,9 +2317,14 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setOnlineUsersOpen(false);
-                        // Sempre abrir o perfil como página (também para o broadcaster).
-                        // Ações de moderação (expulsar/tornar mod) continuam disponíveis no chat.
-                        onViewProfile(selectedUser);
+                        // 🔧 HOST: clicar no nome do espectador abre o modal de
+                        // ações (tornar mod, expulsar, ver perfil) — igual ao chat.
+                        // Espectador: abre o perfil normalmente.
+                        if (isBroadcaster && selectedUser?.id && selectedUser.id !== currentUser.id) {
+                            setUserActionModalState({ isOpen: true, user: selectedUser });
+                        } else {
+                            onViewProfile(selectedUser);
+                        }
                     }}
                     moderatorIds={moderatorIds}
                 />
@@ -2183,12 +2365,34 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onSavePinnedGifts={(entries: { gift: Gift; label: string }[]) => {
                         setPinnedGifts(entries);
                     }}
+                    participationRequests={participationRequests}
+                    activeParticipantName={activeParticipantName || undefined}
+                    onAcceptParticipation={handleAcceptParticipation}
+                    onRejectParticipation={handleRejectParticipation}
+                    onRemoveParticipant={handleRemoveParticipant}
+                />
+            )}
+            {!isBroadcaster && (
+                <ToolsModalAny
+                    isOpen={isToolsOpen}
+                    onClose={() => setIsToolsOpen(false)}
+                    onOpenCoHostModal={handleOpenCoHostModal}
+                    onOpenPrivateInviteModal={() => {}}
+                    isPrivateStream={streamer.isPrivate}
+                    isSoundMuted={isLocalMuted}
+                    onToggleSound={(e: any) => { e.stopPropagation(); setIsLocalMuted(m => !m); }}
+                    onOpenPrivateChat={(e: any) => { e.stopPropagation(); onOpenPrivateChat(); }}
+                    isHost={false}
+                    addToast={addToast}
+                    onRequestParticipation={handleParticipantRequestTap}
+                    isParticipationActive={participationService.state === 'CONNECTED'}
+                    participationLabel={participationBadge || 'Participe por vídeo'}
                 />
             )}
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             <ResolutionPanel isOpen={isResolutionPanelOpen} onClose={() => setResolutionPanelOpen(false)} onSelectResolution={handleSelectResolution} currentResolution={currentResolution} />
             <CoHostModal isOpen={isCoHostModalOpen} mode={coHostModalMode} onClose={() => setIsCoHostModalOpen(false)} onInvite={handleInvite} onOpenTimerSettings={handleOpenTimerSettings} currentUser={currentUser} addToast={addToast} streamId={streamer.id} />
-            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={Object.values(rankingData || {}).flat().map((u: any) => ({ ...u, value: u?.contribution || 0 }))} currentUser={currentUser} />}
+            {isRankingOpen && <ContributionRankingModal onClose={() => setIsRankingOpen(false)} liveRanking={memoizedLiveRanking} currentUser={currentUser} />}
 
             {/* 🔧 Painel de presentes: estrutura idêntica para todos (mesmas abas e
                 layout). O host (broadcaster) vê as áreas de envio vazias — não pode
@@ -2279,7 +2483,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 nas ferramentas de interação (ícone Chamada). */}
             <VideoCallPiP
                 isOpen={isVideoCallPiPOpen}
-                onClose={() => { setIsVideoCallPiPOpen(false); setRemoteCallUser(null); }}
+                onClose={() => { setIsVideoCallPiPOpen(false); setRemoteCallUser(null); callService.stopGuestPublish(); }}
                 localStreamId={streamer.streamKey || streamer.id}
                 remoteStreamId={remoteCallUser?.streamId || streamer.streamKey || streamer.id}
                 remoteUserName={remoteCallUser?.name || streamer.name}

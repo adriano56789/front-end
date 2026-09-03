@@ -14,7 +14,7 @@ const resolveAvatar = (n: InAppNotification): string => {
 // A faixa pode ser arrastada pra cima/baixo para dispensar e some sozinha.
 // ═══════════════════════════════════════════════════════════════════════
 
-export type InAppNotificationType = 'live_started' | 'private_invite' | 'pk_invite';
+export type InAppNotificationType = 'live_started' | 'private_invite' | 'pk_invite' | 'call_invite';
 export type InAppAccent = 'live' | 'invite' | 'pk';
 
 export interface InAppNotification {

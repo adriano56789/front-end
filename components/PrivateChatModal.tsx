@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Conversation, User } from '../types';
 import { CloseIcon } from './icons';
 import { formatConvoTime } from '../utils/formatConvoTime';
@@ -97,9 +98,9 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
     onClose();
   };
   
-  return (
+  return createPortal(
     <div 
-      className={`fixed inset-0 z-[100] flex items-end justify-center transition-all duration-300 ${isOpen ? 'bg-transparent pointer-events-auto' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
+      className={`fixed inset-0 z-[99999] flex items-end justify-center transition-all duration-300 ${isOpen ? 'bg-transparent pointer-events-auto' : 'bg-transparent backdrop-blur-none pointer-events-none'}`}
       onClick={onClose}
     >
       {/* Estilo painel de presente: bottom-sheet translúcido — a live CONTINUA
@@ -148,7 +149,8 @@ const PrivateChatModal: React.FC<PrivateChatModalProps> = ({ isOpen, onClose, on
             )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

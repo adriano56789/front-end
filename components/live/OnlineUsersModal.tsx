@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CloseIcon, ActionIcon, YellowDiamondIcon, CrownIcon, UserIcon, RankIcon } from '../icons';
+import { CloseIcon, ActionIcon, CrownIcon, UserIcon, RankIcon } from '../icons';
 import ConnectionQualityIndicator, { ConnectionQualityValue } from './ConnectionQualityIndicator';
 import { User } from '../../types';
 import { api } from '../../services/api';
@@ -94,6 +94,19 @@ const OnlineUsersModal: React.FC<OnlineUsersModalProps> = ({ onClose, streamId, 
     const usersWithFreshAvatar = (users || []).map(u =>
         currentUser && u.id === currentUser.id ? { ...u, avatarUrl: currentUser.avatarUrl || u.avatarUrl } : u
     );
+
+    // 🖼️ Escutar atualização de avatar de QUALQUER usuário na sala
+    useEffect(() => {
+        const handleAvatarChanged = (e: Event) => {
+            const data = (e as CustomEvent).detail;
+            if (!data?.userId || !data?.avatarUrl) return;
+            setUsers(prev => prev.map(u =>
+                String(u.id) === String(data.userId) ? { ...u, avatarUrl: data.avatarUrl } : u
+            ));
+        };
+        window.addEventListener('livego:user_avatar_changed', handleAvatarChanged);
+        return () => window.removeEventListener('livego:user_avatar_changed', handleAvatarChanged);
+    }, []);
 
     useEffect(() => {
         // Conectar à sala da stream para receber atualizações em tempo real

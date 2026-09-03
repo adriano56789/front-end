@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
-import { BackIcon, YellowDiamondIcon, GoldCoinWithGIcon, BankIcon } from './icons';
+import React, { useMemo, useState, useCallback } from 'react';
+import { BackIcon, GoldCoinWithGIcon, BankIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { PurchaseRecord } from '../types';
+import { api } from '../services/api';
 
 interface PurchaseHistoryScreenProps {
   onClose: () => void;
@@ -196,9 +197,10 @@ const StatusBadge: React.FC<{ item: PurchaseRecord }> = ({ item }) => {
     );
 };
 
-const HistoryCardItem: React.FC<{ item: PurchaseRecord }> = ({ item }) => {
+const HistoryCardItem: React.FC<{ item: PurchaseRecord; onEstorno: (item: PurchaseRecord) => void }> = ({ item, onEstorno }) => {
     const isFrame = item.type === 'purchase_frame' || item.description.toLowerCase().includes('quadro');
     const isPurchase = item.type === 'purchase_diamonds';
+    const canEstorno = isPurchase && item.status === 'Concluído';
 
     const getAmountDisplay = () => {
         if (isFrame) {
@@ -237,6 +239,15 @@ const HistoryCardItem: React.FC<{ item: PurchaseRecord }> = ({ item }) => {
             <div className="flex flex-col items-end justify-center space-y-2 shrink-0">
                 {getAmountDisplay()}
                 <StatusBadge item={item} />
+                {canEstorno && (
+                    <button
+                        onClick={() => onEstorno(item)}
+                        className="text-[10px] font-black uppercase tracking-wider text-[#7a3be9] bg-[#241a38] hover:bg-[#2c2045] px-3 py-1.5 rounded-full transition-all cursor-pointer active:scale-95"
+                        id={`btn-estorno-${item.id}`}
+                    >
+                        Solicitar Estorno
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -245,6 +256,55 @@ const HistoryCardItem: React.FC<{ item: PurchaseRecord }> = ({ item }) => {
 const PurchaseHistoryScreen: React.FC<PurchaseHistoryScreenProps> = ({ onClose, history }) => {
   const { t } = useTranslation();
   const [filter, setFilter] = React.useState<FilterType>('all');
+
+  // ─── Estado do estorno ───
+  const [estornoItem, setEstornoItem] = useState<PurchaseRecord | null>(null);
+  const [reasons, setReasons] = useState<Record<string, string> | null>(null);
+  const [reasonCode, setReasonCode] = useState<string>('');
+  const [reasonDetail, setReasonDetail] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+  const [resultMsg, setResultMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const openEstorno = useCallback(async (item: PurchaseRecord) => {
+    setEstornoItem(item);
+    setReasonCode('');
+    setReasonDetail('');
+    setResultMsg(null);
+    setErrorMsg(null);
+    try {
+      const data = await api.getEstornoReasons();
+      setReasons(data.reasons || {});
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Não foi possível carregar os motivos.');
+    }
+  }, []);
+
+  const closeEstorno = useCallback(() => {
+    setEstornoItem(null);
+    setSubmitting(false);
+  }, []);
+
+  const submitEstorno = useCallback(async () => {
+    if (!estornoItem || !reasonCode) {
+      setErrorMsg('Selecione um motivo.');
+      return;
+    }
+    setSubmitting(true);
+    setErrorMsg(null);
+    setResultMsg(null);
+    try {
+      // Toda chamada passa por api.ts (nada de fetch direto)
+      const data = await api.requestEstorno(estornoItem.id, reasonCode, reasonDetail || undefined);
+      setResultMsg('Estorno solicitado. O valor correspondente ficou bloqueado na carteira da host por até 7 dias enquanto o banco confirma.');
+      setReasonCode('');
+      setReasonDetail('');
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Falha ao solicitar estorno.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [estornoItem, reasonCode, reasonDetail]);
 
   // Sort real dynamic custom records by timestamp descending
   const sortedHistory = useMemo(() => {
@@ -425,10 +485,79 @@ const PurchaseHistoryScreen: React.FC<PurchaseHistoryScreenProps> = ({ onClose, 
             </div>
         ) : (
             <div className="flex-grow overflow-y-auto no-scrollbar space-y-3.5 pr-1">
-                {filteredHistory.map(item => <HistoryCardItem key={item.id} item={item} />)}
+                {filteredHistory.map(item => <HistoryCardItem key={item.id} item={item} onEstorno={openEstorno} />)}
             </div>
         )}
       </main>
+
+      {/* ─── Modal de Estorno ─── */}
+      {estornoItem && (
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-5">
+          <div className="bg-[#141316] border border-[#27262a] rounded-2xl w-full max-w-sm p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[16px] font-black text-white tracking-tight">Solicitar Estorno</h3>
+              <button onClick={closeEstorno} className="text-[#8a8894] hover:text-white text-[20px] leading-none cursor-pointer" aria-label="Fechar">×</button>
+            </div>
+
+            <p className="text-[12px] text-[#a1a1aa] font-medium leading-snug mb-4">
+              Ao solicitar, o valor correspondente fica bloqueado na carteira da host por até 7 dias enquanto
+              o banco confirma com a plataforma. Só há devolução se a fraude for comprovada.
+            </p>
+
+            {errorMsg && !resultMsg && (
+              <div className="text-[12px] text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2 mb-3">{errorMsg}</div>
+            )}
+            {resultMsg && (
+              <div className="text-[12px] text-[#10b981] bg-[#10b981]/10 border border-[#10b981]/20 rounded-xl px-3 py-2 mb-3">{resultMsg}</div>
+            )}
+
+            {!resultMsg ? (
+              <>
+                <div className="mb-1 text-[11px] font-black uppercase tracking-wider text-[#8a8894]">Motivo (causa)</div>
+                <div className="space-y-2 mb-4 max-h-56 overflow-y-auto no-scrollbar pr-1">
+                  {reasons && Object.entries(reasons).map(([code, label]) => (
+                    <button
+                      key={code}
+                      onClick={() => { setReasonCode(code); setErrorMsg(null); }}
+                      className={`w-full text-left text-[13px] font-bold px-3 py-2.5 rounded-xl transition-all cursor-pointer border ${
+                        reasonCode === code
+                          ? 'bg-[#7a3be9]/15 border-[#7a3be9]/50 text-white'
+                          : 'bg-[#18191d] border-[#27262a] text-[#a1a1aa] hover:border-[#4b4a52]'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {reasonCode === 'other' && (
+                  <input
+                    value={reasonDetail}
+                    onChange={(e) => setReasonDetail(e.target.value)}
+                    placeholder="Descreva o motivo..."
+                    className="w-full bg-[#131215] text-white placeholder-gray-600 rounded-xl p-3 text-[13px] border border-[#27262a] focus:border-[#8a3ffc]/50 focus:outline-none mb-4"
+                  />
+                )}
+
+                <button
+                  onClick={submitEstorno}
+                  disabled={submitting || !reasonCode}
+                  className="w-full bg-[#7a3be9] hover:bg-[#6b2ed3] disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-3 rounded-[14px] transition-all cursor-pointer text-[14px] tracking-wide active:scale-[0.99]"
+                >
+                  {submitting ? 'Enviando...' : 'Confirmar Estorno'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={closeEstorno}
+                className="w-full bg-[#27262a] hover:bg-[#33323a] text-white font-black py-3 rounded-[14px] transition-all cursor-pointer text-[14px] tracking-wide"
+              >
+                Fechar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

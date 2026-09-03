@@ -150,13 +150,46 @@ export function useGlobalNotifications(options: UseGlobalNotificationsOptions) {
         });
       };
 
+      // 📞 Convite de CHAMADA DE VÍDEO global: quando o convidado NÃO está
+      // dentro de uma live, a notificação não chegaria pela StreamRoom. Aqui
+      // mostramos um banner global com ACEITAR/RECUSAR em qualquer tela.
+      const onCallInvitation = (d: any) => {
+        if (!d || d.type !== 'invitation_received') return;
+        if (optsRef.current.skipInvitesWhenInStream) return; // dentro da sala a StreamRoom cuida
+        const inv = d.invitation || {};
+        const inviteId = inv.id || '';
+        if (!inviteId) return;
+        const dedupeId = `call_${inviteId}`;
+        if (isSeen(dedupeId)) return;
+        const fromId = inv.hostId || '';
+        optsRef.current.onNotification({
+          id: dedupeId,
+          type: 'call_invite',
+          accent: 'live',
+          title: 'Chamada de vídeo',
+          name: inv.hostName || 'Alguém',
+          avatar: (inv as any).hostAvatar || '',
+          message: `${inv.hostName || 'Alguém'} quer fazer uma chamada de vídeo com você`,
+          actionLabel: 'Aceitar',
+          secondaryLabel: 'Recusar',
+          icon: '📞',
+          data: {
+            invitationId: inviteId,
+            hostId: fromId,
+            streamId: inv.streamId || '',
+          },
+        });
+      };
+
       s.on('unread_notification', onUnread);
       s.on('private_stream_invite', onPrivateInvite);
       s.on('live_invite', onLiveInvite);
+      s.on('call_invitation', onCallInvitation);
       unsubs.push(
         () => s.off('unread_notification', onUnread),
         () => s.off('private_stream_invite', onPrivateInvite),
         () => s.off('live_invite', onLiveInvite),
+        () => s.off('call_invitation', onCallInvitation),
       );
     };
     setup();

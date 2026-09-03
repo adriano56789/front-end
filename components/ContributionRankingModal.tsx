@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { CloseIcon, YellowDiamondIcon, CrownIcon, FemaleIcon, MaleIcon, RankIcon } from './icons';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { CloseIcon, GoldCoinWithGIcon, CrownIcon, FemaleIcon, MaleIcon, RankIcon } from './icons';
 import { RealisticTop1CrownIcon } from './icons/RealisticTop1CrownIcon';
 import { RealisticRank2CrownIcon } from './icons/RealisticRank2CrownIcon';
 import { RealisticRank3CrownIcon } from './icons/RealisticRank3CrownIcon';
@@ -48,8 +48,37 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
     const [activeTab, setActiveTab] = useState<Period>('Live');
     const [data, setData] = useState<RankedUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);    // 📊 Ref para liveRanking — evita re-trigger do useEffect a cada render
+    const liveRankingRef = useRef(liveRanking);
+    liveRankingRef.current = liveRanking;
 
+    // 📊 Processar liveRanking sem flash: só atualiza data, NÃO seta isLoading
+    const processLiveRanking = useCallback(() => {
+        const lr = liveRankingRef.current;
+        if (!lr || !Array.isArray(lr)) {
+            setData([]);
+            return;
+        }
+        const mappedData = lr
+            .filter((u: any) => u && u.value > 0 && /^[0-9]+$/.test(String(u.id)))
+            .map((u: any) => ({
+                ...u,
+                contribution: u.value,
+                gender: u.gender || 'not_specified',
+                age: u.age || 0,
+                level: u.level || 1,
+            } as RankedUser));
+        setData(mappedData);
+    }, []);
+
+    // 📊 Quando liveRanking muda (gifts novos), atualiza dados SEM flash
+    useEffect(() => {
+        if (activeTab === 'Live') {
+            processLiveRanking();
+        }
+    }, [liveRanking, activeTab, processLiveRanking]);
+
+    // 📊 Buscar dados da API SOMENTE quando muda a aba (não a cada render)
     useEffect(() => {
         const periodMap: Record<Period, string> = {
             'Live': 'live',
@@ -61,73 +90,49 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
         const currentPeriod = periodMap[activeTab];
 
         const fetchData = async () => {
+            // Na aba Live, usar dados já processados (sem loading)
+            if (currentPeriod === 'live') {
+                processLiveRanking();
+                return;
+            }
+
             setIsLoading(true);
             setError(null);
             
             try {
+                const rankingData = await api.getRankingForPeriod(currentPeriod as PeriodKey, currentUser?.id);
                 
-                if (currentPeriod === 'live') {
-                    // Validar liveRanking
-                    if (!liveRanking || !Array.isArray(liveRanking)) {
-                        setData([]);
-                        return;
-                    }
-                    
-                    const mappedData = liveRanking
-                        .filter(u => u && u.value > 0 && /^[0-9]+$/.test(String(u.id)))
-                        .map(u => ({
-                            ...u,
-                            contribution: u.value,
-                            gender: u.gender || 'not_specified',
-                            age: u.age || 0,
-                            level: u.level || 1,
-                        } as RankedUser));
-                    
-                    setData(mappedData);
+                if (!rankingData || !Array.isArray(rankingData)) {
+                    setData([]);
                 } else {
-                    // Validar período
-                    if (!currentPeriod || currentPeriod === 'live') {
-                        throw new Error('Período inválido');
-                    }
+                    const validData = rankingData.filter(user => 
+                        user && 
+                        typeof user === 'object' &&
+                        user.id &&
+                        /^[0-9]+$/.test(String(user.id)) &&
+                        user.name
+                    ).map(user => ({
+                        ...user,
+                        contribution: user.contribution ?? user.diamonds ?? 0,
+                        gender: user.gender || 'not_specified',
+                        age: user.age || 0,
+                        level: user.level || 1,
+                    }));
                     
-                    const rankingData = await api.getRankingForPeriod(currentPeriod as PeriodKey, currentUser?.id);
-                    
-                    // Validar resposta da API
-                    if (!rankingData) {
-                        setData([]);
-                    } else if (!Array.isArray(rankingData)) {
-                        setData([]);
-                    } else {
-                        // Validar e formatar dados — SÓ contas reais (ID numérico)
-                        const validData = rankingData.filter(user => 
-                            user && 
-                            typeof user === 'object' && 
-                            user.id &&
-                            /^[0-9]+$/.test(String(user.id)) &&
-                            user.name
-                        ).map(user => ({
-                            ...user,
-                            contribution: user.contribution ?? user.diamonds ?? 0,
-                            gender: user.gender || 'not_specified',
-                            age: user.age || 0,
-                            level: user.level || 1,
-                        }));
-                        
-                        setData(validData);
-                    }
+                    setData(validData);
                 }
                 
                 setError(null);
             } catch (err) {
                 setError('Não foi possível carregar o ranking');
-                setData([]); // Garantir array vazio em caso de erro
+                setData([]);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, [activeTab, liveRanking]);
+    }, [activeTab]);
 
     const topUser = data[0];
     const otherUsers = data.slice(1);
@@ -261,7 +266,7 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                                     <span className="text-lg font-black italic tracking-tight drop-shadow-sm">
                                         {formatContribution(topUser.contribution || 0)}
                                     </span>
-                                    <YellowDiamondIcon className="w-3.5 h-3.5" />
+                                    <GoldCoinWithGIcon className="w-3.5 h-3.5" />
                                 </div>
                             </div>
                         ) : (
@@ -335,7 +340,7 @@ const ContributionRankingModal: React.FC<ContributionRankingModalProps> = ({ onC
                                         <span className="font-bold text-sm">
                                             {formatContribution(user.contribution || 0)}
                                         </span>
-                                        <YellowDiamondIcon className="w-3 h-3" />
+                                        <GoldCoinWithGIcon className="w-3 h-3" />
                                     </div>
                                 </div>
                                 );

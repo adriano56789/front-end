@@ -1,7 +1,7 @@
 
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { BackIcon, YellowDiamondIcon } from '../icons';
+import { BackIcon, GoldCoinWithGIcon } from '../icons';
 import { Gift, User, ToastType } from '../../types';
 import { useTranslation } from '../../i18n';
 import { api } from '../../services/api';
@@ -17,7 +17,7 @@ const GiftItem: React.FC<{ gift: Gift, isEnabled: boolean, onToggle: () => void,
                 <p className="text-white">{gift.name} {gift.category === 'Efeito' && <span className="text-xs text-yellow-400 font-bold ml-1">VIP</span>}</p>
                 {gift.price && (
                     <div className="flex items-center space-x-1 text-sm text-gray-400">
-                        <YellowDiamondIcon className="w-4 h-4 text-yellow-400" />
+                        <GoldCoinWithGIcon className="w-4 h-4 text-yellow-400" />
                         <span>{gift.price.toLocaleString('pt-BR')}</span>
                     </div>
                 )}

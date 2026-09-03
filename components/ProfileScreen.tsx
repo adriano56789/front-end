@@ -12,9 +12,7 @@ import {
 
     WalletIcon,
 
-    YellowDiamondIcon,
-
-    GoldCoinIcon,
+    GoldCoinWithGIcon,
 
     MarketIcon,
 
@@ -215,44 +213,15 @@ const CustomSettingsIcon = () => (
 );
 
 const CustomYellowDiamondIcon = () => (
-    <svg viewBox="0 0 24 24" className="w-4 h-4 drop-shadow-[0_0_4px_rgba(251,191,36,0.55)]" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="diamond_inner" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FDE047" />
-                <stop offset="100%" stopColor="#CA8A04" />
-            </linearGradient>
-        </defs>
-        <polygon points="12,2 19,8 12,22 5,8" fill="url(#diamond_inner)" stroke="#A16207" strokeWidth="0.8" />
-        <polygon points="12,2 15,8 12,22 9,8" fill="#FFFFFF" fillOpacity="0.25" stroke="#A16207" strokeWidth="0.5" />
-    </svg>
+    <GoldCoinWithGIcon className="w-4 h-4 drop-shadow-[0_0_4px_rgba(251,191,36,0.55)]" />
 );
 
 const CustomGoldCoinIcon = () => (
-    <svg viewBox="0 0 24 24" className="w-4 h-4 drop-shadow-[0_0_3px_rgba(249,115,22,0.5)]" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="coin_grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FF8F00" />
-                <stop offset="100%" stopColor="#E65100" />
-            </linearGradient>
-        </defs>
-        <circle cx="12" cy="12" r="10" fill="url(#coin_grad)" stroke="#9A3412" strokeWidth="1" />
-        <circle cx="12" cy="12" r="6" fill="none" stroke="#FFedd5" strokeWidth="1.2" strokeDasharray="3 1" />
-    </svg>
+    <GoldCoinWithGIcon className="w-4 h-4 drop-shadow-[0_0_3px_rgba(249,115,22,0.5)]" />
 );
 
 const CustomGoldCoinIconLarge = () => (
-    <svg viewBox="0 0 24 24" className="w-6 h-6 drop-shadow-[0_2px_4px_rgba(249,115,22,0.4)]" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="coin_large_grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FF9800" />
-                <stop offset="50%" stopColor="#F57C00" />
-                <stop offset="100%" stopColor="#D84315" />
-            </linearGradient>
-        </defs>
-        <circle cx="12" cy="12" r="9.5" fill="url(#coin_large_grad)" stroke="#9A3412" strokeWidth="1.2" />
-        <circle cx="12" cy="12" r="5.5" fill="none" stroke="#FFE082" strokeWidth="1.5" />
-        <path d="M12 7v10M10 8.5h4M10 15.5h4" stroke="#FFF" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
+    <GoldCoinWithGIcon className="w-6 h-6 drop-shadow-[0_2px_4px_rgba(249,115,22,0.4)]" />
 );
 
 interface ProfileScreenProps {

@@ -195,6 +195,72 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         };
     }, [isOpen, ownerId, editingCostInline]);
 
+    // 🎡 ROLETA GIRA NA SALA DA HOST: quando um espectador gira, o backend
+    // emite roulette_spin para a sala (stream room + user_ownerId). O host
+    // (e todos na sala) veem a roleta girar e parar no item sorteado.
+    useEffect(() => {
+        if (!isOpen || !ownerId) return;
+        let cancelled = false;
+        const handleRouletteSpin = (e: Event) => {
+            const data = (e as CustomEvent).detail;
+            if (!data || cancelled) return;
+            // Ignorar spins da MESMA pessoa (já animou localmente via handleSpin)
+            if (String(data.spinnerUserId) === String(currentUser.id)) return;
+            // Só animar se o dono da roleta bate com o ownerId deste modal
+            if (data.ownerId && String(data.ownerId) !== String(ownerId)) return;
+            const spinItem = data.item;
+            if (!spinItem) return;
+
+            // 🔄 Garantir itens carregados antes de calcular o ângulo
+            // NÃO usar displayItems (definido depois do early return) — usar
+            // items (state) diretamente, com fallback para placeholders.
+            const currentItems = items.length > 0 ? items : [
+                { _id: 'placeholder', label: 'Dança', icon: '💃', color: '#f59e0b', textColor: '#1f2937', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+                { _id: 'placeholder2', label: 'Música', icon: '🎵', color: '#7c3aed', textColor: '#ffffff', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+                { _id: 'placeholder3', label: 'Cantar', icon: '🎤', color: '#06b6d4', textColor: '#ffffff', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+                { _id: 'placeholder4', label: 'Falar', icon: '🗣️', color: '#ef4444', textColor: '#ffffff', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+                { _id: 'placeholder5', label: 'Surpresa', icon: '✨', color: '#10b981', textColor: '#ffffff', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+                { _id: 'placeholder6', label: 'Sorte', icon: '🎁', color: '#8b5cf6', textColor: '#ffffff', ownerId: '', type: 'action', amount: 0, isActive: true, createdAt: '', updatedAt: '' },
+            ];
+
+            // Encontrar o índice do item sorteado
+            const itemIndex = currentItems.findIndex(
+                (it: RouletteItem) => String(it._id) === String(spinItem._id)
+            );
+            const safeIndex = itemIndex >= 0 ? itemIndex : Math.floor(Math.random() * currentItems.length);
+            const sliceAngleNow = 360 / currentItems.length;
+            const targetSliceAngle = safeIndex * sliceAngleNow + sliceAngleNow / 2;
+
+            // Iniciar animação do giro
+            setIsSpinning(true);
+            setWinningPrize(null);
+            setEditingItemId(null);
+            setEditLabel('');
+
+            // Calcular rotação final (mesma lógica do handleSpin)
+            const extraTurns = 360 * 5;
+            const finalRotation = rotationDeg + extraTurns + (360 - (rotationDeg % 360)) + (270 - targetSliceAngle);
+            setRotationDeg(finalRotation);
+
+            // ⏱️ Após a animação (3.6s), mostrar o resultado e notificação
+            spinTimerRef.current = setTimeout(() => {
+                spinTimerRef.current = null;
+                setIsSpinning(false);
+                setWinningPrize(spinItem);
+                const spinnerName = data.spinnerName || 'Um espectador';
+                addToastRef.current(
+                    ToastType.Success,
+                    `${spinnerName} girou a roleta e ganhou: ${spinItem.label}! 🎉`
+                );
+            }, 3600);
+        };
+        window.addEventListener('livego:roulette_spin', handleRouletteSpin);
+        return () => {
+            cancelled = true;
+            window.removeEventListener('livego:roulette_spin', handleRouletteSpin);
+        };
+    }, [isOpen, ownerId, items, currentUser?.id, rotationDeg]);
+
     // 🔁 Mantém o custo SEMPRE igual ao valor salvo pela host: se a host mudar
     // o preço com a roleta aberta, o valor exibido atualiza sozinho (assim o
     // que o espectador vê é exatamente o que o backend vai debitar). Não
@@ -216,6 +282,24 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         }, 8000);
         return () => clearInterval(t);
     }, [isOpen, ownerId, editingCostInline]);
+
+    // 📡 SALDO EM TEMPO REAL: quando o backend emite `diamonds_updated`
+    // (após giro, presente, compra), atualiza o saldo do espectador na hora.
+    // Escuta o CustomEvent global disparado por useStreamChat.ts.
+    useEffect(() => {
+        if (!isOpen) return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (!detail) return;
+            // 🔧 O backend pode enviar { diamonds } ou { diamonds, earnings }
+            if (typeof detail.diamonds === 'number') {
+                updateUser({ ...currentUser, diamonds: detail.diamonds });
+            }
+        };
+        window.addEventListener('livego:diamonds_updated', handler);
+        return () => window.removeEventListener('livego:diamonds_updated', handler);
+    }, [isOpen, currentUser?.id]);
+
     loadCostRef.current = () => {
         if (!ownerId) return;
         api.roulette.getSpinCost(ownerId).then((r) => {
@@ -356,17 +440,14 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         }
     };
 
-    // 🔒 O HOST NÃO gira — só o espectador pode girar a roleta.
+    // 🔓 O DONO PODE GIRAR pra testar e conferir que os diamantes caem certinho.
+    // Espectadores giram normalmente. A edição (itens/custo) continua só pro dono.
     const isHost = canEdit;
 
     // 🎯 GIRAR — o backend sorteia entre os itens CADASTRADOS e retorna exatamente
     // o que a pessoa cadastrou (dança, música, qualquer ação). O CUSTO É SEMPRE O
     // VALOR FIXO definido pela host (spinCost). Passa SEMPRE pelo api.ts.
     const handleSpin = async () => {
-        if (isHost) {
-            addToast(ToastType.Info, 'Apenas espectadores podem girar a roleta.');
-            return;
-        }
         if (isSpinning || spinInFlightRef.current) return;
 
         // 📡 Espera o estado ser carregado antes de permitir giro
@@ -400,6 +481,15 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
         setEditingItemId(null);
         setEditLabel('');
 
+        // 💎 DESCONTO OTIMISTA: deduzir imediatamente o custo do saldo local
+        // para o espectador ver os diamantes CAINDO em tempo real (antes da
+        // resposta da API). Se a API falhar, revertemos.
+        const costForOptimistic = costToSpin || spinCost || 0;
+        if (costForOptimistic > 0) {
+            const optimisticDiamonds = Math.max(0, (currentUser.diamonds || 0) - costForOptimistic);
+            updateUser({ ...currentUser, diamonds: optimisticDiamonds });
+        }
+
         try {
             // Sorteio FEITO NO BACKEND (fonte da verdade) — cobra o custo FIXO
             // definido pela host. Backend rejeita com 400 se o saldo for insuficiente.
@@ -413,6 +503,8 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             });
 
             if (!result || !result.success || !result.item) {
+                // ⏪ REVERT: API falhou — devolver o saldo original
+                updateUser({ ...currentUser, diamonds: currentUser.diamonds });
                 setIsSpinning(false);
                 spinInFlightRef.current = false;
                 addToast(ToastType.Error, 'Falha ao girar a roleta. Tente novamente.');
@@ -420,8 +512,8 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             }
 
             const prize = result.item;
-            // Aplica o saldo confirmado pelo backend SÓ quando for número válido
-            // (evita que null/''/NaN de usuários não encontrados sobrescrevam o saldo)
+            // 🔧 RECONCILIAR: usar o saldo confirmado pelo backend (banco de dados)
+            // como fonte da verdade — NUNCA confiar no valor local.
             if (typeof result.diamondsAfter === 'number' && result.diamondsAfter >= 0) {
                 updateUser({ ...currentUser, diamonds: result.diamondsAfter });
             }
@@ -454,6 +546,14 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
             console.error('[ROULETTE] Erro ao girar:', err);
             setIsSpinning(false);
             spinInFlightRef.current = false;
+            // ⏪ REVERT: devolver o saldo ORIGINAL do banco (via api.ts) se a
+            // API falhar — NUNCA confiar no valor local, sempre buscar fresco.
+            try {
+                const freshUser = await api.getUser(currentUser.id);
+                if (freshUser && typeof freshUser.diamonds === 'number') {
+                    updateUser({ ...currentUser, diamonds: freshUser.diamonds });
+                }
+            } catch { /* falha silenciosa — saldo continua do optimistic revert */ }
             // 💎 Saldo insuficiente confirmado pelo backend → abre a MESMA carteira dos presentes
             const msg = String(err?.message || '');
             if (/insuficiente|diamantes/i.test(msg)) {
@@ -651,7 +751,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                     {/* Center GO Button */}
                     <button
                         onClick={handleSpin}
-                        disabled={isSpinning || isHost}
+                        disabled={isSpinning}
                         className="absolute z-20 w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-b from-amber-300 via-amber-500 to-amber-700 p-1 shadow-[0_0_25px_rgba(245,158,11,0.8)] border-2 border-amber-200 hover:scale-105 active:scale-95 disabled:opacity-80 transition-all cursor-pointer flex flex-col items-center justify-center text-purple-950 font-black"
                     >
                         <div className="w-full h-full rounded-full bg-gradient-to-b from-purple-900 via-purple-950 to-purple-900 flex flex-col items-center justify-center border border-amber-300/60 shadow-inner">
@@ -748,7 +848,7 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
                             {!stateLoaded
                                 ? 'Carregando dados da roleta...'
                                 : isHost
-                                    ? `Cada rodada custa ${Number(displayCost) > 0 ? displayCost : 0} 💎 (definido por você). Apenas espectadores giram.`
+                                    ? `Cada rodada custa ${Number(displayCost) > 0 ? displayCost : 0} 💎 (definido por você). Você pode girar pra testar.`
                                     : `Cada rodada custa ${Number(displayCost) > 0 ? displayCost : 0} 💎 (definido pela host). Ao girar, esses diamantes vão direto para a host da live.`
                             }
                         </p>
@@ -756,10 +856,10 @@ export const RouletteModal: React.FC<RouletteModalProps> = ({
 
                     <button
                         onClick={handleSpin}
-                        disabled={isSpinning || isHost}
+                        disabled={isSpinning}
                         className="w-full max-w-xs py-3 rounded-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 hover:from-amber-300 hover:to-amber-500 text-purple-950 font-black text-base uppercase tracking-wider shadow-[0_4px_20px_rgba(245,158,11,0.5)] active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                     >
-                        {isHost ? 'somente espectadores giram' : isSpinning ? 'Girando...' : 'Girar Roleta'}
+                        {isSpinning ? 'Girando...' : 'Girar Roleta'}
                     </button>
                 </div>
 

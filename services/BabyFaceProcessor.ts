@@ -205,6 +205,25 @@ export class BabyFaceProcessor {
     return this.intensitySmooth > 0.001 && this.landmarkerReady;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // Tencent doc 50102: disable()/enable() — pausa/retoma detecção
+  // ═══════════════════════════════════════════════════════════════════
+  private _enabled = true;
+
+  /**
+   * Pausa detecção facial (reduce CPU). O render continua mas sem landmarks.
+   */
+  setEnabled(enabled: boolean): void {
+    this._enabled = enabled;
+  }
+
+  /**
+   * Retorna se a detecção está habilitada.
+   */
+  isEnabled(): boolean {
+    return this._enabled;
+  }
+
   setIntensity(value: number): void {
     this.params.babyFace = Math.max(0, Math.min(1, value));
     this.recomputeIntensity();
@@ -324,6 +343,7 @@ export class BabyFaceProcessor {
   render(): HTMLCanvasElement | null {
     if (!this.landmarkerReady || !this.canvas || !this.videoElement) return null;
     if (this.intensity <= 0.001) return null;
+    if (!this._enabled) return null; // Tencent disable/enable pattern
 
     // Suaviza a intensidade para transições suaves no slider
     this.intensitySmooth += (this.intensity - this.intensitySmooth) * 0.25;

@@ -44,7 +44,6 @@ const UserItem: React.FC<{
                             )}
                         </div>
                     </div>
-                    {/* 🔒 Cadeado de sala privada — bem no meio do avatar */}
                     {hasPadlock && (
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center w-[22px] h-[22px] rounded-full bg-gradient-to-b from-[#e1ba72] via-[#ead098] to-[#ab873c] shadow-[0_0_8px_rgba(225,186,114,0.6)] border-2 border-black">
                             <LockIcon className="w-[11px] h-[11px] text-black" />
@@ -71,7 +70,11 @@ const UserItem: React.FC<{
             </div>
             <button 
                 onClick={(e) => { e.stopPropagation(); onFollowClick(); }}
-                className="text-[13px] font-medium text-white px-6 py-2.5 rounded-full bg-[#1c1d21] hover:bg-[#25272d] active:scale-95 transition-all duration-150"
+                className={`text-[13px] font-medium text-white px-6 py-2.5 rounded-full transition-all duration-150 active:scale-95 ${
+                    user.isFollowed 
+                        ? 'bg-[#1c1d21] hover:bg-[#25272d]' 
+                        : 'bg-purple-600 hover:bg-purple-700'
+                }`}
             >
                 {user.isFollowed ? t('common.following') : t('common.follow')}
             </button>
@@ -129,13 +132,14 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
         }
     };
 
-    const handleUnfollowUser = async (user: User) => {
+    const handleFollowToggle = async (user: User) => {
         try {
             await onFollowUser(user);
-            // Remove do estado local para manter a lista atualizada
-            setLocalUsers(prev => prev.filter(u => u.id !== user.id));
+            setLocalUsers(prev => prev.map(u => 
+                u.id === user.id ? { ...u, isFollowed: !u.isFollowed } : u
+            ));
         } catch (error) {
-            console.error('Erro ao deixar de seguir:', error);
+            console.error('Erro ao alternar seguimento:', error);
         } finally {
             setIsSheetOpen(false);
             setSelectedUser(null);
@@ -169,7 +173,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                                 key={user.id} 
                                 user={user} 
                                 onRowClick={() => handleItemClick(user)} 
-                                onFollowClick={() => handleUnfollowUser(user)} 
+                                onFollowClick={() => handleFollowToggle(user)} 
                                 onOpenLive={onOpenLive} 
                                 hasPadlock={padlockHosts.has(user.id)}
                             />
@@ -228,7 +232,7 @@ const FollowingScreen: React.FC<FollowingScreenProps> = ({ onBack, onViewProfile
                         {/* Actions */}
                         <div className="space-y-2">
                             <button
-                                onClick={() => handleUnfollowUser(selectedUser)}
+                                onClick={() => handleFollowToggle(selectedUser)}
                                 className="w-full py-3.5 bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white font-semibold text-sm rounded-full transition-all"
                             >
                                 Deixar de Seguir

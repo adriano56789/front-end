@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BackIcon, YellowDiamondIcon, HeadphonesIcon, PlusIcon } from './icons';
+import { BackIcon, GoldCoinWithGIcon, HeadphonesIcon, PlusIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { shopAPI, ShopItem, UserInventory, UserAvatar } from '../services/shopAPI';
@@ -248,7 +248,7 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
                            {frame.name}
                          </span>
                          <div className="flex items-center justify-center space-x-1 w-full">
-                           <YellowDiamondIcon className="w-[11px] h-[11px] text-white drop-shadow-sm flex-shrink-0" />
+                           <GoldCoinWithGIcon className="w-[11px] h-[11px] text-white drop-shadow-sm flex-shrink-0" />
                            <span className="text-[#a1a1aa] text-[11px] font-medium leading-none">
                              {frame.price}
                            </span>
@@ -299,7 +299,7 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
           <div className="flex items-center justify-between">
             {/* Diamond Balance */}
             <div className="flex items-center space-x-2 bg-transparent">
-              <YellowDiamondIcon className="w-5 h-5 text-white" />
+              <GoldCoinWithGIcon className="w-5 h-5 text-white" />
               <span className="text-[17px] font-bold text-white mr-1 opacity-90 tracking-tight">
                 {user.diamonds > 0 ? user.diamonds.toLocaleString('pt-BR') : '0'}
               </span>

@@ -1,0 +1,119 @@
+APPLY THESE CHANGES TO /app/src/services/NotificationService.ts ON THE VPS:
+
+=== CHANGE 1: Import sendPushAndCleanup ===
+OLD:
+import { sendPushNotificationToMultiple } from './webPushService';
+
+NEW:
+import { sendPushNotificationToMultiple, sendPushAndCleanup } from './webPushService';
+
+=== CHANGE 2: Add delivery logging helper ===
+Add this AFTER the FcmPayload interface:
+
+  private static pushDeliveryLog: Array<{ts: string; event: string; userId: string; sent: number; failed: number; cleaned: number}> = [];
+
+  private static logDelivery(event: string, userId: string, result: {sent: number; failed: number; cleaned: number}): void {
+    const entry = { ts: new Date().toISOString(), event, userId, ...result };
+    this.pushDeliveryLog.push(entry);
+    if (this.pushDeliveryLog.length > 200) this.pushDeliveryLog.shift();
+    console.log(`[PUSH-DELIVERY] ${JSON.stringify(entry)}`);
+  }
+
+=== CHANGE 3: Update sendFcm to use sendPushAndCleanup ===
+OLD:
+  private static async sendFcm(userId: string, fcm: FcmPayload): Promise<void> {
+    try {
+      const tokens = await DeviceToken.find({ userId }).select('token').lean();
+      const tokenList = tokens.map((t: any) => t.token);
+      if (tokenList.length > 0) {
+        await sendPushNotificationToMultiple(tokenList, {
+          title: fcm.title,
+          body: fcm.body,
+          data: fcm.data || {},
+          image: fcm.image,
+        });
+        console.log(`[NOTIFICATION] FCM enviado para ${tokenList.length} dispositivos de ${userId}`);
+      }
+    } catch (err) {
+      console.warn('[NOTIFICATION] Erro FCM:', err);
+    }
+  }
+
+NEW:
+  private static async sendFcm(userId: string, fcm: FcmPayload, eventLabel?: string): Promise<void> {
+    try {
+      const tokens = await DeviceToken.find({ userId }).select('token').lean();
+      const tokenList = tokens.map((t: any) => t.token);
+      if (tokenList.length > 0) {
+        const result = await sendPushAndCleanup(tokenList, {
+          title: fcm.title,
+          body: fcm.body,
+          data: fcm.data || {},
+          image: fcm.image,
+        });
+        this.logDelivery(eventLabel || 'push', userId, result);
+      }
+    } catch (err) {
+      console.warn('[NOTIFICATION] Erro FCM:', err);
+    }
+  }
+
+=== CHANGE 4: Update sendFcmBatch to use sendPushAndCleanup ===
+OLD:
+  private static async sendFcmBatch(userIds: string[], fcm: FcmPayload): Promise<void> {
+    try {
+      const tokens = await DeviceToken.find({ userId: { $in: userIds } }).select('token').lean();
+      const tokenList = tokens.map((t: any) => t.token);
+      if (tokenList.length > 0) {
+        await sendPushNotificationToMultiple(tokenList, {
+          title: fcm.title,
+          body: fcm.body,
+          data: fcm.data || {},
+          image: fcm.image,
+        });
+        console.log(`[NOTIFICATION] FCM batch enviado para ${tokenList.length} dispositivos`);
+      }
+    } catch (err) {
+      console.warn('[NOTIFICATION] Erro FCM batch:', err);
+    }
+  }
+
+NEW:
+  private static async sendFcmBatch(userIds: string[], fcm: FcmPayload, eventLabel?: string): Promise<void> {
+    try {
+      const tokens = await DeviceToken.find({ userId: { $in: userIds } }).select('token').lean();
+      const tokenList = tokens.map((t: any) => t.token);
+      if (tokenList.length > 0) {
+        const result = await sendPushAndCleanup(tokenList, {
+          title: fcm.title,
+          body: fcm.body,
+          data: fcm.data || {},
+          image: fcm.image,
+        });
+        this.logDelivery(eventLabel || 'push-batch', 'multi', result);
+      }
+    } catch (err) {
+      console.warn('[NOTIFICATION] Erro FCM batch:', err);
+    }
+  }
+
+=== CHANGE 5: Add event labels to all sendFcm calls ===
+For each method that calls sendFcm, add an eventLabel:
+
+- notifyGiftReceived:     this.sendFcm(toUserId, {...}, 'gift_received');
+- notifyNewFollower:      this.sendFcm(toUserId, {...}, 'new_follower');
+- notifyPhotoLiked:       this.sendFcm(photoOwnerId, {...}, 'photo_liked');
+- notifyStreamLiked:      this.sendFcm(streamOwnerId, {...}, 'stream_liked');
+- notifyCommentReceived:  this.sendFcm(contentOwnerId, {...}, 'comment_received');
+- notifyNewMessage:       this.sendFcm(toUserId, {...}, 'new_message');
+- notifyFriendInvite:     this.sendFcm(toUserId, {...}, 'friend_invite');
+- notifyVideoLiked:       this.sendFcm(videoOwnerId, {...}, 'video_liked');
+- notifyCallInvitation:   this.sendFcm(toUserId, {...}, 'call_invitation');
+- notifyCallResponded:    this.sendFcm(toUserId, {...}, 'call_responded');
+- notifyLiveInvite:       this.sendFcm(toUserId, {...}, 'live_invite');
+- notifyLiveInviteResponded: this.sendFcm(toUserId, {...}, 'live_invite_response');
+- notifyPrivateStreamInvite: this.sendFcm(toUserId, {...}, 'private_stream_invite');
+- notifyViewerJoinedStream: this.sendFcm(hostId, {...}, 'viewer_joined');
+
+For sendFcmBatch calls:
+- notifyLiveStarted:      this.sendFcmBatch(followerIds, {...}, 'live_started_followers');

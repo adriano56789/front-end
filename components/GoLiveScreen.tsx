@@ -26,8 +26,7 @@ import { StreamService } from '../services/streamService';
 import { streamPublishService } from '../services/streamPublishService';
 import { api } from '../services/api';
 import { videoProcessor, DEFAULT_BEAUTY_SETTINGS } from '../services/VideoProcessor';
-import { beautyWebRTCIntegration } from '../services/BeautyWebRTCIntegration';
-import { fetchAndApplyAutoBeauty } from '../services/autoBeauty';
+
 import { setPreferredCameraResolution, getVideoConstraints } from '../services/cameraService';
 
 // Interface para propriedades globais da window
@@ -50,6 +49,7 @@ interface GoLiveScreenProps {
     onClose: () => void;
     onStartStream: (streamer: Streamer) => void;
     onJoinStream?: (streamer: Streamer) => void;
+    onOpenVoiceRoom?: (roomId: string) => void;
     addToast: (type: ToastType, message: string) => void;
     currentUser: User;
     updateUser?: (user: User) => void;
@@ -66,6 +66,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     onClose, 
     onStartStream, 
     onJoinStream, 
+    onOpenVoiceRoom,
     addToast, 
     currentUser, 
     updateUser,
@@ -183,35 +184,72 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             if (autoBeautyRef.current) return;
             autoBeautyRef.current = true;
 
-            // ✅ Aplicar o filtro 2D padrão (nitidez 55, 3D 45, clareza/brilho)
-            videoProcessor.updateBeautySettings({ ...DEFAULT_BEAUTY_SETTINGS });
+            const { buildMergedSettings } = await import('../services/autoBeauty');
+            const { beautyState } = await import('../services/BeautyEngine');
 
-            // Iniciar pipeline WebGL (idempotente — painel reutiliza depois)
+            // 🔐 1) Carregar configurações salvas e aplicar no beautyState
+            let mergedSettings = { ...DEFAULT_BEAUTY_SETTINGS };
+            if (currentUser?.id) {
+                try {
+                    const saved = await api.getBeautySettings(currentUser.id);
+                    mergedSettings = buildMergedSettings(saved || {});
+                    // Auto-save: garante que TODOS os campos novos existem no banco
+                    const allKeys: Record<string, number | string> = {
+                        'Suavização do rosto': 35,
+                        'Branquear': mergedSettings.whitening,
+                        'Alisar a pele': mergedSettings.smoothing,
+                        'Ruborizar': mergedSettings.saturation,
+                        'Contraste': mergedSettings.contrast,
+                        'Balanço de Branco': mergedSettings.whiteBalance,
+                        'Rosto Bebê': mergedSettings.babyFace,
+                        'Clarear dentes': mergedSettings.teethWhitening,
+                        'Suavizar rugas': mergedSettings.wrinkleSmoothing,
+                        'Clarear olheiras': mergedSettings.darkCircle,
+                        'Remover manchas': mergedSettings.acneRemoval,
+                        'Reduzir brilho': mergedSettings.shineReduction,
+                        'Nitidez': mergedSettings.sharpness,
+                        'Efeito 3D': mergedSettings.faceVolume3D,
+                        'Limpar Chiado': mergedSettings.noiseReduction,
+                    };
+                    const missing = Object.keys(allKeys).filter(k => !(k in (saved || {})));
+                    if (missing.length > 0) {
+                        api.updateBeautySettings(currentUser.id, { ...saved, ...allKeys } as any)
+                            .catch(() => {});
+                        api.updateBeautyStoreAll(currentUser.id, { ...saved, ...allKeys } as Record<string, number>).catch(() => {});
+                    }
+                } catch { /* usa defaults */ }
+            }
+
+            // ✅ 2) beautyState é a single source of truth — VideoProcessor sync via subscription
+            beautyState.update(mergedSettings);
+
+            // 3) Iniciar pipeline WebGL (idempotente — painel reutiliza depois)
             const success = await videoProcessor.initialize(video);
             if (!success) return;
 
             const processedStream = videoProcessor.startProcessing();
             if (!processedStream) return;
 
-            // Conectar ao pipeline de publicação (replaceTrack no SRS quando publicar)
+            // ⏳ Aguardar o canvas REALMENTE desenhar frames com pixels da câmera.
+            // isCanvasProducing() só retorna true DEPOIS de gl.drawArrays() —
+            // não basta o requestAnimationFrame rodar (lastRenderAt é atualizado
+            // no TOPO do render, antes de texImage2D). Sem isso o preview
+            // trocava pra canvas preto/congelado.
+            const frameDeadline = Date.now() + 3000;
+            while (!(videoProcessor.isCanvasProducing() && videoProcessor.isSourceActive()) && Date.now() < frameDeadline) {
+                await new Promise(r => setTimeout(r, 60));
+            }
+
+            // 4) Guardar stream processado para publicação — NÃO substitui o
+            //    preview (video.srcObject) porque canvas.captureStream() causa
+            //    FREEZE no <video> em muitos dispositivos móveis. O preview
+            //    mostra a câmera crua; o stream processado é usado APENAS no
+            //    publish (RTMP/SRS via replaceTrack).
             streamPublishService.setBeautyProcessedStream(processedStream);
-            // 🎥 Mostrar o efeito JÁ NO PREVIEW (a câmera aberta exibe o stream
-            // processado, não a imagem crua). O painel, se aberto depois, continua
-            // sobrescrevendo as configurações do usuário normalmente.
-            streamPublishService.applyBeautyToPreview();
             if (streamPublishService.isPublishing()) {
                 await streamPublishService.updateBeautyTrack();
             }
-
-            await beautyWebRTCIntegration.initialize(processedStream);
-
-            // ✅ Se o usuário tem configurações salvas, elas VENCEM o padrão.
-            // Chaves não salvas mantêm o DEFAULT (imagem limpa/jovem/nítida) —
-            // não zeram como antigamente. (Lógica compartilhada com a sala de
-            // transmissão — services/autoBeauty.ts)
-            await fetchAndApplyAutoBeauty(currentUser?.id);
-
-            console.log('✅ [GOLIVE] Filtro padrão aplicado na abertura da câmera (nitidez + 3D)');
+            console.log('✅ [GOLIVE] Pipeline de beleza pronto para publicar (preview mantido em câmera crua)');
         } catch (e) {
             console.error('❌ [GOLIVE] Erro ao aplicar filtro padrão:', e);
         }
@@ -276,8 +314,32 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     };
 
     const handleInitiateStream = async () => {
-        // Garantir que o draftStream existe ANTES de iniciar a transmissão
-        // Evita que o initiateStream precise chamar api.createStream() novamente
+        // 🎙️ Sala de voz: criar a sala AQUI (só após confirmar/iniciar) e
+        // redirecionar para ela. Não cria durante o check da caixinha.
+        if (streamManager.isVoiceRoom) {
+            if (onOpenVoiceRoom) {
+                try {
+                    addToast(ToastType.Info, "Criando sala de voz...");
+                    const response = await api.voiceRoom.create({
+                        hostId: currentUser.id,
+                        name: streamManager.streamTitle || `Sala de ${currentUser.name}`,
+                        category: 'voice_chat',
+                        minLevelToSpeak: 1,
+                    });
+                    if (response?.success && response.room) {
+                        onOpenVoiceRoom(response.room.roomId);
+                    } else {
+                        addToast(ToastType.Error, "Falha ao criar sala de voz.");
+                    }
+                } catch (err) {
+                    console.error('[GOLIVE] Erro ao criar sala de voz:', err);
+                    addToast(ToastType.Error, "Erro ao criar sala de voz.");
+                }
+            }
+            return;
+        }
+
+        // Fluxo normal de transmissão
         let stream = streamManager.draftStream;
         if (!stream) {
             stream = await streamManager.createDraftStream();
@@ -306,7 +368,22 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     };
 
     const handleTogglePrivate = () => {
-        streamManager.updateState({ isPrivate: !streamManager.isPrivate });
+        if (!streamManager.isPrivate) {
+            streamManager.updateState({ isPrivate: true, isVoiceRoom: false });
+        } else {
+            streamManager.updateState({ isPrivate: false });
+        }
+    };
+
+    const handleToggleVoiceRoom = () => {
+        // ⚙️ Somente marca a opção "Sala de Voz". A CRIACAO da sala NÃO é
+        // automática aqui — só vai acontecer ao clicar em "Iniciar Sala de Voz",
+        // evitando duplicar salas ao simplesmente marcar a caixinha.
+        if (!streamManager.isVoiceRoom) {
+            streamManager.updateState({ isVoiceRoom: true, isPrivate: false });
+        } else {
+            streamManager.updateState({ isVoiceRoom: false });
+        }
     };
 
     // 📐 Resolução da CÂMERA escolhida no painel: aplica na hora (a próxima
@@ -323,6 +400,9 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 cameraResolution: resolution,
             };
             await api.updateBeautySettings(currentUser.id, settings);
+
+            // Também salvar na API dedicada de video-quality
+            api.setVideoResolution(currentUser.id, resolution).catch(() => {});
 
             // Aplicar na track ativa sem precisar reabrir a câmera
             const stream = streamPublishService.getCurrentStream();
@@ -426,6 +506,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         onOpenBeautyPanel={() => setIsBeautyPanelOpen(true)}
                         isPrivate={streamManager.isPrivate}
                         onTogglePrivate={handleTogglePrivate}
+                        isVoiceRoom={streamManager.isVoiceRoom}
+                        onToggleVoiceRoom={handleToggleVoiceRoom}
                         isInviteMode={isInviteMode}
                         onSelectCameraResolution={handleSelectCameraResolution}
                     />
@@ -438,10 +520,10 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 <button
                     onClick={handleInitiateStream}
                     className={`w-full font-bold py-4 rounded-full transition-colors ${
-                        isInviteMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-500 hover:bg-green-600'
+                        isInviteMode ? 'bg-blue-600 hover:bg-blue-700' : streamManager.isVoiceRoom ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-green-500 hover:bg-green-600'
                     } text-white`}
                 >
-                    {isInviteMode ? "Entrar na Sala" : t('goLive.startStream')}
+                    {isInviteMode ? "Entrar na Sala" : streamManager.isVoiceRoom ? 'Iniciar Sala de Voz' : t('goLive.startStream')}
                 </button>
             </footer>
 

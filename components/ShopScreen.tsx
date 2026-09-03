@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BackIcon, YellowDiamondIcon } from './icons';
+import { BackIcon, GoldCoinWithGIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { shopAPI, ShopItem, UserInventory, UserAvatar } from '../services/shopAPI';
@@ -188,7 +188,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
         
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1">
-            <YellowDiamondIcon className="w-4 h-4 text-yellow-400" />
+            <GoldCoinWithGIcon className="w-4 h-4 text-yellow-400" />
             <span className="text-yellow-400 font-bold text-sm">{formatPrice(item.price)}</span>
           </div>
           
@@ -247,7 +247,7 @@ const ShopScreen: React.FC<ShopScreenProps> = ({
             <h2 className="text-white font-bold text-lg">Loja</h2>
           </div>
           <div className="flex items-center space-x-2">
-            <YellowDiamondIcon className="w-4 h-4 text-yellow-400" />
+            <GoldCoinWithGIcon className="w-4 h-4 text-yellow-400" />
             <span className="text-yellow-400 font-bold">{user.diamonds.toLocaleString('pt-BR')}</span>
           </div>
         </div>

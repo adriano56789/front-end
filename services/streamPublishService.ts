@@ -16,6 +16,9 @@ class StreamPublishService {
   private _publishing = false;
   private _publishEngine: PublishEngineType | null = null;
 
+  // Cache de deviceId por facing — mapeado na primeira abertura de câmera
+  private cameraDeviceCache: { user: string | null; environment: string | null } = { user: null, environment: null };
+
   setPublishEngine(engine: PublishEngineType | null): void {
     this._publishEngine = engine;
   }
@@ -30,6 +33,10 @@ class StreamPublishService {
 
   setCurrentStream(stream: MediaStream | null): void {
     this.currentStream = stream;
+    // Mapear câmeras na 1ª abertura (cache pra switch instantâneo)
+    if (stream && !this.cameraDeviceCache.user && !this.cameraDeviceCache.environment) {
+      void this.buildCameraCache();
+    }
   }
 
   setBeautyProcessedStream(stream: MediaStream | null): void {
@@ -117,6 +124,45 @@ class StreamPublishService {
     }
   }
 
+  /**
+   * Mapeia deviceIds de frente/trás uma única vez (chamado na 1ª abertura
+   * de câmera). Depois disso, switchCamera() é lookup síncrono no cache.
+   */
+  async buildCameraCache(): Promise<void> {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(d => d.kind === 'videoinput');
+      if (cameras.length < 2) return;
+
+      const map: { deviceId: string; facing: string; label: string }[] = [];
+      for (const cam of cameras) {
+        try {
+          const tmp = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: cam.deviceId } },
+            audio: false,
+          });
+          const track = tmp.getVideoTracks()[0];
+          const facing = track.getSettings().facingMode || 'unknown';
+          map.push({ deviceId: cam.deviceId, facing, label: cam.label });
+          track.stop();
+          tmp.getTracks().forEach(t => { try { t.stop(); } catch {} });
+        } catch {
+          map.push({ deviceId: cam.deviceId, facing: 'unknown', label: cam.label });
+        }
+      }
+
+      const userCam = map.find(c => c.facing === 'user');
+      const envCam = map.find(c => c.facing === 'environment');
+      this.cameraDeviceCache = {
+        user: userCam?.deviceId ?? map[0]?.deviceId ?? null,
+        environment: envCam?.deviceId ?? map.find(c => c.deviceId !== userCam?.deviceId)?.deviceId ?? null,
+      };
+      console.log('[PUBLISH_SERVICE] 🗺️ Cache câmeras:', this.cameraDeviceCache);
+    } catch (e) {
+      console.warn('[PUBLISH_SERVICE] Falha ao mapear câmeras:', e);
+    }
+  }
+
   /** Elemento de vídeo do preview do host (para inicializar beleza na sala). */
   getCurrentVideoElement(): HTMLVideoElement | null {
     return this.currentVideoRef?.current ?? null;
@@ -193,6 +239,7 @@ class StreamPublishService {
     this.currentFacingMode = 'user';
     this.beautyProcessedStream = null;
     this._publishing = false;
+    this.cameraDeviceCache = { user: null, environment: null };
     // 🔧 Fechar a conexão WHIP: encerra a transmissão no SRS (on_unpublish).
     // Sem isso, o SRS mantém o stream ativo e o backend recria o card da live.
     if (this._publishEngine && typeof this._publishEngine.stop === 'function') {
@@ -217,132 +264,204 @@ class StreamPublishService {
     const nextFacing = this.currentFacingMode === 'user' ? 'environment' : 'user';
     const videoElement = this.currentVideoRef?.current;
 
-    // ⚡ CAMINHO RÁPIDO: no Chrome (Android) a troca frontal/traseira é feita com
-    // applyConstraints na track ATIVA — a câmera nem fecha e a troca é quase
-    // instantânea. 🔧 FIX: só aceitamos como sucesso se o navegador CONFIRMAR o
-    // sensor novo em getSettings().facingMode. Antes, `undefined` era tratado
-    // como sucesso — no iOS isso espelhava a imagem sem trocar a câmera.
-    const liveTrack = this.currentStream?.getVideoTracks?.().find(t => t.readyState === 'live');
-    if (liveTrack && typeof liveTrack.applyConstraints === 'function') {
+    console.log(`[PUBLISH_SERVICE] 🔄 Trocando câmera: ${this.currentFacingMode} → ${nextFacing}`);
+
+    // ═══════════════════════════════════════════════════════════════════
+    // TROCA INSTANTÂNEA:
+    // 1. Olhar cache (buildCameraCache na 1ª abertura)
+    // 2. Parar tracks antigas
+    // 3. Abrir nova câmera por deviceId do cache
+    // 4. Fallback: facingMode se cache não existe
+    // ═══════════════════════════════════════════════════════════════════
+
+    const oldTracks = this.currentStream?.getVideoTracks() ?? [];
+    const oldDeviceId = oldTracks[0]?.getSettings?.()?.deviceId ?? null;
+
+    // Se só tem 1 câmera, não troca
+    if (oldTracks.length === 0 && !this.currentStream) {
+      console.warn('[PUBLISH_SERVICE] ⚠️ Sem stream ativa — impossível trocar');
+      return;
+    }
+
+    // Buscar targetDeviceId do cache (instantâneo, síncrono)
+    let targetDeviceId: string | null = this.cameraDeviceCache[nextFacing] ?? null;
+
+    // Se cache não tem o facing pedido, usa o que NÃO é a atual
+    if (!targetDeviceId && this.cameraDeviceCache.user && this.cameraDeviceCache.environment) {
+      targetDeviceId = nextFacing === 'user'
+        ? this.cameraDeviceCache.user
+        : this.cameraDeviceCache.environment;
+    }
+
+    // Se cache vazio, tenta construir agora (1ª vez)
+    if (!targetDeviceId) {
+      console.log('[PUBLISH_SERVICE] Cache vazio — construindo...');
+      await this.buildCameraCache();
+      targetDeviceId = this.cameraDeviceCache[nextFacing] ?? null;
+    }
+
+    console.log(`[PUBLISH_SERVICE] 🎯 Target: ${nextFacing} → ${targetDeviceId ? targetDeviceId.substring(0, 8) + '...' : 'N/A'}`);
+
+    // PARAR tracks antigas IMEDIATAMENTE
+    console.log(`[PUBLISH_SERVICE] 📵 Parando ${oldTracks.length} track(s) antiga(s)...`);
+    for (const track of oldTracks) {
+      try { track.stop(); } catch {}
+      try { this.currentStream?.removeTrack(track); } catch {}
+    }
+
+    // Pedir nova stream
+    let newStream: MediaStream | null = null;
+
+    // Tier 1: deviceId do cache (instantâneo)
+    if (targetDeviceId) {
       try {
-        await liveTrack.applyConstraints(getVideoConstraints(nextFacing));
-        const settings = liveTrack.getSettings?.() as any;
-        const reported = settings?.facingMode;
-        if (reported && String(reported).startsWith(nextFacing)) {
-          this.currentFacingMode = nextFacing;
-          this.applyCameraFlip(videoElement, nextFacing);
-          return;
-        }
-        console.warn('[PUBLISH_SERVICE] applyConstraints NÃO confirmou o sensor (reportado:', String(reported), ', pedido:', nextFacing + ') — usando getUserMedia');
-      } catch (applyErr) {
-        console.warn('[PUBLISH_SERVICE] applyConstraints indisponível, usando getUserMedia:', applyErr);
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: targetDeviceId } },
+          audio: false,
+        });
+        console.log('[PUBLISH_SERVICE] ✅ Tier 1 (deviceId exact) OK');
+      } catch (e1) {
+        console.warn('[PUBLISH_SERVICE] Tier 1 (deviceId) falhou:', e1);
       }
     }
 
-    // 🔄 CAMINHO COMPLETO — 🔧 FIX DE ORDEM: abrimos a câmera NOVA ANTES de parar
-    // qualquer track da transmissão. Antes, as tracks do preview/publicação eram
-    // mortas primeiro e, se o getUserMedia falhasse no meio, a live ficava PRETA
-    // para os espectadores e o preview morria.
-    try {
-      let newStream: MediaStream | null = null;
-      // 📐 Sempre pedindo resolução HD na primeira tentativa (constraints ideais).
+    // Tier 2: facingMode exact
+    if (!newStream) {
       try {
-        newStream = await navigator.mediaDevices.getUserMedia({ video: { ...getVideoConstraints(nextFacing), facingMode: nextFacing }, audio: false });
-        if (!newStream || newStream.getVideoTracks().length === 0) newStream = null;
-      } catch (gmErr) {
-        console.warn('[PUBLISH_SERVICE] getUserMedia 720p falhou, tentando facingMode simples:', gmErr);
-      }
-      if (!newStream) {
-        try {
-          newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: nextFacing } }, audio: false });
-          if (!newStream || newStream.getVideoTracks().length === 0) newStream = null;
-        } catch (gm2Err) {
-          console.warn('[PUBLISH_SERVICE] getUserMedia simples falhou, tentando captura robusta:', gm2Err);
-        }
-      }
-      if (!newStream) {
-        newStream = await cameraService.captureStream(nextFacing);
-      }
-
-      if (!newStream || newStream.getVideoTracks().length === 0) {
-        throw new Error('Todas as constraints de captura de camera falharam');
-      }
-
-      // Câmera nova GARANTIDA — agora sim substituímos as tracks antigas.
-      this.currentFacingMode = nextFacing;
-      const newVideoTrack = newStream.getVideoTracks()[0];
-
-      // Para apenas as tracks de vídeo BRUTAS antigas (o áudio continua intacto).
-      if (this.currentStream) {
-        this.currentStream.getVideoTracks().forEach(track => {
-          try { track.stop(); this.currentStream?.removeTrack(track); } catch {}
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: nextFacing } },
+          audio: false,
         });
-        this.currentStream.addTrack(newVideoTrack);
-      } else {
-        this.currentStream = newStream;
+        console.log('[PUBLISH_SERVICE] ✅ Tier 2 (facingMode exact) OK');
+      } catch (e2) {
+        console.warn('[PUBLISH_SERVICE] Tier 2 (facingMode exact) falhou:', e2);
       }
+    }
 
-      // Preview: se a beleza está ativa, o canvas volta a exibir; senão a câmera crua.
-      if (videoElement && !this.beautyProcessedStream) {
-        videoElement.srcObject = this.currentStream;
-        videoElement.play().catch(() => {});
-      }
-      this.applyCameraFlip(videoElement, nextFacing);
-
-      // Publica a track nova no SRS imediatamente (sem buraco preto).
-      if (this._publishing && this._publishEngine) {
-        try {
-          await this._publishEngine.replaceTrack('video', newVideoTrack);
-        } catch (e) {
-          console.warn('[PUBLISH_SERVICE] Falha ao atualizar camera no SRS:', e);
+    // Tier 3: qualquer câmera diferente da atual
+    if (!newStream) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter(d => d.kind === 'videoinput');
+        const otherCam = cameras.find(c => c.deviceId !== oldDeviceId) || cameras[0];
+        if (otherCam) {
+          newStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: otherCam.deviceId } },
+            audio: false,
+          });
+          console.log('[PUBLISH_SERVICE] ✅ Tier 3 (deviceId fallback) OK');
         }
+      } catch (e3) {
+        console.warn('[PUBLISH_SERVICE] Tier 3 falhou:', e3);
       }
+    }
 
-      // 🎨 Re-liga o filtro de beleza à câmera NOVA e publica o feed processado.
-      if (this.beautyProcessedStream) {
-        try {
-          const proc = await videoProcessor.restartProcessing(videoElement);
-          if (proc) {
+    if (!newStream || newStream.getVideoTracks().length === 0) {
+      console.error('[PUBLISH_SERVICE] ❌ Todas as tiers falharam — recuperando câmera anterior');
+      try {
+        const recovery = await cameraService.captureStream(this.currentFacingMode);
+        const recTrack = recovery.getVideoTracks()[0];
+        if (this.currentStream) {
+          this.currentStream.addTrack(recTrack);
+        } else {
+          this.currentStream = recovery;
+        }
+        if (videoElement) {
+          videoElement.srcObject = this.currentStream;
+          videoElement.play().catch(() => {});
+        }
+        if (this._publishing && this._publishEngine) {
+          await this._publishEngine.replaceTrack('video', recTrack);
+        }
+      } catch (recoveryErr) {
+        console.error('[PUBLISH_SERVICE] ❌ Recuperação também falhou:', recoveryErr);
+      }
+      return;
+    }
+
+    // Verificar se a câmera realmente mudou
+    const newTrack = newStream.getVideoTracks()[0];
+    const newSettings = newTrack.getSettings?.() as any;
+    const newDeviceId = newSettings?.deviceId ?? null;
+    const newFacingMode = newSettings?.facingMode ?? null;
+
+    console.log('[PUBLISH_SERVICE] 📷 Nova câmera:', {
+      facingMode: newFacingMode,
+      label: newSettings?.label,
+      deviceId: newDeviceId?.substring(0, 8) + '...',
+    });
+
+    const facingChanged = newFacingMode && newFacingMode !== this.currentFacingMode;
+    const deviceChanged = newDeviceId && newDeviceId !== oldDeviceId;
+
+    if (!facingChanged && !deviceChanged) {
+      console.warn('[PUBLISH_SERVICE] ⚠️ Câmera NÃO mudou!');
+      newStream.getTracks().forEach(t => t.stop());
+      return;
+    }
+
+    // Atualizar cache com o deviceId novo (aprende durante uso)
+    if (newDeviceId && nextFacing) {
+      this.cameraDeviceCache[nextFacing] = newDeviceId;
+    }
+
+    // Atualizar estado
+    this.currentFacingMode = nextFacing;
+
+    if (this.currentStream) {
+      this.currentStream.addTrack(newTrack);
+    } else {
+      this.currentStream = newStream;
+    }
+
+    // Preview — SEMPRE mostrar a câmera crua ao trocar, mesmo com filtro
+    // de beleza ativo. Sem isso, o preview mostrava o ÚLTIMO frame congelado
+    // do canvas processado da câmera anterior (tela "travada") enquanto o
+    // restartProcessing re-inicializava o pipeline WebGL (~1-3s em cel lentos).
+    if (videoElement) {
+      videoElement.srcObject = this.currentStream;
+      videoElement.play().catch(() => {});
+    }
+    this.applyCameraFlip(videoElement, nextFacing);
+
+    // Publicar no SRS
+    if (this._publishing && this._publishEngine) {
+      try {
+        await this._publishEngine.replaceTrack('video', newTrack);
+        console.log('[PUBLISH_SERVICE] ✅ Track atualizada no SRS');
+      } catch (e) {
+        console.warn('[PUBLISH_SERVICE] Falha ao atualizar camera no SRS:', e);
+      }
+    }
+
+    // Re-ligar filtro de beleza
+    if (this.beautyProcessedStream) {
+      try {
+        const proc = await videoProcessor.restartProcessing(videoElement);
+        if (proc) {
+          // ⏳ Aguardar canvas REALMENTE desenhando frames antes de trocar preview
+          const frameDeadline = Date.now() + 3000;
+          while (!(videoProcessor.isCanvasProducing() && videoProcessor.isSourceActive()) && Date.now() < frameDeadline) {
+            await new Promise(r => setTimeout(r, 60));
+          }
+          if (videoProcessor.isCanvasProducing() && videoProcessor.isSourceActive()) {
             this.beautyProcessedStream = proc;
-            this.applyBeautyToPreview();
+            // NÃO chama applyBeautyToPreview() — canvas.captureStream() congela
+            // o <video> em dispositivos móveis. Preview fica na câmera crua.
             const procTrack = proc.getVideoTracks()[0];
             if (procTrack && this._publishing && this._publishEngine) {
               await this._publishEngine.replaceTrack('video', procTrack);
             }
+          } else {
+            console.warn('[PUBLISH_SERVICE] Canvas não produziu frames após troca — mantendo câmera crua');
           }
-        } catch (e) {
-          console.warn('[PUBLISH_SERVICE] Falha ao religar beleza à nova câmera:', e);
         }
-      }
-
-    } catch (e) {
-      console.error('[PUBLISH_SERVICE] Falha critica ao trocar camera:', e);
-      // 🛟 Recuperação SEM derrubar o que ainda está no ar: reabre a câmera atual.
-      try {
-        const recoveryStream = await cameraService.captureStream(this.currentFacingMode);
-        const recVideoTrack = recoveryStream.getVideoTracks()[0];
-
-        if (this.currentStream) {
-          this.currentStream.getVideoTracks().forEach(track => {
-            try { track.stop(); this.currentStream?.removeTrack(track); } catch {}
-          });
-          this.currentStream.addTrack(recVideoTrack);
-        } else {
-          this.currentStream = recoveryStream;
-        }
-
-        if (videoElement && !this.beautyProcessedStream) {
-          videoElement.srcObject = this.currentStream;
-          videoElement.style.transform = this.currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
-        }
-
-        if (this._publishing && this._publishEngine) {
-          try { await this._publishEngine.replaceTrack('video', recVideoTrack); } catch {}
-        }
-      } catch (recoveryErr) {
-        console.error('[PUBLISH_SERVICE] Recuperacao de camera tambem falhou:', recoveryErr);
+      } catch (e) {
+        console.warn('[PUBLISH_SERVICE] Falha ao religar beleza:', e);
       }
     }
+
+    console.log(`[PUBLISH_SERVICE] ✅ Câmera trocada com sucesso para ${nextFacing}`);
   }
 }
 

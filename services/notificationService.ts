@@ -1,5 +1,5 @@
 import { api } from './api';
-import { ensurePushSubscription, unsubscribePush, isWebPushSupported, cleanupOldServiceWorkers } from './webPushService';
+import { ensurePushSubscription, unsubscribePush, isWebPushSupported, cleanupOldServiceWorkers, getPushRegistrationId } from './webPushService';
 
 export type NotifPermissionStatus = 'granted' | 'denied' | 'default' | 'unsupported';
 
@@ -80,4 +80,26 @@ async function registerToken(_userId: string) {
 
 export async function unregisterToken() {
   await unsubscribePush();
+}
+
+/**
+ * Retorna o push ID do dispositivo (equivalente ao RegistrationID da Tencent).
+ * Identificador único da subscription — muda após uninstall.
+ */
+export async function getRegistrationId(): Promise<string | null> {
+  return getPushRegistrationId();
+}
+
+/**
+ * Envia push de revogação para cancelar uma notificação específica.
+ * Equivalente ao MESSAGE_REVOKED da Tencent.
+ */
+export async function revokeNotification(tag: string, userId: string): Promise<void> {
+  try {
+    const { api } = await import('./api');
+    await api.post('/api/notifications/revoke', { tag, userId });
+    console.log(`[NOTIFICATION] Revogação enviada: ${tag}`);
+  } catch (err) {
+    console.warn('[NOTIFICATION] Erro ao revogar notificação:', err);
+  }
 }

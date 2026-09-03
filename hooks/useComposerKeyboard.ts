@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useKeyboardInset, getLastKnownKeyboardHeight, rememberKeyboardHeight } from './useKeyboardInset';
+import { useKeyboardInset, rememberKeyboardHeight } from './useKeyboardInset';
 
 /**
  * ⌨️ Composer de mensagem "TikTok-style":
@@ -25,7 +25,6 @@ export function useComposerKeyboard() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [gluedBottom, setGluedBottom] = useState(0);
   const [vkBottom, setVkBottom] = useState(0);
-  const [composerFocused, setComposerFocused] = useState(false);
   // 📝 any = o mesmo ref atende <input> (ChatScreen/PK) e <textarea>
   // (StreamRoom — campo "Diga oi" quebra linha em várias linhas).
   const composerInputRef = useRef<any>(null);
@@ -90,27 +89,9 @@ export function useComposerKeyboard() {
     return () => cancelAnimationFrame(raf);
   }, [isComposerOpen]);
 
-  // 🎯 Rastrear foco do composer: input focado = teclado abertamente aberto.
-  // Serve para o fallback de altura (quando o WebView não reporta o teclado).
-  useEffect(() => {
-    if (!isComposerOpen) return;
-    const el = composerRef.current;
-    if (!el) return;
-    const onFocusIn = (e: FocusEvent) => {
-      if (el.contains(e.target as Node)) setComposerFocused(true);
-    };
-    const onFocusOut = (e: FocusEvent) => {
-      if (!el.contains(e.relatedTarget as Node)) setComposerFocused(false);
-    };
-    el.addEventListener('focusin', onFocusIn);
-    el.addEventListener('focusout', onFocusOut);
-    // Estado inicial: se o input já está focado (ex.: foco automático no open)
-    if (el.contains(document.activeElement)) setComposerFocused(true);
-    return () => {
-      el.removeEventListener('focusin', onFocusIn);
-      el.removeEventListener('focusout', onFocusOut);
-    };
-  }, [isComposerOpen]);
+  // 🎯 O input do composer é referenciado via composerInputRef para foco
+  // (openComposer) — sem estado de foco próprio: a posição da barra vem SEMPRE
+  // da sonda real (fixedBottom) + cola-corretor, que medem o teclado de fato.
 
   const openComposer = useCallback(() => {
     setGluedBottom(0); // 🔧 novo ciclo: re-mede a posição do teclado
@@ -163,63 +144,37 @@ export function useComposerKeyboard() {
     return () => cancelAnimationFrame(raf);
   }, [isComposerOpen]);
 
-  // A posição do composer é SEMPRE o offset real medido pela sonda
-  // (fixedBottom). Quando o teclado abre, o fixedBottom cresce de 0 até a
-  // altura do teclado → a 2ª barra SOBE JUNTO com o teclado e para COLADA
-  // nele, sem nunca passar da borda (nada de subir alto demais).
-  // gluedBottom (cola-corretor acima) corrige quando a sonda falha/é 0:
-  // usa o MAIOR dos dois — se o teclado encobrir a barra, o corretor manda
-  // subir exatamente a diferença; se a sonda estiver certa, prevalece ela.
-  //
-  // 🛡️ FALLBACK GARANTIDO: em WebViews que NÃO reportam NENHUM sinal do
-  // teclado (nem visualViewport.height nem innerHeight mudam — o teclado
-  // abre por cima sem avisar), fixedBottom, gluedBottom e vkBottom ficam 0 e
-  // a barra renderizaria em bottom:0, ESCONDIDA ATRÁS do teclado. Se o input
-  // do composer está FOCADO (teclado abertamente aberto) e não há NENHUMA
-  // medição real, usamos a altura TÍPICA de teclado — PREFERINDO a última
-  // altura medida no aparelho (cache localStorage) e, sem cache, ~38% da
-  // tela (mais conservador que 42%: chute alto demais = barra FLUTUANDO com
-  // folga; chute baixo = só a base coberta, o resto visível e colado).
-  // ⚠️ iOS NÃO entra aqui: lá o navegador auto-sobe a barra (inset > 0), então
-  // empurrar de novo deixaria a barra alta demais.
-  const lastKnown = getLastKnownKeyboardHeight();
-  // 🔧 Fallback mais baixo (30% em vez de 38%): chute alto = barra flutuando
-  // longe do teclado ("abrir mais baixo" — pedido do usuário). Chute baixo só
-  // cobre a base, o resto fica visível e colado.
-  const keyboardEstimate =
-    lastKnown > 0 ? Math.round(lastKnown * 0.9) : Math.round(window.innerHeight * 0.32);
-  // 🧲 Posição final da 2ª barra, em ordem de confiabilidade:
-  //   1. VirtualKeyboard API (altura EXATA, quando o aparelho suporta)
-  //   2. Sonda real / cola-corretor: se AMBOS mediram >0, vale o MENOR dos
-  //      dois — o menor é o que NÃO passa da borda do teclado (barra nunca
-  //      "flutua" alta demais com folga); se só um mediu, usa ele.
-  //   3. Fallback estimado (último recurso)
-  // ⚠️ O clamp de segurança (não passar do topo da tela) só se aplica ao
-  // FALLBACK ESTIMADO — as medições reais (vkBottom/fixedBottom/gluedBottom)
-  // são ground truth e NUNCA são clampeadas (clampar contra um innerHeight
-  // que pode encolher em WebView resizes-content empurraria a barra para
-  // trás do teclado — o bug original).
-  const bothMeasured = fixedBottom > 0 && gluedBottom > 0;
-  const measured = vkBottom > 0
-    ? vkBottom
-    : bothMeasured
-      ? Math.min(fixedBottom, gluedBottom)
-      : Math.max(fixedBottom, gluedBottom);
-  const fallbackBottom =
-    isComposerOpen &&
-    composerFocused &&
-    measured === 0 &&
-    keyboardInset === 0
-      ? Math.min(
-          keyboardEstimate,
-          Math.max(0, window.innerHeight - COMPOSER_BAR_HEIGHT - 12)
-        )
-      : 0;
-  const rawBottom = measured > 0 ? measured : fallbackBottom;
-  // 🛡️ CAP: nunca subir mais que 34% da tela — teclados típicos têm 25–32%;
-  // o cap antigo (42%) deixava a barra "flutuar" alto demais quando o
-  // WebView/VK reporta uma altura exagerada do teclado.
-  const bottom = Math.min(rawBottom, Math.round(window.innerHeight * 0.38));
+  // 🧲 Posição final da 2ª barra (composer). Com o viewport
+  // `interactive-widget=overlays-content` o teclado fica SOBRE o conteúdo e um
+  // `fixed bottom:0` NÃO é auto-sobido pelo navegador — a barra precisa subir
+  // EXATAMENTE a altura real do teclado pra ficar VISÍVEL (senão o teclado a
+  // COBRE: "teclado abre em cima da barra de mensagem").
+  // Todas as medidas abaixo representam essa altura (≈ altura do teclado):
+  //   1. vkBottom      — VirtualKeyboard API (altura EXATA, quando suporta)
+  //   2. fixedBottom   — 🔬 sonda real: quanto um `fixed bottom:0` fica ATRÁS
+  //                      do teclado. **0 = o navegador JÁ auto-sobe o elemento
+  //                      acima do teclado** (iOS resizes-content) → bottom:0
+  //                      é o bastante; levantar de novo = sobe em dobro.
+  //   3. gluedBottom   — cola-corretor (layoutHeight − visibleHeight), seguro
+  //                      p/ WebViews em que a sonda/vk não reportam direito.
+  // ✅ Usamos o MÁXIMO dos sinais (>0): o que falhar, o maior que sobrou ainda
+  //    LEVANTA a barra — o teclado NUNCA cobre o campo.
+  // ⚠️ keyboardInset FICA **FORA** do cálculo do bottom: é a altura BRUTA do
+  //    teclado, e em iOS o navegador já compensa sozinho — somar de novo deixa
+  //    a barra flutuando com folga acima do teclado (dupla compensação, o
+  //    sintoma "a barra sobe junto com o teclado"). A sonda (fixedBottom) é a
+  //    verdade de posicionamento e vale 0 exatamente nesse cenário.
+  // O cap de 60% da tela guarda só contra uma medição completamente quebrada.
+  const MAX_KEYBOARD_RATIO = 0.60;
+  const maxKB = Math.round(window.innerHeight * MAX_KEYBOARD_RATIO);
+  const reliableMeasures = [
+    vkBottom,
+    fixedBottom,
+    gluedBottom,
+  ].filter((v) => v > 0);
+  const bottom = reliableMeasures.length
+    ? Math.min(Math.max(...reliableMeasures), maxKB)
+    : 0;
 
   // Offsets do CHAT quando o composer está aberto:
   //  - chatInset: quanto a lista de mensagens precisa subir para a ÚLTIMA

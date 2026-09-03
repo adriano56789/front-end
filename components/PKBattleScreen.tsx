@@ -63,6 +63,7 @@ interface PKBattleScreenProps {
     onOpenPKTimerSettings: () => void;
     onOpenFans: (user: User) => void;
     onOpenFriendRequests: () => void;
+    pkBattleId: string | null;
     gifts: Gift[];
     receivedGifts: (Gift & { count: number })[];
     liveSession: LiveSessionState | null;
@@ -103,7 +104,7 @@ export default function PKBattleScreen({
     onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, onStartChatWithStreamer,
     onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, liveSession,
     updateLiveSession, logLiveEvent, updateUser, onStreamUpdate, refreshStreamRoomData, addToast,
-    followingUsers, pkBattleDuration, onOpenVIPCenter
+    followingUsers, pkBattleDuration, onOpenVIPCenter, pkBattleId
 }: PKBattleScreenProps) {
     const { t } = useTranslation();
     
@@ -132,6 +133,7 @@ export default function PKBattleScreen({
     const [opponentHearts, setOpponentHearts] = useState(0);
     const [hearts, setHearts] = useState<Heart[]>([]);
     const nextGiftId = useRef(0);
+    const lastHeartTimeRef = useRef(0); // Debounce de hearts
 
     const [isToolsOpen, setIsToolsOpen] = useState(false);
     const [isBeautyPanelOpen, setBeautyPanelOpen] = useState(false);
@@ -223,12 +225,23 @@ export default function PKBattleScreen({
                 postGiftChatMessage(giftEvtPayload);
             }
             else if (data.type === 'pk_state_sync') {
-                setOpponentScore(prev => Math.max(prev, data.opponentScore || 0));
-                if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 5) {
+                // O oponente envia: { myScore, opponentScore, timeLeft, myHearts, opponentHearts }
+                // do ponto de vista DELES. Para mim: data.myScore = meu opponentScore, data.opponentScore = meu myScore.
+                if (data.opponentScore !== undefined) {
+                    setMyScore(prev => Math.max(prev, data.opponentScore || 0));
+                }
+                if (data.myScore !== undefined) {
+                    setOpponentScore(prev => Math.max(prev, data.myScore || 0));
+                }
+                if (data.timeLeft !== undefined && Math.abs(data.timeLeft - timeLeftRef.current) > 3) {
                     setTimeLeft(data.timeLeft);
+                    timeLeftRef.current = data.timeLeft;
                 }
                 if (data.opponentHearts !== undefined) {
-                    setOpponentHearts(data.opponentHearts);
+                    setMyHearts(data.opponentHearts);
+                }
+                if (data.myHearts !== undefined) {
+                    setOpponentHearts(data.myHearts);
                 }
             }
             else if (data.type === 'pk_battle_command') {
@@ -322,10 +335,13 @@ export default function PKBattleScreen({
         if (isSendingGift) return;
         setIsSendingGift(true);
         try {
+            const animationUrl = getAnimationUrl(gift);
+            const duration = getAnimationDuration(gift);
             const giftPayload: GiftPayload = {
                 fromUser: currentUser,
                 toUser: { id: streamer.hostId, name: streamer.name },
-                gift, quantity, roomId: streamer.id,
+                gift: animationUrl || duration ? { ...gift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) } : gift,
+                quantity, roomId: streamer.id,
                 id: Date.now() + Math.random()
             };
             postGiftChatMessage(giftPayload);
@@ -372,26 +388,92 @@ export default function PKBattleScreen({
     
     const handleViewChatUserProfile = (user: ChatMessageType) => {
         if (!user.user || !user.avatar) return;
+        if ((user as any).isGift || user.user === 'Sistema') return;
         onViewProfile(constructUserFromMessage(user));
     };
 
+    // ── Score sync: App.tsx re-despacha pk_score_update → pk_score_sync ──
     useEffect(() => {
-        const handlePKScoreUpdate = (e: Event) => {
+        const handleScoreSync = (e: Event) => {
             const detail = (e as CustomEvent).detail;
             if (!detail) return;
             const myId = currentUser.id;
             const isChallenger = String(streamer.hostId) === String(myId);
             if (isChallenger) {
-                setMyScore(detail.scoreA || 0);
-                setOpponentScore(detail.scoreB || 0);
+                if (detail.scoreA !== undefined) setMyScore(detail.scoreA);
+                if (detail.scoreB !== undefined) setOpponentScore(detail.scoreB);
             } else {
-                setMyScore(detail.scoreB || 0);
-                setOpponentScore(detail.scoreA || 0);
+                if (detail.scoreB !== undefined) setMyScore(detail.scoreB);
+                if (detail.scoreA !== undefined) setOpponentScore(detail.scoreA);
             }
         };
-        window.addEventListener('livego:pk_score_update', handlePKScoreUpdate);
-        return () => window.removeEventListener('livego:pk_score_update', handlePKScoreUpdate);
+        window.addEventListener('livego:pk_score_sync', handleScoreSync);
+        return () => window.removeEventListener('livego:pk_score_sync', handleScoreSync);
     }, [currentUser.id, streamer.hostId]);
+
+    // ── Timer sync: backend é a fonte da verdade ──
+    useEffect(() => {
+        const handleTimerSync = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail && detail.timeLeft !== undefined) {
+                // Só corrige se drift > 3s para evitar flicker
+                if (Math.abs(detail.timeLeft - timeLeftRef.current) > 3) {
+                    setTimeLeft(detail.timeLeft);
+                    timeLeftRef.current = detail.timeLeft;
+                }
+            }
+        };
+        window.addEventListener('livego:pk_timer_sync', handleTimerSync);
+        return () => window.removeEventListener('livego:pk_timer_sync', handleTimerSync);
+    }, []);
+
+    // ── Battle ended: limpar estado quando receber do socket ──
+    useEffect(() => {
+        const handleBattleEnded = () => {
+            onEndPKBattle();
+        };
+        window.addEventListener('livego:pk_battle_ended', handleBattleEnded);
+        return () => window.removeEventListener('livego:pk_battle_ended', handleBattleEnded);
+    }, [onEndPKBattle]);
+
+    // ── Heart update from backend ──
+    useEffect(() => {
+        const handleHeartUpdate = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (!detail) return;
+            const myId = currentUser.id;
+            const isChallenger = String(streamer.hostId) === String(myId);
+            if (isChallenger) {
+                if (detail.heartsA !== undefined) setMyHearts(detail.heartsA);
+                if (detail.heartsB !== undefined) setOpponentHearts(detail.heartsB);
+            } else {
+                if (detail.heartsB !== undefined) setMyHearts(detail.heartsB);
+                if (detail.heartsA !== undefined) setOpponentHearts(detail.heartsA);
+            }
+        };
+        window.addEventListener('livego:pk_heart_update', handleHeartUpdate);
+        return () => window.removeEventListener('livego:pk_heart_update', handleHeartUpdate);
+    }, [currentUser.id, streamer.hostId]);
+
+    // ── PK state sync broadcast: envia estado local a cada 5s ──
+    useEffect(() => {
+        if (!lkConnected) return;
+        const interval = setInterval(() => {
+            if (!lkConnected || !lkConnectedRef.current) return;
+            try {
+                lkSendMessage({
+                    type: 'pk_state_sync',
+                    myScore,
+                    opponentScore,
+                    timeLeft,
+                    myHearts,
+                    opponentHearts,
+                    timestamp: Date.now(),
+                });
+            } catch { /* silent */ }
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [lkConnected, myScore, opponentScore, timeLeft, myHearts, opponentHearts]);
     
     const handleHeartClick = (e: React.MouseEvent) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -402,7 +484,16 @@ export default function PKBattleScreen({
       setHearts(prev => [...prev, newHeart]);
       if (side === 'mine') setMyHearts(prev => prev + 1);
       else setOpponentHearts(prev => prev + 1);
-      api.sendPKHeart(streamer.id, side === 'mine' ? 'A' : 'B');
+      
+      // Debounce: no máximo 1 heart por 300ms
+      const now = Date.now();
+      if (now - lastHeartTimeRef.current < 300) return;
+      lastHeartTimeRef.current = now;
+      
+      const team = side === 'mine' ? 'A' : 'B';
+      if (pkBattleId) {
+        api.sendPKHeart(pkBattleId, team as 'A' | 'B').catch(() => {});
+      }
       setTimeout(() => { setHearts(prev => prev.filter(h => h.id !== newHeart.id)); }, 2000);
     };
 
@@ -709,7 +800,7 @@ export default function PKBattleScreen({
                 <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
             </div>
 
-            <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto transition-opacity duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            {!isComposerOpen && <footer className="fixed left-0 right-0 z-30 p-3 pointer-events-auto" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 <div className="flex items-center gap-3" data-purpose="bottom-controls">
                     <div className="flex-grow">
                         <button
@@ -757,7 +848,7 @@ export default function PKBattleScreen({
                         </button>
                     </div>
                 </div>
-            </footer>
+            </footer>}
 
             {/* ═══ Composer flutuante (TikTok-style) — matches StreamRoom exactly ═══ */}
             {isComposerOpen && (

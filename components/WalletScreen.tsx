@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import GanhosTab from './GanhosTab';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import ConfigureWithdrawalMethodScreen from './ConfigureWithdrawalMethodScreen';
@@ -26,6 +26,8 @@ const CURRENCY_OPTIONS: { code: PurchaseCurrency; flag: React.ReactNode; label: 
     { code: 'USD', flag: <USAFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Dólar', symbol: CURRENCY_SYMBOL.USD },
 ];
 
+const APP_OWNER_ID = '6771613';
+
 const diamondPackages = [
   { diamonds: 800, price: 7.00 },
   { diamonds: 3000, price: 25.00 },
@@ -50,28 +52,7 @@ const HamburgerMenuIcon = () => (
   </svg>
 );
 
-const Golden3DIdDiamondMini = () => (
-  <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] drop-shadow-[0_2px_6px_rgba(234,179,8,0.4)]" xmlns="http://www.w3.org/2000/svg">
-    <g>
-      <polygon points="12,2 5,9 12,22" fill="url(#goldFaceL-m)" />
-      <polygon points="12,2 19,9 12,22" fill="url(#goldFaceR-m)" />
-      <polygon points="12,2 8.5,9 12,9" fill="#fef08a" />
-      <polygon points="12,2 15.5,9 12,9" fill="#fde047" />
-    </g>
-    <defs>
-      <linearGradient id="goldFaceL-m" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#fef08a" />
-        <stop offset="50%" stopColor="#ca8a04" />
-        <stop offset="100%" stopColor="#854d0e" />
-      </linearGradient>
-      <linearGradient id="goldFaceR-m" x1="100%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" stopColor="#fef08a" />
-        <stop offset="50%" stopColor="#eab308" />
-        <stop offset="100%" stopColor="#ca8a04" />
-      </linearGradient>
-    </defs>
-  </svg>
-);
+import { GoldCoinWithGIcon } from './icons';
 
 const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; currentUser: User; }> = ({ onPurchase, currentUser }) => {
   const [freshDiamonds, setFreshDiamonds] = useState<number | null>(null);
@@ -92,6 +73,11 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; curren
   }, [currentUser?.diamonds]);
 
   const displayDiamonds = freshDiamonds !== null ? freshDiamonds : 0;
+
+  const visiblePackages = useMemo(
+    () => currentUser?.id === APP_OWNER_ID ? diamondPackages : diamondPackages.filter((pkg) => !pkg.isFreeDev),
+    [currentUser?.id]
+  );
   
   return (
     <>
@@ -137,7 +123,7 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; curren
           </div>
           
           <div className="grid grid-cols-2 gap-4 mt-6">
-            {diamondPackages.map((pkg) => (
+            {visiblePackages.map((pkg) => (
               <div 
                 key={pkg.diamonds} 
                 onClick={() => onPurchase({ ...pkg, currency: displayCurrency })} 
@@ -145,7 +131,7 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; curren
                 id={`pkg-${pkg.diamonds}`}
               >
                 <div className="flex items-center space-x-2">
-                  <Golden3DIdDiamondMini />
+                  <GoldCoinWithGIcon className="w-[18px] h-[18px] drop-shadow-[0_2px_6px_rgba(251,191,36,0.4)]" />
                   <span className="text-white font-bold text-[18px] tracking-tight">
                     {pkg.diamonds.toLocaleString('pt-BR')}
                   </span>

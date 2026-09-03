@@ -16,6 +16,8 @@ interface GanhosTabProps {
 
 interface EarningsInfo {
     available_diamonds: number;
+    locked_diamonds?: number;
+    debt?: number;
     brl_value: number;
     eur_value: number;
     usd_value: number;
@@ -240,6 +242,39 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                 const earningsValue = earningsInfo?.available_diamonds ?? 0;
                 return <GanhosDisplay earnings={earningsValue} />;
             })()}
+
+            {(earningsInfo?.locked_diamonds || 0) > 0 && (
+                <div className="bg-[#241a38] border border-[#7a3be9]/30 rounded-[14px] p-3.5 px-4">
+                    <div className="flex items-center space-x-2 mb-1">
+                        <svg className="w-4 h-4 text-[#8a3ffc] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        <span className="text-[12px] font-black text-white tracking-wide">{(earningsInfo?.locked_diamonds || 0).toLocaleString('pt-BR')} diamantes sob análise</span>
+                    </div>
+                    <p className="text-[11px] text-[#a1a1aa] font-medium leading-snug">
+                        Parte dos seus ganhos está retida preventivamente (estorno/anti-fraude) por até 7 dias.
+                        Sem chargeback comprovado, o valor é liberado automaticamente.
+                    </p>
+                </div>
+            )}
+
+            {(earningsInfo?.debt || 0) > 0 && (
+                <div className="bg-rose-950/30 border border-rose-500/25 rounded-[14px] p-3.5 px-4">
+                    <div className="flex items-center space-x-2 mb-1">
+                        <svg className="w-4 h-4 text-rose-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 11h-1.5M17 15h-1.5M17 7h-1.5M20 4v16a0 0 0 0 1 0 0H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2" />
+                            <path d="M3 19V5a1 1 0 0 1 1-1h16" transform="translate(0 0)" />
+                            <path d="M17 11h0" transform="translate(0 0)"/>
+                            <path d="M9 11h5v8H9z" opacity="0"/>
+                        </svg>
+                        <span className="text-[12px] font-black text-rose-300 tracking-wide">Débito de chargeback: {(earningsInfo?.debt || 0).toLocaleString('pt-BR')} diamantes</span>
+                    </div>
+                    <p className="text-[11px] text-[#a1a1aa] font-medium leading-snug">
+                        Existe um estorno por fraude em aberto. O valor será descontado dos seus futuros ganhos até quitar.
+                    </p>
+                </div>
+            )}
             
             <div className="space-y-3">
                 <label id="withdraw-amount-label" htmlFor="withdraw-amount" className="text-[11px] font-black uppercase tracking-wider text-[#8a8894] block ml-1">

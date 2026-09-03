@@ -20,9 +20,8 @@ const CATEGORIES = [
   { key: 'nearby', label: 'Perto' },
   { key: 'pk', label: 'PK' },
   { key: 'new', label: 'Novo' },
-  { key: 'music', label: 'Música' },
+  { key: 'voice_chat', label: 'Chat de Voz' },
   { key: 'dance', label: 'Dança' },
-  { key: 'party', label: 'Festa' },
   { key: 'private', label: 'Privada' }
 ];
 

@@ -38,15 +38,16 @@ const getDiamondIcon = (rank: number) => {
     }
 };
 
-const TopFansScreen: React.FC<{ onBack: () => void; onViewProfile: (user: User) => void; currentUser?: User | null }> = ({ onBack, onViewProfile, currentUser }) => {
+const TopFansScreen: React.FC<{ onBack: () => void; onViewProfile: (user: User) => void; currentUser?: User | null; hostId?: string | null }> = ({ onBack, onViewProfile, currentUser, hostId }) => {
     const { t } = useTranslation();
     const [fans, setFans] = useState<RankedUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!currentUser?.id) return;
+        const targetId = hostId || currentUser?.id;
+        if (!targetId) return;
         
-        api.getRankingForPeriod('monthly', currentUser.id, 'fans')
+        api.getRankingForPeriod('monthly', targetId, 'fans')
             .then(data => {
                 setFans(data || []);
                 setIsLoading(false);
@@ -54,7 +55,7 @@ const TopFansScreen: React.FC<{ onBack: () => void; onViewProfile: (user: User) 
             .catch(err => {
                 setIsLoading(false);
             });
-    }, [currentUser?.id]);
+    }, [hostId, currentUser?.id]);
 
     const topUser = fans[0];
     const secondUser = fans[1];

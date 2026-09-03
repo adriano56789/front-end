@@ -5,7 +5,7 @@
 
 
 
-import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo } from '../types';
+import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo, CoHostSession, VideoQualitySettings, BeautyStoreSettings, VoiceRoom, VoiceSlot } from '../types';
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 import { env } from '../src/config/environment';
 import { safeLog, safeError } from '../utils/maskSensitiveData';
@@ -530,6 +530,10 @@ export const api = {
 
     getBlockedUsers: () => callApi<User[]>('GET', '/api/users/me/blocklist'),
 
+    // 🚫 O perfil da pessoa me bloqueou? (blockerId = dono do perfil, blockedId = visitante)
+    checkUserBlocked: (blockerId: string, blockedId: string) =>
+        callApi<{ success: boolean; isBlocked: boolean }>('GET', `/api/blocks/check/${encodeURIComponent(blockerId)}/${encodeURIComponent(blockedId)}`),
+
     getUserPhotos: (userId: string) => callApi<{success: boolean; data: FeedPhoto[]}>('GET', `/api/users/${userId}/photos/gallery`),
 
     reorderPhotos: (userId: string, photoOrders: Array<{ obraId: string; order: number }>) => callApi<{ success: boolean; message: string }>('PUT', `/api/users/${userId}/photos/reorder`, { photoOrders }),
@@ -761,6 +765,12 @@ export const api = {
 
         available_diamonds: number;
 
+        locked_diamonds: number;
+
+        total_earnings: number;
+
+        debt: number;
+
         brl_value: number;
 
         eur_value: number;
@@ -837,6 +847,39 @@ export const api = {
         const userIdFinal = getCurrentUserId() || userId;
         return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/payoneer/withdraw', { userId: userIdFinal, amount, currency });
     },
+
+    // --- Depósito / Compra de diamantes via Payoneer Checkout (hospedado) ---
+
+    // Cria a sessão de checkout Payoneer para uma compra (redirect ao usuário).
+    // Credenciais ausentes → 503 (pagamentos em configuração).
+    createPayoneerDepositSession: (data: { userId: string; amountBRL: number; diamonds: number; orderId?: string; method?: string }) =>
+        callApi<{ success: boolean; provider: string; sessionId?: string; redirectUrl?: string; reference?: string; configured?: boolean }>('POST', '/api/payoneer/deposit/session', data),
+
+    // Consulta o status de uma compra (usado no retorno do checkout para saber se caiu).
+    getPayoneerDepositStatus: (orderId: string) =>
+        callApi<{ orderId: string; status: string; paid: boolean; diamonds: number; amount: number; riskStatus?: string; paymentStatus?: string }>('GET', `/api/payoneer/deposit/status/${orderId}`),
+
+    // --- Estorno / Chargeback (anti-fraude) ---
+
+    // Motivos (causas) aceitos para solicitar estorno
+    getEstornoReasons: () =>
+        callApi<{ success: boolean; reasons: Record<string, string>; holdDays: number }>('GET', '/api/estorno/reasons'),
+
+    // Comprador solicita estorno de uma compra
+    requestEstorno: (orderId: string, reasonCode: string, reasonDetail?: string) =>
+        callApi<{ success: boolean; estorno: any; held: number; holdDays: number; note: string }>('POST', '/api/estorno/request', { orderId, reasonCode, reasonDetail }),
+
+    // Acompanhar status do estorno de uma compra
+    getEstornoStatus: (orderId: string) =>
+        callApi<{ success: boolean; estorno: any | null }>('GET', `/api/estorno/status/${orderId}`),
+
+    // Admin decide o estorno (aprova = fraude / rejeita = libera sem devolução)
+    reviewEstorno: (estornoId: string, fraudConfirmed: boolean, reviewNote?: string) =>
+        callApi<{ success: boolean; decided: string; message: string; totalDebited: number; totalDebt: number; totalRecovered: number }>('POST', '/api/estorno/review', { estornoId, fraudConfirmed, reviewNote }),
+
+    // Consulta saldo sacável (após retenções/débitos) de um usuário
+    getWithdrawable: (userId: string) =>
+        callApi<{ success: boolean; user: any; earnings: number; earnings_locked: number; earnings_debt: number; available: number; releasedNow: number }>('GET', `/api/fraud/chargeback/withdrawable/${userId}`),
 
     // ... (rest of the code remains the same)
 
@@ -1035,6 +1078,51 @@ export const api = {
     getBeautySettings: (userId: string) => callApi<BeautySettings>('GET', `/api/settings/beauty/${userId}`),
 
     updateBeautySettings: (userId: string, settings: BeautySettings) => callApi<{ success: boolean }>('POST', `/api/settings/beauty/${userId}`, { settings }),
+
+    // ===== VIDEO QUALITY API — /api/video-quality =====
+    getVideoQuality: (userId: string) => callApi<{ resolution: string; frameRate: number; bitrate: number; denoiseLevel: number; sharpnessLevel: number; whiteBalanceLevel: number; faceVolume3D: number; autoDenoise: boolean; encodingPreset: string; codec: string }>('GET', `/api/video-quality/${userId}`),
+
+    saveVideoQuality: (userId: string, settings: Record<string, unknown>) => callApi<{ success: boolean; settings: Record<string, unknown> }>('POST', `/api/video-quality/${userId}`, { settings }),
+
+    setVideoDenoise: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, unknown> }>('PUT', `/api/video-quality/${userId}/denoise`, { level }),
+
+    setVideoResolution: (userId: string, resolution: string) => callApi<{ success: boolean; settings: Record<string, unknown> }>('PUT', `/api/video-quality/${userId}/resolution`, { resolution }),
+
+    resetVideoQuality: (userId: string) => callApi<{ success: boolean; settings: Record<string, unknown> }>('PUT', `/api/video-quality/${userId}/reset`),
+
+    // ===== BEAUTY STORE API — /api/beauty-store (estilo Tencent BaseBeautyStore) =====
+    getBeautyStore: (userId: string) => callApi<{ success: boolean; settings: Record<string, number> }>('GET', `/api/beauty-store/${userId}`),
+
+    setBeautySmooth: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/smooth`, { level }),
+
+    setBeautyWhiten: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/whiten`, { level }),
+
+    setBeautyRuddy: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/ruddy`, { level }),
+
+    setBeautyDenoise: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/denoise`, { level }),
+
+    setBeautySharpness: (userId: string, level: number) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/sharpness`, { level }),
+
+    resetBeautyStore: (userId: string) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/reset`),
+
+    updateBeautyStoreAll: (userId: string, settings: Record<string, number>) => callApi<{ success: boolean; settings: Record<string, number> }>('PUT', `/api/beauty-store/${userId}/all`, { settings }),
+
+    // ===== COHOST API — /api/cohost (estilo Tencent CoHostStore) =====
+    createCoHostSession: (hostId: string, streamId: string) => callApi<{ success: boolean; sessionId: string; session: CoHostSession }>('POST', '/api/cohost/create', { hostId, streamId }),
+
+    requestCoHost: (sessionId: string, coHostId: string) => callApi<{ success: boolean; session: CoHostSession }>('PUT', '/api/cohost/request', { sessionId, coHostId }),
+
+    acceptCoHost: (sessionId: string) => callApi<{ success: boolean; session: CoHostSession }>('PUT', '/api/cohost/accept', { sessionId }),
+
+    rejectCoHost: (sessionId: string) => callApi<{ success: boolean; session: CoHostSession }>('PUT', '/api/cohost/reject', { sessionId }),
+
+    exitCoHost: (sessionId: string) => callApi<{ success: boolean }>('PUT', '/api/cohost/exit', { sessionId }),
+
+    muteCoHost: (sessionId: string, muted: boolean) => callApi<{ success: boolean; session: CoHostSession }>('PUT', '/api/cohost/mute', { sessionId, muted }),
+
+    getCoHostSessions: (hostId: string) => callApi<{ sessions: CoHostSession[] }>('GET', `/api/cohost/sessions/${hostId}`),
+
+    deleteCoHostSession: (sessionId: string) => callApi<{ success: boolean }>('DELETE', `/api/cohost/${sessionId}`),
 
     getPrivateStreamSettings: (userId: string) => callApi<{ settings: User['privateStreamSettings'] }>('GET', `/api/settings/private-stream/${userId}`),
 
@@ -1330,11 +1418,17 @@ export const api = {
 
     updatePKConfig: (duration: number) => callApi<{ success: boolean, config: any }>('POST', '/api/pk/config', { duration }),
 
-    startPKBattle: (userId: string, streamId: string, opponentId: string) => callApi<{ success: boolean }>('POST', `/api/pk/start`, { userId, streamId, opponentId }),
+    startPKBattle: (userId: string, streamId: string, opponentId: string) => callApi<{ success: boolean, battleId?: string }>('POST', `/api/pk/start`, { userId, streamId, opponentId }),
 
     endPKBattle: (userId: string, streamId: string) => callApi<{ success: boolean }>('POST', `/api/pk/end`, { userId, streamId }),
 
-    sendPKHeart: (roomId: string, team: 'A' | 'B') => callApi<{ success: boolean }>('POST', '/api/pk/heart', { roomId, team }),
+    sendPKHeart: (battleId: string, team: 'A' | 'B') => callApi<{ success: boolean, scoreA: number, scoreB: number }>('POST', '/api/pk/heart', { battleId, team }),
+
+    // Atualizar score de PK (gift-based: incrementa pelo valor do gift)
+    updatePKScore: (battleId: string, team: 'A' | 'B', amount: number) => callApi<{ success: boolean, scoreA: number, scoreB: number }>('POST', '/api/pk/score', { battleId, team, amount }),
+
+    // Encerrar battle PK (APENAS o battle, não a live)
+    finishPKBattle: (userId: string, streamId: string) => callApi<{ success: boolean }>('POST', '/api/pk/finish', { userId, streamId }),
 
     getPendingPKInvites: (userId: string) => callApi<{ success: boolean, invites: any[] }>('GET', `/api/pk/invites/pending/${userId}`),
 
@@ -1618,6 +1712,14 @@ export const api = {
         if (offset) params.append('offset', offset.toString());
 
         const url = `/api/withdrawals/history/${userId}${params.toString() ? '?' + params.toString() : ''}`;
+
+        return callApi<any>('GET', url);
+
+    },
+
+    getPurchaseHistory: (userId: string) => {
+
+        const url = `/api/wallet/purchases/history/${userId}`;
 
         return callApi<any>('GET', url);
 
@@ -2221,6 +2323,24 @@ export const api = {
             callApi<{ success: boolean; invitationId?: string; resent?: boolean; error?: string }>('POST', '/api/call-invitation/invite', { guestId, guestName, streamId }),
         respond: (invitationId: string, response: 'accept' | 'decline') =>
             callApi<{ success: boolean; guestStreamKey?: string }>('POST', '/api/call-invitation/respond', { invitationId, response }),
+        // Host aceita/recusa o pedido de participação de um espectador
+        hostRespond: (invitationId: string, response: 'accept' | 'decline') =>
+            callApi<{ success: boolean; guestStreamKey?: string }>('POST', '/api/call-invitation/host-respond', { invitationId, response }),
+        // Host remove um convidado da participação
+        remove: (invitationId: string) =>
+            callApi<{ success: boolean }>('POST', '/api/call-invitation/remove', { invitationId }),
+        // Convidado sai da participação
+        leave: (invitationId: string) =>
+            callApi<{ success: boolean }>('POST', '/api/call-invitation/leave', { invitationId }),
+        // Relatórios de progresso da conexão WebRTC
+        connecting: (invitationId: string) =>
+            callApi<{ success: boolean; status: string }>('POST', '/api/call-invitation/connecting', { invitationId }),
+        connected: (invitationId: string) =>
+            callApi<{ success: boolean; status: string }>('POST', '/api/call-invitation/connected', { invitationId }),
+        reconnect: (invitationId: string) =>
+            callApi<{ success: boolean; status: string }>('POST', '/api/call-invitation/reconnect', { invitationId }),
+        getState: (invitationId: string) =>
+            callApi<{ success: boolean; state: any }>('GET', `/api/call-invitation/state/${invitationId}`),
         end: (invitationId: string) =>
             callApi<{ success: boolean }>('POST', '/api/call-invitation/end', { invitationId }),
     },
@@ -2462,6 +2582,90 @@ export const api = {
         } catch {
             return null;
         }
+    },
+
+    // ── Rodadas 2,3,4: Endpoints consolidados (delegam para funções centrais no backend) ──
+
+    /** Verifica se o host já tem live ativa (anti-duplicidade) */
+    checkActiveLive: (hostId: string) =>
+        callApi<{ hasActiveLive: boolean; stream?: any }>('GET', `/api/streams/check-active?hostId=${hostId}`),
+
+    /** Status consolidado da stream (preparing/active/ended) */
+    getStreamStatus: (streamId: string) =>
+        callApi<{ streamId: string; status: string }>('GET', `/api/streams/${streamId}/status`),
+
+    /** Endpoint de debug: reconciliação manual banco vs SRS */
+    reconcileSRS: () =>
+        callApi<any>('GET', '/api/debug/reconcile'),
+
+    // ── Voice Room (Sala de Voz) ──
+
+    voiceRoom: {
+        /** Listar salas de voz ativas */
+        list: (category?: string) => {
+            const params = category && category !== 'all' ? `?category=${category}` : '';
+            return callApi<{ code: number; data: { rooms: VoiceRoom[]; hasMore: boolean } }>('GET', `/api/voice-rooms${params}`);
+        },
+
+        /** Criar nova sala de voz */
+        create: (options: { hostId: string; name?: string; category?: string; minLevelToSpeak?: number }) =>
+            callApi<{ success: boolean; room: VoiceRoom }>('POST', '/api/voice-rooms', options),
+
+        /** Buscar detalhes de uma sala */
+        get: (roomId: string) =>
+            callApi<{ success: boolean; room: VoiceRoom }>('GET', `/api/voice-rooms/${roomId}`),
+
+        /** Entrar na sala (adicionar como viewer) */
+        join: (roomId: string, userId: string) =>
+            callApi<{ success: boolean; room: VoiceRoom }>('POST', `/api/voice-rooms/${roomId}/join`, { userId }),
+
+        /** Sair da sala */
+        leave: (roomId: string, userId: string) =>
+            callApi<{ success: boolean }>('POST', `/api/voice-rooms/${roomId}/leave`, { userId }),
+
+        /** Pegar slot no palco (subir) */
+        takeSlot: (roomId: string, userId: string, slotIndex: number) =>
+            callApi<{ success: boolean; slots: VoiceSlot[] }>('POST', `/api/voice-rooms/${roomId}/slot`, { userId, slotIndex }),
+
+        /** Liberar slot (descer do palco) */
+        releaseSlot: (roomId: string, userId: string) =>
+            callApi<{ success: boolean; slots: VoiceSlot[] }>('DELETE', `/api/voice-rooms/${roomId}/slot`, { userId }),
+
+        /** Toggle indicador de fala */
+        setSpeaking: (roomId: string, userId: string, isSpeaking: boolean) =>
+            callApi<{ success: boolean }>('POST', `/api/voice-rooms/${roomId}/speaking`, { userId, isSpeaking }),
+
+        /** Toggle mute */
+        setMuted: (roomId: string, userId: string, isMuted: boolean) =>
+            callApi<{ success: boolean }>('POST', `/api/voice-rooms/${roomId}/mute`, { userId, isMuted }),
+
+        /** Ranking de contribuição da sala (mesmo do ContributionRankingModal da live) */
+        ranking: (roomId: string) =>
+            callApi<{ success: boolean; ranking: (User & { value: number })[] }>('GET', `/api/voice-rooms/${roomId}/ranking`),
+
+        /** Encerrar sala (host) */
+        end: (roomId: string, userId: string) =>
+            callApi<{ success: boolean }>('POST', `/api/voice-rooms/${roomId}/end`, { userId }),
+
+        /** Convidar amigo para subir no palco (co-host) */
+        inviteCoHost: (roomId: string, hostId: string, friend: { id: string; name?: string; avatar?: string; level?: number }) =>
+            callApi<{ success: boolean; error?: string }>('POST', `/api/voice-rooms/${roomId}/invite-cohost`, {
+                hostId,
+                friendId: friend.id,
+                friendName: friend.name || '',
+                friendAvatar: friend.avatar || '',
+                friendLevel: friend.level || 1,
+            }),
+
+        /** Aceitar/recusar convite para o palco da sala de voz */
+        inviteCoHostRespond: (roomId: string, userId: string, respond: 'accept' | 'decline', user?: { name?: string; avatar?: string; level?: number }) =>
+            callApi<{ success: boolean; slots: VoiceSlot[]; error?: string; already?: boolean }>('POST', `/api/voice-rooms/${roomId}/invite-cohost/respond`, {
+                userId,
+                respond,
+                userName: user?.name || '',
+                avatar: user?.avatar || '',
+                level: user?.level || 1,
+            }),
     },
 };
 

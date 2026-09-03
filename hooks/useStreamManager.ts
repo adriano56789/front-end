@@ -11,6 +11,7 @@ interface StreamManagerState {
   streamDescription: string;
   selectedCategoryKey: string;
   isPrivate: boolean;
+  isVoiceRoom: boolean;
   selectedRegion: string;
 }
 
@@ -32,6 +33,7 @@ export const useStreamManager = (
   const [streamDescription, setStreamDescription] = useState('');
   const [selectedCategoryKey, setSelectedCategoryKey] = useState('popular');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isVoiceRoom, setIsVoiceRoom] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState(currentUser.country || 'global');
 
   const isStartingStream = useRef(false);
@@ -49,6 +51,7 @@ export const useStreamManager = (
     if (updates.streamDescription !== undefined) setStreamDescription(updates.streamDescription);
     if (updates.selectedCategoryKey !== undefined) setSelectedCategoryKey(updates.selectedCategoryKey);
     if (updates.isPrivate !== undefined) setIsPrivate(updates.isPrivate);
+    if (updates.isVoiceRoom !== undefined) setIsVoiceRoom(updates.isVoiceRoom);
     if (updates.selectedRegion !== undefined) setSelectedRegion(updates.selectedRegion);
   }, []);
 
@@ -288,6 +291,7 @@ export const useStreamManager = (
     streamDescription,
     selectedCategoryKey,
     isPrivate,
+    isVoiceRoom,
     selectedRegion,
     createDraftStream,
     updateStreamDetails,

@@ -9,9 +9,10 @@ interface SearchScreenProps {
   onViewProfile: (user: User) => void;
   allUsers: User[];
   onFollowUser: (user: User) => void;
+  followingUsers?: User[];
 }
 
-const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFollow: (user: User) => void; isLocallyFollowed?: boolean; }> = ({ user, onViewProfile, onFollow, isLocallyFollowed }) => {
+const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFollow: (user: User) => void; isLocallyFollowed?: boolean; isFollowing?: boolean; }> = ({ user, onViewProfile, onFollow, isLocallyFollowed, isFollowing }) => {
     const { t } = useTranslation();
 
     const handleFollow = (e: React.MouseEvent) => {
@@ -19,11 +20,8 @@ const UserItem: React.FC<{ user: User; onViewProfile: (user: User) => void; onFo
         onFollow(user);
     };
 
-    // ✅ Seguido = estado do servidor OU marcado localmente ao tocar
-    // (o botão vira "Seguindo" e o '+' some NA HORA).
-    const followed = !!user.isFollowed || !!isLocallyFollowed;
+    const followed = !!user.isFollowed || !!isLocallyFollowed || !!isFollowing;
 
-    // 🔒 Não dá pra seguir a SI MESMO — esconde o botão (e o ícone +) na própria conta.
     const isSelf = String(user.id) === String((window as any).currentUser?.id);
 
     return (
@@ -152,7 +150,7 @@ const MagnifyingGlassIllustration: React.FC = () => {
 };
 
 
-const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, allUsers, onFollowUser }) => {
+const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, allUsers, onFollowUser, followingUsers = [] }) => {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<User[]>([]);
@@ -161,8 +159,6 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
     const [locallyFollowed, setLocallyFollowed] = useState<Set<string>>(new Set());
     const timeoutIdRef = useRef<NodeJS.Timeout | null>(null);
 
-    // ✅ Ao seguir um resultado da busca: marca LOCALMENTE na hora —
-    // botão vira "Seguindo" e o '+' some imediatamente.
     const handleFollowUser = (user: User) => {
         setLocallyFollowed(prev => new Set(prev).add(String(user.id)));
         onFollowUser(user);
@@ -237,7 +233,7 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ onClose, onViewProfile, all
                     </div>
                 )}
                 {!isLoading && !error && query && results.length > 0 && (
-                    results.map(user => <UserItem key={user.id} user={user} onViewProfile={onViewProfile} onFollow={handleFollowUser} isLocallyFollowed={locallyFollowed.has(String(user.id))} />)
+                    results.map(user => <UserItem key={user.id} user={user} onViewProfile={onViewProfile} onFollow={handleFollowUser} isLocallyFollowed={locallyFollowed.has(String(user.id))} isFollowing={followingUsers.some(u => String(u.id) === String(user.id))} />)
                 )}
                 {!isLoading && !error && query && results.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">

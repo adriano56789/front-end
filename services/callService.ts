@@ -2,7 +2,6 @@ import { api } from './api';
 import { cameraService } from './cameraService';
 import { audioCleaner } from './audioCleanerService';
 import { WhepClient } from './WhepClient';
-import { getWhipPublishUrl } from './mediaConfig';
 
 export type CallState = 'idle' | 'requesting' | 'ringing' | 'connecting' | 'active' | 'ending';
 
@@ -147,6 +146,31 @@ class CallService {
     this._setState('idle');
   }
 
+  /** Publica a câmera do convidado no SRS sob o streamKey informado (ex: guest_<id>). */
+  async publishGuestStream(streamKey: string): Promise<void> {
+    if (this._destroyed) return;
+    if (this._publishPC) return;
+    try {
+      await this._publishGuestStream(streamKey);
+      this._setState('active');
+    } catch (err: any) {
+      this._emitError('PUBLISH_FAILED', err?.message || 'Falha ao publicar câmera');
+      throw err;
+    }
+  }
+
+  /** Encerra a publicação da câmera do convidado (WHIP) sem afetar a sessão. */
+  stopGuestPublish(): void {
+    if (this._publishPC) {
+      try { this._publishPC.close(); } catch {}
+      this._publishPC = null;
+    }
+    if (this._localStream) {
+      this._localStream.getTracks().forEach(t => t.stop());
+      this._localStream = null;
+    }
+  }
+
   private async _publishGuestStream(streamKey: string): Promise<void> {
     const stream = await cameraService.captureStream('user');
     if (this._destroyed) {
@@ -189,26 +213,16 @@ class CallService {
 
     await this._waitForIceGathering(pc);
 
-    const whipUrl = getWhipPublishUrl(streamKey);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-
     try {
-      const token = localStorage.getItem('livego_auth_token') || '';
-      const res = await fetch(whipUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/sdp',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: pc.localDescription?.sdp || '',
-        signal: controller.signal,
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error(`WHIP rejeitou (HTTP ${res.status})`);
-      await pc.setRemoteDescription({ type: 'answer', sdp: text });
-    } finally {
-      clearTimeout(timer);
+      const result = await api.rtc.whip(streamKey, pc.localDescription?.sdp || '');
+      if (!result.ok) {
+        throw new Error(`WHIP rejeitou pelo SRS (código ${result.status})`);
+      }
+      await pc.setRemoteDescription({ type: 'answer', sdp: result.sdp });
+    } catch (err: any) {
+      pc.close();
+      this._publishPC = null;
+      throw err;
     }
   }
 

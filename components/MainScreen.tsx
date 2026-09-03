@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import Header from './Header';
-import { Streamer } from '../types';
+import { Streamer, VoiceRoom } from '../types';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from './Loading';
 import { ViewerIcon, LockIcon, ChevronRightIcon, LocationPinIcon } from './icons';
@@ -105,6 +105,8 @@ interface MainScreenProps {
   showLocationBanner: boolean;
   unreadCount?: number;
   invitedStreamIds?: string[];
+  voiceRooms?: VoiceRoom[];
+  onOpenVoiceRoom?: (roomId: string) => void;
   // 🔄 Recarrega os cards da API (pull-to-refresh + auto-refresh)
   onRefresh?: () => void | Promise<void>;
 }
@@ -221,7 +223,63 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 };
 
 
-const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [], onRefresh }) => {
+const VoiceRoomCard: React.FC<{ room: VoiceRoom; onOpen: (roomId: string) => void }> = ({ room, onOpen }) => {
+    const onStage = room.slots.filter(s => s.userId).length;
+    const listeners = room.viewers || 0;
+
+    return (
+        <div
+            className="relative aspect-[1/1.1] rounded-2xl overflow-hidden cursor-pointer group bg-zinc-950/40 select-none shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-300 border border-white/[0.03]"
+            onClick={() => onOpen(room.roomId)}
+        >
+            {/* Background avatar */}
+            <img
+                src={room.avatar || room.hostAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(room.name)}&background=random&color=fff&size=200`}
+                alt={room.name}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30"></div>
+
+            {/* 🎤 Microphone badge */}
+            <div className="absolute top-2.5 left-2.5 z-10">
+                <div className="flex items-center justify-center w-[32px] h-[32px] rounded-full bg-cyan-500/80 backdrop-blur-md border border-white/20 shadow-[0_0_12px_rgba(6,182,212,0.5)]">
+                    <svg className="w-[16px] h-[16px] text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </div>
+            </div>
+
+            {/* Room Info Overlay */}
+            <div className="absolute inset-x-0 bottom-0 flex flex-col justify-end p-2.5 pb-3 bg-gradient-to-t from-black/95 via-black/50 to-transparent">
+                {/* Title */}
+                <p className="text-[13px] sm:text-[14px] font-medium text-white truncate drop-shadow-md leading-tight mb-1.5 px-0.5">
+                    {room.name}
+                </p>
+                {/* Subinfo Row */}
+                <div className="flex items-center justify-between text-[11px] sm:text-[12px] text-zinc-300 font-medium">
+                    <div className="flex items-center min-w-0 flex-1 pr-1">
+                        <span className="w-3.5 h-3.5 rounded-full bg-cyan-500/60 flex items-center justify-center mr-1.5 flex-shrink-0">
+                            <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                        </span>
+                        <span className="truncate font-medium text-[11px] sm:text-[12px] text-cyan-400">
+                            {onStage}/{room.maxSlots} no palco
+                        </span>
+                    </div>
+                    <div className="flex items-center flex-shrink-0 space-x-1 pl-1">
+                        <svg className="w-3 h-3 text-zinc-400 fill-current" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                        <span className="font-sans text-[11px] sm:text-[12px] text-zinc-200 font-semibold">
+                            {listeners.toLocaleString('pt-BR')}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [], voiceRooms = [], onOpenVoiceRoom, onRefresh }) => {
   const { t } = useTranslation();
   const mainRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -229,6 +287,9 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
   const startX = useRef(0);
   const scrollLeft = useRef(0);
   const wasDragging = useRef(false);
+  // Timestamp do fim do ÚLTIMO arrasto REAL (mouse). Usado para bloquear só o
+  // clique que vem imediatamente após arrastar — toque normal NUNCA é bloqueado.
+  const lastDragEndRef = useRef(0);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     isDown.current = true;
@@ -252,7 +313,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     e.preventDefault();
     const x = e.pageX;
     const walk = (x - startX.current) * 1.5;
-    if (Math.abs(walk) > 5) {
+    if (Math.abs(walk) > 8) {
         wasDragging.current = true;
         navRef.current.classList.add('is-dragging');
     }
@@ -261,44 +322,19 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
 
   const handleMouseUp = () => {
     isDown.current = false;
-    if (navRef.current) {
-      navRef.current.style.scrollBehavior = '';
-    }
-    setTimeout(() => {
-        if(navRef.current) navRef.current.classList.remove('is-dragging');
-    }, 50);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    isDown.current = true;
+    if (wasDragging.current) lastDragEndRef.current = Date.now();
     wasDragging.current = false;
     if (navRef.current) {
-      startX.current = e.touches[0].pageX;
-      scrollLeft.current = navRef.current.scrollLeft;
-      navRef.current.style.scrollBehavior = 'auto';
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDown.current || !navRef.current) return;
-    const x = e.touches[0].pageX;
-    const walk = (x - startX.current) * 1.5;
-    if (Math.abs(walk) > 5) {
-        wasDragging.current = true;
-        navRef.current.classList.add('is-dragging');
-    }
-    navRef.current.scrollLeft = scrollLeft.current - walk;
-  };
-
-  const handleTouchEnd = () => {
-    isDown.current = false;
-    if (navRef.current) {
       navRef.current.style.scrollBehavior = '';
     }
     setTimeout(() => {
         if(navRef.current) navRef.current.classList.remove('is-dragging');
     }, 50);
   };
+
+  // 📱 TOQUE: NÃO precisa de JS de arrasto — o overflow-x nativo do
+  // <nav> já faz o swipe horizontal. Sem handlers de toque aqui = o clique/
+  // toque nas abas SEMPRE funciona, mesmo com cards de lives na tela.
 
   useEffect(() => {
     if (mainRef.current) {
@@ -306,18 +342,29 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     }
   }, [activeTab]);
 
-  // 🔄 PULL-TO-REFRESH: arrastar para baixo no topo recarrega os cards
+  // 🔄 PULL-TO-REFRESH: arrastar para baixo no topo recarrega os cards.
+  // 📌 REGRA: os CARDS NÃO podem sair do lugar NUNCA. Durante o pull/refresh
+  // eles ficam 100% FIXOS — só aparece um spinner por cima (position absolute,
+  // não empurra nada). O listener touchmove NATIVO com passive:false trava o
+  // "bounce"/overscroll do navegador (senão o conteúdo inteiro desce e os
+  // cards mudam de posição).
   const [pullDist, setPullDist] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullDistRef = useRef(0);
+  const refreshLockRef = useRef(false);
   const pullStartY = useRef<number | null>(null);
   const refreshRef = useRef(onRefresh);
   refreshRef.current = onRefresh;
 
   const triggerRefresh = () => {
-    if (isRefreshing) return;
+    if (refreshLockRef.current) return; // evita disparar 2x
+    refreshLockRef.current = true;
     setIsRefreshing(true);
     Promise.resolve(refreshRef.current?.()).catch(() => {}).finally(() => {
-      setTimeout(() => setIsRefreshing(false), 400);
+      setTimeout(() => {
+        refreshLockRef.current = false;
+        setIsRefreshing(false);
+      }, 400);
     });
   };
 
@@ -331,27 +378,64 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     return () => clearInterval(id);
   }, []);
 
-  const handleMainTouchStart = (e: React.TouchEvent) => {
-    if (mainRef.current && mainRef.current.scrollTop <= 0) {
-      pullStartY.current = e.touches[0].clientY;
-    } else {
+  // 👆 Listener NATIVO (passive:false) no <main>: impede o navegador de
+  // mover/empurrar os cards durante o pull-to-refresh. O React usa listeners
+  // passivos para touchmove e por isso NÃO consegue chamar preventDefault() —
+  // por isso o listener nativo é obrigatório aqui.
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+
+    let tracking = false;
+    const PULL_THRESHOLD = 50;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (el.scrollTop <= 0 && !refreshLockRef.current) {
+        tracking = true;
+        pullStartY.current = e.touches[0].clientY;
+      } else {
+        tracking = false;
+        pullStartY.current = null;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!tracking || pullStartY.current === null) return;
+      const dist = e.touches[0].clientY - pullStartY.current;
+      // Trava o overscroll/bounce: enquanto arrasta pra baixo no topo, o scroll
+      // nativo fica bloqueado → os cards NÃO saem do lugar.
+      if (dist > 4) e.preventDefault();
+      const d = dist > 0 ? Math.min(dist * 0.4, 80) : 0;
+      pullDistRef.current = d;
+      setPullDist(d);
+    };
+
+    const onTouchEnd = () => {
+      if (
+        tracking &&
+        pullStartY.current !== null &&
+        pullDistRef.current >= PULL_THRESHOLD &&
+        !refreshLockRef.current
+      ) {
+        triggerRefresh();
+      }
       pullStartY.current = null;
-    }
-  };
+      tracking = false;
+      pullDistRef.current = 0;
+      setPullDist(0);
+    };
 
-  const handleMainTouchMove = (e: React.TouchEvent) => {
-    if (pullStartY.current === null || isRefreshing) return;
-    const dist = e.touches[0].clientY - pullStartY.current;
-    setPullDist(dist > 0 ? Math.min(dist * 0.4, 80) : 0);
-  };
-
-  const handleMainTouchEnd = () => {
-    if (pullStartY.current !== null && pullDist > 50 && !isRefreshing) {
-      triggerRefresh();
-    }
-    pullStartY.current = null;
-    setPullDist(0);
-  };
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    el.addEventListener('touchcancel', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, []);
 
   const tabs = [
     { key: 'popular', label: t('main.popular') },
@@ -359,9 +443,9 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
     { key: 'nearby', label: t('main.nearby') },
     { key: 'pk', label: t('main.pk') },
     { key: 'new', label: t('main.new') },
+    { key: 'voiceChat', label: t('main.voiceChat') },
     { key: 'music', label: t('main.music') },
     { key: 'dance', label: t('main.dance') },
-    { key: 'party', label: t('main.party') },
     { key: 'private', label: t('main.private') },
   ];
   
@@ -376,9 +460,6 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
           onMouseLeave={handleMouseLeave}
           onMouseUp={handleMouseUp}
           onMouseMove={handleMouseMove}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
           className="flex gap-6 overflow-x-auto overflow-y-hidden whitespace-nowrap py-3.5 px-4 w-full touch-pan-x cursor-grab active:cursor-grabbing select-none"
           style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
@@ -391,7 +472,10 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
             <button
               key={tab.key}
               onClick={(e) => {
-                if(wasDragging.current || navRef.current?.classList.contains('is-dragging')) {
+                // 🛡️ Só bloqueia o clique que vem imediatamente após um ARRASTO
+                // REAL de mouse (200ms). Toque/click normal NUNCA é bloqueado —
+                // as abas sempre funcionam, com ou sem cards na tela.
+                if (Date.now() - lastDragEndRef.current < 200) {
                   e.preventDefault();
                   e.stopPropagation();
                   return;
@@ -424,16 +508,17 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
         </div>
       )}      <main
         ref={mainRef}
-        className="flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar"
-        onTouchStart={handleMainTouchStart}
-        onTouchMove={handleMainTouchMove}
-        onTouchEnd={handleMainTouchEnd}
+        className="relative flex-grow p-1.5 pb-24 overflow-y-auto no-scrollbar"
+        style={{ overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}
       >
-        {/* 🔄 Indicador de refresh (pull-to-refresh / auto-refresh) */}
+        {/* 🔄 Indicador de refresh (pull-to-refresh / auto-refresh).
+            Position ABSOLUTO por cima dos cards: NUNCA empurra os cards pra
+            baixo/muda de posição. O pull/refresh é visível, mas os cards
+            ficam FIXOS onde estão — só o conteúdo é atualizado. */}
         {(pullDist > 0 || isRefreshing) && (
           <div
-            className="flex items-center justify-center overflow-hidden"
-            style={{ height: isRefreshing ? 36 : pullDist, transition: pullStartY.current === null ? 'height 0.25s ease' : 'none' }}
+            className="absolute left-0 right-0 top-0 z-10 flex items-center justify-center overflow-hidden pointer-events-none"
+            style={{ height: isRefreshing ? 24 : pullDist * 0.5 }}
           >
             <LoadingSpinner />
           </div>
@@ -444,7 +529,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
             </div>
         ) : (
             <>
-                {(!Array.isArray(streamers) || streamers.filter(streamer =>
+                {((!Array.isArray(streamers) || streamers.filter(streamer =>
                     streamer && 
                     streamer.id && 
                     streamer.name && 
@@ -454,7 +539,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                     streamer.hostId &&
                     streamer.hostId.trim() !== '' &&
                     streamer.isLive === true
-                ).length === 0) ? (
+                ).length === 0) && voiceRooms.length === 0) ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-6">
                         <div className="flex flex-col items-center max-w-xs mt-10">
                             {/* Visual matching TV live outline icon with user inside */}
@@ -492,9 +577,14 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                                 seen.add(streamer.id);
                                 return true;
                             });
-                            return unique.map(streamer => (
-                                <StreamerCard key={streamer.id} streamer={streamer} onSelect={onSelectStream} invited={invitedStreamIds.includes(streamer.id)} />
-                            ));
+                            return [
+                                ...unique.map(streamer => (
+                                    <StreamerCard key={`stream-${streamer.id}`} streamer={streamer} onSelect={onSelectStream} invited={invitedStreamIds.includes(streamer.id)} />
+                                )),
+                                ...voiceRooms.filter(room => room && room.roomId && room.isLive).map(room => (
+                                    <VoiceRoomCard key={`voice-${room.roomId}`} room={room} onOpen={onOpenVoiceRoom || (() => {})} />
+                                )),
+                            ];
                         })()}
                     </div>
                 )}

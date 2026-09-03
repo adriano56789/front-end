@@ -577,3 +577,72 @@ textarea, input {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   VOICE ROOM — Anime de slots estilo TikTok / Tencent Cloud 语聊房
+   Anel gradiente girando = falando; anel estático = no palco
+   ═══════════════════════════════════════════════════════════════════ */
+
+.vr-ring {
+  border-radius: 9999px;
+  background: conic-gradient(from 210deg, rgba(34,211,238,0.25) 0deg, rgba(34,211,238,0.0) 60deg, rgba(168,85,247,0.28) 140deg, rgba(244,114,182,0.0) 240deg, rgba(34,211,238,0.25) 360deg);
+}
+
+.vr-ring-speaking {
+  background: conic-gradient(from 0deg, #22d3ee 0deg, #a855f7 70deg, #8b5cf6 130deg, #f09433 200deg, #22d3ee 300deg, #22d3ee 360deg);
+  animation: vr-ring-spin 1.4s linear infinite;
+}
+
+@keyframes vr-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vr-ring-pulse {
+  animation: vr-ring-breathe 1.3s ease-in-out infinite;
+}
+
+@keyframes vr-ring-breathe {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(34,211,238,0.35), 0 0 22px rgba(168,85,247,0.2);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(34,211,238,0.7), 0 0 40px rgba(168,85,247,0.45);
+  }
+}
+
+.vr-host-ring {
+  background: conic-gradient(from 180deg, #22d3ee 0deg, #60a5fa 60deg, #a855f7 140deg, #f09433 220deg, #ec4899 300deg, #22d3ee 360deg);
+  animation: vr-ring-breathe 1.8s ease-in-out infinite;
+}
+
+/* Equalizer (barrinhas de áudio) quando alguém está falando */
+.vr-eq {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.5px;
+  height: 12px;
+}
+
+.vr-eq span {
+  width: 2px;
+  height: 100%;
+  border-radius: 2px;
+  background: #22d3ee;
+  transform-origin: bottom;
+  animation: vr-eq-bounce 0.9s ease-in-out infinite;
+}
+
+.vr-eq span:nth-child(2) { animation-delay: 0.15s; }
+.vr-eq span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes vr-eq-bounce {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+/* Fundo do palco — brilho sutil atrás do host */
+.vr-stage-glow {
+  background:
+    radial-gradient(ellipse at center, rgba(34,211,238,0.10) 0%, rgba(168,85,247,0.06) 40%, transparent 70%);
+}
+

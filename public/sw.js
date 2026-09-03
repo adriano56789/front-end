@@ -1,7 +1,7 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
 // (v14: deploy roleta host-only + notificações WhatsApp + painel de beleza)
-// (v16: Web Push NATIVO — push via protocolo Web Push + VAPID)
-const CACHE_NAME = 'livenza-cache-v16';
+// (v17: status de seguimento na busca + perfil com listas reais)
+const CACHE_NAME = 'livenza-cache-v18';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -190,7 +190,7 @@ async function buildAndShowNotification(raw) {
   await self.registration.showNotification(notificationTitle, notificationOptions);
 }
 
-self.addEventListener('push', (event) => {
+self.addEventListener('push', async (event) => {
   console.log('[WEB-PUSH SW] ⚡ Push recebido!');
   let payload = {};
   try {
@@ -200,15 +200,71 @@ self.addEventListener('push', (event) => {
   }
   console.log('[WEB-PUSH SW] Payload:', JSON.stringify(payload).substring(0, 200));
 
+  // 🚫 PUSH REVOCATION: se o backend envia type='push_revoke', cancelar a notificação
+  if (payload.data?.type === 'push_revoke') {
+    const revokeTag = payload.data.tag || payload.data.conversationId || '';
+    if (revokeTag) {
+      // Cancelar notificações com o mesmo tag
+      const notifications = await self.registration.getNotifications({ tag: revokeTag });
+      notifications.forEach(n => n.close());
+      console.log('[WEB-PUSH SW] 🚫 Notificações revogadas:', revokeTag);
+    }
+    return; // Não mostrar notificação de revogação
+  }
+
   event.waitUntil((async () => {
     // ════════════════════════════════════════════════════════════════════
-    // 🔔 GARANTE que showNotification é chamado — é isso que faz a
-    // notificação aparecer NA TELA DO CELULAR (fora do app, estilo Zap).
-    // Mesmo que buildAndShowNotification falhe, o fallback garante a tela.
+    // 📱 Verificar se app está aberto e visível (disablePostNotificationInForeground)
+    // Se sim: NÃO mostrar notificação do SO — enviar apenas PUSH_FOREGROUND
+    // Se não: mostrar notificação do SO (app fechado/em segundo plano)
+    // ════════════════════════════════════════════════════════════════════
+    let appIsVisible = false;
+    try {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      appIsVisible = clientList.some((c) => c.visibilityState === 'visible');
+    } catch { /* ignore */ }
+
+    if (appIsVisible) {
+      // ════════════════════════════════════════════════════════════════════
+      // 📱 App ABERTO e VISÍVEL → enviar PUSH_FOREGROUND (in-app)
+      // NÃO mostrar notificação do SO (estilo Tencent disablePostNotification)
+      // ════════════════════════════════════════════════════════════════════
+      try {
+        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        const visibleClients = clientList.filter((c) => c.visibilityState === 'visible');
+        visibleClients.forEach((client) => {
+          client.postMessage({
+            type: 'PUSH_FOREGROUND',
+            payload: {
+              title: payload.title || '',
+              body: payload.body || '',
+              data: payload.data || {},
+            },
+          });
+        });
+        console.log('[WEB-PUSH SW] 📱 App aberto — push enviado via POST_MESSAGE (sem notificação do SO)');
+      } catch { /* ignore */ }
+      return; // NÃO mostrar notificação do SO
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // 🔔 App FECHADO/BACKGROUND → mostrar notificação do SO (estilo WhatsApp)
     // ════════════════════════════════════════════════════════════════════
     try {
       await buildAndShowNotification(payload);
       console.log('[WEB-PUSH SW] ✅ showNotification chamado com sucesso');
+
+      // 📊 Stage 2 (delivery): reporta ao backend que o push foi recebido
+      const pushId = payload.data?.pushId || '';
+      if (pushId) {
+        try {
+          await fetch('/api/notifications/push-received', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pushId }),
+          });
+        } catch { /* best effort */ }
+      }
     } catch (err) {
       // Fallback: se qualquer erro acontecer (fetch de avatar, parsing, etc.),
       // AINDA assim mostra a notificação básica — é melhor algo que nada.
@@ -233,23 +289,8 @@ self.addEventListener('push', (event) => {
       }
     }
 
-    // 📱 Notificação sempre enviada — agora manda pra página se estiver aberta
-    try {
-      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      const visibleClients = clientList.filter((c) => c.visibilityState === 'visible');
-      visibleClients.forEach((client) => {
-        client.postMessage({
-          type: 'PUSH_FOREGROUND',
-          payload: {
-            title: payload.title || '',
-            body: payload.body || '',
-            data: payload.data || {},
-          },
-        });
-      });
-    } catch {
-      // Sem clientes visíveis — tudo bem, a notificação do SO já foi mostrada
-    }
+    // 📱 PUSH_FOREGROUND já enviado no início (quando app visível)
+    // Esta seção é reached only quando app FECHADO — notificação do SO já mostrada
   })());
 });
 
@@ -259,7 +300,19 @@ self.addEventListener('notificationclick', (event) => {
 
   const data = notification.data || {};
   const type = data.type;
+  const pushId = data.pushId || '';
   console.log('[WEB-PUSH SW] notificationclick:', event.action || 'body', type, data);
+
+  // 📊 Stage 3 (click): reporta ao backend que o usuário clicou
+  if (pushId) {
+    try {
+      fetch('/api/notifications/push-clicked', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pushId }),
+      }).catch(() => {}); // fire and forget
+    } catch { /* best effort */ }
+  }
 
   // 💬 Mensagem de chat (clique na notificação OU botão "Responder"):
   // foca o app aberto e manda abrir a conversa certa; se o app estava
@@ -299,6 +352,36 @@ self.addEventListener('notificationclick', (event) => {
   } else if (type === 'live_started' || type === 'live_invite_response') {
     const streamId = data.streamKey || data.streamId;
     urlToOpen = streamId ? `/stream/${streamId}` : '/';
+  } else if (type === 'gift_received') {
+    // 🎁 Presente: abrir a live onde o presente foi enviado
+    const streamId = data.streamId || '';
+    urlToOpen = streamId ? `/stream/${streamId}` : '/';
+  } else if (type === 'new_follower') {
+    // 👤 Novo seguidor: abrir o perfil de quem seguiu
+    const followerId = data.followerId || '';
+    urlToOpen = followerId ? `/profile/${followerId}` : '/';
+  } else if (type === 'friend_invite_received') {
+    // 👥 Convite de amizade: abrir a página de amigos/solicitações
+    urlToOpen = '/?section=friends';
+  } else if (type === 'photo_liked') {
+    // 📸 Like na foto: abrir a foto
+    const photoId = data.photoId || '';
+    urlToOpen = photoId ? `/photo/${photoId}` : '/';
+  } else if (type === 'stream_liked') {
+    // 👍 Like na live: abrir a live
+    const streamId = data.streamId || '';
+    urlToOpen = streamId ? `/stream/${streamId}` : '/';
+  } else if (type === 'comment_received') {
+    // 💬 Comentário: abrir o conteúdo comentado
+    const targetId = data.targetId || '';
+    const targetType = data.targetType || '';
+    if (targetType === 'photo') urlToOpen = targetId ? `/photo/${targetId}` : '/';
+    else if (targetType === 'video') urlToOpen = targetId ? `/video/${targetId}` : '/';
+    else urlToOpen = '/';
+  } else if (type === 'video_liked') {
+    // 🎬 Like no vídeo: abrir o vídeo
+    const videoId = data.videoId || '';
+    urlToOpen = videoId ? `/video/${videoId}` : '/';
   } else {
     urlToOpen = '/';
   }

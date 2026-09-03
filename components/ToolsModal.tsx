@@ -163,6 +163,24 @@ interface ToolsModalProps {
   gifts?: Gift[];
   pinnedGifts?: PinnedGiftEntry[];
   onSavePinnedGifts?: (gifts: PinnedGiftEntry[]) => void;
+  // 📹 Participação por vídeo (convidado dentro da live)
+  onRequestParticipation?: (e: React.MouseEvent) => void;
+  isParticipationActive?: boolean;      // já participando (entrou na chamada)
+  participationLabel?: string;          // ex.: "Aguardando anfitrião..."
+  // Pedidos de participação recebidos pelo host (painel no modal de interação)
+  participationRequests?: ParticipationRequest[];
+  activeParticipantName?: string;
+  onAcceptParticipation?: (invitationId: string) => void;
+  onRejectParticipation?: (invitationId: string) => void;
+  onRemoveParticipant?: () => void;
+}
+
+export interface ParticipationRequest {
+  invitationId: string;
+  guestId: string;
+  guestName: string;
+  guestAvatar?: string;
+  requestedAt?: number;
 }
 
 export const MAX_PINNED_GIFTS = 5;
@@ -225,7 +243,15 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
     addToast,
     gifts = [],
     pinnedGifts = [],
-    onSavePinnedGifts
+    onSavePinnedGifts,
+    onRequestParticipation,
+    isParticipationActive = false,
+    participationLabel = '',
+    participationRequests = [],
+    activeParticipantName,
+    onAcceptParticipation,
+    onRejectParticipation,
+    onRemoveParticipant,
 }) => {
     
     const [selectedPinnedGifts, setSelectedPinnedGifts] = React.useState<PinnedGiftEntry[]>([]);
@@ -401,6 +427,16 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
     ];
 
     const spectatorTools = [
+        ...(onRequestParticipation ? [
+            {
+                icon: <ChamadaIcon className="w-7 h-7" />,
+                label: participationLabel || 'Participe por vídeo',
+                hasDot: false,
+                isActive: isParticipationActive,
+                disabled: isParticipationActive,
+                onClick: isParticipationActive ? undefined : (e: React.MouseEvent) => { e.stopPropagation(); onRequestParticipation(e); onClose(); },
+            },
+        ] : []),
         { icon: <ShareIcon className="w-7 h-7" />, label: 'Compartilhar', hasDot: false, onClick: handleShare },
         { icon: isSoundMuted ? <SoundOffIconCustom className="w-7 h-7" /> : <SoundOnIconCustom className="w-7 h-7" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
         { icon: <ChatBubbleIconCustom className="w-7 h-7" />, label: 'Chat', hasDot: true, onClick: createAndCloseHandler(onOpenPrivateChat) },
@@ -437,6 +473,67 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                                 {cohostTools.map(tool => <ToolButton key={tool.label} {...tool} />)}
                             </div>
                         </div>
+
+                        {(participationRequests.length > 0 || activeParticipantName || isParticipationActive) && (
+                            <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-[#FC10B8]/20 shadow-sm">
+                                <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Conversa por Vídeo</h3>
+
+                                {participationRequests.length > 0 && (
+                                    <div className="space-y-2">
+                                        {participationRequests.map((req) => (
+                                            <div key={req.invitationId} className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-3 py-2">
+                                                {req.guestAvatar ? (
+                                                    <img src={req.guestAvatar} alt="avatar" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                                                ) : (
+                                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00e5ff] to-[#bd00ff] flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                                        {(req.guestName || '?').charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-semibold text-white truncate">{req.guestName || 'Convidado'}</p>
+                                                    <p className="text-[11px] text-gray-400">quer entrar no vídeo</p>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onAcceptParticipation?.(req.invitationId); }}
+                                                        className="px-3 h-8 rounded-lg bg-gradient-to-r from-[#00e5ff] to-[#bd00ff] hover:opacity-90 text-white text-[11px] font-bold active:scale-95 transition-all cursor-pointer"
+                                                    >
+                                                        Aceitar
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onRejectParticipation?.(req.invitationId); }}
+                                                        className="px-3 h-8 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-gray-300 text-[11px] font-semibold active:scale-95 transition-all cursor-pointer"
+                                                    >
+                                                        Recusar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {activeParticipantName && (
+                                    <div className="flex items-center gap-3 bg-white/[0.04] rounded-xl px-3 py-2">
+                                        <div className="relative">
+                                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#00e5ff] to-[#bd00ff] flex items-center justify-center text-white font-bold text-sm">
+                                                {activeParticipantName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-400 ring-2 ring-[#131124]" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-white truncate">{activeParticipantName}</p>
+                                            <p className="text-[11px] text-green-400">ao vivo na chamada</p>
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onRemoveParticipant?.(); }}
+                                            className="px-3 h-8 rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 text-[11px] font-semibold active:scale-95 transition-all cursor-pointer"
+                                        >
+                                            Remover
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
                             <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-normal">Ferramentas de Âncora</h3>

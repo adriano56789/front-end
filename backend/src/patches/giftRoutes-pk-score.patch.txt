@@ -1,0 +1,65 @@
+# ═══════════════════════════════════════════════════════════════════
+# PATCH: Add PK Score from Gifts to giftRoutes.ts
+# ═══════════════════════════════════════════════════════════════════
+#
+# File: backend/src/routes/giftRoutes.ts
+#
+# Step 1: Add import at the top of the file (after other imports):
+#
+#   import { updatePKScoreFromGift } from '../services/pkScoreService';
+#
+# Step 2: Find the gift processing handler (the POST route that
+#   handles sending gifts — likely POST '/send' or POST '/').
+#   After the gift is processed successfully and you have:
+#     - toUser (the receiver)
+#     - giftPrice (the price per gift)
+#     - quantity (number of gifts)
+#     - io (the Socket.IO instance)
+#
+#   Add this code AFTER the gift is saved and before the response:
+#
+#   ┌──────────────────────────────────────────────────────────────┐
+#   │ // ⚔️ PK Score: atualizar score da battle ativa             │
+#   │ // (se o receptor estiver em PK, o gift incrementa o score) │
+#   │ await updatePKScoreFromGift(io, toUser, giftPrice, amount); │
+#   └──────────────────────────────────────────────────────────────┘
+#
+# ──────────────────────────────────────────────────────────────────
+# EXAMPLE — how it looks in context:
+# ──────────────────────────────────────────────────────────────────
+#
+#   // ... existing gift processing code ...
+#
+#   // Save gift transaction
+#   await GiftTransaction.create({ ... });
+#
+#   // Update user balances
+#   await User.findOneAndUpdate({ id: fromUserId }, { $inc: { diamonds: -totalCost } });
+#   await User.findOneAndUpdate({ id: toUserId }, { $inc: { earnings: earningsAmount } });
+#
+#   // Emit gift_received to room
+#   io.to(streamId).emit('live_gift_received', { ... });
+#
+#   // ⚔️ PK Score: atualizar score da battle ativa
+#   // (se o receptor estiver em PK, o gift incrementa o score)
+#   await updatePKScoreFromGift(io, toUser, giftPrice, amount);
+#
+#   // Send response
+#   res.json({ success: true, updatedSender, updatedReceiver });
+#
+# ──────────────────────────────────────────────────────────────────
+# NOTES:
+# ──────────────────────────────────────────────────────────────────
+#
+# 1. The score increment is: giftPrice × quantity
+#    (e.g., gift worth 10 coins × 3 = +30 to the score)
+#
+# 2. This uses $inc (atomic) — safe against race conditions
+#
+# 3. If there's no active battle, the function returns immediately
+#    (no performance impact on normal gift flow)
+#
+# 4. The function emits pk_score_update to both hosts + spectators
+#
+# 5. Error handling is non-fatal — if PK score update fails,
+#    the gift still goes through normally

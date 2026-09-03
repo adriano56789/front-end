@@ -53,7 +53,11 @@ const UserItem: React.FC<{
             </div>
             <button 
                 onClick={(e) => { e.stopPropagation(); onFollowClick(); }}
-                className="text-[13px] font-medium text-white px-6 py-2.5 rounded-full bg-[#1c1d21] hover:bg-[#25272d] active:scale-95 transition-all duration-150"
+                className={`text-[13px] font-medium text-white px-6 py-2.5 rounded-full transition-all duration-150 active:scale-95 ${
+                    user.isFollowed 
+                        ? 'bg-[#1c1d21] hover:bg-[#25272d]' 
+                        : 'bg-purple-600 hover:bg-purple-700'
+                }`}
             >
                 {user.isFollowed ? t('common.following') : t('common.follow')}
             </button>
@@ -92,16 +96,11 @@ const FansScreen: React.FC<FansScreenProps> = ({ onBack, onViewProfile, onOpenLi
     };
 
     const handleFollowClick = async (user: User) => {
-        if (user.isFollowed) {
-            setSelectedUser(user);
-            setIsSheetOpen(true);
-        } else {
-            try {
-                await onFollowUser(user);
-                setLocalUsers(prev => prev.map(u => u.id === user.id ? { ...u, isFollowed: true } : u));
-            } catch (error) {
-                console.error('Erro ao seguir de volta:', error);
-            }
+        try {
+            await onFollowUser(user);
+            setLocalUsers(prev => prev.map(u => u.id === user.id ? { ...u, isFollowed: !u.isFollowed } : u));
+        } catch (error) {
+            console.error('Erro ao alternar seguimento:', error);
         }
     };
 

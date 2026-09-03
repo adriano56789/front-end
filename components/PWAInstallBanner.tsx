@@ -59,7 +59,7 @@ const PWAInstallBanner: React.FC = () => {
               📲 Instalar Aplicativo
             </h3>
             <p className="text-gray-400 text-xs leading-relaxed mb-3">
-              Instale o Livenza na sua tela inicial e tenha acesso rápido com notificações em tempo real!
+              Instale o LiveGo na sua tela inicial e tenha acesso rápido com notificações em tempo real!
             </p>
 
             {/* Benefits row */}

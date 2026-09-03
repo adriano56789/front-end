@@ -161,6 +161,8 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
     // Garante que enviados, receptores e diamonds reflitam o banco de dados real
     const [freshUser, setFreshUser] = useState<User>(user);
     const [lastUserUpdate, setLastUserUpdate] = useState<number>(Date.now());
+    // 🚫 O dono deste perfil me bloqueou? → mostra "Você foi bloqueado"
+    const [blockedByOwner, setBlockedByOwner] = useState(false);
     // Sincronizar freshUser quando o prop user mudar
     useEffect(() => {
         setFreshUser(user);
@@ -192,6 +194,21 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
             });
         }
     }, [user.id, loggedInUser?.id]);
+    
+    // 🚫 Se o dono do perfil me bloqueou, não mostro nada além do aviso
+    useEffect(() => {
+        if (isCurrentUser) { setBlockedByOwner(false); return; }
+        let isMounted = true;
+        const myId = loggedInUser?.id;
+        if (myId && String(myId) !== String(user.id)) {
+            api.checkUserBlocked(user.id, myId)
+                .then((res: any) => { if (isMounted) setBlockedByOwner(!!res?.isBlocked); })
+                .catch(() => { if (isMounted) setBlockedByOwner(false); });
+        } else {
+            setBlockedByOwner(false);
+        }
+        return () => { isMounted = false; };
+    }, [user.id, isCurrentUser, loggedInUser?.id]);
     
     let computedDistanceStr = '';
     
@@ -420,6 +437,26 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
     const coverSrc = freshUser.coverUrl || user.coverUrl || avatarSrc;
 
     // Simplificado - sem frames para navegação isolada
+    // 🚫 Bloqueado pelo dono do perfil → tela de aviso no lugar do perfil
+    if (blockedByOwner) {
+        return (
+            <div className="absolute inset-0 bg-black z-50 flex flex-col items-center justify-center text-white">
+                <div className="absolute top-4 left-4">
+                    <button onClick={onBack} className="w-9 h-9 bg-black/40 rounded-full flex items-center justify-center backdrop-blur-sm active:scale-90 transition-all">
+                        <BackIcon className="w-5 h-5 text-white" />
+                    </button>
+                </div>
+                <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center mb-5">
+                    <ShieldIcon className="w-10 h-10 text-red-400" />
+                </div>
+                <h1 className="text-xl font-bold">Você foi bloqueado</h1>
+                <p className="text-gray-400 text-sm mt-2 px-10 text-center">
+                    Você não pode acessar o perfil de {user.name}
+                </p>
+            </div>
+        );
+    }
+
         return (
         <div className="absolute inset-0 bg-black z-50 flex flex-col text-white">
             <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-24">
@@ -637,7 +674,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                                                     src={isValidImageUrl(obra.photoUrl) ? obra.photoUrl : IMAGE_PLACEHOLDER} 
                                                     onError={handleImageError} 
                                                     alt={`Obra ${index + 1}`} 
-                                                    className="w-full h-full object-cover" 
+                                                    className="w-full h-full object-contain" 
                                                 />
                                             )}
 
@@ -685,7 +722,7 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
                                                 src={isValidImageUrl(photo.photoUrl) ? photo.photoUrl : IMAGE_PLACEHOLDER} 
                                                 onError={handleImageError} 
                                                 alt={`Liked photo ${index + 1}`} 
-                                                className="w-full h-full object-cover" 
+                                                className="w-full h-full object-contain" 
                                             />
                                         )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none opacity-50"></div>
@@ -738,7 +775,10 @@ const UserProfileScreen = ({ user, isCurrentUser, onBack, onEdit, onOpenTopFans,
             {!isCurrentUser && (
                 <footer className="absolute bottom-0 left-0 right-0 bg-black p-3 flex-shrink-0 z-10 border-t border-gray-800/50">
                     <div className="flex items-center space-x-3">
-                        <button onClick={handleFollowClick} className={`flex-1 font-bold py-3 rounded-full transition-colors ${followedLocal ? 'bg-gray-700 text-gray-300' : 'bg-purple-600 text-white'}`}>
+                        {/* 🔧 Botão Seguir SEMPRE visível: mostra "Seguir" quando não
+                            segue e "Seguindo" quando já segue (tocar de novo desfaz).
+                            Fica fixo — não vira só o botão Conversar grande. */}
+                        <button onClick={handleFollowClick} className={`flex-1 font-bold py-3 rounded-full transition-colors ${followedLocal ? 'bg-[#2f2f36] text-[#c9c7d4] border border-white/10' : 'bg-purple-600 text-white'}`}>
                             {followedLocal ? t('common.following') : t('common.follow')}
                         </button>
                         <button onClick={() => onStartChat(user)} className="flex-1 bg-purple-600 text-white font-bold py-3 rounded-full transition-colors">

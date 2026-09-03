@@ -401,8 +401,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     // FIXA no fundo (bottom = safe-area, nunca sai do lugar). Ao tocar nela,
     // a barra fica INVISÍVEL (sem ser movida nem apagada) e abre um SEGUNDO
     // campo de digitação (composer) colado acima do teclado.
-    // `keyboardInset` (altura real do teclado) é usado tanto para rolar até a
-    // última mensagem quanto para posicionar o composer COLADO no teclado.
+    // `bottom` = posição CORRETA da barra de digitação (sonda real, sem
+    // dupla-compensação: no iOS o navegador já sobe elementos fixos, então o
+    // composer fica em bottom:0). `keyboardInset` é só para ROLAR até a última
+    // mensagem quando o teclado abre.
     const {
         isComposerOpen,
         openComposer,
@@ -991,7 +993,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     </div>
                                 </div>
                             )}
-                            <div style={{ height: `calc(4.5rem + ${isComposerOpen ? keyboardInset : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                            <div style={{ height: `calc(4.5rem + ${isComposerOpen ? bottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
                         </div>
                     )}
                     </div>

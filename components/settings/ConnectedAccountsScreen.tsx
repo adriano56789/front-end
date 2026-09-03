@@ -70,7 +70,7 @@ const ConnectedAccountsScreen: React.FC<ConnectedAccountsScreenProps> = ({ onBac
                 {/* Real-time styled description matching screenshot */}
                 <div className="px-2">
                     <p className="text-[#8e8e93] text-[15px] leading-relaxed text-center max-w-[315px] mx-auto font-medium">
-                        {(t('settings.connected.description') || "Esta é uma conta do Google que você usou para acessar o LiveGo. Você pode desconectar para entrar com outra conta.").replace('Livenza', 'LiveGo')}
+                        {(t('settings.connected.description') || "Esta é uma conta do Google que você usou para acessar o LiveGo. Você pode desconectar para entrar com outra conta.")}
                     </p>
                 </div>
 

@@ -386,10 +386,8 @@ export interface NotificationSettings {
 
 export interface BeautySettings {
     // 🎨 AUTO-BELEZA — chave mestre: liga sozinha ao entrar ao vivo.
-    // 0 = desligado; 1-100 = intensidade (padrão natural 35). Salva no banco
-    // junto com os demais efeitos e é carregada automaticamente na live.
     'Suavização do rosto'?: number;
-    // Efeitos de beleza com valores numéricos
+    // Efeitos de beleza (15 do shader WebGL)
     'Branquear'?: number;
     'Alisar a pele'?: number;
     'Ruborizar'?: number;
@@ -405,7 +403,6 @@ export interface BeautySettings {
     'Curvatura da sobrancelha'?: number;
     'Definição da sobrancelha'?: number;
     'Cor da sobrancelha'?: string;
-    // Intensidade da cor da sobrancelha (chave interna, o painel exibe no slider)
     'browColorIntensity'?: number;
     // Rejuvenescimento
     'Suavizar rugas'?: number;
@@ -416,18 +413,64 @@ export interface BeautySettings {
     'Ajuste de mandíbula e queixo'?: number;
     'Refinamento de olhos'?: number;
     'Refinar nariz'?: number;
-    // Filtro pré-definido selecionado
+    // 📐 QUALIDADE DE VÍDEO (novos — salvos no mesmo doc)
+    'Balanço de Branco'?: number;
+    'Nitidez'?: number;
+    'Efeito 3D'?: number;
+    'Limpar Chiado'?: number;
+    // Filtro/aba/effect UI
     selectedFilter?: string;
-    // Aba ativa do painel
     activeTab?: 'Recomendar' | 'Beleza';
-    // Efeito selecionado na aba Beleza
     selectedEffect?: string;
-    // 📐 Resolução da CÂMERA do broadcaster (1080p/720p/480p/360p/auto).
-    // Salva no banco junto com os efeitos (updateBeautySettings) e aplicada ao
-    // abrir a câmera — não fica hardcoded nem presa a um aparelho.
+    // 📐 Resolução da CÂMERA do broadcaster
     cameraResolution?: '1080p' | '720p' | '480p' | '360p' | 'auto';
-    // Permitir outros efeitos futuros
+    // Extensível para campos futuros
     [key: string]: number | string | undefined;
+}
+
+// Video Quality Settings — API dedicada /api/video-quality
+export interface VideoQualitySettings {
+    resolution: '1080p' | '720p' | '480p' | '360p' | 'auto';
+    frameRate: number;
+    bitrate: number;
+    denoiseLevel: number;
+    sharpnessLevel: number;
+    whiteBalanceLevel: number;
+    faceVolume3D: number;
+    autoDenoise: boolean;
+    encodingPreset: 'quality' | 'balanced' | 'speed';
+    codec: string;
+}
+
+// Beauty Store Settings — API /api/beauty-store (estilo Tencent BaseBeautyStore)
+export interface BeautyStoreSettings {
+    'Branquear': number;
+    'Alisar a pele': number;
+    'Ruborizar': number;
+    'Contraste': number;
+    'Balanço de Branco': number;
+    'Rosto Bebê': number;
+    'Clarear dentes': number;
+    'Suavizar rugas': number;
+    'Clarear olheiras': number;
+    'Remover manchas': number;
+    'Reduzir brilho': number;
+    'Nitidez': number;
+    'Efeito 3D': number;
+    'Limpar Chiado': number;
+    'Suavização do rosto': number;
+}
+
+// CoHost Session — API /api/cohost (estilo Tencent CoHostStore)
+export interface CoHostSession {
+    sessionId: string;
+    hostId: string;
+    streamId: string;
+    status: 'waiting' | 'pending' | 'connected' | 'rejected' | 'disconnected';
+    coHostId: string | null;
+    isMuted: boolean;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface BeautyEffect {
@@ -450,6 +493,8 @@ export interface PurchaseRecord {
   amountCoins: number;
   status: 'Concluído' | 'Pendente' | 'Cancelado';
   timestamp: string;
+  metadata?: { orderId?: string };
+  orderId?: string;
 }
 
 export interface FeedPhoto {
@@ -590,4 +635,36 @@ export interface Invitation {
   roomId: string;
   status: 'pending' | 'accepted' | 'declined';
   timestamp: string;
+}
+
+export interface VoiceSlot {
+  index: number;
+  userId: string | null;
+  userName: string;
+  avatar: string;
+  level: number;
+  isSpeaking: boolean;
+  isMuted: boolean;
+  joinedAt: string | null;
+}
+
+export interface VoiceRoom {
+  id: string;
+  roomId: string;
+  hostId: string;
+  hostName: string;
+  hostAvatar: string;
+  name: string;
+  category: string;
+  slots: VoiceSlot[];
+  maxSlots: number;
+  minLevelToSpeak: number;
+  isLive: boolean;
+  viewers: number;
+  startTime: string | null;
+  tags: string[];
+  avatar: string;
+  location: string;
+  time: string;
+  message: string;
 }

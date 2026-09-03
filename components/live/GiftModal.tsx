@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Gift, User } from '../../types';
-import { YellowDiamondIcon, CheckIcon } from '../icons';
+import { GoldCoinWithGIcon, CheckIcon } from '../icons';
 import { useTranslation } from '../../i18n';
 import { api } from '../../services/api';
 import { enrichGiftsWithComponents } from './GiftSvgHelper';
@@ -260,7 +260,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                         <div className="absolute right-0 top-1/2 -translate-y-1/2">
                             <div className="flex flex-col items-center bg-black/40 border border-gray-800/65 rounded-xl overflow-hidden min-w-[100px] h-10 justify-between">
                                 <div className="flex items-center justify-center space-x-1 px-2.5 pt-1">
-                                    <YellowDiamondIcon className="w-3.5 h-3.5 text-yellow-500" />
+                                    <GoldCoinWithGIcon className="w-3.5 h-3.5 text-yellow-500" />
                                     <span className="text-white font-black text-xs">{userDiamonds.toLocaleString('pt-BR')}</span>
                                 </div>
                                 <button 
@@ -337,7 +337,7 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
                                         <p className="text-[11px] text-gray-300 text-center truncate font-medium group-hover:text-white transition-colors">{gift.name}</p>
                                     </div>
                                     <div className="flex items-center space-x-1">
-                                        <YellowDiamondIcon className="w-2.5 h-2.5 text-[#FFD700]" />
+                                        <GoldCoinWithGIcon className="w-2.5 h-2.5 text-[#FFD700]" />
                                         <span className="text-[10px] text-gray-400 font-bold font-mono">{gift.price}</span>
                                     </div>
                                     {isSelected && (

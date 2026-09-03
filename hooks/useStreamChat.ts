@@ -49,6 +49,8 @@ interface StreamChatOptions {
   onMessage?: (data: any) => void;
   onConnected?: () => void;
   onDisconnected?: (reason?: any) => void;
+  /** 🚫 Chamado quando o backend REJEITA a mensagem (ex.: usuário bloqueado pelo host): { reason, text, userId } */
+  onBlocked?: (data: { reason: string; text: string; userId?: string }) => void;
 }
 
 export function useStreamChat(options: StreamChatOptions) {
@@ -357,6 +359,18 @@ export function useStreamChat(options: StreamChatOptions) {
       };
       unsubs.push(onSocketEvent('live_message', handleLiveMessage));
 
+      // 🚫 Mensagem REJEITADA pelo backend (usuário bloqueado pelo host da live).
+      // O backend NÃO persistiu nem broadcast ela — avisamos o remetente.
+      const handleBlocked = (data: any) => {
+        if (!data || disposed) return;
+        const reason = data.reason || 'Você foi proibido de falar';
+        const detail = { reason, text: data.text || '', userId: data.blockedUserId || data.userId || userId };
+        console.warn('[StreamChat] Mensagem rejeitada:', reason);
+        window.dispatchEvent(new CustomEvent('livego:chat_blocked', { detail }));
+        optionsRef.current.onBlocked?.(detail);
+      };
+      unsubs.push(onSocketEvent('live_message_blocked', handleBlocked));
+
       // 🎁 Presentes em tempo real (compatível com o payload do polling)
       const handleGift = (data: any) => {
         if (!data || disposed) return;
@@ -364,9 +378,16 @@ export function useStreamChat(options: StreamChatOptions) {
         // (o socket singleton permanece na sala da stream anterior no backend)
         const evRoom = data.roomId || data.streamId;
         if (evRoom && String(evRoom) !== String(streamId)) return;
-        const giftName = data.gift?.name || data.giftName || '';
+        // 🔧 NORMALIZAÇÃO: o backend pode enviar o nome do presente em vários
+        // formatos (data.gift.name, data.giftName, data.name) — normalizamos
+        // para garantir que a animação NUNCA caia no fallback silencioso.
+        const giftObj = data.gift || {};
+        const giftName = giftObj.name || data.giftName || data.name || '';
         if (!giftName) return;
-        const fromId = data.from?.id || data.fromUser?.id || '';
+        // 🔧 NORMALIZAÇÃO: o ID do remetente pode vir como data.from.id,
+        // data.fromUser.id, data.userId, data.senderId, data.fromUserId —
+        // qualquer um desses serve para dedupe e para a tela cheia.
+        const fromId = data.from?.id || data.fromUser?.id || data.userId || data.senderId || data.fromUserId || '';
         const quantity = data.quantity || 1;
         const now = Date.now();
         // 🔑 Dedupe APENAS do MESMO envio: o backend emite o mesmo presente duas
@@ -380,15 +401,26 @@ export function useStreamChat(options: StreamChatOptions) {
         if (!deadRoomRef.current && now - lastAt > 10000) {
           knownGiftIdsRef.current.set(key, now);
           console.log('[StreamChat] Presente recebido via socket:', giftName, 'x' + quantity, 'de', fromId);
+          // 🔧 Incluir TODOS os campos possíveis do backend para que o
+          // StreamRoom tenha dados suficientes para a animação em tela cheia.
           optionsRef.current.onMessage?.({
             type: 'live_gift_received',
             from: {
               id: fromId,
-              name: data.from?.name || data.fromUser?.name || 'Usuário',
-              avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || '',
-              level: data.from?.level || data.fromUser?.level || 1,
+              name: data.from?.name || data.fromUser?.name || data.senderName || data.userName || 'Usuário',
+              avatarUrl: data.from?.avatarUrl || data.fromUser?.avatarUrl || data.senderAvatar || data.avatarUrl || '',
+              level: data.from?.level || data.fromUser?.level || data.level || 1,
             },
-            gift: data.gift || { name: giftName, icon: data.giftIcon || '🎁', price: data.giftPrice || 0 },
+            gift: {
+              ...(giftObj.name ? giftObj : {}),
+              name: giftName,
+              icon: giftObj.icon || data.giftIcon || '🎁',
+              price: giftObj.price || data.giftPrice || 0,
+              category: giftObj.category || data.giftCategory || 'Popular',
+              // 🔧 animationUrl e duration do backend (se disponível)
+              ...(data.animationUrl ? { animationUrl: data.animationUrl } : {}),
+              ...(data.duration ? { duration: data.duration } : {}),
+            },
             quantity,
             toUser: data.toUser || { id: optionsRef.current.userId, name: optionsRef.current.userName || 'Streamer' },
             roomId: data.roomId || data.streamId || streamId,
@@ -484,6 +516,34 @@ export function useStreamChat(options: StreamChatOptions) {
       unsubs.push(onSocketEvent('pk_invite', (data: any) => {
         if (disposed || !data) return;
         window.dispatchEvent(new CustomEvent('livego:pk_invite', { detail: data }));
+      }));
+
+      // ⚔️ PK invite response — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_invite_response', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_invite_response', { detail: data }));
+      }));
+
+      // ⚔️ PK heart update — bridge socket event to window event
+      unsubs.push(onSocketEvent('pk_heart_update', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:pk_heart_update', { detail: data }));
+      }));
+
+      // 🎡 Roulette spin — quando um espectador gira a roleta, anima a
+      // roleta na sala da host (e em todos os espectadores). O backend
+      // emite roulette_spin para a sala da live + user_{ownerId}.
+      unsubs.push(onSocketEvent('roulette_spin', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:roulette_spin', { detail: data }));
+      }));
+
+      // 🖼️ Avatar atualizado — quando qualquer usuário troca a foto de perfil,
+      // o backend emite avatar_updated (global). Atualiza o avatar em TODOS os
+      // lugares: chat da live, entrada ao vivo, chat privado, online users, etc.
+      unsubs.push(onSocketEvent('avatar_updated', (data: any) => {
+        if (disposed || !data) return;
+        window.dispatchEvent(new CustomEvent('livego:avatar_updated', { detail: data }));
       }));
     };
 

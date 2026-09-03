@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BackIcon, YellowDiamondIcon } from './icons';
+import { BackIcon, GoldCoinWithGIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { shopAPI, Frame, UserFrame } from '../services/shopAPI';
@@ -160,7 +160,7 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
         
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1">
-            <YellowDiamondIcon className="w-4 h-4 text-yellow-400" />
+            <GoldCoinWithGIcon className="w-4 h-4 text-yellow-400" />
             <span className="text-yellow-400 font-bold text-sm">{formatPrice(frame.price)}</span>
           </div>
           
@@ -230,7 +230,7 @@ const FrameScreen: React.FC<FrameScreenProps> = ({
             <h2 className="text-white font-bold text-lg">Frames de Avatar</h2>
           </div>
           <div className="flex items-center space-x-2">
-            <YellowDiamondIcon className="w-4 h-4 text-yellow-400" />
+            <GoldCoinWithGIcon className="w-4 h-4 text-yellow-400" />
             <span className="text-yellow-400 font-bold">{user.diamonds.toLocaleString('pt-BR')}</span>
           </div>
         </div>

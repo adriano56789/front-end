@@ -130,6 +130,29 @@ export async function ensurePushSubscription(): Promise<string | null> {
   }
 }
 
+/**
+ * Retorna o push ID atual (equivalente ao RegistrationID da Tencent).
+ * É o endpoint da subscription Web Push — identificador único do dispositivo.
+ */
+export async function getPushRegistrationId(): Promise<string | null> {
+  try {
+    // Tentar do localStorage primeiro
+    const cached = localStorage.getItem(ENDPOINT_KEY);
+    if (cached) return cached;
+
+    // Buscar do Service Worker
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      const registration = await navigator.serviceWorker.getRegistration(SW_PATH);
+      const sub = registration ? await registration.pushManager.getSubscription() : null;
+      if (sub?.endpoint) {
+        localStorage.setItem(ENDPOINT_KEY, sub.endpoint);
+        return sub.endpoint;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 /** Remove a subscription local e avisa o servidor. */
 export async function unsubscribePush(): Promise<void> {
   try {

@@ -1,9 +1,15 @@
 // Serviço de processamento de vídeo em tempo real com efeitos de beleza
 // Implementação completa com WebGL para performance via GPU
+//
+// Arquitetura inspirada na Tencent (TEBeautyKit):
+// - beautyState (observable) é a single source of truth
+// - VideoProcessor se inscreve e sincroniza automaticamente
+// - Qualquer componente que muda beautyState → render loop atualiza uniformes
 
 import { BabyFaceProcessor } from './BabyFaceProcessor';
 import { FaceSkinMask } from './FaceSkinMask';
 import { getVideoConstraints } from './cameraService';
+import { beautyState, BeautyParams } from './BeautyEngine';
 
 export interface VideoProcessorConfig {
   width: number;
@@ -27,6 +33,11 @@ export interface BeautyEffectSettings {
   browDefinition?: number;  // Sobrancelha — Definição (0-100)
   wrinkleSmoothing?: number;// Rejuvenescimento — Suavizar rugas (0-100)
   darkCircle?: number;      // Rejuvenescimento — Clarear olheiras (0-100)
+  nasolabialFolds?: number;// Rejuvenescimento — Suavizar rugas do sorriso (0-100)
+  cheekbone?: number;       // Modelagem — Maçãs do rosto (0-100)
+  head?: number;            // Modelagem — Formato da cabeça (0-100)
+  eyeBrightness?: number;   // Olhos — Brilho/luminosidade (0-100)
+  forehead?: number;        // Modelagem — Testa (0-100)
   noseRefine?: number;      // Modelagem — Refinar nariz (0-100, mesh MediaPipe)
   jawChin?: number;         // Modelagem — Mandíbula/queixo V-line (0-100, mesh)
   eyeRefine?: number;       // Modelagem — Refinamento de olhos (0-100, mesh)
@@ -38,6 +49,10 @@ export interface BeautyEffectSettings {
   sharpness?: number;       // Nitidez (0-100) — realça detalhes/clareza (Tencent: Sharpness 80)
   faceVolume3D?: number;    // Efeito 3D (0-100) — volume/modelagem de luz no rosto, aparência natural mais jovem
   noiseReduction?: number;  // Limpar Chiado (0-100) — reduz ruído/grão da câmera preservando bordas
+  blush?: number;           // Maquiagem — Blush bochechas (0-100, procedural)
+  lipstick?: number;        // Maquiagem — Batom lábios (0-100, procedural)
+  eyeshadow?: number;       // Maquiagem — Sombra pálpebras (0-100, procedural)
+  contour?: number;         // Maquiagem — Contorno facial (0-100, procedural)
   selectedFilter?: string;
 }
 
@@ -46,42 +61,41 @@ export interface BeautyEffectSettings {
 // Balanço de branco em ~5400K + brilho/contraste sutis.
 // Ao entrar na live o usuário JÁ PEGA a imagem limpa, cor viva e nitidez total.
 export const DEFAULT_BEAUTY_SETTINGS: BeautyEffectSettings = {
-    whitening: 38,
-    smoothing: 36,
-    saturation: 30,
-    contrast: 16,
-    whiteBalance: 42,
-    // 🍼 Rosto Bebê mais presente (era 32 — usuário reportou efeito fraco/invisível).
+    whitening: 42,
+    smoothing: 40,
+    saturation: 32,
+    contrast: 18,
+    whiteBalance: 48,
     babyFace: 38,
-    teethWhitening: 22,
+    teethWhitening: 24,
     lipFill: 0,
     lipAugment: 0,
     smileAdjust: 0,
     browThickness: 0,
     browCurve: 0,
     browDefinition: 0,
-    wrinkleSmoothing: 42,
-    darkCircle: 32,
+    wrinkleSmoothing: 45,
+    darkCircle: 35,
+    nasolabialFolds: 30,
+    cheekbone: 0,
+    head: 0,
+    eyeBrightness: 25,
+    forehead: 0,
     noseRefine: 0,
     jawChin: 0,
     eyeRefine: 0,
     browColor: '',
     browColorStrength: 0,
-    // 🧼 Remoção de manchas mais forte (era 55 — manchas do rosto ainda visíveis).
-    acneRemoval: 68,
-    shineReduction: 25,
-  // 🔍 Nitidez equilibrada (Tencent Sharpness ~65) — alta demais (80) amplifica
-  // o ruído do sensor e vira CHIADO na imagem; baixa demais deixa embaçado.
-  // Combinada com o smoothing (34) que segura o ruído, a imagem fica limpa e
-  // nítida ao mesmo tempo. Efeito 3D mantém o volume facial (aparência jovem).
-  sharpness: 65,
-  faceVolume3D: 48,
-  // 🧹 Limpar Chiado — redução de ruído bilateral ANTES dos efeitos: remove o
-  // grão da câmera (chiado de sensor/ISO) da imagem INTEIRA preservando bordas.
-  // ✅ o que tira aquele aspecto feio de "TV velha" sem embaçar o rosto.
-  // 60 = limpeza mais agressiva para a live ficar lisa mesmo com pouca luz.
-  noiseReduction: 60,
-  selectedFilter: '',
+    acneRemoval: 70,
+    shineReduction: 28,
+    sharpness: 60,
+    faceVolume3D: 50,
+    noiseReduction: 70,
+    blush: 0,
+    lipstick: 0,
+    eyeshadow: 0,
+    contour: 0,
+    selectedFilter: '',
 };
 
 export class VideoProcessor {
@@ -103,10 +117,33 @@ export class VideoProcessor {
   // Usado para SABER se o stream processado está produzindo frames de verdade
   // (ex.: sala de transmissão só publica depois do filtro estar fluindo).
   private lastRenderAt = 0;
+  // 🖼️ Contador de frames REALMENTE desenhados no canvas (após gl.drawArrays).
+  // Diferente de lastRenderAt (atualizado no TOPO do render, antes de checar
+  // imageSource), este só incrementa quando o canvas recebe pixels de verdade.
+  private _framesDrawn = 0;
 
   /** O pipeline está rodando E produziu frame nos últimos 600ms? */
   isFramesFlowing(): boolean {
     return !!this.isProcessing && performance.now() - this.lastRenderAt < 600;
+  }
+
+  /** 🎥 A fonte de vídeo (processingVideoElement) está de fato tocando e
+   * com resolução válida? Usado para SABER se o canvas vai produzir pixels
+   * reais (não preto/congelado) antes de trocar o preview do usuário.
+   * Se o processingVideo não toca (autoplay bloqueado, track morta etc),
+   * o render loop roda mas texImage2D sobe textura VAZIA → canvas preto. */
+  isSourceActive(): boolean {
+    const v = this.processingVideoElement;
+    if (!v) return false;
+    return !v.paused && v.readyState >= 2 && (v.videoWidth > 0 || v.videoHeight > 0);
+  }
+
+  /** 🖼️ O canvas já desenhou pelo menos 1 frame REAL com pixels da câmera?
+   * Em vez de confiar no requestAnimationFrame (que roda mesmo quando
+   * texImage2D falha), checa se _framesDrawn > 0 — garantindo que o
+   * preview só troca pra canvas quando há imagem de verdade. */
+  isCanvasProducing(): boolean {
+    return this._framesDrawn > 0 && this.isProcessing;
   }
   
   // WebGL resources
@@ -123,6 +160,8 @@ export class VideoProcessor {
     beautySettings2: WebGLUniformLocation | null;
     beautySettings3: WebGLUniformLocation | null;
     beautySettings4: WebGLUniformLocation | null;
+    beautySettings5: WebGLUniformLocation | null;
+    beautySettings6: WebGLUniformLocation | null;
     featureSettings: WebGLUniformLocation | null;
     faceMask: WebGLUniformLocation | null;
     faceMaskActive: WebGLUniformLocation | null;
@@ -132,7 +171,9 @@ export class VideoProcessor {
     beautySettings: null,
     beautySettings2: null,
     beautySettings3: null,
-    beautySettings4: null,
+      beautySettings4: null,
+      beautySettings5: null,
+      beautySettings6: null,
     featureSettings: null,
     faceMask: null,
     faceMaskActive: null
@@ -187,6 +228,67 @@ export class VideoProcessor {
     if (config) {
       this.config = { ...this.config, ...config };
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // Inscrever no beautyState (single source of truth).
+    // Quando QUALQUER componente atualiza beautyState,
+    // o render loop já lê this.beautySettings a cada frame.
+    // ═══════════════════════════════════════════════════════════
+    beautyState.subscribe((params: BeautyParams) => {
+      this.beautySettings = {
+        ...this.beautySettings,
+        whitening: params.whitening,
+        smoothing: params.smoothing,
+        saturation: params.saturation,
+        contrast: params.contrast,
+        whiteBalance: params.whiteBalance,
+        sharpness: params.sharpness,
+        noiseReduction: params.noiseReduction,
+        faceVolume3D: params.faceVolume3D,
+        teethWhitening: params.teethWhitening,
+        wrinkleSmoothing: params.wrinkleSmoothing,
+        darkCircle: params.darkCircle,
+        acneRemoval: params.acneRemoval,
+        shineReduction: params.shineReduction,
+        babyFace: params.babyFace,
+        browDefinition: params.browDefinition,
+        lipFill: params.lipFill,
+        lipAugment: params.lipAugment,
+        smileAdjust: params.smileAdjust,
+        browThickness: params.browThickness,
+        browCurve: params.browCurve,
+        noseRefine: params.noseRefine,
+        jawChin: params.jawChin,
+        eyeRefine: params.eyeRefine,
+        browColor: params.browColor,
+        browColorStrength: params.browColorStrength,
+        blush: params.blush,
+        lipstick: params.lipstick,
+        eyeshadow: params.eyeshadow,
+        contour: params.contour,
+        selectedFilter: params.selectedFilter,
+      };
+      this.syncNativeBeautySettings();
+
+      this.meshActive = this.computeMeshActive();
+      if (this.meshActive) {
+        this.ensureBabyFace().then((ok) => {
+          if (ok && this.babyFaceProcessor) {
+            this.syncMeshParams();
+          }
+        });
+      } else if (this.babyFaceProcessor) {
+        // TRTC pattern: release AI resources when no effects need detection
+        this.babyFaceProcessor.setParams({
+          babyFace: 0, lipFill: 0, lipAugment: 0, smileAdjust: 0,
+          browThickness: 0, browCurve: 0, noseRefine: 0, jawChin: 0,
+          eyeRefine: 0, browColor: '', browColorStrength: 0,
+        });
+        // Destroy processor to free MediaPipe WASM + GPU memory
+        this.babyFaceProcessor.destroy();
+        this.babyFaceProcessor = null;
+      }
+    });
   }
 
   /**
@@ -231,6 +333,17 @@ export class VideoProcessor {
       }
       
       this.gl = gl as WebGLRenderingContext;
+      
+      // WebGL context loss recovery (como TRTC resetCore)
+      this.canvas.addEventListener('webglcontextlost', (e) => {
+        e.preventDefault();
+        console.warn('⚠️ [VIDEO_PROCESSOR] WebGL context LOST — pausando render loop');
+        this.isProcessing = false;
+      });
+      this.canvas.addEventListener('webglcontextrestored', () => {
+        console.log('🔄 [VIDEO_PROCESSOR] WebGL context RESTORED — reiniciando pipeline');
+        this.reinitGLPipeline();
+      });
       
       // Compilar shaders
       if (!this.compileShaders()) {
@@ -510,6 +623,8 @@ export class VideoProcessor {
       uniform vec4 u_beautySettings2; // x: teethWhitening, y: wrinkleSmoothing, z: darkCircle, w: browDefinition
       uniform vec4 u_beautySettings3; // x: acneRemoval, y: shineReduction, z: sharpness, w: faceVolume3D
       uniform vec4 u_beautySettings4; // x: whiteBalance (balanço de branco ~5400K)
+      uniform vec4 u_beautySettings5; // x: filterType (0=off,1=fresh,2=rosy,3=bw,4=japanese,5=warm,6=cool,7=vintage), y: filterIntensity, z: unused, w: unused
+      uniform vec4 u_beautySettings6; // x: blush (bochechas), y: lipstick (lábios), z: eyeshadow (sombra), w: contour (contorno facial)
       uniform vec4 u_featureSettings; // x: featureActive, y: edgeStrength, z: preserveLips, w: preserveEyes
       uniform sampler2D u_faceMask; // máscara de pele do rosto (MediaPipe): r=1 pele, r=0 preservado
       uniform float u_faceMaskActive; // 1.0 = máscara disponível (rosto detectado)
@@ -517,6 +632,114 @@ export class VideoProcessor {
       varying vec2 v_texCoord;
       
       // --- Funções auxiliares ---
+
+      // ═══════════════════════════════════════════════════════════════
+      // FILTROS DE COR — estilos TRTC (procedurais, sem LUT externo)
+      // ═══════════════════════════════════════════════════════════════
+      vec3 filterFresh(vec3 c) {
+        // Fresh: brilho suave + tom rosado
+        c.r = min(1.0, c.r * 1.08 + 0.02);
+        c.g = min(1.0, c.g * 1.05 + 0.01);
+        c.b = min(1.0, c.b * 1.10 + 0.03);
+        return c;
+      }
+      vec3 filterRosy(vec3 c) {
+        // Rosy: tom rosa quente
+        c.r = min(1.0, c.r * 1.12 + 0.04);
+        c.g = c.g * 1.02;
+        c.b = min(1.0, c.b * 1.05 + 0.02);
+        return c;
+      }
+      vec3 filterBW(vec3 c) {
+        // BW: preto e branco clássico
+        float g = dot(c, vec3(0.299, 0.587, 0.114));
+        return vec3(g);
+      }
+      vec3 filterJapanese(vec3 c) {
+        // Japanese: fades quentes, sombras azuladas
+        c.r = min(1.0, c.r * 1.06 + 0.03);
+        c.g = c.g * 1.01 + 0.01;
+        c.b = min(1.0, c.b * 1.08 + 0.02);
+        float g = dot(c, vec3(0.299, 0.587, 0.114));
+        c = mix(vec3(g), c, 0.7);
+        return c;
+      }
+      vec3 filterWarm(vec3 c) {
+        // Warm: tom dourado/sol
+        c.r = min(1.0, c.r * 1.10 + 0.03);
+        c.g = min(1.0, c.g * 1.04 + 0.01);
+        c.b = c.b * 0.95;
+        return c;
+      }
+      vec3 filterCool(vec3 c) {
+        // Cool: tom azulado/frio
+        c.r = c.r * 0.95;
+        c.g = min(1.0, c.g * 1.02);
+        c.b = min(1.0, c.b * 1.12 + 0.03);
+        return c;
+      }
+      vec3 filterVintage(vec3 c) {
+        // Vintage: sépia suave, saturação reduzida
+        float g = dot(c, vec3(0.299, 0.587, 0.114));
+        vec3 sepia = vec3(g * 1.08, g * 1.0, g * 0.88);
+        c = mix(c, sepia, 0.55);
+        c.r = min(1.0, c.r + 0.02);
+        c.b = c.b * 0.92;
+        return c;
+      }
+      vec3 applyFilter(vec3 c, float filterType, float intensity) {
+        if (filterType < 0.5 || intensity < 0.01) return c;
+        vec3 filtered = c;
+        if (filterType < 1.5) filtered = filterFresh(c);
+        else if (filterType < 2.5) filtered = filterRosy(c);
+        else if (filterType < 3.5) filtered = filterBW(c);
+        else if (filterType < 4.5) filtered = filterJapanese(c);
+        else if (filterType < 5.5) filtered = filterWarm(c);
+        else if (filterType < 6.5) filtered = filterCool(c);
+        else filtered = filterVintage(c);
+        return mix(c, filtered, intensity);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // BLEND MODES — estilos Photoshop (TRTC usa por efeito)
+      // ═══════════════════════════════════════════════════════════════
+      vec3 blendMultiply(vec3 base, vec3 blend) {
+        return base * blend;
+      }
+      vec3 blendScreen(vec3 base, vec3 blend) {
+        return 1.0 - (1.0 - base) * (1.0 - blend);
+      }
+      vec3 blendOverlay(vec3 base, vec3 blend) {
+        vec3 result;
+        result.r = base.r < 0.5 ? 2.0 * base.r * blend.r : 1.0 - 2.0 * (1.0 - base.r) * (1.0 - blend.r);
+        result.g = base.g < 0.5 ? 2.0 * base.g * blend.g : 1.0 - 2.0 * (1.0 - base.g) * (1.0 - blend.g);
+        result.b = base.b < 0.5 ? 2.0 * base.b * blend.b : 1.0 - 2.0 * (1.0 - base.b) * (1.0 - blend.b);
+        return result;
+      }
+      vec3 blendSoftLight(vec3 base, vec3 blend) {
+        vec3 result;
+        result.r = blend.r < 0.5 ? base.r - (1.0 - 2.0 * blend.r) * base.r * (1.0 - base.r) : base.r + (2.0 * blend.r - 1.0) * (sqrt(base.r) - base.r);
+        result.g = blend.g < 0.5 ? base.g - (1.0 - 2.0 * blend.g) * base.g * (1.0 - base.g) : base.g + (2.0 * blend.g - 1.0) * (sqrt(base.g) - base.g);
+        result.b = blend.b < 0.5 ? base.b - (1.0 - 2.0 * blend.b) * base.b * (1.0 - base.b) : base.b + (2.0 * blend.b - 1.0) * (sqrt(base.b) - base.b);
+        return result;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // MAQUIAGEM VIRTUAL — procedural (inspirado TRTC Makeup)
+      // Posicionamento por detecção de cor/posição facial (sem PNG externo)
+      // ═══════════════════════════════════════════════════════════════
+      
+      // Detecção de bochecha: pele média,远离 olhos/lábios/cabelo, zona lateral do rosto
+      float cheekScore(vec2 uv, float skinProb, float eyeScore, float lipScore, float hairScore) {
+        float cheekMask = skinProb * (1.0 - eyeScore) * (1.0 - lipScore) * (1.0 - hairScore);
+        // Zona da bochecha: verticalmente no meio do rosto (y 0.35-0.55), horizontalmente lateral
+        float yBand = smoothstep(0.30, 0.42, uv.y) * smoothstep(0.58, 0.48, uv.y);
+        float xLateral = smoothstep(0.20, 0.35, uv.x) + smoothstep(0.80, 0.65, uv.x);
+        xLateral = min(xLateral, 1.0);
+        // Afasta do centro (nariz) — blush fica nas laterais
+        float noseDist = smoothstep(0.35, 0.50, abs(uv.x - 0.5));
+        return cheekMask * yBand * xLateral * noseDist;
+      }
       
       // Conversão RGB para HSV
       vec3 rgb2hsv(vec3 c) {
@@ -688,17 +911,17 @@ export class VideoProcessor {
       // --- Blur Gaussiano leve (para nitidez / unsharp mask) ---
       vec3 gaussianBlurLight(vec2 uv, vec2 texelSize) {
         vec3 sum = vec3(0.0);
-        float weights[9];
-        weights[0] = 1.0; weights[1] = 2.0; weights[2] = 1.0;
-        weights[3] = 2.0; weights[4] = 4.0; weights[5] = 2.0;
-        weights[6] = 1.0; weights[7] = 2.0; weights[8] = 1.0;
+        // Kernel 3x3 (1 2 1 / 2 4 2 / 1 2 1) — total 16.
+        // Peso calculado dos índices do loop (WebGL1 não permite indexar array
+        // com variável que não seja índice de loop — era o erro "Index expression
+        // can only contain const or loop symbols").
         float total = 16.0;
-        int i = 0;
         for (int y = -1; y <= 1; y++) {
           for (int x = -1; x <= 1; x++) {
-            float w = weights[i];
+            float wx = (x == 0) ? 2.0 : 1.0;
+            float wy = (y == 0) ? 2.0 : 1.0;
+            float w = wx * wy;
             sum += texture2D(u_texture, uv + vec2(float(x), float(y)) * texelSize).rgb * w;
-            i++;
           }
         }
         return sum / total;
@@ -714,10 +937,13 @@ export class VideoProcessor {
         vec3 blurred = gaussianBlurLight(uv, texelSize);
         vec3 detail = rgb - blurred;
         float detailMag = length(detail);
-        float textureGate = smoothstep(0.008, 0.055, detailMag);
-        // Escala o detalhe: forte na pele, mais contido em features/bordas fortes
+        // Texture gate: amplifica detalhe real, BLOQUEIA ruído (mag < 0.04).
+        // Quanto menor o detalhe, mais fraca a nitidez — impede chiado de crescer.
+        float textureGate = smoothstep(0.012, 0.065, detailMag);
+        // Evita nitidez em áreas planas (fundo, parede) — só amplifica ruído lá
+        float flatBlock = 1.0 - smoothstep(0.0, 0.25, (1.0 - edgeDetection(uv, texelSize)) * (1.0 - localDetail(uv, texelSize)));
         float featureFactor = 1.0 - edgeDetection(uv, texelSize) * 0.45;
-        float amount = strength * 0.45 * mix(1.0, 1.25, skinMask) * featureFactor * textureGate;
+        float amount = strength * 0.40 * mix(1.0, 1.2, skinMask) * featureFactor * textureGate * flatBlock;
         return clamp(rgb + detail * amount, 0.0, 1.0);
       }
       
@@ -801,34 +1027,43 @@ export class VideoProcessor {
       // luminância — bordas fortes (contornos, olhos) quase não mudam, ruído
       // homogêneo é suavizado. Roda ANTES dos demais efeitos para a nitidez e a
       // saturação não amplificarem o grão no final.
+      // 3 anéis (24 vizinhos): anel 1=perto, anel 2=médio, anel 3=longo alcance.
+      //.sigma 0.15+strength*0.50 = strength 0.70 → sigma 0.50 (forte contra chiado).
       vec3 applyDenoise(vec3 rgb, vec2 uv, vec2 texelSize, float strength) {
-        float radius = 1.0 + strength * 1.5;
-        float sigmaL = 0.10 + strength * 0.32;
+        float radius = 1.5 + strength * 2.5;
+        float sigmaL = 0.15 + strength * 0.50;
         vec3 sum = rgb;
         float wsum = 1.0;
-        float axisW = 0.85;
-        float diagW = 0.55;
-        // Anel duplo (8 vizinhos próximos + 8 a 2x distância): remove grão
-        // digital em área maior mantendo o filtro bilateral (bordas intactas).
-        for (int i = 0; i < 16; i++) {
+        float axW = 0.95;
+        float diW = 0.70;
+        float loW = 0.40;
+        for (int i = 0; i < 24; i++) {
           vec2 dir;
           float w;
-          if (i == 0)       { dir = vec2(1.0, 0.0);  w = axisW; }
-          else if (i == 1)  { dir = vec2(-1.0, 0.0); w = axisW; }
-          else if (i == 2)  { dir = vec2(0.0, 1.0);  w = axisW; }
-          else if (i == 3)  { dir = vec2(0.0, -1.0); w = axisW; }
-          else if (i == 4)  { dir = vec2(1.0, 1.0);  w = diagW; }
-          else if (i == 5)  { dir = vec2(-1.0, -1.0); w = diagW; }
-          else if (i == 6)  { dir = vec2(1.0, -1.0); w = diagW; }
-          else if (i == 7)  { dir = vec2(-1.0, 1.0); w = diagW; }
-          else if (i == 8)  { dir = vec2(2.0, 0.0);  w = axisW * 0.6; }
-          else if (i == 9)  { dir = vec2(-2.0, 0.0); w = axisW * 0.6; }
-          else if (i == 10) { dir = vec2(0.0, 2.0);  w = axisW * 0.6; }
-          else if (i == 11) { dir = vec2(0.0, -2.0); w = axisW * 0.6; }
-          else if (i == 12) { dir = vec2(2.0, 2.0);  w = diagW * 0.6; }
-          else if (i == 13) { dir = vec2(-2.0, -2.0); w = diagW * 0.6; }
-          else if (i == 14) { dir = vec2(2.0, -2.0); w = diagW * 0.6; }
-          else              { dir = vec2(-2.0, 2.0); w = diagW * 0.6; }
+          if (i == 0)       { dir = vec2(1.0, 0.0);    w = axW; }
+          else if (i == 1)  { dir = vec2(-1.0, 0.0);   w = axW; }
+          else if (i == 2)  { dir = vec2(0.0, 1.0);    w = axW; }
+          else if (i == 3)  { dir = vec2(0.0, -1.0);   w = axW; }
+          else if (i == 4)  { dir = vec2(1.0, 1.0);    w = diW; }
+          else if (i == 5)  { dir = vec2(-1.0, -1.0);  w = diW; }
+          else if (i == 6)  { dir = vec2(1.0, -1.0);   w = diW; }
+          else if (i == 7)  { dir = vec2(-1.0, 1.0);   w = diW; }
+          else if (i == 8)  { dir = vec2(2.0, 0.0);    w = axW * 0.65; }
+          else if (i == 9)  { dir = vec2(-2.0, 0.0);   w = axW * 0.65; }
+          else if (i == 10) { dir = vec2(0.0, 2.0);    w = axW * 0.65; }
+          else if (i == 11) { dir = vec2(0.0, -2.0);   w = axW * 0.65; }
+          else if (i == 12) { dir = vec2(2.0, 2.0);    w = diW * 0.65; }
+          else if (i == 13) { dir = vec2(-2.0, -2.0);  w = diW * 0.65; }
+          else if (i == 14) { dir = vec2(2.0, -2.0);   w = diW * 0.65; }
+          else if (i == 15) { dir = vec2(-2.0, 2.0);   w = diW * 0.65; }
+          else if (i == 16) { dir = vec2(3.0, 0.0);    w = loW; }
+          else if (i == 17) { dir = vec2(-3.0, 0.0);   w = loW; }
+          else if (i == 18) { dir = vec2(0.0, 3.0);    w = loW; }
+          else if (i == 19) { dir = vec2(0.0, -3.0);   w = loW; }
+          else if (i == 20) { dir = vec2(3.0, 3.0);    w = loW * 0.55; }
+          else if (i == 21) { dir = vec2(-3.0, -3.0);  w = loW * 0.55; }
+          else if (i == 22) { dir = vec2(3.0, -3.0);   w = loW * 0.55; }
+          else              { dir = vec2(-3.0, 3.0);   w = loW * 0.55; }
           vec3 nb = texture2D(u_texture, uv + dir * radius * texelSize).rgb;
           float ldiff = abs(luminance(nb) - luminance(rgb));
           float wI = exp(-ldiff / max(sigmaL, 0.01));
@@ -837,7 +1072,31 @@ export class VideoProcessor {
         }
         return sum / wsum;
       }
-      
+
+      // --- 2ª passada: limpeza de áreas planas (fundo/parede/roupa) ---
+      // Após todos os efeitos, aplica blur espacial leve SOMENTE em áreas
+      // sem borda e sem detalhe (fundo liso, parede, roupa). Limpa o chiado
+      // residual que o bilateral não pegou (amplificado por saturação/contraste).
+      vec3 flatAreaClean(vec3 result, vec2 uv, vec2 texelSize, float strength) {
+        float edge = edgeDetection(uv, texelSize);
+        float detail = localDetail(uv, texelSize);
+        float flatness = (1.0 - edge) * (1.0 - detail);
+        if (flatness < 0.15) return result;
+        float blurR = 1.0 + strength * 2.0;
+        vec3 sum = result;
+        float wsum = 1.0;
+        for (int i = 0; i < 8; i++) {
+          float ang = float(i) * 0.7853982;
+          vec2 off = uv + vec2(cos(ang), sin(ang)) * blurR * texelSize;
+          vec3 nb = texture2D(u_texture, off).rgb;
+          sum += nb;
+          wsum += 1.0;
+        }
+        vec3 blurred = sum / wsum;
+        float blend = flatness * strength * 0.55;
+        return mix(result, blurred, blend);
+      }
+
       void main() {
         vec2 uv = v_texCoord;
         uv.y = 1.0 - uv.y;
@@ -906,11 +1165,13 @@ export class VideoProcessor {
           result = applyDenoise(result, uv, texelSize, noiseReduction);
         }
         
-        // Branqueamento (whitening) — mais forte na pele, suave nas features
+        // Branqueamento (whitening) — brilho multiplicativo natural, preserva
+        // tom de pele (não converge pra branco como o método aditivo antigo).
         if (whitening > 0.0) {
-          float skinFactor = mix(0.2, 1.0, skinMask);
-          vec3 whitened = rgb + (1.0 - rgb) * whitening * 0.45 * skinFactor;
-          result = mix(result, whitened, smoothstep(0.0, 0.3, whitening));
+          float skinFactor = mix(0.15, 1.0, skinMask);
+          float boost = whitening * 0.003 * skinFactor;
+          vec3 whitened = rgb * (1.0 + boost) + vec3(0.01, 0.008, 0.005) * whitening * skinFactor;
+          result = mix(result, clamp(whitened, 0.0, 1.0), smoothstep(0.0, 0.25, whitening));
         }
         
         // Suavização seletiva (smoothing) — APENAS na pele, preservando features
@@ -1032,6 +1293,59 @@ export class VideoProcessor {
           result = applyFaceVolume3D(result, uv, texelSize, faceVolume3D, skinMask);
         }
         
+        // 🧹 2ª passada: limpeza de áreas planas (fundo/parede/roupa).
+        // Limpa chiado residual que o bilateral não pegou (amplificado por
+        // saturação/contraste/nitidez). Só atua onde não há borda nem detalhe.
+        if (noiseReduction > 0.0) {
+          result = flatAreaClean(result, uv, texelSize, noiseReduction);
+        }
+        
+        // 🎨 MAQUIAGEM VIRTUAL — blush, batom, sombra, contorno (procedural)
+        float blush = u_beautySettings6.x / 100.0;
+        float lipstick = u_beautySettings6.y / 100.0;
+        float eyeshadow = u_beautySettings6.z / 100.0;
+        float contour = u_beautySettings6.w / 100.0;
+        
+        // Blush: rosa nas bochechas (zona lateral média do rosto)
+        if (blush > 0.0) {
+          float cheek = cheekScore(uv, skinProb, eyeScore, lipScore, hairScore);
+          if (cheek > 0.05) {
+            vec3 blushColor = vec3(0.85, 0.35, 0.40); // rosa quente
+            float blend = cheek * blush * 0.45;
+            result = mix(result, blendSoftLight(result, blushColor), blend);
+          }
+        }
+        
+        // Batom: cor nos lábios (usa lipScore existente)
+        if (lipstick > 0.0 && lipScore > 0.05) {
+          vec3 lipColor = vec3(0.75, 0.15, 0.20); // vermelho clássico
+          float blend = lipScore * lipstick * 0.6;
+          result = mix(result, blendOverlay(result, lipColor), blend);
+        }
+        
+        // Sombra: cor nas pálpebras (usa eyeScore + posição vertical)
+        if (eyeshadow > 0.0 && eyeScore > 0.05) {
+          vec3 shadowColor = vec3(0.45, 0.25, 0.50); // roxo suave
+          float blend = eyeScore * eyeshadow * 0.35;
+          result = mix(result, blendSoftLight(result, shadowColor), blend);
+        }
+        
+        // Contorno: escurece laterais + clareia centro (modelagem facial 2D)
+        if (contour > 0.0 && skinProb > 0.1) {
+          float edge = abs(uv.x - 0.5) * 2.0; // 0=centro, 1=borda
+          float shadow = smoothstep(0.4, 0.9, edge) * contour * 0.2;
+          float highlight = (1.0 - edge) * contour * 0.12;
+          result = result * (1.0 - shadow) + vec3(highlight);
+          result = clamp(result, 0.0, 1.0);
+        }
+        
+        // 🎨 Filtro de cor — último efeito antes do output (afeta tudo)
+        float filterType = u_beautySettings5.x;
+        float filterIntensity = u_beautySettings5.y / 100.0;
+        if (filterType > 0.5 && filterIntensity > 0.01) {
+          result = applyFilter(result, filterType, filterIntensity);
+        }
+        
         gl_FragColor = vec4(result, color.a);
       }
     `;
@@ -1064,6 +1378,8 @@ export class VideoProcessor {
     this.uniformLocations.beautySettings2 = this.gl.getUniformLocation(this.program, 'u_beautySettings2');
     this.uniformLocations.beautySettings3 = this.gl.getUniformLocation(this.program, 'u_beautySettings3');
     this.uniformLocations.beautySettings4 = this.gl.getUniformLocation(this.program, 'u_beautySettings4');
+    this.uniformLocations.beautySettings5 = this.gl.getUniformLocation(this.program, 'u_beautySettings5');
+    this.uniformLocations.beautySettings6 = this.gl.getUniformLocation(this.program, 'u_beautySettings6');
     this.uniformLocations.featureSettings = this.gl.getUniformLocation(this.program, 'u_featureSettings');
     this.uniformLocations.faceMask = this.gl.getUniformLocation(this.program, 'u_faceMask');
     this.uniformLocations.faceMaskActive = this.gl.getUniformLocation(this.program, 'u_faceMaskActive');
@@ -1246,9 +1562,57 @@ export class VideoProcessor {
       if (!this.isProcessing) return;
       this.lastRenderAt = performance.now();
       
+      // TRTC pattern: auto-skip processing when all effects = 0
+      // Economiza GPU + CPU quando não há efeitos ativos
+      if (!beautyState.isShaderActive() && !this.meshActive) {
+        // Draw raw video frame without shader — pass-through
+        this.syncCanvasToSource();
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+        let imageSource: TexImageSource = this.getVideoSource() as TexImageSource;
+        if (!imageSource) {
+          this.animationId = requestAnimationFrame(render);
+          return;
+        }
+        try {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imageSource);
+        } catch {
+          this.animationId = requestAnimationFrame(render);
+          return;
+        }
+        // Set all uniforms to 0 — shader acts as identity (passthrough)
+        if (uRes) gl.uniform2f(uRes, canvas.width, canvas.height);
+        if (uTime) gl.uniform1f(uTime, performance.now() / 1000);
+        if (uBeauty) gl.uniform4f(uBeauty, 0, 0, 0, 0);
+        const uBeauty2 = uniformLocs.beautySettings2;
+        if (uBeauty2) gl.uniform4f(uBeauty2, 0, 0, 0, 0);
+        const uBeauty3 = uniformLocs.beautySettings3;
+        if (uBeauty3) gl.uniform4f(uBeauty3, 0, 0, 0, 0);
+        const uBeauty4 = uniformLocs.beautySettings4;
+        if (uBeauty4) gl.uniform4f(uBeauty4, 0, 0, 0, 0);
+        if (uniformLocs.faceMaskActive) gl.uniform1f(uniformLocs.faceMaskActive, 0.0);
+        // Draw
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, textureBuffer);
+        gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(1);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        this._framesDrawn++;
+        this.animationId = requestAnimationFrame(render);
+        return;
+      }
+      
       // 📏 Canvas acompanha a resolução nativa da câmera (cap 1080p, casa com o
       // bitrate de publicação) — sem upscale borrado de 640x480.
       this.syncCanvasToSource();
+      
+      // ⚡ Mid-frame guard: se stopProcessing() foi chamado durante este frame,
+      // pular as operações pesadas de GPU (texImage2D + draw).
+      if (!this.isProcessing) return;
       
       // Limpar canvas
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -1322,6 +1686,29 @@ export class VideoProcessor {
         );
       }
       
+      const uBeauty5 = uniformLocs.beautySettings5;
+      if (uBeauty5) {
+        // x: filterType (0=off,1=fresh,2=rosy,3=bw,4=japanese,5=warm,6=cool,7=vintage), y: filterIntensity
+        const filterMap: Record<string, number> = {
+          '': 0, 'fresh': 1, 'rosy': 2, 'bw': 3, 'japanese': 4,
+          'warm': 5, 'cool': 6, 'vintage': 7
+        };
+        const filterType = filterMap[this.beautySettings.selectedFilter || ''] || 0;
+        gl.uniform4f(uBeauty5, filterType, 80, 0, 0);
+      }
+      
+      const uBeauty6 = uniformLocs.beautySettings6;
+      if (uBeauty6) {
+        // x: blush, y: lipstick, z: eyeshadow, w: contour
+        gl.uniform4f(
+          uBeauty6,
+          this.beautySettings.blush || 0,
+          this.beautySettings.lipstick || 0,
+          this.beautySettings.eyeshadow || 0,
+          this.beautySettings.contour || 0
+        );
+      }
+      
       const uFeature = uniformLocs.featureSettings;
       if (uFeature) {
         // x: featureActive (1.0 = ligado), y: edgeStrength (1.0 padrão), z: preserveLips (1.0 = ligado), w: preserveEyes (1.0 = ligado)
@@ -1363,12 +1750,26 @@ export class VideoProcessor {
       
       // Desenhar
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      this._framesDrawn++;
       
-      // Continuar loop
-      this.animationId = requestAnimationFrame(render);
+      // Continuar loop (só se ainda processando)
+      if (this.isProcessing) {
+        this.animationId = requestAnimationFrame(render);
+      }
     };
     
     render();
+  }
+
+  /**
+   * startWebGLRenderLoop() — Extrai o render loop para poder ser chamado
+   * pelo resumeOutput() sem re-inicializar tudo.
+   */
+  private startWebGLRenderLoop(): void {
+    if (!this.gl || !this.canvas || !this.program || !this.videoTexture || !this.positionBuffer || !this.textureBuffer) return;
+    // Reutiliza o startWebGLProcessing — o render loop interno já verifica
+    // this.isProcessing e this.animationId para evitar duplicatas.
+    this.startWebGLProcessing();
   }
 
   /**
@@ -1480,34 +1881,40 @@ export class VideoProcessor {
   }
 
   /**
-   * Atualizar configurações de beleza
+   * Atualizar configurações de beleza.
+   * Roteia via beautyState (single source of truth) — a subscription
+   * no construtor já sincroniza this.beautySettings e dispara mesh/sync.
+   * Mantido para backward compat com componentes que ainda chamam diretamente.
    */
   updateBeautySettings(settings: Partial<BeautyEffectSettings>): void {
-    this.beautySettings = { ...this.beautySettings, ...settings };
-    this.syncNativeBeautySettings();
-
-    this.meshActive = this.computeMeshActive();
-    if (this.meshActive) {
-      this.ensureBabyFace().then((ok) => {
-        if (ok && this.babyFaceProcessor) {
-          this.syncMeshParams();
-        }
-      });
-    } else if (this.babyFaceProcessor) {
-      this.babyFaceProcessor.setParams({
-        babyFace: 0,
-        lipFill: 0,
-        lipAugment: 0,
-        smileAdjust: 0,
-        browThickness: 0,
-        browCurve: 0,
-        noseRefine: 0,
-        jawChin: 0,
-        eyeRefine: 0,
-        browColor: '',
-        browColorStrength: 0
-      });
-    }
+    const partial: Partial<BeautyParams> = {};
+    if (settings.whitening !== undefined) partial.whitening = settings.whitening;
+    if (settings.smoothing !== undefined) partial.smoothing = settings.smoothing;
+    if (settings.saturation !== undefined) partial.saturation = settings.saturation;
+    if (settings.contrast !== undefined) partial.contrast = settings.contrast;
+    if (settings.whiteBalance !== undefined) partial.whiteBalance = settings.whiteBalance;
+    if (settings.sharpness !== undefined) partial.sharpness = settings.sharpness;
+    if (settings.noiseReduction !== undefined) partial.noiseReduction = settings.noiseReduction;
+    if (settings.faceVolume3D !== undefined) partial.faceVolume3D = settings.faceVolume3D;
+    if (settings.teethWhitening !== undefined) partial.teethWhitening = settings.teethWhitening;
+    if (settings.wrinkleSmoothing !== undefined) partial.wrinkleSmoothing = settings.wrinkleSmoothing;
+    if (settings.darkCircle !== undefined) partial.darkCircle = settings.darkCircle;
+    if (settings.acneRemoval !== undefined) partial.acneRemoval = settings.acneRemoval;
+    if (settings.shineReduction !== undefined) partial.shineReduction = settings.shineReduction;
+    if (settings.babyFace !== undefined) partial.babyFace = settings.babyFace;
+    if (settings.browDefinition !== undefined) partial.browDefinition = settings.browDefinition;
+    if (settings.lipFill !== undefined) partial.lipFill = settings.lipFill;
+    if (settings.lipAugment !== undefined) partial.lipAugment = settings.lipAugment;
+    if (settings.smileAdjust !== undefined) partial.smileAdjust = settings.smileAdjust;
+    if (settings.browThickness !== undefined) partial.browThickness = settings.browThickness;
+    if (settings.browCurve !== undefined) partial.browCurve = settings.browCurve;
+    if (settings.noseRefine !== undefined) partial.noseRefine = settings.noseRefine;
+    if (settings.jawChin !== undefined) partial.jawChin = settings.jawChin;
+    if (settings.eyeRefine !== undefined) partial.eyeRefine = settings.eyeRefine;
+    if (settings.browColor !== undefined) partial.browColor = settings.browColor;
+    if (settings.browColorStrength !== undefined) partial.browColorStrength = settings.browColorStrength;
+    if (settings.selectedFilter !== undefined) partial.selectedFilter = settings.selectedFilter;
+    beautyState.update(partial);
   }
 
   /**
@@ -1523,7 +1930,10 @@ export class VideoProcessor {
       || (this.beautySettings.noseRefine || 0) > 0
       || (this.beautySettings.jawChin || 0) > 0
       || (this.beautySettings.eyeRefine || 0) > 0
-      || (this.beautySettings.browColorStrength || 0) > 0;
+      || (this.beautySettings.browColorStrength || 0) > 0
+      || (this.beautySettings.cheekbone || 0) > 0
+      || (this.beautySettings.head || 0) > 0
+      || (this.beautySettings.forehead || 0) > 0;
   }
 
   /**
@@ -1614,6 +2024,29 @@ export class VideoProcessor {
   }
 
   /**
+   * WebGL context recovery (como TRTC resetCore).
+   * Chamado quando o browser restaura o contexto WebGL após contextlost.
+   */
+  private reinitGLPipeline(): void {
+    if (!this.canvas) return;
+    const gl = this.canvas.getContext('webgl', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false })
+      || this.canvas.getContext('experimental-webgl', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
+    if (!gl) {
+      console.error('❌ [VIDEO_PROCESSOR] Falha ao recuperar WebGL context');
+      return;
+    }
+    this.gl = gl as WebGLRenderingContext;
+    if (!this.compileShaders()) {
+      console.error('❌ [VIDEO_PROCESSOR] Falha ao recompilar shaders após context loss');
+      return;
+    }
+    this.setupBuffers();
+    this.isProcessing = true;
+    this.startWebGLProcessing();
+    console.log('✅ [VIDEO_PROCESSOR] Pipeline WebGL restaurado');
+  }
+
+  /**
    * 🔄 Reiniciar o processamento com um NOVO elemento de vídeo/câmera (ex.: após
    * trocar de câmera frontal/traseira). Mantém as configurações de beleza atuais
    * e devolve um stream processado novo apontando para a câmera nova.
@@ -1635,6 +2068,7 @@ export class VideoProcessor {
    */
   stopProcessing(): void {
     this.isProcessing = false;
+    this._framesDrawn = 0;
     
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
@@ -1645,6 +2079,11 @@ export class VideoProcessor {
       this.processedStream.getTracks().forEach(track => track.stop());
       this.processedStream = null;
     }
+    
+    // Limpar referência ao stream cru — evita que restartProcessing() tente
+    // usar uma track de câmera morta (readyState !== 'live') em vez de
+    // capturar a nova câmera via getUserMedia.
+    this.rawSourceStream = null;
     
     if (this.babyFaceProcessor) {
       this.babyFaceProcessor.setParams({
@@ -1663,6 +2102,100 @@ export class VideoProcessor {
     }
     
     console.log('⏹️ [VIDEO_PROCESSOR] Processamento parado');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Tencent doc 50102 — updateInputStream / disable / enable / stop / resume
+  // ══════════════════════════════════════════════════════════════════════
+
+  /**
+   * updateInputStream() — Troca a câmera de entrada SEM re-inicializar o
+   * pipeline WebGL/shader (inspirado no sdk.updateInputStream() da Tencent).
+   * O canvas, shaders, uniformes e babyFaceProcessor continuam os mesmos —
+   * só trocamos o elemento <video> que alimenta a textura.
+   */
+  async updateInputStream(videoElement: HTMLVideoElement): Promise<void> {
+    if (!this.isProcessing || !this.gl) {
+      // Se não está processando, faz init normal
+      await this.initialize(videoElement);
+      return;
+    }
+
+    // Troca o elemento de vídeo fonte (o render loop já lê this.videoElement)
+    this.videoElement = videoElement;
+
+    // Se o babyFaceProcessor estava ativo, re-alimenta com o novo vídeo
+    if (this.babyFaceProcessor && this.meshActive) {
+      try {
+        await this.babyFaceProcessor.initialize(videoElement);
+      } catch {
+        console.warn('[VIDEO_PROCESSOR] Falha ao re-inicializar mesh na nova câmera');
+      }
+    }
+
+    console.log('🔄 [VIDEO_PROCESSOR] Input stream atualizado (hot-swap)');
+  }
+
+  /**
+   * disableDetection() — Pausa detecção facial (MediaPipe) para reduzir CPU.
+   * O render loop continua rodando mas sem detecção de landmarks.
+   * Equivalente ao sdk.disable() da Tencent.
+   */
+  disableDetection(): void {
+    if (this.babyFaceProcessor) {
+      this.babyFaceProcessor.setEnabled(false);
+    }
+    console.log('⏸️ [VIDEO_PROCESSOR] Detecção facial pausada (disable)');
+  }
+
+  /**
+   * enableDetection() — Retoma detecção facial.
+   * Equivalente ao sdk.enable() da Tencent.
+   */
+  enableDetection(): void {
+    if (this.babyFaceProcessor) {
+      this.babyFaceProcessor.setEnabled(true);
+    }
+    console.log('▶️ [VIDEO_PROCESSOR] Detecção facial retomada (enable)');
+  }
+
+  /**
+   * pauseOutput() — Congela o output (frame estático). O render loop para
+   * mas o pipeline WebGL/shader permanece intacto.
+   * Equivalente ao sdk.stop() da Tencent.
+   */
+  pauseOutput(): void {
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+    console.log('⏸️ [VIDEO_PROCESSOR] Output pausado (freeze frame)');
+  }
+
+  /**
+   * resumeOutput() — Retoma o output após pause.
+   * Equivalente ao sdk.resume() da Tencent.
+   */
+  resumeOutput(): void {
+    if (!this.isProcessing || this.animationId) return; // já rodando
+    if (this.gl) {
+      this.startWebGLRenderLoop();
+    }
+    console.log('▶️ [VIDEO_PROCESSOR] Output retomado');
+  }
+
+  /**
+   * Retorna se a detecção facial está habilitada.
+   */
+  isDetectionEnabled(): boolean {
+    return this.babyFaceProcessor ? this.babyFaceProcessor.isEnabled() : false;
+  }
+
+  /**
+   * Retorna se o output está pausado.
+   */
+  isOutputPaused(): boolean {
+    return this.isProcessing && !this.animationId;
   }
 
   /**

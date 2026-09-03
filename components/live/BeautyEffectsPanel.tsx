@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CloseIcon } from '../icons';
 import { api } from '../../services/api';
 import { BeautySettings, User, ToastType } from '../../types';
-import { videoProcessor, DEFAULT_BEAUTY_SETTINGS, BeautyEffectSettings } from '../../services/VideoProcessor';
-import { beautyWebRTCIntegration } from '../../services/BeautyWebRTCIntegration';
+import { DEFAULT_BEAUTY_SETTINGS } from '../../services/VideoProcessor';
+import { beautyState } from '../../services/BeautyEngine';
+import { ALL_PRESETS, applyPreset, BeautyPreset } from '../../services/BeautyPresets';
 
 const WhitenIcon = ({ className = "w-7 h-7 text-white" }) => (
   <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -68,7 +69,6 @@ interface BeautyEffectsPanelProps {
     onClose: () => void;
     currentUser: User;
     addToast: (type: ToastType, message: string) => void;
-    videoRef?: React.RefObject<HTMLVideoElement | null>;
 }
 
 interface SimpleEffect {
@@ -77,8 +77,32 @@ interface SimpleEffect {
     icon: (className?: string) => React.ReactElement;
 }
 
-// 🎛️ Painel SIMPLES: só o essencial para deixar a imagem bonita, colorida e
-// nítida. 'Ruborizar' é a chave do banco para COR VIVA (saturação).
+const BlushIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="22" cy="36" r="10" fill="#f43f5e" opacity="0.6" />
+    <circle cx="42" cy="36" r="10" fill="#f43f5e" opacity="0.6" />
+    <path d="M32 8C20.9 8 12 16.9 12 28C12 41 24 50 32 56C40 50 52 41 52 28C52 16.9 43.1 8 32 8Z" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+  </svg>
+);
+
+const LipstickIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 8L36 26L54 22L44 36L58 42L42 46L46 62L34 50L22 62L24 46L8 42L22 36L12 22L30 26L32 8Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="32" cy="35" r="6" fill="#dc2626" stroke="currentColor" strokeWidth="2.5" />
+  </svg>
+);
+
+const EyeShadowIcon = ({ className = "w-7 h-7 text-white" }) => (
+  <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="24" cy="28" rx="12" ry="7" fill="#8b5cf6" opacity="0.5" />
+    <ellipse cx="40" cy="28" rx="12" ry="7" fill="#8b5cf6" opacity="0.5" />
+    <circle cx="24" cy="28" r="5" stroke="currentColor" strokeWidth="2.5" />
+    <circle cx="40" cy="28" r="5" stroke="currentColor" strokeWidth="2.5" />
+    <path d="M14 38C18 42 28 44 32 44C36 44 46 42 50 38" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+  </svg>
+);
+
+// 6 efeitos visíveis no painel (sliders)
 const SIMPLE_EFFECTS: SimpleEffect[] = [
     { key: 'Suavização do rosto', label: 'Suavização do rosto', icon: (c) => <FaceSmoothIcon className={c} /> },
     { key: 'Branquear', label: 'Branquear', icon: (c) => <WhitenIcon className={c} /> },
@@ -86,14 +110,25 @@ const SIMPLE_EFFECTS: SimpleEffect[] = [
     { key: 'Limpar Chiado', label: 'Limpar Chiado', icon: (c) => <DenoiseIcon className={c} /> },
     { key: 'Ruborizar', label: 'Cor Viva', icon: (c) => <VividColorIcon className={c} /> },
     { key: 'Nitidez', label: 'Nitidez', icon: (c) => <SharpnessIcon className={c} /> },
+    { key: 'Blush', label: 'Blush', icon: (c) => <BlushIcon className={c} /> },
+    { key: 'Batom', label: 'Batom', icon: (c) => <LipstickIcon className={c} /> },
+    { key: 'Sombra', label: 'Sombra', icon: (c) => <EyeShadowIcon className={c} /> },
 ];
 
-// 🎯 Padrões por trás das cenas (rejuvenescer, sem mancha, balanço de branco…)
-// salvos junto com o básico — assim a live já entra bonita mesmo se o usuário
-// só mexeu no painel simples.
+// Filtros de cor — estilo TRTC (procedurais, zero dependência)
+const FILTER_OPTIONS = [
+    { id: '', name: 'Original', icon: '⊘' },
+    { id: 'fresh', name: 'Fresh', icon: '🌸' },
+    { id: 'rosy', name: 'Rosy', icon: '🌹' },
+    { id: 'bw', name: 'P&B', icon: '◐' },
+    { id: 'japanese', name: 'Japanese', icon: '🎎' },
+    { id: 'warm', name: 'Warm', icon: '☀️' },
+    { id: 'cool', name: 'Cool', icon: '❄️' },
+    { id: 'vintage', name: 'Vintage', icon: '📷' },
+];
+
+// 15 efeitos padrão — salvos junto com os 6 visíveis
 const DEFAULT_KEYS: Record<string, number> = {
-    // 🎨 Chave mestre do AUTO-BELEZA (liga sozinho ao entrar ao vivo).
-    // 0 = desligado; 1-100 = intensidade. Padrão natural: 35.
     'Suavização do rosto': 35,
     'Branquear': DEFAULT_BEAUTY_SETTINGS.whitening,
     'Alisar a pele': DEFAULT_BEAUTY_SETTINGS.smoothing,
@@ -109,57 +144,73 @@ const DEFAULT_KEYS: Record<string, number> = {
     'Nitidez': DEFAULT_BEAUTY_SETTINGS.sharpness,
     'Efeito 3D': DEFAULT_BEAUTY_SETTINGS.faceVolume3D,
     'Limpar Chiado': DEFAULT_BEAUTY_SETTINGS.noiseReduction,
+    'Blush': 0,
+    'Batom': 0,
+    'Sombra': 0,
 };
 
-const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, currentUser, addToast, videoRef }) => {
+const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, currentUser, addToast }) => {
     const [selectedEffect, setSelectedEffect] = useState('Branquear');
+    const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+    const [selectedFilter, setSelectedFilter] = useState('');
     const [settings, setSettings] = useState<BeautySettings>({});
     const [isLoading, setIsLoading] = useState(true);
     const saveTimeout = useRef<number | null>(null);
-    const effectCssRef = useRef<Record<string, string>>({});
-    const baseFilterRef = useRef<string>('');
-    const initializingRef = useRef(false);
 
-    const fallbackVideoRef = useRef<HTMLVideoElement | null>(null);
-    useEffect(() => {
-        if (!videoRef?.current) {
-            const videoEl = document.querySelector('video');
-            if (videoEl) {
-                fallbackVideoRef.current = videoEl;
-            }
-        }
-    }, [videoRef]);
+    const convertSettingsToBeautyParams = (apiSettings: BeautySettings) => {
+        const num = (v: any, fallback: number) => typeof v === 'number' ? v : fallback;
+        return {
+            whitening: num(apiSettings['Branquear'], 0),
+            smoothing: num(apiSettings['Alisar a pele'], 0),
+            saturation: num(apiSettings['Ruborizar'], 0),
+            contrast: num(apiSettings['Contraste'], 0),
+            babyFace: num(apiSettings['Rosto Bebê'], 0),
+            teethWhitening: num(apiSettings['Clarear dentes'], 0),
+            wrinkleSmoothing: num(apiSettings['Suavizar rugas'], 0),
+            darkCircle: num(apiSettings['Clarear olheiras'], 0),
+            acneRemoval: num(apiSettings['Remover manchas'], 0),
+            shineReduction: num(apiSettings['Reduzir brilho'], 0),
+            whiteBalance: num(apiSettings['Balanço de Branco'], 0),
+            sharpness: num(apiSettings['Nitidez'], 0),
+            faceVolume3D: num(apiSettings['Efeito 3D'], 0),
+            noiseReduction: num(apiSettings['Limpar Chiado'], 0),
+            blush: num(apiSettings['Blush'], 0),
+            lipstick: num(apiSettings['Batom'], 0),
+            eyeshadow: num(apiSettings['Sombra'], 0),
+        };
+    };
 
-    const activeVideoRef = videoRef || fallbackVideoRef;
-
-    // Carregar configurações salvas no banco (valores salvos vencem os padrão)
+    // Carregar configurações salvas no banco → beautyState (single source of truth)
     useEffect(() => {
         if (currentUser?.id) {
             setIsLoading(true);
             api.getBeautySettings(currentUser.id)
                 .then(data => {
                     const loaded = data || {};
-                    const effective = {
-                        ...DEFAULT_KEYS,
-                        ...loaded,
-                    };
+                    const effective = { ...DEFAULT_KEYS, ...loaded };
                     setSettings(effective);
 
                     if (typeof effective['selectedEffect'] === 'string' && SIMPLE_EFFECTS.some(e => e.key === effective['selectedEffect'])) {
                         setSelectedEffect(effective['selectedEffect'] as string);
                     }
 
-                    videoProcessor.updateBeautySettings(convertSettingsToBeautySettings(effective));
+                    // beautyState é a single source of truth — atualiza ele e
+                    // o VideoProcessor sincroniza automaticamente via subscription
+                    beautyState.update(convertSettingsToBeautyParams(effective));
 
-                    if (activeVideoRef?.current && !beautyWebRTCIntegration.isBeautyActive()) {
-                        initializeBeautyProcessing();
+                    // Restaurar filtro de cor salvo
+                    const savedFilter = typeof effective['selectedFilter'] === 'string' ? effective['selectedFilter'] : '';
+                    if (savedFilter) {
+                        setSelectedFilter(savedFilter);
+                        beautyState.set('selectedFilter', savedFilter);
                     }
 
-                    Object.entries(effective).forEach(([effectName, val]) => {
-                        if (typeof val === 'number') {
-                            applyEffectToVideo(effectName, val);
-                        }
-                    });
+                    // Auto-save: garante que TODOS os campos existem no banco
+                    const missingFields = Object.keys(DEFAULT_KEYS).filter(k => !(k in loaded));
+                    if (missingFields.length > 0) {
+                        api.updateBeautySettings(currentUser.id, effective as BeautySettings)
+                            .catch(() => {});
+                    }
                 })
                 .catch(err => {
                     console.error("Failed to fetch beauty settings:", err);
@@ -167,107 +218,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                 })
                 .finally(() => setIsLoading(false));
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentUser, activeVideoRef]);
+    }, [currentUser]);
 
-    // Inicializar processamento de beleza quando o painel abrir
-    useEffect(() => {
-        if (activeVideoRef?.current && currentUser?.id) {
-            initializeBeautyProcessing();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeVideoRef, currentUser]);
-
-    const convertSettingsToBeautySettings = (apiSettings: BeautySettings): Partial<BeautyEffectSettings> => {
-        return {
-            whitening: apiSettings['Branquear'] || 0,
-            smoothing: apiSettings['Alisar a pele'] || 0,
-            saturation: apiSettings['Ruborizar'] || 0,
-            contrast: apiSettings['Contraste'] || 0,
-            babyFace: apiSettings['Rosto Bebê'] || 0,
-            teethWhitening: apiSettings['Clarear dentes'] || 0,
-            wrinkleSmoothing: apiSettings['Suavizar rugas'] || 0,
-            darkCircle: apiSettings['Clarear olheiras'] || 0,
-            acneRemoval: apiSettings['Remover manchas'] || 0,
-            shineReduction: apiSettings['Reduzir brilho'] || 0,
-            whiteBalance: Number(apiSettings['Balanço de Branco']) || 0,
-            sharpness: Number(apiSettings['Nitidez']) || 0,
-            faceVolume3D: Number(apiSettings['Efeito 3D']) || 0,
-            noiseReduction: Number(apiSettings['Limpar Chiado']) || 0
-        };
-    };
-
-    const initializeBeautyProcessing = async () => {
-        if (initializingRef.current) return;
-        initializingRef.current = true;
-        try {
-            const video = activeVideoRef?.current;
-            if (!video) return;
-
-            const success = await videoProcessor.initialize(video);
-            if (!success) return;
-
-            const processedStream = videoProcessor.startProcessing();
-            if (!processedStream) return;
-
-            const { streamPublishService } = await import('../../services/streamPublishService');
-            streamPublishService.setBeautyProcessedStream(processedStream);
-
-            if (streamPublishService.isPublishing()) {
-                await streamPublishService.updateBeautyTrack();
-            }
-
-            await beautyWebRTCIntegration.initialize(processedStream);
-            beautyWebRTCIntegration.toggleBeauty();
-        } catch (error) {
-            console.error('❌ [BEAUTY_PANEL] Erro ao inicializar processamento:', error);
-            addToast(ToastType.Error, "Falha ao inicializar efeitos de beleza.");
-        } finally {
-            initializingRef.current = false;
-        }
-    };
-
-    const rebuildVideoCss = () => {
-        const video = activeVideoRef?.current;
-        if (!video) return;
-        const processed = videoProcessor.getProcessedStream();
-        if (processed && video.srcObject === processed) {
-            video.style.filter = 'none';
-            return;
-        }
-        const parts: string[] = [];
-        if (baseFilterRef.current && baseFilterRef.current !== 'none') {
-            parts.push(baseFilterRef.current);
-        }
-        Object.values(effectCssRef.current).forEach((f) => parts.push(f));
-        video.style.filter = parts.length ? parts.join(' ') : 'none';
-    };
-
-    const applyEffectToVideo = (effectName: string, intensity: number) => {
-        const video = activeVideoRef?.current;
-        if (!video) return;
-
-        const effectMap: Record<string, (int: number) => string> = {
-            'Suavização do rosto': (int) => `brightness(${1 + int / 900})`,
-            'Branquear': (int) => `brightness(${1 + (int / 180)})`,
-            'Alisar a pele': (int) => `contrast(${1 - (int / 1200)}) brightness(${1 + (int / 1500)}) blur(${Math.min(int / 140, 0.75)}px)`,
-            'Ruborizar': (int) => `saturate(${1 + (int / 120)})`,
-            'Nitidez': (int) => `contrast(${1 + (int / 180)})`,
-            'Limpar Chiado': (int) => `blur(${Math.min(int / 160, 0.8)}px)`
-        };
-
-        const fn = effectMap[effectName];
-        if (!fn) return;
-        if (intensity <= 0) {
-            delete effectCssRef.current[effectName];
-        } else {
-            effectCssRef.current[effectName] = fn(intensity);
-        }
-        rebuildVideoCss();
-    };
-
-    // 💾 Salvar no BANCO (debounced) — junto com os padrões escondidos para a
-    // live continuar limpa/jovem/nítida mesmo salvando só o básico.
+    // Salvar no banco (debounced) junto com padrões escondidos
     const saveSettings = (newSettings: BeautySettings) => {
         if (saveTimeout.current) {
             clearTimeout(saveTimeout.current);
@@ -279,12 +232,17 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                     ...newSettings,
                     selectedEffect,
                 };
-                api.updateBeautySettings(currentUser.id, completeSettings)
-                    .then(() => {})
-                    .catch(err => {
+                // Salva nas 2 APIs: settings original + beauty-store dedicado
+                Promise.all([
+                    api.updateBeautySettings(currentUser.id, completeSettings).catch(err => {
                         console.error('❌ [BEAUTY_PANEL] Erro ao salvar configurações:', err);
-                        addToast(ToastType.Error, "Falha ao salvar o efeito.");
-                    });
+                    }),
+                    api.updateBeautyStoreAll(currentUser.id, completeSettings as Record<string, number>).catch(err => {
+                        console.error('❌ [BEAUTY_STORE] Erro ao salvar beauty-store:', err);
+                    }),
+                ]).catch(() => {
+                    addToast(ToastType.Error, "Falha ao salvar o efeito.");
+                });
             }
         }, 500);
     };
@@ -297,6 +255,8 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         };
     }, []);
 
+    // Slider muda → atualiza beautyState (single source of truth)
+    // O VideoProcessor se inscreve e sincroniza automaticamente
     const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value, 10);
         const newSettings = {
@@ -305,20 +265,22 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         };
         setSettings(newSettings);
         saveSettings(newSettings);
+        setSelectedPresetId(null);
 
-        // 🎨 Chave mestre do auto-beleza: a intensidade controla suavização +
-        // clareamento JUNTOS (proporção natural do preset padrão). 0 = desliga.
+        // "Suavização do rosto" é chave mestre: controla smoothing + whitening
         if (selectedEffect === 'Suavização do rosto') {
-            videoProcessor.updateBeautySettings({
-                smoothing: value,
-                whitening: Math.min(60, Math.round(value * 1.15))
-            });
-            applyEffectToVideo(selectedEffect, value);
+            const withMaster = {
+                ...newSettings,
+                'Alisar a pele': value,
+                'Branquear': Math.min(60, Math.round(value * 1.15)),
+            };
+            setSettings(withMaster);
+            beautyState.update(convertSettingsToBeautyParams(withMaster));
             return;
         }
 
-        videoProcessor.updateBeautySettings(convertSettingsToBeautySettings(newSettings));
-        applyEffectToVideo(selectedEffect, value);
+        // Todos os outros: envia TODOS os valores via beautyState
+        beautyState.update(convertSettingsToBeautyParams(newSettings));
     };
 
     const handleEffectSelect = (effectName: string) => {
@@ -335,15 +297,74 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSettings(resetSettings);
         saveSettings(resetSettings);
         setSelectedEffect('Branquear');
+        setSelectedPresetId(null);
+        setSelectedFilter('');
+        beautyState.reset();
+    };
 
-        videoProcessor.updateBeautySettings(convertSettingsToBeautySettings(resetSettings));
+    const handleFilterSelect = (filterId: string) => {
+        setSelectedFilter(filterId);
+        beautyState.set('selectedFilter', filterId);
+    };
 
-        const video = activeVideoRef?.current;
-        if (video) {
-            video.style.filter = 'none';
-            effectCssRef.current = {};
-            baseFilterRef.current = '';
+    const handlePresetSelect = (preset: BeautyPreset) => {
+        setSelectedPresetId(preset.id);
+
+        if (preset.id === 'off') {
+            resetEffects();
+            return;
         }
+
+        const applied = applyPreset(preset, preset.intensity);
+
+        // Map faceShaping → BabyFaceProcessor params
+        const fs = applied.faceShaping;
+        const babyFaceVal = Object.keys(fs).length > 0 ? Math.round(preset.intensity * 100) : 0;
+
+        const newSettings: BeautySettings = {
+            'Suavização do rosto': 35,
+            'Branquear': applied.shader.whitening ?? 0,
+            'Alisar a pele': applied.shader.smoothing ?? 0,
+            'Ruborizar': applied.shader.saturation ?? 0,
+            'Contraste': applied.shader.contrast ?? 0,
+            'Balanço de Branco': applied.shader.whiteBalance ?? 0,
+            'Rosto Bebê': babyFaceVal,
+            'Clarear dentes': applied.shader.teethWhitening ?? 0,
+            'Suavizar rugas': applied.shader.wrinkleSmoothing ?? 0,
+            'Clarear olheiras': applied.shader.darkCircle ?? 0,
+            'Remover manchas': applied.shader.acneRemoval ?? 0,
+            'Reduzir brilho': 0,
+            'Nitidez': applied.shader.sharpness ?? 0,
+            'Efeito 3D': applied.shader.faceVolume3D ?? 0,
+            'Limpar Chiado': applied.shader.noiseReduction ?? 0,
+        };
+
+        setSettings(newSettings);
+        saveSettings(newSettings);
+        beautyState.update({
+            whitening: applied.shader.whitening ?? 0,
+            smoothing: applied.shader.smoothing ?? 0,
+            saturation: applied.shader.saturation ?? 0,
+            contrast: applied.shader.contrast ?? 0,
+            whiteBalance: applied.shader.whiteBalance ?? 0,
+            sharpness: applied.shader.sharpness ?? 0,
+            noiseReduction: applied.shader.noiseReduction ?? 0,
+            faceVolume3D: applied.shader.faceVolume3D ?? 0,
+            teethWhitening: applied.shader.teethWhitening ?? 0,
+            babyFace: babyFaceVal,
+            lipFill: fs.lipShape ?? 0,
+            lipAugment: fs.lipHeight ?? 0,
+            smileAdjust: fs.smileFace ?? 0,
+            browThickness: fs.browThickness ?? 0,
+            browCurve: fs.browCurve ?? 0,
+            noseRefine: fs.slimNose ?? 0,
+            jawChin: fs.vShape ?? 0,
+            eyeRefine: fs.bigEye ?? 0,
+            wrinkleSmoothing: applied.shader.wrinkleSmoothing ?? 0,
+            darkCircle: applied.shader.darkCircle ?? 0,
+            acneRemoval: applied.shader.acneRemoval ?? 0,
+            shineReduction: 0,
+        });
     };
 
     const currentEffectValue = settings[selectedEffect] ?? 0;
@@ -367,6 +388,52 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                     >
                         <CloseIcon className="w-4 h-4" />
                     </button>
+                </div>
+            </div>
+
+            {/* Presets */}
+            <div className="overflow-x-auto no-scrollbar text-center mb-4 -mx-1 px-1">
+                <div className="flex gap-2.5 min-w-max justify-start">
+                    {ALL_PRESETS.map((preset) => {
+                        const isActive = selectedPresetId === preset.id;
+                        return (
+                            <button
+                                key={preset.id}
+                                onClick={() => handlePresetSelect(preset)}
+                                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-sans font-semibold transition-all duration-200 shrink-0 ${
+                                    isActive
+                                        ? 'bg-[#a855f7] text-white shadow-[0_0_12px_rgba(168,85,247,0.4)]'
+                                        : 'bg-[#1b1b1f] text-[#a1a1aa] border border-white/5 hover:border-white/15 hover:text-white'
+                                }`}
+                            >
+                                <span>{preset.icon}</span>
+                                <span>{preset.name}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Filtros de cor — estilo TRTC */}
+            <div className="overflow-x-auto no-scrollbar text-center mb-4 -mx-1 px-1">
+                <div className="flex gap-2 min-w-max justify-start">
+                    {FILTER_OPTIONS.map((f) => {
+                        const isActive = selectedFilter === f.id;
+                        return (
+                            <button
+                                key={f.id}
+                                onClick={() => handleFilterSelect(f.id)}
+                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-sans font-semibold transition-all duration-200 shrink-0 ${
+                                    isActive
+                                        ? 'bg-[#f59e0b] text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]'
+                                        : 'bg-[#1b1b1f] text-[#717175] border border-white/5 hover:border-white/15 hover:text-white'
+                                }`}
+                            >
+                                <span>{f.icon}</span>
+                                <span>{f.name}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
