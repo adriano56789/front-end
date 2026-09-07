@@ -240,16 +240,14 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 await new Promise(r => setTimeout(r, 60));
             }
 
-            // 4) Guardar stream processado para publicação — NÃO substitui o
-            //    preview (video.srcObject) porque canvas.captureStream() causa
-            //    FREEZE no <video> em muitos dispositivos móveis. O preview
-            //    mostra a câmera crua; o stream processado é usado APENAS no
-            //    publish (RTMP/SRS via replaceTrack).
+            // 4) Guardar stream processado + mostrar no preview
             streamPublishService.setBeautyProcessedStream(processedStream);
+            // Mostrar imagem com beleza/aplho no preview do host
+            streamPublishService.applyBeautyToPreview();
             if (streamPublishService.isPublishing()) {
                 await streamPublishService.updateBeautyTrack();
             }
-            console.log('✅ [GOLIVE] Pipeline de beleza pronto para publicar (preview mantido em câmera crua)');
+            console.log('✅ [GOLIVE] Pipeline de beleza pronto (preview + publicação)');
         } catch (e) {
             console.error('❌ [GOLIVE] Erro ao aplicar filtro padrão:', e);
         }

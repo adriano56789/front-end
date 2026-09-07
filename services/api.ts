@@ -1650,7 +1650,23 @@ export const api = {
 
     kickUser: (streamId: string, userId: string, kickerId: string) => callApi<void>('POST', `/api/interactions/streams/${streamId}/kick`, { userId, kickerId }),
 
-    makeModerator: (streamId: string, userId: string, hostId: string) => callApi<void>('POST', `/api/streams/${streamId}/moderator`, { userId, hostId }),
+    muteUser: (streamId: string, userId: string, kickerId: string, muted: boolean) => callApi<{ success: boolean, muted: boolean }>('POST', `/api/interactions/streams/${streamId}/mute`, { userId, kickerId, muted }),
+
+    makeModerator: (streamId: string, userId: string, hostId: string) => callApi<{ success: boolean, isModerator: boolean }>('POST', `/api/interactions/streams/${streamId}/moderator`, { userId, hostId }),
+
+    getStreamModerators: async (streamId: string) => {
+        try {
+            const res = await callApi<{ success: boolean; moderators: string[] }>('GET', `/api/interactions/streams/${encodeURIComponent(streamId)}/moderators`);
+            return Array.isArray(res?.moderators) ? res.moderators : [];
+        } catch { return []; }
+    },
+
+    getStreamMuted: async (streamId: string) => {
+        try {
+            const res = await callApi<{ success: boolean; muted: string[] }>('GET', `/api/interactions/streams/${encodeURIComponent(streamId)}/muted`);
+            return Array.isArray(res?.muted) ? res.muted : [];
+        } catch { return []; }
+    },
 
     endLiveStream: (streamId: string) => callApi<{ success: boolean }>('POST', `/api/lives/${streamId}/end`),
 
@@ -2608,7 +2624,7 @@ export const api = {
         },
 
         /** Criar nova sala de voz */
-        create: (options: { hostId: string; name?: string; category?: string; minLevelToSpeak?: number }) =>
+        create: (options: { hostId: string; name?: string; category?: string; minLevelToSpeak?: number; message?: string; hostName?: string; hostAvatar?: string; location?: string; tags?: string[] }) =>
             callApi<{ success: boolean; room: VoiceRoom }>('POST', '/api/voice-rooms', options),
 
         /** Buscar detalhes de uma sala */
@@ -2622,6 +2638,12 @@ export const api = {
         /** Sair da sala */
         leave: (roomId: string, userId: string) =>
             callApi<{ success: boolean }>('POST', `/api/voice-rooms/${roomId}/leave`, { userId }),
+
+        /** Keep-alive de presença — chamado a cada ~25s ENQUANTO está dentro
+         *  da sala. Mantém a sala viva na home; sem heartbeat a sala é tratada
+         *  como vazia e removida pelo backend (não vira "card fixo vazio"). */
+        heartbeat: (roomId: string, userId: string) =>
+            callApi<{ success: boolean; room: VoiceRoom }>('POST', `/api/voice-rooms/${roomId}/heartbeat`, { userId }),
 
         /** Pegar slot no palco (subir) */
         takeSlot: (roomId: string, userId: string, slotIndex: number) =>

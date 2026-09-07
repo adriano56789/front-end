@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     CloseIcon, MessageIcon, GiftIcon, MicrophoneIcon, MicrophoneOffIcon,
     ViewerIcon, GoldCoinWithGIcon, PlusIcon, SendIcon, BellIcon, LockIcon,
     MoreIcon, CheckIcon, UserPlusIcon
 } from './icons';
-import { VoiceRoom as VoiceRoomType, VoiceSlot, User, ToastType, Gift as GiftType } from '../types';
+import { VoiceRoom as VoiceRoomType, VoiceSlot, User, ToastType, Gift as GiftType, PurchasePackage } from '../types';
 import { api } from '../services/api';
 import { connectSocket, onSocketEvent } from '../services/socketService';
 import { useTranslation } from '../i18n';
@@ -15,10 +15,20 @@ import ContributionRankingModal from './ContributionRankingModal';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import AvatarWithFrame from './ui/AvatarWithFrame';
 import CoHostModal from './CoHostModal';
-import { useKeyboardInset } from '../hooks/useKeyboardInset';
 import { VoiceSfuService } from '../services/VoiceSfuService';
 import ChatMessage from './live/ChatMessage';
 import EntryChatMessage from './live/EntryChatMessage';
+import { RankedAvatar } from './live/RankedAvatar';
+import GiftAnimationPanel, { GiftAnimationPanelHandle } from './live/GiftAnimationPanel';
+import type { GiftPayload } from './live/GiftAnimationOverlay';
+import RouletteModal from './RouletteModal';
+import WalletScreen from './WalletScreen';
+import ConfirmPurchaseScreen from './ConfirmPurchaseScreen';
+import CadastralDataScreen from './CadastralDataScreen';
+import UserActionModal from './UserActionModal';
+import JoinEffectOverlay from './live/JoinEffectOverlay';
+import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
+import { useComposerKeyboard, COMPOSER_BAR_HEIGHT, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 interface VoiceRoomProps {
     roomId: string;
@@ -30,6 +40,12 @@ interface VoiceRoomProps {
     updateUser: (user: User) => void;
     onOpenWallet: (initialTab?: 'Diamante' | 'Ganhos') => void;
     onOpenVIPCenter: () => void;
+    onFollowUser?: (user: User, streamId?: string) => void;
+    onViewProfile?: (user: User) => void;
+    onOpenPrivateChat?: () => void;
+    onOpenPrivateInviteModal?: () => void;
+    followingUsers?: string[];
+    onKickedOut?: () => void;
 }
 
 const AVATAR_PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
@@ -41,8 +57,15 @@ const AVATAR_PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
 );
 const AVATAR_FALLBACK = (_seed: string) => AVATAR_PLACEHOLDER_SVG;
 
+const MAX_CHAT_MESSAGES = 50;
+
+// 🚪 A mensagem de entrada do próprio usuário deve aparecer UMA ÚNICA vez por
+// sessão E por sala (não a cada reentrada na MESMA sala). Como VoiceRoom
+// remonta a cada entrada/saída, um flag global por sala atravessa os mounts.
+const selfEntryShownRooms = new Set<string>();
+
 /* ══════════════════════════════════════════════════════════════════════
- * ChatMessageType — MESMO formato da sala de transmissão (StreamRoom).
+ * VoiceChatMessage — MESMO formato da sala de transmissão (StreamRoom).
  * Mensagens do chat de voz são renderizadas com as MESMAS bolhas
  * (EntryChatMessage / ChatMessage) da live.
  * ══════════════════════════════════════════════════════════════════════ */
@@ -160,6 +183,12 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     updateUser,
     onOpenWallet,
     onOpenVIPCenter,
+    onFollowUser = () => {},
+    onViewProfile = () => {},
+    onOpenPrivateChat = () => {},
+    onOpenPrivateInviteModal = () => {},
+    followingUsers = [],
+    onKickedOut,
 }) => {
     const { t } = useTranslation();
     const [room, setRoom] = useState<VoiceRoomType | null>(null);
@@ -179,20 +208,40 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     const [liveRanking, setLiveRanking] = useState<(User & { value: number })[]>([]);
     const [isSoundMuted, setIsSoundMuted] = useState(false);
     const [isCoHostModalOpen, setIsCoHostModalOpen] = useState(false);
-    const audioServiceRef = useRef<VoiceSfuService | null>(null);
-    const { fixedBottom: keyboardFixedBottom } = useKeyboardInset();
-
-    // ─── Convite para subir no palco (dentro da própria sala) ───
-    const [stageInvite, setStageInvite] = useState<{
-        roomId: string;
-        roomName: string;
-        inviterId: string;
-        inviterName: string;
-        inviterAvatar: string;
-    } | null>(null);
+    // 🤝 Convite para subir no palco (DENTRO desta sala — não cria sala nova)
+    const [stageInvite, setStageInvite] = useState<{ roomId: string; roomName: string; inviterId: string; inviterName: string; inviterAvatar?: string } | null>(null);
     const [inviteResponding, setInviteResponding] = useState(false);
+    const audioServiceRef = useRef<VoiceSfuService | null>(null);
 
+    // ─── PARITY STREAMROOM — estados adicionais ───
+    const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
+    const [isUserScrolledUp, setIsUserScrolledUp] = useState(false);
+    const [isModerationMode, setIsModerationMode] = useState(false);
+    const [moderatorIds, setModeratorIds] = useState<string[]>([]);
+    const [mutedIds, setMutedIds] = useState<string[]>([]);
+    const [pinnedGifts, setPinnedGifts] = useState<{ gift: GiftType; label: string }[]>([]);
+    const [isAutoFollowEnabled, setIsAutoFollowEnabled] = useState(false);
+    const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(false);
+    const [isRouletteOpen, setIsRouletteOpen] = useState(false);
+    const [isWalletOpen, setIsWalletOpen] = useState(false);
+    const [selectedPackage, setSelectedPackage] = useState<PurchasePackage | null>(null);
+    const [isCadastralScreenOpen, setIsCadastralScreenOpen] = useState(false);
+    const [pendingPurchase, setPendingPurchase] = useState<PurchasePackage | null>(null);
+    const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
+    const [joinEffect, setJoinEffect] = useState<{ userName: string; avatarUrl?: string; entranceEffect?: { id?: string; url?: string; configUrl?: string; w?: number; h?: number } } | null>(null);
+    const joinEffectShownRef = useRef(false);
+    const giftPanelRef = useRef<GiftAnimationPanelHandle>(null);
+    const roomRef = useRef<VoiceRoomType | null>(null);
+    const recentGiftEventsRef = useRef<Set<string>>(new Set());
+    const onFollowUserRef = useRef(onFollowUser);
+    useEffect(() => { onFollowUserRef.current = onFollowUser; }, [onFollowUser]);
+    const onKickedOutRef = useRef<() => void>(onKickedOut || onClose);
+    useEffect(() => { onKickedOutRef.current = onKickedOut || onClose; }, [onKickedOut, onClose]);
+    const scrollFrameRef = useRef<number>(0);
+
+    // ─── ───
     const isHost = room?.hostId === currentUser.id;
+    const isCurrentUserModerator = moderatorIds.includes(String(currentUser.id));
     const mySlot = room?.slots.find(s => s.userId === currentUser.id);
     const canSpeak = !!mySlot;
 
@@ -233,6 +282,64 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         };
     };
 
+    // Usuário mínimo para presentes/entradas/rank (formato completo de User).
+    const buildLiteUser = useCallback((u: { id: string; name: string; avatar?: string; level?: number }): User => {
+        return constructUserFromMessage({ id: u.id, type: 'chat' as const, user: u.name, avatar: u.avatar || '', level: u.level || 1 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => { roomRef.current = room; }, [room]);
+
+    // ─── Presentes: animação + bolha no chat (MESMA lógica do StreamRoom) ───
+    // ATENÇÃO: declarados ANTES do useEffect de socket abaixo — este usa
+    // `enqueueGift` no corpo e nas deps; declarar depois causaria TDZ
+    // (Block-scoped variable used before its declaration).
+    const postGiftChatMessage = useCallback((payload: GiftPayload) => {
+        try {
+            const { fromUser, gift, toUser, quantity } = payload;
+            if (!fromUser || !fromUser.name || !gift || !toUser || !toUser.name) return;
+            const giftMessage: VoiceChatMessage = {
+                id: String(Date.now() + Math.random()),
+                type: 'chat',
+                user: 'Sistema',
+                isGift: true,
+                level: fromUser.level || 1,
+                message: (
+                    <span className="inline-flex items-center gap-1">
+                        <span className="font-extrabold text-[#c084fc] hover:underline text-[10px]">{fromUser.name}</span>
+                        <span className="text-purple-200 text-[10px]">enviou {quantity}x {gift.name || 'Presente'} para {toUser.name}!</span>
+                        {typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')) ? <img src={gift.icon} alt={gift.name} className="w-3 h-3 inline-block object-contain" /> : <span className="text-xs">{gift.icon || '🎁'}</span>}
+                    </span>
+                ),
+                avatar: fromUser.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(fromUser.name || 'Sistema')}&background=random`,
+                timestamp: Date.now(),
+            };
+            setMessages(prev => [...prev, giftMessage].slice(-MAX_CHAT_MESSAGES));
+        } catch {
+            /* não impede o envio do presente */
+        }
+    }, []);
+
+    // 🎁 Fila central de presentes → painel independente (GiftAnimationPanel).
+    const enqueueGift = useCallback((payload: any) => {
+        const fromId = payload?.fromUser?.id || payload?.from?.id || payload?.userId || payload?.senderId || '';
+        const giftName = payload?.gift?.name || payload?.giftName || '';
+        if (!giftName) return;
+        if (!payload?.fromUser?.id) {
+            if (!payload.fromUser) payload.fromUser = {} as any;
+            payload.fromUser.id = fromId || 'unknown';
+        }
+        const tryPush = (attempt: number) => {
+            if (giftPanelRef.current) {
+                giftPanelRef.current.pushGift(payload);
+            } else if (attempt < 5) {
+                setTimeout(() => tryPush(attempt + 1), 200);
+            }
+        };
+        tryPush(0);
+        postGiftChatMessage(payload);
+    }, [postGiftChatMessage]);
+
     // ─── Socket: join sala ───
     useEffect(() => {
         let cancelled = false;
@@ -257,6 +364,10 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                 setRoom(res.room);
                 setCoins(0);
                 setOnlineCount(Math.max(1, res.room.viewers || 1));
+                // 👑 Carregar administradores atuais da sala (badge Adm para todos)
+                api.getStreamModerators(roomId).then((list) => {
+                    if (Array.isArray(list) && list.length) setModeratorIds(list);
+                }).catch(() => {});
             }
         } catch {
             addToast(ToastType.Error, t('voiceRoom.loadError'));
@@ -267,7 +378,31 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
 
     useEffect(() => { loadRoom(); }, [loadRoom]);
 
-    // ─── Socket events: slots, speaking, mute, ended, gift, viewer count ───
+    // ─── 💓 Heartbeat de presença: enquanto o usuário está DENTRO da sala,
+    // mantém a sala viva no backend a cada 25s. Se parar (fechou o app/saída
+    // repentina), o backend remove a sala em ~2min — nada de "card fixo vazio"
+    // na home. Também re-insere na contagem de viewers após recarregar a aba.
+    useEffect(() => {
+        if (!room?.roomId || !currentUser?.id) return;
+        const beat = () => {
+            api.voiceRoom.heartbeat(room.roomId, currentUser.id)
+                .then(res => {
+                    if (res?.room) {
+                        setRoom(prev => prev ? {
+                            ...prev,
+                            viewers: res.room?.viewers ?? prev.viewers,
+                            slots: res.room?.slots ?? prev.slots,
+                        } : prev);
+                    }
+                })
+                .catch(() => {});
+        };
+        beat();
+        const id = setInterval(beat, 25000);
+        return () => clearInterval(id);
+    }, [room?.roomId, room?.isLive, currentUser?.id]);
+
+    // ─── Socket events: slots, speaking, mute, ended, viewer count, chat ───
     useEffect(() => {
         const offSlot = onSocketEvent('voice_slot_update', (data: any) => {
             if (data?.roomId && String(data.roomId) !== String(roomId)) return;
@@ -280,6 +415,16 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         const offMute = onSocketEvent('voice_mute_update', (data: any) => {
             if (data?.roomId && String(data.roomId) !== String(roomId)) return;
             setRoom(prev => prev ? { ...prev, slots: prev.slots.map(s => s.userId === data.userId ? { ...s, isMuted: data.isMuted } : s) } : prev);
+            // 🎙️ Sincroniza o estado de mudo para TODOS da sala (badge no modal)
+            if (data.userId) {
+                const uid = String(data.userId);
+                setMutedIds(prev => (data.isMuted ? [...new Set([...prev, uid])] : prev.filter(id => id !== uid)));
+            }
+            // 🔊 Host silenciou VOCÊ → desliga o microfone local de verdade
+            if (data.userId && String(data.userId) === String(currentUser.id)) {
+                setIsMuted(!!data.isMuted);
+                audioServiceRef.current?.setMuted(!!data.isMuted);
+            }
         });
         const offEnded = onSocketEvent('voice_room_ended', (data: any) => {
             if (data?.roomId && String(data.roomId) !== String(roomId)) return;
@@ -314,102 +459,327 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
             if (evRoom && String(evRoom) !== String(roomId)) return;
             if (typeof data.totalCoins === 'number') setCoins(data.totalCoins);
         });
-        // Presentes
-        const offGiftA = onSocketEvent('live_gift_received', (data: any) => {
-            if (!data) return;
-            const giftName = data.gift?.name || data.giftName || data.name || 'Presente';
-            const fromName = data.fromUser?.name || data.from?.name || data.userName || 'Alguém';
-            const quantity = data.quantity || 1;
-            const giftPrice = data.gift?.price || data.price || 0;
-            setCoins(prev => prev + giftPrice * quantity);
-            setMessages(prev => [...prev, {
-                id: data.eventId || String(Date.now() + Math.random()),
-                type: 'chat' as const,
-                user: 'Sistema',
-                isGift: true,
-                level: data.fromUser?.level || 1,
-                avatar: data.fromUser?.avatarUrl || AVATAR_FALLBACK(data.fromUser?.id || ''),
-                message: (
-                    <span className="inline-flex items-center gap-1">
-                        <span className="font-extrabold text-[#c084fc] text-[10px]">{fromName}</span>
-                        <span className="text-purple-200 text-[10px]">enviou {quantity}x {giftName}!</span>
-                    </span>
-                ),
-                timestamp: Date.now(),
-            }].slice(-50));
-        });
-        const offGiftB = onSocketEvent('gift_received', (data: any) => {
-            if (!data) return;
-            const giftName = data.gift?.name || data.giftName || 'Presente';
-            const fromName = data.from?.name || data.fromUser?.name || data.userName || 'Alguém';
-            const quantity = data.quantity || 1;
-            const giftPrice = data.gift?.price || data.price || 0;
-            setCoins(prev => prev + giftPrice * quantity);
-            setMessages(prev => [...prev, {
-                id: String(Date.now() + Math.random()),
-                type: 'chat' as const,
-                user: 'Sistema',
-                isGift: true,
-                avatar: data.from?.avatarUrl || AVATAR_FALLBACK(data.from?.id || ''),
-                message: (
-                    <span className="inline-flex items-center gap-1">
-                        <span className="font-extrabold text-[#c084fc] text-[10px]">{fromName}</span>
-                        <span className="text-purple-200 text-[10px]">enviou {quantity}x {giftName}!</span>
-                    </span>
-                ),
-                timestamp: Date.now(),
-            }].slice(-50));
-        });
-        // Chat
+        // 💬 Chat — ENVIO OTIMISTA local substituído pelo eco do servidor
+        // (live_message). Sem duplicação: a bolha local (id "optimistic_") é
+        // TROCADA pela do servidor quando o eco chega.
         const offLive = onSocketEvent('live_message', (data: any) => {
             if (!data || !data.text) return;
-            setMessages(prev => [...prev, {
-                id: data.id || String(Date.now() + Math.random()),
-                type: 'chat' as const,
-                user: data.userName || data.userId || 'Usuário',
-                userId: data.userId,
-                avatar: data.avatarUrl || '',
-                level: data.level || 1,
-                message: data.text,
-                timestamp: new Date(data.timestamp || Date.now()).toISOString(),
-            }].slice(-50));
+            setMessages(prev => {
+                const stableId = String(data.id || Date.now() + Math.random());
+                if (prev.some(m => String(m.id) === stableId)) return prev;
+                const optimisticIdx = prev.findIndex(m =>
+                    String(m.id).startsWith('optimistic_') &&
+                    String(m.userId) === String(data.userId) &&
+                    String(m.message) === String(data.text)
+                );
+                const msg: VoiceChatMessage = {
+                    id: stableId,
+                    type: 'chat' as const,
+                    user: data.userName || data.userId || 'Usuário',
+                    userId: data.userId,
+                    avatar: data.avatarUrl || data.avatar || '',
+                    level: data.level || 1,
+                    message: data.text,
+                    timestamp: new Date(data.timestamp || Date.now()).toISOString(),
+                };
+                if (optimisticIdx >= 0) {
+                    const copy = [...prev];
+                    copy[optimisticIdx] = msg;
+                    return copy.slice(-MAX_CHAT_MESSAGES);
+                }
+                return [...prev, msg].slice(-MAX_CHAT_MESSAGES);
+            });
         });
         const offBlocked = onSocketEvent('live_message_blocked', (data: any) => {
             addToast(ToastType.Error, data?.reason || 'Você foi proibido de falar');
         });
         return () => {
             offSlot(); offSpeaking(); offMute(); offEnded(); offViewerCount();
-            offCoins(); offGiftA(); offGiftB(); offLive(); offBlocked();
-            offStageInvite();
+            offCoins(); offLive(); offBlocked(); offStageInvite();
         };
     }, [roomId, addToast, onClose, t, room?.name]);
 
+    // ─── Socket events (PARITY): gifts, entradas, likes, online users ───
     useEffect(() => {
-        if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }, [messages]);
+        // 🎁 Presente — mesmo tratamento da StreamRoom (eventos normalizados,
+        // enfileira a animação e posta a bolha do chat). Deduplica por janela
+        // de 4s para não duplicar quando o backend emite mais de um formato.
+        const handleLiveGiftReceived = (data: any) => {
+            if (!data) return;
+            const evRoom = data.streamId || data.roomId || '';
+            if (evRoom && String(evRoom) !== String(roomId)) return;
+            const rawGift = data.gift || { name: data.giftName || data.name || '', price: data.giftPrice || data.price || 0, icon: data.giftIcon || '🎁', category: data.giftCategory || 'Popular' };
+            const animationUrl = getAnimationUrl(rawGift);
+            const duration = getAnimationDuration(rawGift);
+            const senderId = data.from?.id || data.fromUser?.id || data.userId || data.senderId || data.fromUserId || '';
+            const senderName = data.from?.name || data.fromUser?.name || data.senderName || data.userName || 'Usuário';
+            const senderAvatar = data.from?.avatarUrl || data.fromUser?.avatarUrl || data.senderAvatar || data.avatarUrl || '';
+            const senderLevel = data.from?.level || data.fromUser?.level || data.level || 1;
+            const quantity = data.quantity || 1;
+            const bucket = Math.floor(Date.now() / 4000);
+            const dedupeKey = `${senderId}|${rawGift.name}|${quantity}|${bucket}`;
+            if (recentGiftEventsRef.current.has(dedupeKey)) return;
+            recentGiftEventsRef.current.add(dedupeKey);
+            setTimeout(() => recentGiftEventsRef.current.delete(dedupeKey), 5000);
 
-    // ─── Enviar mensagem ───
-    const sendMessage = async () => {
-        const text = chatInput.trim();
-        if (!text) return;
+            const giftEvtPayload: any = {
+                fromUser: {
+                    id: senderId,
+                    identification: senderId,
+                    name: senderName,
+                    avatarUrl: senderAvatar,
+                    level: senderLevel,
+                    fans: 0, following: 0, receptores: 0, enviados: 0,
+                    diamonds: 0, earnings: 0, earnings_withdrawn: 0, ownedFrames: [],
+                },
+                toUser: { id: roomRef.current?.hostId || senderId, name: roomRef.current?.hostName || 'Anfitrião' },
+                gift: { ...rawGift, ...(animationUrl ? { animationUrl } : {}), ...(duration ? { duration } : {}) },
+                quantity,
+                roomId,
+                id: String(data.eventId || data.id || Date.now() + Math.random()),
+            };
+            const senderIsMe = String(senderId) === String(currentUser.id || '');
+            if (senderIsMe) return;
+            enqueueGift(giftEvtPayload);
+            setCoins(prev => prev + (rawGift.price || 0) * quantity);
+            setOnlineUsers(prev => {
+                const existing = prev.find(p => String(p.id) === String(senderId));
+                const addedValue = (rawGift.price || 0) * quantity;
+                if (existing) {
+                    return prev.map(p => String(p.id) === String(senderId) ? { ...p, value: (p.value || 0) + addedValue } : p)
+                        .sort((a, b) => (b.value || 0) - (a.value || 0));
+                }
+                const lite = buildLiteUser({ id: senderId, name: senderName, avatar: senderAvatar, level: senderLevel });
+                return [...prev, { ...lite, value: addedValue }].sort((a, b) => (b.value || 0) - (a.value || 0));
+            });
+            if (isHost && isAutoFollowEnabled && senderId) {
+                onFollowUserRef.current(buildLiteUser({ id: senderId, name: senderName, avatar: senderAvatar, level: senderLevel }), roomRef.current?.roomId);
+            }
+        };
+        const offGiftA = onSocketEvent('live_gift_received', handleLiveGiftReceived);
+        const offGiftB = onSocketEvent('gift_received', handleLiveGiftReceived);
+
+        // 🚪 Entrada de usuários (user:join) — MESMO comportamento da live:
+        // bolha de entrada no chat + toast do host + efeito de entrada VIP.
+        const offJoin = onSocketEvent('user:join', (data: any) => {
+            if (!data) return;
+            const evRoom = data.streamId || data.roomId || '';
+            if (evRoom && String(evRoom) !== String(roomId)) return;
+            const entryUserId = data.userId || data.id || '';
+            const entryName = data.userName || data.name || data.user?.name || 'Alguém';
+            const entryAvatar = data.avatarUrl || data.userAvatar || data.avatar || '';
+            const entryLevel = data.level || 1;
+            if (!entryUserId || String(entryUserId) === String(currentUser.id)) return;
+            const lite = buildLiteUser({ id: String(entryUserId), name: String(entryName), avatar: entryAvatar, level: entryLevel });
+            setMessages(prev => {
+                const stableId = String(data.eventId || data.id || Date.now() + Math.random());
+                if (prev.some(m => String(m.id) === stableId)) return prev;
+                return [...prev, {
+                    id: stableId,
+                    type: 'entry' as const,
+                    user: entryName,
+                    fullUser: lite,
+                    timestamp: data.timestamp || Date.now(),
+                }].slice(-MAX_CHAT_MESSAGES);
+            });
+            setOnlineUsers(prev => {
+                if (prev.some(p => String(p.id) === String(entryUserId))) return prev;
+                return [...prev, { ...lite, value: 0 }];
+            });
+            if (isHost) {
+                addToast(ToastType.Info, t('streamRoom.enteredRoom'), { title: entryName, avatar: entryAvatar });
+                if (data.entranceEffect) {
+                    setJoinEffect({ userName: entryName, avatarUrl: entryAvatar, entranceEffect: data.entranceEffect });
+                }
+            }
+        });
+        const offUserLeft = onSocketEvent('user:left', (data: any) => {
+            const id = data?.userId || data?.id || '';
+            if (id) setOnlineUsers(prev => prev.filter(u => String(u.id) !== String(id)));
+        });
+        const offUserLeave = onSocketEvent('user:leave', (data: any) => {
+            const id = data?.userId || data?.id || '';
+            if (id) setOnlineUsers(prev => prev.filter(u => String(u.id) !== String(id)));
+        });
+        // Espectadores entrando/saindo (infra da live) — alimenta o top-3 de contribuintes
+        const offViewerJoined = onSocketEvent('viewer_joined', (data: any) => {
+            const u = data?.user || {};
+            if (!u?.id) return;
+            setOnlineUsers(prev => {
+                if (prev.some(p => String(p.id) === String(u.id))) return prev;
+                return [...prev, { ...buildLiteUser({ id: u.id, name: u.name || u.userName || u.id, avatar: u.avatarUrl || u.avatar || '', level: u.level || 1 }), value: 0 }];
+            });
+        });
+        const offViewerLeft = onSocketEvent('viewer_left', (data: any) => {
+            const id = data?.userId || data?.id || '';
+            if (id) setOnlineUsers(prev => prev.filter(u => String(u.id) !== String(id)));
+        });
+        // 🔔 Contagem online em tempo real (evento da infra da live)
+        const offCount = onSocketEvent('online_users_updated', (data: any) => {
+            const evRoom = data.streamId || data.roomId || '';
+            if (evRoom && String(evRoom) !== String(roomId)) return;
+            if (typeof data.count === 'number') setOnlineCount(Math.max(1, data.count));
+        });
+        // 🔨 Usuário expulso pelo host (user_kicked) — desta sala → sair.
+        // (Toast/Navegação global são feitos no App via 'kicked_out'.)
+        const offKicked = onSocketEvent('user_kicked', (data: any) => {
+            if (!data || !data.userId) return;
+            if (String(data.userId) !== String(currentUser.id)) return;
+            onClose();
+        });
+        // 👑 Moderador mudou em tempo real — badge Adm visível para todos
+        const offModUpdated = onSocketEvent('moderator_updated', (data: any) => {
+            if (!data?.userId || (data.roomId && String(data.roomId) !== String(roomId))) return;
+            const uid = String(data.userId);
+            setModeratorIds(prev => (data.isModerator ? [...new Set([...prev, uid])] : prev.filter(id => id !== uid)));
+            const userName = data.userName || data.actorId || uid;
+            if (uid === String(currentUser.id)) {
+                addToast(data.isModerator ? ToastType.Success : ToastType.Info, data.isModerator ? 'Você foi colocado como ADM.' : 'Você perdeu o cargo de administrador.');
+            } else {
+                addToast(data.isModerator ? ToastType.Success : ToastType.Info, data.isModerator ? `${userName} agora é administrador da sala! 🎉` : `${userName} deixou de ser administrador.`);
+            }
+        });
+
+        return () => {
+            offGiftA(); offGiftB(); offJoin(); offUserLeft(); offUserLeave();
+            offViewerJoined(); offViewerLeft(); offCount(); offKicked(); offModUpdated();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomId, currentUser.id, addToast, onClose, t, isHost, enqueueGift, buildLiteUser]);
+
+    // ─── Proteção: usuário bloqueado pelo host não entra nesta sala ───
+    useEffect(() => {
+        if (!room?.hostId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await api.checkStreamBan(room.hostId, currentUser.id);
+                if (!cancelled && res?.banned) {
+                    addToast(ToastType.Error, res.reason || 'Você foi bloqueado pelo anfitrião desta sala.');
+                    onClose();
+                }
+            } catch {
+                /* silencioso — nunca bloquear acesso por falha de checagem */
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [room?.hostId, currentUser.id, addToast, onClose]);
+
+    // 👢 Expulsão da sessão: quem já foi expulso NÃO volta a esta sala —
+    // a lista só é limpa quando a host ENCERRA e cria a sala de novo.
+    useEffect(() => {
+        if (!roomId || !currentUser?.id) return;
+        let cancelled = false;
+        const timer = window.setTimeout(() => {
+            api.checkStreamKicked(roomId, currentUser.id).then((r) => {
+                if (!cancelled && r?.kicked) {
+                    addToast(ToastType.Error, 'Você foi expulso desta sala.');
+                    onKickedOutRef.current();
+                }
+            }).catch(() => {});
+        }, 1200);
+        return () => { cancelled = true; window.clearTimeout(timer); };
+    }, [roomId, currentUser.id]);
+
+    // ─── Scroll inteligente do chat (só rola p/ baixo se NÃO estiver lendo mensagens antigas) ───
+    const handleChatScroll = useCallback(() => {
+        if (scrollFrameRef.current) return;
+        scrollFrameRef.current = requestAnimationFrame(() => {
+            scrollFrameRef.current = 0;
+            if (chatScrollRef.current) {
+                const { scrollTop, scrollHeight, clientHeight } = chatScrollRef.current;
+                const isNearBottom = scrollHeight - scrollTop - clientHeight < 120;
+                setIsUserScrolledUp(!isNearBottom);
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        if (chatScrollRef.current && !isUserScrolledUp) {
+            const frame = requestAnimationFrame(() => {
+                if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            });
+            return () => cancelAnimationFrame(frame);
+        }
+    }, [messages.length, isUserScrolledUp]);
+
+    // Cap de mensagens: limita o DOM do chat
+    useEffect(() => {
+        if (messages.length > MAX_CHAT_MESSAGES) {
+            setMessages(prev => (prev.length > MAX_CHAT_MESSAGES ? prev.slice(prev.length - MAX_CHAT_MESSAGES) : prev));
+        }
+    }, [messages.length]);
+
+    // ─── Composer TikTok (2 barras) — MESMO do StreamRoom ───
+    const {
+        isComposerOpen,
+        openComposer,
+        closeComposer,
+        composerInputRef,
+        composerRef,
+        bottom: chatBarBottom,
+    } = useComposerKeyboard();
+
+    // ─── Enviar mensagem (otimista + eco do servidor deduplicado) ───
+    const MAX_CHAT_MESSAGE_LENGTH = 120;
+    const sendMessage = (e?: React.MouseEvent | React.KeyboardEvent) => {
+        e?.stopPropagation();
+        // 🔇 SILÊNCIO PELO HOST: usuário silenciado não pode enviar mensagens
+        if (mutedIds.includes(currentUser.id)) {
+            addToast(ToastType.Error, 'Você foi silenciado pelo host e não pode enviar mensagens.');
+            return;
+        }
+        const rawText = chatInput.trim();
+        if (rawText === '' || !currentUser) return;
+        const text = rawText.slice(0, MAX_CHAT_MESSAGE_LENGTH);
+        setMessages(prev => [...prev, {
+            id: `optimistic_${Date.now()}_${Math.random()}`,
+            type: 'chat' as const,
+            user: currentUser.name,
+            userId: currentUser.id,
+            avatar: currentUser.avatarUrl || currentUser.avatar || AVATAR_FALLBACK(currentUser.id),
+            level: currentUser.level || 1,
+            message: text,
+            timestamp: Date.now(),
+        }].slice(-MAX_CHAT_MESSAGES));
+        setChatInput('');
         try {
-            const s = await connectSocket();
-            s?.emit('send_live_message', { streamId: roomId, userId: currentUser.id, text });
-            setChatInput('');
+            const s = connectSocket();
+            s.then(sock => sock?.emit('send_live_message', { streamId: roomId, userId: currentUser.id, text })).catch(() => addToast(ToastType.Error, 'Erro ao enviar mensagem.'));
         } catch {
             addToast(ToastType.Error, 'Erro ao enviar mensagem.');
         }
     };
 
     // ─── Entrada do usuário atual na sala — MESMO comportamento da live ───
+    // Mostra a bolha de entrada do PRÓPRIO usuário apenas UMA vez por sessão;
+    // sair e reentrar não repete (a live repete porque StreamRoom remonta, mas
+    // aqui o uso de flag global elimina o spam).
     useEffect(() => {
+        if (selfEntryShownRooms.has(roomId)) return;
+        selfEntryShownRooms.add(roomId);
         const entryMessage: VoiceChatMessage = {
             id: String(Date.now()),
             type: 'entry',
             fullUser: currentUser,
             timestamp: Date.now(),
         };
-        setMessages(prev => [entryMessage, ...prev]);
+        setMessages(prev => [...prev, entryMessage]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // 🚪 Efeito de entrada do próprio VIP (UMA vez por sessão)
+    useEffect(() => {
+        if (isHost || joinEffectShownRef.current) return;
+        joinEffectShownRef.current = true;
+        const isVipActive = !!currentUser?.isVIP &&
+            (!currentUser.vipExpirationDate || new Date(currentUser.vipExpirationDate).getTime() > Date.now());
+        if (isVipActive) {
+            setJoinEffect({
+                userName: currentUser?.name || 'Alguém',
+                avatarUrl: currentUser?.avatarUrl || currentUser?.avatar || '',
+            });
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -424,25 +794,62 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }));
     };
 
-    // ─── Enviar presente ───
+    // ─── Enviar presente (otimista + API) — MESMA lógica do StreamRoom ───
     const handleSendGift = async (gift: GiftType, quantity: number) => {
         if (!room) return;
+        const totalCost = (gift.price || 0) * quantity;
+        if ((currentUser.diamonds || 0) < totalCost) {
+            addToast(ToastType.Error, t('vip.store.notEnoughDiamonds'));
+            handleRecharge();
+            return;
+        }
+        if (!currentUser || !currentUser.id) {
+            addToast(ToastType.Error, 'Erro ao enviar presente. Tente novamente.');
+            return;
+        }
+        const optAnimationUrl = getAnimationUrl(gift);
+        const optDuration = getAnimationDuration(gift);
         try {
-            const totalCost = (gift.price || 0) * quantity;
-            if ((currentUser.diamonds || 0) < totalCost) {
-                addToast(ToastType.Error, t('vip.store.notEnoughDiamonds'));
-                onOpenWallet?.('Diamante');
-                return;
-            }
-            const { success, error, updatedSender } = await api.sendGift(
+            const { success, error, updatedSender, updatedReceiver } = await api.sendGift(
                 currentUser.id, room.hostId, roomId, gift.name, quantity,
             );
-            if (success && updatedSender) updateUser(updatedSender);
-            else if (error) addToast(ToastType.Error, error);
-            setIsGiftOpen(false);
-            refreshRanking();
+            if (success && updatedSender) {
+                enqueueGift({
+                    fromUser: {
+                        id: currentUser.id,
+                        name: (updatedSender.name || currentUser.name || 'Usuário'),
+                        avatarUrl: updatedSender.avatarUrl || currentUser.avatarUrl || currentUser.avatar || '',
+                        level: updatedSender.level || currentUser.level || 1,
+                    },
+                    toUser: { id: room.hostId, name: room.hostName || 'Anfitrião' },
+                    gift: { ...gift, ...(optAnimationUrl ? { animationUrl: optAnimationUrl } : {}), ...(optDuration ? { duration: optDuration } : {}) },
+                    quantity,
+                    roomId,
+                    id: String(Date.now() + Math.random()),
+                });
+                updateUser(updatedSender);
+                if (updatedReceiver) {
+                    setCoins(prev => prev + (gift.price || 0) * quantity);
+                }
+                if (gift.triggersAutoFollow && !followingUsers.includes(room.hostId)) {
+                    onFollowUserRef.current(buildLiteUser({ id: room.hostId, name: room.hostName, avatar: room.hostAvatar || '' }), room.roomId);
+                }
+                setOnlineUsers(prev => {
+                    const existing = prev.find(u => u.id === currentUser.id);
+                    const totalValue = (gift.price || 0) * quantity;
+                    if (existing) {
+                        return prev.map(u => u.id === currentUser.id ? { ...u, value: (u.value || 0) + totalValue } : u)
+                            .sort((a, b) => (b.value || 0) - (a.value || 0));
+                    }
+                    return [...prev, { ...currentUser, value: totalValue }].sort((a, b) => (b.value || 0) - (a.value || 0));
+                });
+                setIsGiftOpen(false);
+                refreshRanking();
+            } else {
+                addToast(ToastType.Error, error || 'Falha ao enviar o presente. Tente novamente.');
+            }
         } catch {
-            addToast(ToastType.Error, 'Erro ao enviar presente.');
+            addToast(ToastType.Error, 'Falha ao enviar o presente. Tente novamente.');
         }
     };
 
@@ -611,6 +1018,141 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }
     }, [room, currentUser.id, addToast]);
 
+    // ─── Recarga in-room (paridade StreamRoom) — wallet local na sala ───
+    const handleRecharge = useCallback(() => {
+        setIsWalletOpen(true);
+    }, []);
+
+    const handlePurchaseDiamonds = useCallback((pkg: PurchasePackage) => {
+        if (pkg.isFreeDev) return;
+        if (!currentUser?.cadastral?.document) {
+            setPendingPurchase(pkg);
+            setIsCadastralScreenOpen(true);
+            return;
+        }
+        setSelectedPackage(pkg);
+        setIsWalletOpen(false);
+    }, [currentUser]);
+
+    const handleConfirmPurchase = async (pkg: PurchasePackage) => {
+        try {
+            if (!currentUser) return;
+            const res = await api.createPayoneerDepositSession({
+                userId: currentUser.id,
+                amountBRL: pkg.price,
+                diamonds: pkg.diamonds,
+                method: 'payoneer',
+            });
+            if (res && res.redirectUrl) {
+                window.location.href = res.redirectUrl;
+                return;
+            }
+            addToast(ToastType.Error, 'Pagamento indisponível no momento.');
+        } catch {
+            addToast(ToastType.Error, 'Pagamento indisponível no momento.');
+        }
+    };
+
+    // ─── Moderação (paridade StreamRoom) ───
+    const handleOpenUserActions = (chatUser: VoiceChatMessage) => {
+        if (!chatUser.user) return;
+        if (chatUser.user === room?.hostName || chatUser.user === currentUser.name) return;
+        const userForModal = constructUserFromMessage(chatUser);
+        setUserActionModalState({ isOpen: true, user: userForModal });
+    };
+    const handleCloseUserActions = () => {
+        setUserActionModalState({ isOpen: false, user: null });
+    };
+    const handleKickUser = (user: User) => {
+        if (user.id === ':98501723') {
+            addToast(ToastType.Error, 'PROIBIDO: Este usuário não pode ser expulso!');
+            return;
+        }
+        const sId = room?.roomId || roomId;
+        api.kickUser(sId, user.id, currentUser.id).catch(() => {});
+        setRoom(prev => prev ? { ...prev, slots: prev.slots.map(s => String(s.userId) === String(user.id) ? { ...s, userId: null, userName: '', avatar: '', level: 1, isSpeaking: false, isMuted: false } : s) } : prev);
+        setOnlineUsers(prev => prev.filter(u => String(u.id) !== String(user.id)));
+        setModeratorIds(prev => prev.filter(id => id !== String(user.id)));
+        setMutedIds(prev => prev.filter(id => id !== String(user.id)));
+        addToast(ToastType.Info, `Usuário ${user.name} foi expulso.`);
+    };
+    const handleMakeModerator = (user: User) => {
+        const sId = room?.roomId || roomId;
+        const uid = String(user.id);
+        const isModNow = moderatorIds.includes(uid);
+        if (isModNow) {
+            setModeratorIds(prev => prev.filter(id => id !== uid));
+            addToast(ToastType.Info, `${user.name} foi removido dos moderadores.`);
+        } else {
+            setModeratorIds(prev => [...prev, uid]);
+            addToast(ToastType.Success, `Sucesso! ${user.name} foi promovido a Moderador/Admin com sucesso! 🎉`);
+        }
+        api.makeModerator(sId, user.id, currentUser.id).catch(() => {});
+    };
+    const handleMuteUser = (user: User) => {
+        if (String(user.id) === String(currentUser.id)) return;
+        const sId = room?.roomId || roomId;
+        const isMutedNow = mutedIds.includes(String(user.id));
+        if (isMutedNow) {
+            setMutedIds(prev => prev.filter(id => id !== String(user.id)));
+            addToast(ToastType.Info, `${user.name} pode falar novamente.`);
+        } else {
+            setMutedIds(prev => [...prev, String(user.id)]);
+            addToast(ToastType.Success, `Usuário ${user.name} foi silenciado.`);
+        }
+        api.muteUser(sId, user.id, currentUser.id, !isMutedNow).catch(() => {});
+    };
+    const handleMentionUser = (user: User) => {
+        setChatInput(prev => `${prev}@${user.name} `);
+    };
+
+    // ─── Perfil / ações no clique do avatar do chat ───
+    const handleViewChatUserProfile = (msg: VoiceChatMessage) => {
+        if (!msg.user) return;
+        if (msg.user === 'Sistema') return;
+        const userProfile = constructUserFromMessage(msg);
+        if (userProfile.id === currentUser.id) onViewProfile(userProfile);
+        else if (isHost || isCurrentUserModerator) setUserActionModalState({ isOpen: true, user: userProfile });
+        else onViewProfile(userProfile);
+    };
+
+    const handleFollowChatUser = (userToFollow: User) => {
+        onFollowUserRef.current(userToFollow, roomId);
+    };
+
+    const handleFollowStreamer = () => {
+        if (!room) return;
+        const host = buildLiteUser({ id: room.hostId, name: room.hostName, avatar: room.hostAvatar || '', level: 1 });
+        onFollowUserRef.current(host, room.roomId);
+    };
+
+    // ─── Auto-follow / auto-invite (toggle local, paridade StreamRoom) ───
+    const handleToggleAutoFollow = async () => {
+        if (!isHost) return;
+        const next = !isAutoFollowEnabled;
+        setIsAutoFollowEnabled(next);
+        addToast(ToastType.Success, next ? 'Seguir automático ativado: quem mandar presente será seguido.' : 'Seguir automático desativado.');
+        try {
+            await api.toggleAutoFollow(roomId, next, currentUser.id);
+        } catch {
+            setIsAutoFollowEnabled(!next);
+            addToast(ToastType.Error, 'Falha ao alterar a configuração.');
+        }
+    };
+
+    const handleToggleAutoPrivateInvite = async () => {
+        if (!isHost) return;
+        const next = !isAutoPrivateInviteEnabled;
+        setIsAutoPrivateInviteEnabled(next);
+        addToast(ToastType.Success, next ? 'Convite automático ativado.' : 'Convite automático desativado.');
+        try {
+            await api.toggleAutoPrivateInvite(roomId, next, currentUser.id);
+        } catch {
+            setIsAutoPrivateInviteEnabled(!next);
+            addToast(ToastType.Error, 'Falha ao alterar a configuração.');
+        }
+    };
+
     // ─── Aceitar convite → sobe direto no palco da MESMA sala ───
     const handleAcceptStageInvite = async () => {
         if (!stageInvite) return;
@@ -653,6 +1195,8 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }
     };
 
+    const topContributors = useMemo(() => onlineUsers.filter(u => (u.value || 0) > 0).slice(0, 3), [onlineUsers]);
+
     // ─── Loading / Not Found ───
     if (loading) {
         return (
@@ -689,6 +1233,8 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         ownedFrames: [], isOnline: true, isVIP: false, isAvatarProtected: false,
     };
 
+    const isFollowed = followingUsers.includes(room.hostId);
+
     return (
         <div className="absolute inset-0 bg-[#0e0f13] z-50 flex flex-col overflow-hidden">
 
@@ -719,10 +1265,32 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                                 </div>
                             </div>
                         </div>
+                        {/* 🚫 O dono NUNCA vê botão de seguir a si mesmo — só o
+                            espectador vê (mesmo comportamento do StreamRoom). */}
+                        {!isFollowed && !isHost && String(currentUser.id) !== String(room.hostId) && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleFollowStreamer(); }}
+                                className="w-7 h-7 bg-gradient-to-br from-[#bd00ff] to-[#e7006e] rounded-full flex items-center justify-center text-white shrink-0 transition-all transform active:scale-90 cursor-pointer ml-1"
+                            >
+                                <PlusIcon className="w-3.5 h-3.5" />
+                            </button>
+                        )}
                     </div>
 
                     {/* Right side (Controls) */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        {/* 🏆 Top Contributors — avatares de rank (mesmo da live) */}
+                        <div className="flex items-center gap-1 mr-1">
+                            {topContributors.map((user, index) => (
+                                <RankedAvatar
+                                    key={user.id}
+                                    user={user}
+                                    rank={index + 1}
+                                    onClick={onViewProfile}
+                                />
+                            ))}
+                        </div>
+
                         {/* 🔔 Sininho — contagem de online (igual à live, abre OnlineUsersModal) */}
                         <button
                             onClick={(e) => { e.stopPropagation(); setIsOnlineUsersOpen(true); }}
@@ -826,67 +1394,116 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                 <p className="text-[8px] text-white/25 mt-0.5 z-10">{t('voiceRoom.tapSlot')}</p>
             </div>
 
+            {/* 🎁 Painel de animação de presente (independente — mesma da live) */}
+            <GiftAnimationPanel ref={giftPanelRef} />
+
+            {/* 🚪 Efeito de entrada (mp4 do pacote real, com o nome do usuário) */}
+            {joinEffect && (
+                <JoinEffectOverlay
+                    userName={joinEffect.userName}
+                    avatarUrl={joinEffect.avatarUrl}
+                    entranceEffect={joinEffect.entranceEffect}
+                    onEnd={() => setJoinEffect(null)}
+                />
+            )}
+
+            {/* 📌 Presentes Fixados — canto inferior direito (só vivos enquanto a sala estiver aberta) */}
+            {pinnedGifts.length > 0 && (
+                <div className="absolute bottom-[148px] right-3 z-30 flex flex-col items-end gap-2 pointer-events-none select-none">
+                    {pinnedGifts.map(({ gift, label }) => (
+                        <div key={gift.id || gift.name} className="gift-pinned-rise flex flex-col items-center gap-1">
+                            <div className="bg-black/55 backdrop-blur-md rounded-2xl px-3 py-2 border border-white/15 shadow-xl flex flex-col items-center gap-1">
+                                <p className="text-[10px] font-bold text-white truncate max-w-[90px]">{label || gift.name}</p>
+                                <div className="w-14 h-14 flex items-center justify-center">
+                                    {gift.component
+                                        ? gift.component
+                                        : (typeof gift.icon === 'string' && (gift.icon.startsWith('http') || gift.icon.startsWith('/')))
+                                            ? <img src={gift.icon} alt={gift.name} className="w-12 h-12 object-cover rounded-xl" />
+                                            : <span className="text-4xl">{gift.icon}</span>}
+                                </div>
+                            </div>
+                            <div className="w-6 h-6 rounded-full bg-[#FC10B8] flex items-center justify-center shadow-lg">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 3l7 3v5c0 4.42-2.87 8.17-6 9.4V12l-1-4-1 4v8.4C7.87 19.17 5 15.42 5 11V6l9-3Z" />
+                                </svg>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* ═══════════════════════════════════════════════════════════
-             * 3. CHAT — IDÊNTICO AO STREAMROOM
+             * 3. CHAT + COMPOSER — IDÊNTICO AO STREAMROOM (2 barras TikTok)
              * ═══════════════════════════════════════════════════════════ */}
-            <div className="fixed left-0 right-0 bottom-0 w-full z-30 flex-shrink-0" style={{ bottom: keyboardFixedBottom > 0 ? `${keyboardFixedBottom}px` : undefined }}>
+            <div className="fixed left-0 right-0 bottom-0 w-full z-30 flex-shrink-0">
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
                 {/* Chat messages */}
-                <div ref={chatScrollRef} className="max-h-[18vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end px-1.5 relative z-10">
+                <div ref={chatScrollRef} onScroll={handleChatScroll} className="max-h-[20vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '20lvh' }}>
                     <div className="flex flex-col gap-px items-start w-full">
                         {messages.length === 0 && (
                             <p className="text-white/25 text-xs text-center w-full py-6">{t('voiceRoom.noMessages')}</p>
                         )}
                         {messages.map((msg, index) => {
                             if (msg.type === 'entry' && msg.fullUser) {
-                                return <EntryChatMessage
-                                    key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`}
-                                    user={msg.fullUser}
-                                    currentUser={currentUser}
-                                    onClick={() => {}}
-                                    onFollow={() => {}}
-                                    isFollowed={false}
-                                    isBroadcaster={isHost}
-                                    isModerator={false}
-                                    timestamp={msg.timestamp}
-                                />;
+                                const entryProps: any = {
+                                    user: msg.fullUser,
+                                    currentUser: currentUser,
+                                    onClick: onViewProfile,
+                                    onFollow: (u: User) => onFollowUserRef.current(u, roomId),
+                                    isFollowed: followingUsers.includes(msg.fullUser.id),
+                                    isBroadcaster: isHost,
+                                    isModerator: false,
+                                    timestamp: msg.timestamp,
+                                };
+                                return <EntryChatMessage key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`} {...entryProps} />;
                             }
                             if (msg.type === 'chat' && msg.user && (msg.avatar || msg.user === 'Sistema')) {
                                 const chatUser = constructUserFromMessage(msg);
+                                const shouldShowFollow = !isHost && chatUser.id !== currentUser.id && chatUser.id !== room.hostId;
                                 return <ChatMessage
                                     key={typeof msg.id === 'string' || typeof msg.id === 'number' ? msg.id : `msg-${index}`}
                                     userObject={chatUser}
                                     message={msg.message}
                                     avatarUrl={msg.avatar || chatUser.avatarUrl}
-                                    onAvatarClick={msg.isGift ? () => setIsGiftOpen(true) : () => {}}
-                                    isFollowed={false}
-                                    isModerator={msg.isModerator || false}
+                                    onAvatarClick={msg.isGift ? () => setIsGiftOpen(true) : () => handleViewChatUserProfile(msg)}
+                                    onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
+                                    isFollowed={followingUsers.includes(chatUser.id)}
+                                    onModerationClick={(isHost || isCurrentUserModerator) && isModerationMode && msg.user !== currentUser.name && msg.user !== room.hostName ? () => handleOpenUserActions(msg) : undefined}
+                                    isModerator={msg.isModerator || moderatorIds.includes(chatUser.id)}
                                     timestamp={msg.timestamp}
                                 />;
                             }
                             return null;
                         })}
                     </div>
-                    <div style={{ height: '72px' }} />
                 </div>
+                {/* Espaçador FORA da área rolável: reserva o espaço do fundo
+                    (1ª barra ou composer + teclado) sem esconder as mensagens. */}
+                <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
 
-                {/* ═══════════ BARRA INFERIOR — IDÊNTICA AO STREAMROOM ═══════════ */}
-                <footer className="fixed left-0 right-0 z-30 p-3" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                {/* 📝 1ª barra: renderiza APENAS quando o composer está fechado. */}
+                {!isComposerOpen && <footer className="fixed left-0 right-0 z-30 p-3 pointer-events-auto" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
-                            <input
-                                value={chatInput}
-                                onChange={e => setChatInput(e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') sendMessage(); }}
-                                placeholder={t('streamRoom.sayHi')}
-                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
-                            />
+                            <button
+                                type="button"
+                                tabIndex={-1}
+                                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
+                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
+                            >
+                                {chatInput ? (
+                                    <span className="text-white">{chatInput}</span>
+                                ) : (
+                                    <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
+                                )}
+                            </button>
                         </div>
                         <div className="flex items-center gap-2">
                             {/* Send */}
                             <button
-                                onClick={sendMessage}
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={(e) => { sendMessage(e); }}
                                 className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
                                 style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
                             >
@@ -894,7 +1511,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                             </button>
                             {/* Gift */}
                             <button
-                                onClick={() => setIsGiftOpen(true)}
+                                onClick={(e) => { e.stopPropagation(); setIsGiftOpen(true); }}
                                 className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
                             >
                                 <img
@@ -902,6 +1519,18 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                                     alt="Gift Icon"
                                     className="w-9 h-9 object-cover rounded-full shadow-lg"
                                 />
+                            </button>
+                            {/* Roleta */}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setIsRouletteOpen(v => !v); }}
+                                className="bg-black/40 hover:bg-black/65 w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-md shrink-0 border-none focus:outline-none cursor-pointer"
+                                title="Roleta"
+                            >
+                                <svg className="h-5 w-5 text-amber-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" />
+                                    <path d="M12 3v4M12 17v4M3 12h4M17 12h4" strokeLinecap="round" />
+                                </svg>
                             </button>
                             {/* More / Tools — mesmo modal de ferramentas da live */}
                             <button
@@ -917,7 +1546,49 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                             </button>
                         </div>
                     </div>
-                </footer>
+                </footer>}
+
+                {isComposerOpen && (
+                    <div
+                        ref={composerRef}
+                        className="fixed left-0 right-0 z-40"
+                        style={{ bottom: `${chatBarBottom}px` }}
+                    >
+                        <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-grow">
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder={t('streamRoom.sayHi')}
+                                        value={chatInput}
+                                        enterKeyHint="send"
+                                        autoComplete="off"
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onBlur={() => {
+                                            setTimeout(() => {
+                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                    closeComposer();
+                                                }
+                                            }, 120);
+                                        }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(e); } }}
+                                        maxLength={156}
+                                        className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                    />
+                                </div>
+                                <button
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => { e.stopPropagation(); sendMessage(e); }}
+                                    className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                                >
+                                    <SendIcon className="w-5 h-5 text-white" />
+                                </button>
+                            </div>
+                        </footer>
+                    </div>
+                )}
             </div>
 
             {/* ═══════════ FOOTER VOZ — Microfone (só quando está no palco) ═══════════ */}
@@ -953,7 +1624,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     onClose={() => setIsGiftOpen(false)}
                     userDiamonds={currentUser.diamonds ?? 0}
                     onSendGift={handleSendGift}
-                    onRecharge={() => onOpenWallet?.('Diamante')}
+                    onRecharge={handleRecharge}
                     gifts={gifts}
                     receivedGifts={receivedGifts}
                     isBroadcaster={isHost}
@@ -979,7 +1650,70 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     streamId={roomId}
                     userId={currentUser.id}
                     currentUser={currentUser}
-                    onSelectUser={() => setIsOnlineUsersOpen(false)}
+                    moderatorIds={moderatorIds}
+                    onSelectUser={(selectedUser: any) => {
+                        setIsOnlineUsersOpen(false);
+                        if ((isHost || isCurrentUserModerator) && selectedUser?.id && selectedUser.id !== currentUser.id) {
+                            setUserActionModalState({ isOpen: true, user: selectedUser });
+                        } else {
+                            onViewProfile(selectedUser);
+                        }
+                    }}
+                />
+            )}
+
+            {/* 🎡 Roleta — widget fixo na tela (mesmo da live).
+                ownerId SEMPRE o ID REAL do HOST (hostId) — itens e custo da roleta
+                ficam salvos no User do host. */}
+            <RouletteModal
+                isOpen={isRouletteOpen}
+                onClose={() => setIsRouletteOpen(false)}
+                currentUser={currentUser}
+                updateUser={updateUser}
+                addToast={addToast}
+                onOpenWallet={handleRecharge}
+                ownerId={room.hostId}
+                streamId={room.roomId}
+                canEdit={isHost}
+            />
+
+            {/* 💰 Recarga in-room — MESMA da live (Wallet + ConfirmPurchase + Cadastral) */}
+            {isWalletOpen && (
+                <WalletScreen
+                    onClose={() => setIsWalletOpen(false)}
+                    onPurchase={handlePurchaseDiamonds}
+                    initialTab="Diamante"
+                    isBroadcaster={isHost}
+                    currentUser={currentUser}
+                    updateUser={updateUser}
+                    addToast={addToast}
+                    purchaseHistory={[]}
+                />
+            )}
+            {selectedPackage && (
+                <ConfirmPurchaseScreen
+                    onClose={() => setSelectedPackage(null)}
+                    packageDetails={selectedPackage}
+                    onConfirmPurchase={handleConfirmPurchase}
+                    addToast={addToast}
+                    currentUser={currentUser}
+                />
+            )}
+            {isCadastralScreenOpen && pendingPurchase && (
+                <CadastralDataScreen
+                    onClose={() => { setIsCadastralScreenOpen(false); setPendingPurchase(null); }}
+                    onSaved={() => {
+                        setIsCadastralScreenOpen(false);
+                        if (pendingPurchase) {
+                            const pkg = pendingPurchase;
+                            setPendingPurchase(null);
+                            setSelectedPackage(pkg);
+                            setIsWalletOpen(false);
+                        }
+                    }}
+                    currentUser={currentUser}
+                    updateUser={updateUser}
+                    addToast={addToast}
                 />
             )}
 
@@ -988,24 +1722,28 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                 isOpen={isToolsOpen}
                 onClose={() => setIsToolsOpen(false)}
                 onOpenCoHostModal={() => setIsCoHostModalOpen(true)}
-                onOpenPrivateInviteModal={() => {}}
+                onOpenPrivateInviteModal={(e) => { e?.stopPropagation(); onOpenPrivateInviteModal(); }}
                 isHost={isHost}
                 isPrivateStream={false}
                 isMicrophoneMuted={isMuted}
                 onToggleMicrophone={(e) => { e?.stopPropagation(); handleToggleMute(); }}
                 isSoundMuted={isSoundMuted}
                 onToggleSound={(e) => { e?.stopPropagation(); setIsSoundMuted(m => !m); }}
-                onOpenPrivateChat={(e) => { e?.stopPropagation(); addToast(ToastType.Info, 'Chat privado indisponível na sala de voz'); }}
-                onOpenVideoCall={() => {}}
-                isAutoFollowEnabled={false}
-                onToggleAutoFollow={() => {}}
-                isAutoPrivateInviteEnabled={false}
-                onToggleAutoPrivateInvite={() => {}}
+                onOpenPrivateChat={(e) => { e?.stopPropagation(); onOpenPrivateChat(); }}
+                onOpenBeautyPanel={(e) => { e?.stopPropagation(); addToast(ToastType.Info, 'Filtro de beleza indisponível na sala de voz'); }}
+                onOpenClarityPanel={(e) => { e?.stopPropagation(); addToast(ToastType.Info, 'Resolução indisponível na sala de voz'); }}
+                onOpenVideoCall={(e) => { e?.stopPropagation(); addToast(ToastType.Info, 'Chamada de vídeo indisponível na sala de voz'); }}
+                isAutoFollowEnabled={isAutoFollowEnabled}
+                onToggleAutoFollow={(e) => { e?.stopPropagation(); handleToggleAutoFollow(); }}
+                isAutoPrivateInviteEnabled={isAutoPrivateInviteEnabled}
+                onToggleAutoPrivateInvite={(e) => { e?.stopPropagation(); handleToggleAutoPrivateInvite(); }}
+                isModerationActive={isModerationMode}
+                onToggleModeration={(e) => { e?.stopPropagation(); setIsModerationMode(m => !m); }}
+                onRequestParticipation={(e) => { e?.stopPropagation(); addToast(ToastType.Info, 'Participação por vídeo indisponível na sala de voz'); }}
                 addToast={addToast}
                 gifts={gifts}
-                onSavePinnedGifts={() => {}}
-                isModerationActive={false}
-                onToggleModeration={() => {}}
+                pinnedGifts={pinnedGifts}
+                onSavePinnedGifts={(entries) => setPinnedGifts(entries)}
             />
 
             {/* 🤝 Co-host — MESMO modal da live, adaptado para sala de voz */}
@@ -1021,6 +1759,24 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     mode="cohost"
                 />
             )}
+
+            {/* 🛠 Ações do usuário (ver perfil / tornar moderador / expulsar) */}
+            <UserActionModal
+                isOpen={userActionModalState.isOpen}
+                onClose={handleCloseUserActions}
+                user={userActionModalState.user}
+                currentUser={currentUser}
+                streamer={hostUser}
+                canModerate={isHost || isCurrentUserModerator}
+                canManageModerators={isHost}
+                onViewProfile={(user) => { handleCloseUserActions(); onViewProfile(user); }}
+                onMention={handleMentionUser}
+                onMakeModerator={handleMakeModerator}
+                onKick={handleKickUser}
+                onMute={handleMuteUser}
+                isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
+                isMuted={userActionModalState.user ? mutedIds.includes(userActionModalState.user.id) : false}
+            />
 
             {/* 🤝 Convite para subir no palco (dentro da própria sala) */}
             {stageInvite && !canSpeak && (

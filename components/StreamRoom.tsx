@@ -44,7 +44,6 @@ import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '..
 
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
-import { ensureLiveBeautyInRoom } from '../services/autoBeauty';
 import { videoProcessor } from '../services/VideoProcessor';
 
 interface ChatMessageType {
@@ -215,6 +214,9 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     // viewer_left não chega — então o sino usa este número.
     const [onlineCount, setOnlineCount] = useState(0);
     const [moderatorIds, setModeratorIds] = useState<string[]>([]);
+    const [mutedIds, setMutedIds] = useState<string[]>([]);
+    // 🛡️ USUÁRIO ATUAL É ADMINISTRADOR da sala? (host + adms podem moderar)
+    const isCurrentUserModerator = moderatorIds.includes(String(currentUser.id));
     const [typingUsers, setTypingUsers] = useState<string[]>([]);
     const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // 🎁 Ref para o GiftAnimationPanel (painel independente de animação de presentes)
@@ -660,46 +662,31 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
             // 📺 Quando o engine capturar a mídia (via WHIP), registrar
             // no streamPublishService para o LivePlayer (modo broadcaster) exibir o preview.
             engine.on('mediaReady', (stream: MediaStream) => {
-                console.log('[HOST] 🎁¥ Mídia capturada via WHIP — registrando preview');
-                // 🛡️ Guardar como "current" só se não há câmera crua viva — quando
-                // publicamos a stream PROCESSADA, o engine devolve ela aqui e
-                // sobrescreveria a fonte CRUA usada pelo filtro (flip/amostragem).
-                const cur = streamPublishService.getCurrentStream();
-                if (!cur || !cur.getVideoTracks().some(t => t.readyState === 'live')) {
-                    streamPublishService.setCurrentStream(stream);
-                }
+                console.log('[HOST] 🎥 Mídia capturada via WHIP — registrando preview');
+                streamPublishService.setCurrentStream(stream);
                 streamPublishService.setPublishing(true);
-                // 🎨 Rede de segurança: se publicamos cru (filtro falhou), liga o
-                // auto-beleza agora e faz replaceTrack assim que ficar pronto.
-                void ensureLiveBeautyInRoom(currentUser.id);
             });
 
-            // 🎨 ORDEM CORRETA (captura → filtra → transmite): liga o auto-beleza
-            // ANTES de abrir a sessão WHIP — o SRS recebe o vídeo JÁ filtrado
-            // desde o 1º frame (pele limpa/sem manchas/jovem automaticamente).
-            // Se falhar, devolve null e publicamos a câmera crua (live nunca trava).
-            let mediaForPublish: MediaStream | undefined;
-            try {
-                const beauty = await ensureLiveBeautyInRoom(currentUser.id);
-                if (beauty && beauty.getVideoTracks().some(t => t.readyState === 'live')) {
-                    mediaForPublish = beauty;
-                    console.log('[HOST] 🎨 Publicando stream PROCESSADA (filtro desde o 1º frame)');
-                }
-            } catch (beautyErr) {
-                console.warn('[HOST] Filtro não ficou pronto antes do publish:', beautyErr);
-            }
+            // 🔧 REUTILIZAR o stream do preview (GoLiveScreen já capturou a câmera).
+            // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
+            // anteriormente parou os tracks — o stream morto não serve para publicar).
+            const previewStream = streamPublishService.getCurrentStream();
+            let mediaForPublish: MediaStream | undefined = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
+                ? previewStream
+                : undefined;
 
-            // Fallback: sem filtro pronto → usa o preview cru existente (ou deixa
-            // o engine capturar), como antes. O mediaReady re-tenta ligar o filtro
-            // e faz replaceTrack assim que ficar pronto.
-            if (!mediaForPublish) {
-                const previewStream = streamPublishService.getCurrentStream();
-                // 🔧 Só reutilizar se tiver track de vídeo VIVA (um publish que falhou
-                // anteriormente parou os tracks — o stream morto não serve para publicar).
-                mediaForPublish = (previewStream && previewStream.getVideoTracks().some(t => t.readyState === 'live'))
-                    ? previewStream
-                    : undefined;
+            // 🎨 EMBELEZAMENTO DIRETO NO WHIP (SRS/WebRTC): se o filtro já foi
+            // aplicado (videoProcessor → canvas → processedStream), publicar A
+            // STREAM PROCESSADA logo de cara — o SRS recebe o vídeo embelezado
+            // (que podia perder o efeito se o processamento ainda não tivesse
+            // terminado). Mantém o áudio original do preview.
+            const beautyStream = streamPublishService.getBeautyProcessedStream();
+            if (mediaForPublish && beautyStream && beautyStream.getVideoTracks().some(t => t.readyState === 'live')) {
+                const withBeauty = streamPublishService.applyBeautyToStream(mediaForPublish);
+                mediaForPublish = withBeauty && withBeauty.getVideoTracks().length > 0 ? withBeauty : mediaForPublish;
+                console.log('[HOST] 🎨 Embelezamento aplicado diretamente na stream WHIP (SRS)');
             }
+            console.log('[HOST] 🎥 Reutilizando preview do GoLive para publish:', !!mediaForPublish);
 
             // WHIP inicia a sessão e captura a mídia (getUserMedia) ao publicar
             await engine.start(streamer.streamKey || streamer.id, mediaForPublish, currentUser.id);
@@ -882,6 +869,19 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
         fetchInitialLikes();
 
+        // 👑 Carregar moderadores atuais da sala (badge Adm para todos)
+        api.getStreamModerators(streamer.id).then((list) => {
+            if (Array.isArray(list) && list.length) setModeratorIds(list);
+        }).catch(() => {});
+
+        // 🔇 Sincronizar usuários SILENCIADOS da sala (persiste até o host
+        // desmutar — mesmo após recarregar a página o chat continua bloqueado).
+        api.getStreamMuted(streamer.id).then((list) => {
+            if (Array.isArray(list) && list.length) {
+                setMutedIds(prev => Array.from(new Set([...prev, ...list.map(String)])));
+            }
+        }).catch(() => {});
+
         // 🔒 BANIMENTO POR CONTA: usuário bloqueado pelo dono não entra na sala
         // e é redirecionado pra tela de lista de bloqueio (perfil do host some pra ele).
         if (!isBroadcaster && streamer.hostId) {
@@ -908,11 +908,52 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 }).catch(() => {});
             }, 1200);
         }
-        // 👢 Kick em TEMPO REAL: host expulsou este espectador agora
+        // 👢 Kick em TEMPO REAL: host expulsou este espectador agora.
+        // (Toast/Navegação global são feitos no App via 'kicked_out'.)
         const unsubKicked = onSocketEvent('user_kicked', (data: any) => {
             if (data?.userId === String(currentUser.id)) {
-                addToast(ToastType.Error, data.reason || 'Você foi expulso da transmissão.');
                 try { onLeaveStreamView(); } catch {}
+            }
+        });
+        // 🎙️ Sincroniza mutados PRA TODOS da sala (host silenciou alguém)
+        const unsubMuted = onSocketEvent('user_muted', (data: any) => {
+            if (!data?.userId) return;
+            // 🎯 Só reage a mute desta sala — não afeta outras salas
+            if (data.roomId && String(data.roomId) !== String(streamer.id)) return;
+            const uid = String(data.userId);
+            setMutedIds(prev => (data.mute ? [...new Set([...prev, uid])] : prev.filter(id => id !== uid)));
+            if (uid === String(currentUser.id)) {
+                addToast(data.mute ? ToastType.Error : ToastType.Success, data.mute ? 'Você foi silenciado.' : 'Você pode falar novamente.');
+            }
+        });
+        // 👑 Sincroniza moderadores PRA TODOS da sala (badge Adm em tempo real)
+        // Backend emite: { roomId, userId, actorId, userName, isModerator: true/false }
+        const unsubMod = onSocketEvent('moderator_updated', (data: any) => {
+            if (!data?.userId) return;
+            // Aceita roomId vindo do socket (todas as salas recebem) ou sem filtro
+            if (data.roomId && String(data.roomId) !== String(streamer.id)) return;
+            const uid = String(data.userId);
+            const isNowMod = data.isModerator === true || data.isModerator === 'true';
+            setModeratorIds(prev => {
+                if (isNowMod) {
+                    if (prev.includes(uid)) return prev;
+                    return [...new Set([...prev, uid])];
+                } else {
+                    return prev.filter(id => id !== uid);
+                }
+            });
+            // Notificar todos os presentes na sala
+            const userName = data.userName || data.actorId || uid;
+            if (uid === String(currentUser.id)) {
+                addToast(
+                    isNowMod ? ToastType.Success : ToastType.Info,
+                    isNowMod ? 'Você foi colocado como ADM.' : 'Você perdeu o cargo de administrador.'
+                );
+            } else {
+                addToast(
+                    isNowMod ? ToastType.Success : ToastType.Info,
+                    isNowMod ? `${userName} agora é administrador da sala! 🎉` : `${userName} deixou de ser administrador.`
+                );
             }
         });
         // Presença/chat em tempo real via Socket.IO (useStreamChat) — online users sync inicial REST
@@ -946,6 +987,8 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         return () => {
             if (kickCheckId) window.clearTimeout(kickCheckId);
             try { unsubKicked && unsubKicked(); } catch {}
+            try { unsubMuted && unsubMuted(); } catch {}
+            try { unsubMod && unsubMod(); } catch {}
             // Socket.IO leaveRoom removido
         };
     }, [streamer.id, currentUser.id]); // Removido onlineUsersInterval das dependências
@@ -1192,6 +1235,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     const MAX_CHAT_MESSAGE_LENGTH = 120;
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
         e.stopPropagation();
+        // 🔇 SILÊNCIO PELO HOST: usuário silenciado não pode enviar mensagens
+        if (mutedIds.includes(currentUser.id)) {
+            addToast(ToastType.Error, 'Você foi silenciado.');
+            return;
+        }
         const rawText = chatInput.trim();
         if (rawText === '' || !currentUser) return;
         const text = rawText.slice(0, MAX_CHAT_MESSAGE_LENGTH);
@@ -1379,31 +1427,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     // 🛑 REMOVIDO: cleanup que parava o processamento de beleza ao desmontar.
     // Ele DESLIGAVA o filtro enquanto a live CONTINUAVA no ar (só encerra por
     // ação do usuário) — os espectadores voltavam a ver a câmera crua/envelhecida
-    // após qualquer navegação. O pipeline é singleton e se auto-gerencia;
-    // o watchdog abaixo religa caso algo caia.
-
-    // 🩺 WATCHDOG DO FILTRO NA SALA: a cada 4s verifica se o stream processado
-    // está produzindo frames. Se não estiver (crash do MediaPipe, contexto
-    // WebGL perdido, F5, reconexão), RELIGA o auto-beleza e faz replaceTrack.
-    // Garante a regra do produto: abriu a sala → rosto limpo/jovem SEMPRE.
-    useEffect(() => {
-        if (!isBroadcaster) return;
-        const wd = setInterval(() => {
-            try {
-                if (!streamPublishService.isPublishing()) return;
-                // Usuário pediu câmera crua de propósito? (zerou tudo no painel agora)
-                const st = videoProcessor.getBeautySettings();
-                const allOff = Object.entries(st).filter(([k]) => k !== 'selectedFilter')
-                    .every(([, v]) => typeof v !== 'number' || v === 0);
-                if (allOff) return;
-                if (!videoProcessor.isFramesFlowing()) {
-                    console.warn('[HOST] 🩺 Watchdog: filtro sem fluxo — religando auto-beleza');
-                    void ensureLiveBeautyInRoom(currentUser.id);
-                }
-            } catch { /* nunca derruba a live por causa do watchdog */ }
-        }, 4000);
-        return () => clearInterval(wd);
-    }, [isBroadcaster, currentUser.id]);
+    // após qualquer navegação. O pipeline é singleton e se auto-gerencia.
 
     // Keyboard removed: usar position:fixed no footer mantém o chat sempre visível
     // sem empurrar o layout. O teclado não desce ao enviar porque mantemos o foco no input.
@@ -1664,7 +1688,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     };
 
     const handleOpenUserActions = (chatUser: ChatMessageType) => {
-        if (!isBroadcaster || !chatUser.user) return;
+        if ((!isBroadcaster && !isCurrentUserModerator) || !chatUser.user) return;
         if (chatUser.user === streamer.name || chatUser.user === currentUser.name) return;
         const userForModal = constructUserFromMessage(chatUser);
         setUserActionModalState({ isOpen: true, user: userForModal });
@@ -1686,15 +1710,29 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         addToast(ToastType.Info, `Usuário ${user.name} foi expulso.`);
     };
     const handleMakeModerator = (user: User) => {
+        const uid = String(user.id);
         api.makeModerator(streamer.id, user.id, currentUser.id);
-        const isModNow = moderatorIds.includes(user.id);
+        const isModNow = moderatorIds.includes(uid);
         if (isModNow) {
-            setModeratorIds(prev => prev.filter(id => id !== user.id));
+            setModeratorIds(prev => prev.filter(id => id !== uid));
             addToast(ToastType.Info, `${user.name} foi removido dos moderadores.`);
         } else {
-            setModeratorIds(prev => [...prev, user.id]);
+            setModeratorIds(prev => [...prev, uid]);
             addToast(ToastType.Success, `Sucesso! ${user.name} foi promovido a Moderador/Admin com sucesso! 🎉`);
         }
+    };
+    const handleMuteUser = (user: User) => {
+        if (String(user.id) === String(currentUser.id)) return;
+        const uid = String(user.id);
+        const isMutedNow = mutedIds.includes(uid);
+        if (isMutedNow) {
+            setMutedIds(prev => prev.filter(id => id !== uid));
+            addToast(ToastType.Info, `${user.name} pode falar novamente.`);
+        } else {
+            setMutedIds(prev => [...prev, uid]);
+            addToast(ToastType.Success, `Usuário ${user.name} foi silenciado.`);
+        }
+        api.muteUser(streamer.id, user.id, currentUser.id, !isMutedNow).catch(() => {});
     };
     const handleMentionUser = (user: User) => {
         setChatInput(prev => `${prev}@${user.name} `);
@@ -2103,7 +2141,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                         onAvatarClick={msg.isGift ? () => setGiftModalOpen(true) : () => handleViewChatUserProfile(msg)}
                                         onFollow={shouldShowFollow ? () => handleFollowChatUser(chatUser) : undefined}
                                         isFollowed={followedUsers.has(chatUser.id)}
-                                        onModerationClick={isBroadcaster && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
+                                        onModerationClick={(isBroadcaster || isCurrentUserModerator) && isModerationMode && msg.user !== currentUser.name && msg.user !== streamer.name ? () => handleOpenUserActions(msg) : undefined}
                                         isModerator={msg.isModerator || moderatorIds.includes(chatUser.id)}
                                         timestamp={msg.timestamp}
                                     />;
@@ -2252,7 +2290,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                                         }, 120);
                                     }}
                                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
-                                    maxLength={120}
+                                    maxLength={156}
                                     className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                                 />
                             </div>
@@ -2317,10 +2355,10 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setOnlineUsersOpen(false);
-                        // 🔧 HOST: clicar no nome do espectador abre o modal de
-                        // ações (tornar mod, expulsar, ver perfil) — igual ao chat.
+                        // 🔧 HOST/ADM: clicar no nome do espectador abre o modal de
+                        // ações (tornar mod, silenciar, expulsar, ver perfil) — igual ao chat.
                         // Espectador: abre o perfil normalmente.
-                        if (isBroadcaster && selectedUser?.id && selectedUser.id !== currentUser.id) {
+                        if ((isBroadcaster || isCurrentUserModerator) && selectedUser?.id && selectedUser.id !== currentUser.id) {
                             setUserActionModalState({ isOpen: true, user: selectedUser });
                         } else {
                             onViewProfile(selectedUser);
@@ -2470,11 +2508,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 user={userActionModalState.user}
                 currentUser={currentUser}
                 streamer={streamer as unknown as User}
+                canModerate={isBroadcaster || isCurrentUserModerator}
+                canManageModerators={isBroadcaster}
                 onViewProfile={(user) => { handleCloseUserActions(); onViewProfile(user); }}
                 onMention={handleMentionUser}
                 onMakeModerator={handleMakeModerator}
                 onKick={handleKickUser}
+                onMute={handleMuteUser}
                 isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
+                isMuted={userActionModalState.user ? mutedIds.includes(userActionModalState.user.id) : false}
             />
 
             {/* Video Call PiP — Chamada de vídeo Picture-in-Picture

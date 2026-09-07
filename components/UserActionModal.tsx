@@ -1,6 +1,6 @@
 import React from 'react';
 import { User } from '../types';
-import { UserIcon, StarIcon, BlockIcon, ShieldIcon, UserPlusIcon, RankIcon } from './icons';
+import { UserIcon, StarIcon, BlockIcon, ShieldIcon, UserPlusIcon, RankIcon, MicrophoneIcon, MicrophoneOffIcon } from './icons';
 import AvatarWithFrame from './ui/AvatarWithFrame';
 
 interface UserActionModalProps {
@@ -13,7 +13,11 @@ interface UserActionModalProps {
   onMention: (user: User) => void;
   onMakeModerator: (user: User) => void;
   onKick: (user: User) => void;
+  onMute: (user: User) => void;
   isAlreadyModerator?: boolean;
+  isMuted?: boolean;
+  canModerate?: boolean;
+  canManageModerators?: boolean;
 }
 
 const LevelBadge: React.FC<{ level: number }> = ({ level }) => {
@@ -70,7 +74,11 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
     onMention, 
     onMakeModerator, 
     onKick,
-    isAlreadyModerator = false
+    onMute,
+    isAlreadyModerator = false,
+    isMuted = false,
+    canModerate = false,
+    canManageModerators = false
 }) => {
     if (!isOpen || !user) return null;
 
@@ -78,15 +86,28 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
     const APP_OWNER_ID = 'adriano';
     
     // VERIFICAÇÕES DE PROTEÇÃO
-    const isAppOwner = user.id === APP_OWNER_ID || user.id === '98501723' || user.name?.toLowerCase() === 'adriano';
-    const isCurrentUserOwner = currentUser?.id === APP_OWNER_ID || currentUser?.id === '98501723' || currentUser?.name?.toLowerCase() === 'adriano';
+    // ⚠️ NÃO usar name-match: contas de teste também se chamam "adriano".
+    // Proteção por nome bloqueava Colocar como Adm / Silenciar. Só ID real.
+    const isAppOwner = user.id === APP_OWNER_ID || user.id === '98501723';
     const isStreamer = user.id === streamer?.id || isAppOwner;
-    const isCurrentUserStreamer = currentUser?.id === streamer?.id;
+    
+    // SE as permissões não vieram do caller, deriva do HOST (quem abre o modal
+    // sendo DONO da sala) — assim "Colocar como Adm" / "Silenciar" / "Expulsar"
+    // NUNCA ficam travados para o anfitrião em nenhuma sala.
+    const isCurrentUserTheStreamer = !!currentUser && !!streamer && (
+        String(currentUser.id) === String(streamer.id) ||
+        (!streamer.hostId && String(currentUser.name || '') === String(streamer.name || ''))
+    );
+    const canModerateEffective = canModerate || isCurrentUserTheStreamer;
+    const canManageModsEffective = canManageModerators || isCurrentUserTheStreamer;
     
     // REGRAS DE PROTEÇÃO
-    const canKick = !isAppOwner && !isStreamer && (isCurrentUserOwner || isCurrentUserStreamer);
-    // Let's keep canMakeModerator true for the 2x2 grid layout display so it always aligns beautifully
-    const canMakeModerator = true;
+    // canModerate (host OU admin da sala) libera Silenciar e Expulsar.
+    // canManageModerators (só o host) habilita "Colocar como Administrador".
+    const canModerateThisUser = !!canModerateEffective && !isAppOwner && !isStreamer;
+    const canKick = canModerateThisUser;
+    const canMute = canKick;
+    const canManageMods = !!canManageModsEffective && !isStreamer && !isAppOwner;
 
     // Se o usuário clicado for adriano (ou ID correspondente), o nível exibido será o nível real do usuário ou padrão 5
     const displayLevel = isAppOwner ? (user.level || 5) : (user.level || 1);
@@ -188,7 +209,7 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
                     </div>
                 </div>
 
-                {/* 2x2 Bento Action Grid */}
+                {/* 2x2 Bento Action Grid + Silenciar + Expulsar */}
                 <div className="grid grid-cols-2 gap-2.5">
                     {/* 1. Ver Perfil */}
                     <button onClick={() => handleAction(onViewProfile)} className="bg-white/[0.03] border border-white/[0.01] hover:bg-white/[0.08] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[64px]">
@@ -202,28 +223,50 @@ const UserActionModal: React.FC<UserActionModalProps> = ({
                         <span className="text-[11px] text-zinc-300 font-medium">Mencionar</span>
                     </button>
 
-                    {/* 3. Tornar Mod (Always visible to preserve beautiful 2x2 symmetry) */}
+                    {/* 3. Colocar como Administrador (só o host pode; adms não) */}
                     <button 
-                        onClick={() => handleAction(onMakeModerator)} 
-                        className="bg-white/[0.03] border border-white/[0.01] hover:bg-white/[0.08] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[64px]"
+                        onClick={() => canManageMods && handleAction(onMakeModerator)} 
+                        disabled={!canManageMods}
+                        title={canManageMods ? (isAlreadyModerator ? 'Remover como Administrador' : 'Colocar como Administrador') : 'Apenas o host da transmissão pode definir administradores'}
+                        className={`border border-white/[0.01] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[64px] ${canManageMods ? 'bg-white/[0.03] hover:bg-white/[0.08]' : 'cursor-default opacity-80 bg-white/[0.03]'}`}
                     >
                         {isAlreadyModerator ? (
                             <>
                                 <StarIcon className="w-5 h-5 text-purple-400 fill-purple-400" />
-                                <span className="text-[11px] text-purple-400 font-bold whitespace-nowrap">Remover Mod</span>
+                                <span className="text-[10px] text-purple-400 font-bold whitespace-nowrap">Remover como Adm</span>
                             </>
                         ) : (
                             <>
                                 <StarIcon className="w-5 h-5 text-amber-400 animate-pulse" />
-                                <span className="text-[11px] text-zinc-300 font-medium whitespace-nowrap">Tornar Mod</span>
+                                <span className="text-[10px] text-zinc-300 font-medium whitespace-nowrap">Colocar como Adm</span>
                             </>
                         )}
                     </button>
 
-                    {/* 4. Host or Expulsar Action Button */}
+                    {/* 4. Silenciar / Desmutar */}
+                    <button 
+                        onClick={() => canMute && handleAction(onMute)} 
+                        disabled={!canMute}
+                        title={canMute ? (isMuted ? 'Permitir falar novamente' : 'Silenciar usuário') : 'Silenciar indisponível para este usuário'}
+                        className={`border border-white/[0.01] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[64px] ${canMute ? 'bg-white/[0.03] hover:bg-amber-500/10' : 'cursor-default opacity-85 bg-white/[0.03]'}`}
+                    >
+                        {isMuted ? (
+                            <>
+                                <MicrophoneIcon className="w-5 h-5 text-emerald-400" />
+                                <span className="text-[11px] text-emerald-400 font-bold whitespace-nowrap">Desmutar</span>
+                            </>
+                        ) : (
+                            <>
+                                <MicrophoneOffIcon className="w-5 h-5 text-amber-400" />
+                                <span className="text-[11px] text-zinc-300 font-medium whitespace-nowrap">Silenciar</span>
+                            </>
+                        )}
+                    </button>
+
+                    {/* 5. Host ou Expulsar Action Button (full width) */}
                     <button 
                         onClick={() => !kickButton.disabled && canKick && handleAction(onKick)} 
-                        className={`border border-white/[0.01] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[64px] ${kickButton.disabled ? 'cursor-default opacity-85 bg-white/[0.03]' : `${kickButton.bgColor} hover:bg-red-500/10`}`}
+                        className={`col-span-2 border border-white/[0.01] active:scale-[0.98] transition-all p-2.5 rounded-xl flex flex-col items-center justify-center space-y-1 min-h-[52px] ${kickButton.disabled ? 'cursor-default opacity-85 bg-white/[0.03]' : `${kickButton.bgColor} hover:bg-red-500/10`}`}
                         disabled={kickButton.disabled}
                         title={kickButton.title}
                     >

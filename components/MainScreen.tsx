@@ -1,10 +1,10 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import Header from './Header';
-import { Streamer, VoiceRoom } from '../types';
+import { Streamer } from '../types';
 import { useTranslation } from '../i18n';
 import { LoadingSpinner } from './Loading';
-import { ViewerIcon, LockIcon, ChevronRightIcon, LocationPinIcon } from './icons';
+import { ViewerIcon, LockIcon, ChevronRightIcon, LocationPinIcon, HeadphonesIcon } from './icons';
 import { calculateDistanceInKm, formatDistance } from '../utils/location';
 import { SrsPlayerEngine } from '../services/SrsPlayerEngine';
 
@@ -105,8 +105,6 @@ interface MainScreenProps {
   showLocationBanner: boolean;
   unreadCount?: number;
   invitedStreamIds?: string[];
-  voiceRooms?: VoiceRoom[];
-  onOpenVoiceRoom?: (roomId: string) => void;
   // 🔄 Recarrega os cards da API (pull-to-refresh + auto-refresh)
   onRefresh?: () => void | Promise<void>;
 }
@@ -142,6 +140,8 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
     // transmissão privada. Quem não foi convidado vê o cadeado mas não consegue
     // entrar (o acesso é bloqueado pelo access-check no handleSelectStream).
     const isPrivateRoom = !!streamer.isPrivate;
+    // 🎙️ Sala de voz: card abre a sala de voz (não tem prévia de vídeo).
+    const isVoiceRoom = !!((streamer as any).isVoiceRoom) || streamer.streamStatus === 'voice_room';
 
     return (
         <div 
@@ -157,8 +157,9 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
             />
             {/* Prévia ao vivo: 🔒 sala PRIVADA = prévia SEMPRE desativada
                 (nada é mostrado antes de entrar); 🌐 pública = prévia ativa
-                automática (se o usuário tiver a opção ligada). */}
-            {previewEnabled && !isPrivateRoom && previewStreamId && (
+                automática (se o usuário tiver a opção ligada). Sala de voz
+                não tem vídeo → prévia nunca roda. */}
+            {previewEnabled && !isPrivateRoom && !isVoiceRoom && previewStreamId && (
                 <StreamPreviewVideo streamId={previewStreamId} visible={inView} />
             )}
             {/* Dynamic black-transparent gradient layers */}
@@ -170,6 +171,23 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
                     <div className="flex items-center justify-center w-[48px] h-[48px] rounded-full bg-black/60 backdrop-blur-md border-2 border-[#e1ba72]/80 shadow-[0_0_20px_rgba(225,186,114,0.55)]">
                         <LockIcon className="w-[22px] h-[22px] text-[#f2d7a2] drop-shadow" />
                     </div>
+                </div>
+            )}
+
+            {/* 🎙️ SALA DE VOZ AO VIVO — badge no topo do card para deixar claro
+                que é uma sala de voz (sem vídeo), igual ao padrão de apps de chat. */}
+            {isVoiceRoom && !isPrivateRoom && (
+                <div className="absolute top-0 left-0 z-10 flex items-center gap-1 px-1.5 py-1 m-1.5 rounded-lg bg-[#16181d]/70 backdrop-blur-md border border-white/10 pointer-events-none">
+                    <div className="flex items-center gap-0.5 mr-0.5">
+                        <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+                        </span>
+                        <span className="text-[9px] font-bold text-red-400 ml-0.5">AO VIVO</span>
+                    </div>
+                    <span className="w-[3px] h-[10px] bg-white/20 rounded-sm"></span>
+                    <HeadphonesIcon className="w-3 h-3 text-[#e1ba72]" />
+                    <span className="text-[9px] font-bold text-[#f2d7a2]">Voz</span>
                 </div>
             )}
 
@@ -223,64 +241,18 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
 };
 
 
-const VoiceRoomCard: React.FC<{ room: VoiceRoom; onOpen: (roomId: string) => void }> = ({ room, onOpen }) => {
-    const onStage = room.slots.filter(s => s.userId).length;
-    const listeners = room.viewers || 0;
-
-    return (
-        <div
-            className="relative aspect-[1/1.1] rounded-2xl overflow-hidden cursor-pointer group bg-zinc-950/40 select-none shadow-md hover:scale-[1.02] active:scale-95 transition-all duration-300 border border-white/[0.03]"
-            onClick={() => onOpen(room.roomId)}
-        >
-            {/* Background avatar */}
-            <img
-                src={room.avatar || room.hostAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(room.name)}&background=random&color=fff&size=200`}
-                alt={room.name}
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30"></div>
-
-            {/* 🎤 Microphone badge */}
-            <div className="absolute top-2.5 left-2.5 z-10">
-                <div className="flex items-center justify-center w-[32px] h-[32px] rounded-full bg-cyan-500/80 backdrop-blur-md border border-white/20 shadow-[0_0_12px_rgba(6,182,212,0.5)]">
-                    <svg className="w-[16px] h-[16px] text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-                    </svg>
-                </div>
-            </div>
-
-            {/* Room Info Overlay */}
-            <div className="absolute inset-x-0 bottom-0 flex flex-col justify-end p-2.5 pb-3 bg-gradient-to-t from-black/95 via-black/50 to-transparent">
-                {/* Title */}
-                <p className="text-[13px] sm:text-[14px] font-medium text-white truncate drop-shadow-md leading-tight mb-1.5 px-0.5">
-                    {room.name}
-                </p>
-                {/* Subinfo Row */}
-                <div className="flex items-center justify-between text-[11px] sm:text-[12px] text-zinc-300 font-medium">
-                    <div className="flex items-center min-w-0 flex-1 pr-1">
-                        <span className="w-3.5 h-3.5 rounded-full bg-cyan-500/60 flex items-center justify-center mr-1.5 flex-shrink-0">
-                            <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                        </span>
-                        <span className="truncate font-medium text-[11px] sm:text-[12px] text-cyan-400">
-                            {onStage}/{room.maxSlots} no palco
-                        </span>
-                    </div>
-                    <div className="flex items-center flex-shrink-0 space-x-1 pl-1">
-                        <svg className="w-3 h-3 text-zinc-400 fill-current" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                        <span className="font-sans text-[11px] sm:text-[12px] text-zinc-200 font-semibold">
-                            {listeners.toLocaleString('pt-BR')}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [], voiceRooms = [], onOpenVoiceRoom, onRefresh }) => {
+const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegionModal, onSelectStream, onOpenSearch, streamers, isLoading, activeTab, onTabChange, showLocationBanner, unreadCount = 0, invitedStreamIds = [], onRefresh }) => {
   const { t } = useTranslation();
+
+  // 🧹 Nenhum card fixo/fake: só mostra transmissões com gente REAL.
+  // Filtra os "fantasmas" do fluxo antigo (hostId voice_voice_*).
+  const isRealStreamer = (s: any) =>
+      !!s && !!s.id && !!s.name && s.name.trim() !== '' &&
+      !!s.avatar && s.avatar.trim() !== '' &&
+      !!s.hostId && s.hostId.trim() !== '' &&
+      s.isLive === true &&
+      !/^voice_voice_/.test(String(s.hostId || s.id || ''));
+
   const mainRef = useRef<HTMLElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const isDown = useRef(false);
@@ -529,17 +501,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
             </div>
         ) : (
             <>
-                {((!Array.isArray(streamers) || streamers.filter(streamer =>
-                    streamer && 
-                    streamer.id && 
-                    streamer.name && 
-                    streamer.name.trim() !== '' &&
-                    streamer.avatar && 
-                    streamer.avatar.trim() !== '' &&
-                    streamer.hostId &&
-                    streamer.hostId.trim() !== '' &&
-                    streamer.isLive === true
-                ).length === 0) && voiceRooms.length === 0) ? (
+                {(!Array.isArray(streamers) || streamers.filter(isRealStreamer).length === 0) ? (
                     <div className="h-full flex flex-col items-center justify-center text-center px-6">
                         <div className="flex flex-col items-center max-w-xs mt-10">
                             {/* Visual matching TV live outline icon with user inside */}
@@ -565,10 +527,7 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                             // Deduplicar streamers por ID para evitar chaves duplicadas no React
                             const seen = new Set<string>();
                             const unique = streamers.filter(streamer => {
-                                if (!streamer || !streamer.id || !streamer.name || streamer.name.trim() === '' ||
-                                    !streamer.avatar || streamer.avatar.trim() === '' ||
-                                    !streamer.hostId || streamer.hostId.trim() === '' ||
-                                    streamer.isLive !== true) {
+                                if (!isRealStreamer(streamer)) {
                                     return false;
                                 }
                                 if (seen.has(streamer.id)) {
@@ -580,9 +539,6 @@ const MainScreen: React.FC<MainScreenProps> = ({ onOpenReminderModal, onOpenRegi
                             return [
                                 ...unique.map(streamer => (
                                     <StreamerCard key={`stream-${streamer.id}`} streamer={streamer} onSelect={onSelectStream} invited={invitedStreamIds.includes(streamer.id)} />
-                                )),
-                                ...voiceRooms.filter(room => room && room.roomId && room.isLive).map(room => (
-                                    <VoiceRoomCard key={`voice-${room.roomId}`} room={room} onOpen={onOpenVoiceRoom || (() => {})} />
                                 )),
                             ];
                         })()}

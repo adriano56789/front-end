@@ -116,10 +116,14 @@ function enqueueImageWarm(url: string): Promise<void> {
 function lottieAssetUrl(jsonUrl: string, asset: any): string | null {
     // Assets embutidos (data URI / `e:1`) não precisam de rede.
     if (!asset?.p || asset.e === 1 || String(asset.p).startsWith('data:')) return null;
-    const base = jsonUrl.replace(/\.json$/, '') + '/';
     const p = String(asset.p);
     if (/^https?:\/\//i.test(p)) return p;
-    return base + (asset.u ? String(asset.u) : '') + p;
+    // Diretório do JSON (remove o nome do arquivo e a query), garantindo "/" final,
+    // e relativo u+p normalizado SEM barras iniciais/duplicadas — evita
+    // "//images/55.webp" (404 poluindo o console) quando asset.u vem com "/".
+    const dir = jsonUrl.replace(/\/[^/]*\.json(\?.*)?$/i, '/').replace(/\/+$/, '/');
+    const rel = ((asset.u ? String(asset.u) : '') + p).replace(/^\/+/, '');
+    return dir + rel;
 }
 
 /**

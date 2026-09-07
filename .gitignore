@@ -92,8 +92,18 @@ _vps_bundle_check.sh
 _vps_check.sh
 _vps_diag21.cjs
 scripts/deploy-livego.sh
+check-*.cjs
+scripts/inspect-backend*.cjs
+scripts/patch-backend-*.cjs
+scripts/verify-*.cjs
+scripts/fix-kick-fallback.cjs
 
-# Assets MediaPipe gerados no build (copy-mediapipe-assets.mjs)
+# Assets MediaPipe/OpenMakeup gerados no build (copy-mediapipe-assets.mjs / copy-openmakeup-assets.mjs)
 public/wasm/
+public/mediapipe/
+public/openmakeup/
+
+# Saida de typecheck/diagnostico
+tsc-out.txt
 
 nul

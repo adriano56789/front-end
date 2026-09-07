@@ -4,7 +4,6 @@ import { api } from '../../services/api';
 import { BeautySettings, User, ToastType } from '../../types';
 import { DEFAULT_BEAUTY_SETTINGS } from '../../services/VideoProcessor';
 import { beautyState } from '../../services/BeautyEngine';
-import { ALL_PRESETS, applyPreset, BeautyPreset } from '../../services/BeautyPresets';
 
 const WhitenIcon = ({ className = "w-7 h-7 text-white" }) => (
   <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -115,18 +114,6 @@ const SIMPLE_EFFECTS: SimpleEffect[] = [
     { key: 'Sombra', label: 'Sombra', icon: (c) => <EyeShadowIcon className={c} /> },
 ];
 
-// Filtros de cor — estilo TRTC (procedurais, zero dependência)
-const FILTER_OPTIONS = [
-    { id: '', name: 'Original', icon: '⊘' },
-    { id: 'fresh', name: 'Fresh', icon: '🌸' },
-    { id: 'rosy', name: 'Rosy', icon: '🌹' },
-    { id: 'bw', name: 'P&B', icon: '◐' },
-    { id: 'japanese', name: 'Japanese', icon: '🎎' },
-    { id: 'warm', name: 'Warm', icon: '☀️' },
-    { id: 'cool', name: 'Cool', icon: '❄️' },
-    { id: 'vintage', name: 'Vintage', icon: '📷' },
-];
-
 // 15 efeitos padrão — salvos junto com os 6 visíveis
 const DEFAULT_KEYS: Record<string, number> = {
     'Suavização do rosto': 35,
@@ -151,8 +138,6 @@ const DEFAULT_KEYS: Record<string, number> = {
 
 const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, currentUser, addToast }) => {
     const [selectedEffect, setSelectedEffect] = useState('Branquear');
-    const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-    const [selectedFilter, setSelectedFilter] = useState('');
     const [settings, setSettings] = useState<BeautySettings>({});
     const [isLoading, setIsLoading] = useState(true);
     const saveTimeout = useRef<number | null>(null);
@@ -197,13 +182,6 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                     // beautyState é a single source of truth — atualiza ele e
                     // o VideoProcessor sincroniza automaticamente via subscription
                     beautyState.update(convertSettingsToBeautyParams(effective));
-
-                    // Restaurar filtro de cor salvo
-                    const savedFilter = typeof effective['selectedFilter'] === 'string' ? effective['selectedFilter'] : '';
-                    if (savedFilter) {
-                        setSelectedFilter(savedFilter);
-                        beautyState.set('selectedFilter', savedFilter);
-                    }
 
                     // Auto-save: garante que TODOS os campos existem no banco
                     const missingFields = Object.keys(DEFAULT_KEYS).filter(k => !(k in loaded));
@@ -265,7 +243,6 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         };
         setSettings(newSettings);
         saveSettings(newSettings);
-        setSelectedPresetId(null);
 
         // "Suavização do rosto" é chave mestre: controla smoothing + whitening
         if (selectedEffect === 'Suavização do rosto') {
@@ -297,75 +274,9 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
         setSettings(resetSettings);
         saveSettings(resetSettings);
         setSelectedEffect('Branquear');
-        setSelectedPresetId(null);
-        setSelectedFilter('');
         beautyState.reset();
     };
 
-    const handleFilterSelect = (filterId: string) => {
-        setSelectedFilter(filterId);
-        beautyState.set('selectedFilter', filterId);
-    };
-
-    const handlePresetSelect = (preset: BeautyPreset) => {
-        setSelectedPresetId(preset.id);
-
-        if (preset.id === 'off') {
-            resetEffects();
-            return;
-        }
-
-        const applied = applyPreset(preset, preset.intensity);
-
-        // Map faceShaping → BabyFaceProcessor params
-        const fs = applied.faceShaping;
-        const babyFaceVal = Object.keys(fs).length > 0 ? Math.round(preset.intensity * 100) : 0;
-
-        const newSettings: BeautySettings = {
-            'Suavização do rosto': 35,
-            'Branquear': applied.shader.whitening ?? 0,
-            'Alisar a pele': applied.shader.smoothing ?? 0,
-            'Ruborizar': applied.shader.saturation ?? 0,
-            'Contraste': applied.shader.contrast ?? 0,
-            'Balanço de Branco': applied.shader.whiteBalance ?? 0,
-            'Rosto Bebê': babyFaceVal,
-            'Clarear dentes': applied.shader.teethWhitening ?? 0,
-            'Suavizar rugas': applied.shader.wrinkleSmoothing ?? 0,
-            'Clarear olheiras': applied.shader.darkCircle ?? 0,
-            'Remover manchas': applied.shader.acneRemoval ?? 0,
-            'Reduzir brilho': 0,
-            'Nitidez': applied.shader.sharpness ?? 0,
-            'Efeito 3D': applied.shader.faceVolume3D ?? 0,
-            'Limpar Chiado': applied.shader.noiseReduction ?? 0,
-        };
-
-        setSettings(newSettings);
-        saveSettings(newSettings);
-        beautyState.update({
-            whitening: applied.shader.whitening ?? 0,
-            smoothing: applied.shader.smoothing ?? 0,
-            saturation: applied.shader.saturation ?? 0,
-            contrast: applied.shader.contrast ?? 0,
-            whiteBalance: applied.shader.whiteBalance ?? 0,
-            sharpness: applied.shader.sharpness ?? 0,
-            noiseReduction: applied.shader.noiseReduction ?? 0,
-            faceVolume3D: applied.shader.faceVolume3D ?? 0,
-            teethWhitening: applied.shader.teethWhitening ?? 0,
-            babyFace: babyFaceVal,
-            lipFill: fs.lipShape ?? 0,
-            lipAugment: fs.lipHeight ?? 0,
-            smileAdjust: fs.smileFace ?? 0,
-            browThickness: fs.browThickness ?? 0,
-            browCurve: fs.browCurve ?? 0,
-            noseRefine: fs.slimNose ?? 0,
-            jawChin: fs.vShape ?? 0,
-            eyeRefine: fs.bigEye ?? 0,
-            wrinkleSmoothing: applied.shader.wrinkleSmoothing ?? 0,
-            darkCircle: applied.shader.darkCircle ?? 0,
-            acneRemoval: applied.shader.acneRemoval ?? 0,
-            shineReduction: 0,
-        });
-    };
 
     const currentEffectValue = settings[selectedEffect] ?? 0;
 
@@ -388,52 +299,6 @@ const BeautyEffectsPanel: React.FC<BeautyEffectsPanelProps> = ({ onClose, curren
                     >
                         <CloseIcon className="w-4 h-4" />
                     </button>
-                </div>
-            </div>
-
-            {/* Presets */}
-            <div className="overflow-x-auto no-scrollbar text-center mb-4 -mx-1 px-1">
-                <div className="flex gap-2.5 min-w-max justify-start">
-                    {ALL_PRESETS.map((preset) => {
-                        const isActive = selectedPresetId === preset.id;
-                        return (
-                            <button
-                                key={preset.id}
-                                onClick={() => handlePresetSelect(preset)}
-                                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-sans font-semibold transition-all duration-200 shrink-0 ${
-                                    isActive
-                                        ? 'bg-[#a855f7] text-white shadow-[0_0_12px_rgba(168,85,247,0.4)]'
-                                        : 'bg-[#1b1b1f] text-[#a1a1aa] border border-white/5 hover:border-white/15 hover:text-white'
-                                }`}
-                            >
-                                <span>{preset.icon}</span>
-                                <span>{preset.name}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Filtros de cor — estilo TRTC */}
-            <div className="overflow-x-auto no-scrollbar text-center mb-4 -mx-1 px-1">
-                <div className="flex gap-2 min-w-max justify-start">
-                    {FILTER_OPTIONS.map((f) => {
-                        const isActive = selectedFilter === f.id;
-                        return (
-                            <button
-                                key={f.id}
-                                onClick={() => handleFilterSelect(f.id)}
-                                className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-sans font-semibold transition-all duration-200 shrink-0 ${
-                                    isActive
-                                        ? 'bg-[#f59e0b] text-black shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                                        : 'bg-[#1b1b1f] text-[#717175] border border-white/5 hover:border-white/15 hover:text-white'
-                                }`}
-                            >
-                                <span>{f.icon}</span>
-                                <span>{f.name}</span>
-                            </button>
-                        );
-                    })}
                 </div>
             </div>
 

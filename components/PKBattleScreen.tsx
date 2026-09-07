@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { onSocketEvent } from '../services/socketService';
 import { useStreamChat } from '../hooks/useStreamChat';
 import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 import OnlineUsersModal from './live/OnlineUsersModal';
@@ -144,6 +145,8 @@ export default function PKBattleScreen({
     const [isResolutionPanelOpen, setResolutionPanelOpen] = useState(false);
     const [isGiftModalOpen, setGiftModalOpen] = useState(false);
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
+    const [moderatorIds, setModeratorIds] = useState<string[]>([]);
+    const [mutedIds, setMutedIds] = useState<string[]>([]);
     const [isModerationMode, setIsModerationMode] = useState(false);
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
     const [onlineUsers, setOnlineUsers] = useState<(User & { value: number })[]>([]);
@@ -282,11 +285,34 @@ export default function PKBattleScreen({
             return;
         }
         api.kickUser(streamer.id, user.id, currentUser.id);
+        setModeratorIds(prev => prev.filter(id => id !== String(user.id)));
+        setMutedIds(prev => prev.filter(id => id !== String(user.id)));
         addToast(ToastType.Info, `Usuário ${user.name} foi expulso.`);
     };
     const handleMakeModerator = (user: User) => {
-        api.makeModerator(streamer.id, user.id, currentUser.id);
-        addToast(ToastType.Success, `${user.name} agora é um moderador.`);
+        const uid = String(user.id);
+        const isModNow = moderatorIds.includes(uid);
+        if (isModNow) {
+            setModeratorIds(prev => prev.filter(id => id !== uid));
+            addToast(ToastType.Info, `${user.name} foi removido dos moderadores.`);
+        } else {
+            setModeratorIds(prev => [...prev, uid]);
+            addToast(ToastType.Success, `Sucesso! ${user.name} foi promovido a Moderador/Admin com sucesso! 🎉`);
+        }
+        api.makeModerator(streamer.id, user.id, currentUser.id).catch(() => {});
+    };
+    const handleMuteUser = (user: User) => {
+        if (String(user.id) === String(currentUser.id)) return;
+        const uid = String(user.id);
+        const isMutedNow = mutedIds.includes(uid);
+        if (isMutedNow) {
+            setMutedIds(prev => prev.filter(id => id !== uid));
+            addToast(ToastType.Info, `${user.name} pode falar novamente.`);
+        } else {
+            setMutedIds(prev => [...prev, uid]);
+            addToast(ToastType.Success, `Usuário ${user.name} foi silenciado.`);
+        }
+        api.muteUser(streamer.id, user.id, currentUser.id, !isMutedNow).catch(() => {});
     };
     const handleMentionUser = (user: User) => {
         setChatInput(prev => `${prev}@${user.name} `);
@@ -526,6 +552,58 @@ export default function PKBattleScreen({
         };
 
         return () => {};
+    }, [streamer.id, currentUser.id]);
+
+    // ══════════════════════════════════════════════════════════════════
+    // 🛡️ MODERAÇÃO — moderator_updated / user_muted / user_kicked
+    // Paridade com StreamRoom e VoiceRoom.
+    // ══════════════════════════════════════════════════════════════════
+
+    // 👑 Carregar moderadores atuais ao entrar na sala
+    useEffect(() => {
+        if (!streamer?.id) return;
+        api.getStreamModerators(streamer.id).then((list) => {
+            if (Array.isArray(list) && list.length) setModeratorIds(list);
+        }).catch(() => {});
+    }, [streamer.id]);
+
+    // 🔊 Socket: moderator_updated / user_muted / user_kicked
+    useEffect(() => {
+        const offMod = onSocketEvent('moderator_updated', (data: any) => {
+            if (!data?.userId || (data.roomId && String(data.roomId) !== String(streamer.id))) return;
+            const uid = String(data.userId);
+            setModeratorIds(prev => (data.isModerator ? [...new Set([...prev, uid])] : prev.filter(id => id !== uid)));
+            if (uid === String(currentUser.id)) {
+                addToast(data.isModerator ? ToastType.Success : ToastType.Info, data.isModerator ? 'Você agora é administrador da sala!' : 'Você deixou de ser administrador da sala.');
+            }
+        });
+        const offMuted = onSocketEvent('user_muted', (data: any) => {
+            if (!data?.userId || (data.roomId && String(data.roomId) !== String(streamer.id))) return;
+            const uid = String(data.userId);
+            setMutedIds(prev => (data.mute ? [...new Set([...prev, uid])] : prev.filter(id => id !== uid)));
+        });
+        const offKicked = onSocketEvent('user_kicked', (data: any) => {
+            if (!data || !data.userId) return;
+            if (String(data.userId) !== String(currentUser.id)) return;
+            addToast(ToastType.Error, 'Você foi removido da sala.');
+            onLeaveStreamView();
+        });
+        return () => { offMod(); offMuted(); offKicked(); };
+    }, [streamer.id, currentUser.id, addToast, onLeaveStreamView]);
+
+    // 👢 Kick check na entrada
+    useEffect(() => {
+        if (!streamer?.id || !currentUser?.id) return;
+        let cancelled = false;
+        const timer = window.setTimeout(() => {
+            api.checkStreamKicked(streamer.id, currentUser.id).then((r) => {
+                if (!cancelled && r?.kicked) {
+                    addToast(ToastType.Error, 'Você foi expulso desta sala.');
+                    onLeaveStreamView();
+                }
+            }).catch(() => {});
+        }, 1200);
+        return () => { cancelled = true; window.clearTimeout(timer); };
     }, [streamer.id, currentUser.id]);
 
     useEffect(() => {
@@ -905,6 +983,7 @@ export default function PKBattleScreen({
                 <OnlineUsersModal 
                     onClose={() => setIsOnlineUsersOpen(false)} 
                     streamId={streamer.id} userId={currentUser.id} currentUser={currentUser} 
+                    moderatorIds={moderatorIds}
                     connectionQualities={lkConnectionQualities}
                     onSelectUser={(selectedUser: any) => {
                         setIsOnlineUsersOpen(false);
@@ -965,8 +1044,13 @@ export default function PKBattleScreen({
                 isOpen={userActionModalState.isOpen} onClose={handleCloseUserActions} 
                 user={userActionModalState.user} currentUser={currentUser}
                 streamer={streamerUser as any}
+                canModerate={isBroadcaster || moderatorIds.includes(String(currentUser.id))}
+                canManageModerators={isBroadcaster}
                 onViewProfile={(user) => { handleCloseUserActions(); onViewProfile(user); }}
                 onMention={handleMentionUser} onMakeModerator={handleMakeModerator} onKick={handleKickUser}
+                onMute={handleMuteUser}
+                isMuted={userActionModalState.user ? mutedIds.includes(userActionModalState.user.id) : false}
+                isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
             />
         </div>
     );

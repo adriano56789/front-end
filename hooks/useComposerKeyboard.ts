@@ -58,19 +58,26 @@ export function useComposerKeyboard() {
   // 🔧 COLA-CORRETOR da 2ª barra: em alguns WebViews a sonda/visualViewport
   // não reporta a altura do teclado (ou reporta 0) → a barra renderiza em
   // bottom:0 e fica ESCONDIDA ATRÁS do teclado (só o teclado aparece).
-  // Solução definitiva: enquanto o composer está aberto, calcular a altura
-  // EXATA do teclado a cada frame como `layoutHeight − visibleHeight` e colar
-  // a barra nela. Isso ajusta para cima E para baixo sem oscilar (a altura é
-  // estável, não é um latch que só sobe — se a estimativa veio alta demais, a
-  // barra desce até encostar exatamente no teclado).
+  // Solução: enquanto o composer está aberto, calcular a altura EXATA do
+  // teclado como `layoutHeight − visibleHeight` e colar a barra nela. Isso
+  // ajusta para cima E para baixo sem oscilar (a altura é estável, não é um
+  // latch que só sobe — se a estimativa veio alta demais, a barra desce até
+  // encostar exatamente no teclado).
   //   - Android (teclado por cima): visibleHeight < layout → sobe colada ✓
   //   - iOS (navegador auto-sobe): visibleHeight = layout → 0 → não mexe ✓
   // Usa o MENOR entre visualViewport.height e window.innerHeight (o sinal que
   // cada WebView reporta pode ser um dos dois).
+  //
+  // ⚡ EVENT-DRIVEN (e não a 60fps): antes a medição rodava num requestAnimationFrame
+  // por frame enquanto o composer ficava aberto — cada frame lia layout + setState,
+  // gerando [Violation] 'requestAnimationFrame' handler (50-90ms) e forced reflow.
+  // Agora medimos só quando o teclado/viewport MUDOU de verdade (resize/scroll do
+  // visualViewport, focusin do input, geometrychange do VirtualKeyboard) e um
+  // fallback a 200ms cobre WebViews que não disparam esses eventos.
   useEffect(() => {
     if (!isComposerOpen) return;
-    let raf = 0;
-    const glue = () => {
+
+    const measureGluedBottom = () => {
       const vv = window.visualViewport;
       // 🔧 Conservador: usa o MENOR entre clientHeight e innerHeight como
       // altura de layout — se um dos dois vier inflado (WebView bugado),
@@ -83,10 +90,28 @@ export function useComposerKeyboard() {
       const keyboardH = Math.max(0, layoutH - visibleH);
       if (keyboardH > 0) rememberKeyboardHeight(keyboardH);
       setGluedBottom((prev) => (Math.abs(prev - keyboardH) > 2 ? keyboardH : prev));
-      raf = requestAnimationFrame(glue);
     };
-    raf = requestAnimationFrame(glue);
-    return () => cancelAnimationFrame(raf);
+
+    measureGluedBottom();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', measureGluedBottom);
+    vv?.addEventListener('scroll', measureGluedBottom);
+    window.addEventListener('resize', measureGluedBottom);
+    document.addEventListener('focusin', measureGluedBottom, true);
+    const nav = navigator as any;
+    const vk = nav?.virtualKeyboard;
+    vk?.addEventListener?.('geometrychange', measureGluedBottom);
+
+    const fallback = window.setInterval(measureGluedBottom, 200);
+
+    return () => {
+      window.clearInterval(fallback);
+      vv?.removeEventListener('resize', measureGluedBottom);
+      vv?.removeEventListener('scroll', measureGluedBottom);
+      window.removeEventListener('resize', measureGluedBottom);
+      document.removeEventListener('focusin', measureGluedBottom, true);
+      vk?.removeEventListener?.('geometrychange', measureGluedBottom);
+    };
   }, [isComposerOpen]);
 
   // 🎯 O input do composer é referenciado via composerInputRef para foco
@@ -126,9 +151,14 @@ export function useComposerKeyboard() {
   // ⚠️ NÃO usar vv.offsetTop aqui: no iOS ele fica >0 com o teclado aberto e
   // resetar o scroll a cada frame briga com o pan do navegador → a barra
   // sobe e desce (bounce). Só resetamos scroll de LAYOUT (scrollY).
+  //
+  // ⚡ EVENT-DRIVEN: um pan/scroll real dispara o evento 'scroll' → checamos
+  // nele (barato). Fallback a 300ms cobre WebViews que não disparam o evento.
+  // Antes era um requestAnimationFrame por frame sondando 3 propriedades de
+  // scroll — outra fonte dos [Violation] 'requestAnimationFrame' handler.
   useEffect(() => {
     if (!isComposerOpen) return;
-    let raf = 0;
+
     const resetScroll = () => {
       window.scrollTo(0, 0);
       document.documentElement.scrollTop = 0;
@@ -138,10 +168,17 @@ export function useComposerKeyboard() {
       if (window.scrollY > 0 || document.documentElement.scrollTop > 0 || document.body.scrollTop > 0) {
         resetScroll();
       }
-      raf = requestAnimationFrame(check);
     };
-    raf = requestAnimationFrame(check);
-    return () => cancelAnimationFrame(raf);
+
+    window.addEventListener('scroll', check, { passive: true, capture: true });
+    document.addEventListener('scroll', check, { passive: true, capture: true });
+    const fallback = window.setInterval(check, 300);
+
+    return () => {
+      window.removeEventListener('scroll', check, { capture: true } as any);
+      document.removeEventListener('scroll', check, { capture: true } as any);
+      window.clearInterval(fallback);
+    };
   }, [isComposerOpen]);
 
   // 🧲 Posição final da 2ª barra (composer). Com o viewport

@@ -1,7 +1,8 @@
 // Nome do cache para versionamento — incrementar ao atualizar assets
 // (v14: deploy roleta host-only + notificações WhatsApp + painel de beleza)
 // (v17: status de seguimento na busca + perfil com listas reais)
-const CACHE_NAME = 'livenza-cache-v18';
+// (v22: push "X entrou ao vivo" — clique abre /live/ ou /voice-room/)
+const CACHE_NAME = 'livenza-cache-v25';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -344,18 +345,23 @@ self.addEventListener('notificationclick', (event) => {
   let urlToOpen = '/';
 
   if (type === 'call_invitation' || type === 'live_invite') {
-    urlToOpen = data.streamId ? `/stream/${data.streamId}` : '/';
+    urlToOpen = data.streamId ? `/live/${data.streamId}` : '/';
   } else if (type === 'private_stream_invite') {
-    urlToOpen = data.streamId ? `/stream/${data.streamId}` : '/';
+    urlToOpen = data.streamId ? `/live/${data.streamId}` : '/';
   } else if (type === 'user_joined_stream') {
-    urlToOpen = data.streamId ? `/stream/${data.streamId}` : '/';
+    urlToOpen = data.streamId ? `/live/${data.streamId}` : '/';
   } else if (type === 'live_started' || type === 'live_invite_response') {
     const streamId = data.streamKey || data.streamId;
-    urlToOpen = streamId ? `/stream/${streamId}` : '/';
+    // 🎙️ Sala de voz → abre a sala; transmissão de vídeo → abre a live
+    if (streamId && streamId.startsWith('voice_')) {
+      urlToOpen = `/voice-room/${streamId}`;
+    } else {
+      urlToOpen = streamId ? `/live/${streamId}` : '/';
+    }
   } else if (type === 'gift_received') {
     // 🎁 Presente: abrir a live onde o presente foi enviado
     const streamId = data.streamId || '';
-    urlToOpen = streamId ? `/stream/${streamId}` : '/';
+    urlToOpen = streamId ? `/live/${streamId}` : '/';
   } else if (type === 'new_follower') {
     // 👤 Novo seguidor: abrir o perfil de quem seguiu
     const followerId = data.followerId || '';
@@ -370,7 +376,7 @@ self.addEventListener('notificationclick', (event) => {
   } else if (type === 'stream_liked') {
     // 👍 Like na live: abrir a live
     const streamId = data.streamId || '';
-    urlToOpen = streamId ? `/stream/${streamId}` : '/';
+    urlToOpen = streamId ? `/live/${streamId}` : '/';
   } else if (type === 'comment_received') {
     // 💬 Comentário: abrir o conteúdo comentado
     const targetId = data.targetId || '';

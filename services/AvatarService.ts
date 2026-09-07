@@ -13,13 +13,10 @@
  * Nossa implementação:
  *   - WebGL2 check via canvas.getContext('webgl2')
  *   - State observable (listeners notificam quando avatar muda)
- *   - Mutual exclusion automática com beautyState
  *   - Model loading via fetch + Three.js (GLB/VRM)
  *   - Face tracking via MediaPipe FaceLandmarker (já temos)
  * ═══════════════════════════════════════════════════════════════════════════
  */
-
-import { beautyState } from './BeautyEngine';
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -137,7 +134,6 @@ export class AvatarService {
   };
 
   private listeners: AvatarListener[] = [];
-  private previousBeautyState: Partial<import('./BeautyEngine').BeautyParams> | null = null;
 
   // ── State ──────────────────────────────────────────────────────────────
 

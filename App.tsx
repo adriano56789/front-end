@@ -1,6 +1,6 @@
 
 
-import React, { useState, useCallback, useEffect, ReactNode, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, ReactNode, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import './src/styles.css';
 
@@ -1367,6 +1367,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     if (!isAuthenticated || !currentUser?.id) return;
     let disposed = false;
     let socket: any = null;
+    // 👢 Handlers de socket registrados dentro do .then() — declarados no
+    // escopo do effect para o cleanup poder removê-los sem ReferenceError.
+    let onKickedOutGlobal: ((data: any) => void) | null = null;
 
     const addLiveCard = (data: any) => {
       if (!data || disposed) return;
@@ -1442,6 +1445,18 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       // 💬 Chat privado: o socket conectado já entra na sala `user_{id}` do
       // backend; a ponte repassa `newChatMessage` para o window (tempo real).
       initPrivateChatSocket();
+
+      // 👢 Kick global: quando o backend expulsa o usuário de qualquer sala
+      // (stream ou voice), mostra toast + navega para home. Os componentes
+      // (StreamRoom/VoiceRoom) JÁ tratam o user_kicked localmente;
+      // este listener cobre o kicked_out que vem direto pro user_{id} room.
+      const handleKickedOutGlobal = (data: any) => {
+        if (!data) return;
+        addToast(ToastType.Error, data.reason || 'Você foi removido da sala.');
+        navigate('/');
+      };
+      onKickedOutGlobal = handleKickedOutGlobal;
+      s.on('kicked_out', handleKickedOutGlobal);
     });
 
     // 🔒 Proteção de conteúdo: bloqueio de print/gravação/download em live e
@@ -1456,6 +1471,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         socket.off('card_removed', removeLiveCard);
         socket.off('stream_ended', removeLiveCard);
         socket.off('stream_stopped', removeLiveCard);
+        if (onKickedOutGlobal) socket.off('kicked_out', onKickedOutGlobal);
       }
     };
   }, [isAuthenticated, currentUser?.id]);
@@ -2353,8 +2369,9 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
               detail: {
                 type: 'live_started',
                 streamerId: payload.data?.streamerId || payload.data?.hostId || '',
-                streamerName: title,
+                streamerName: payload.data?.hostName || title,
                 streamId: payload.data?.streamId || payload.data?.streamKey || '',
+                message: body,
               }
             }));
           } else if (type === 'gift_received') {
@@ -3400,6 +3417,11 @@ if (locationPermissionStatus === 'granted') {
     if (n.type === 'live_started') {
       const d = n.data || {};
       const targetId = d.streamId || `stream_${d.streamerId}`;
+      // 🎙️ Sala de voz: abre direto na sala (rota /voice-room/:roomId)
+      if (String(targetId).startsWith('voice_')) {
+        navigate(`/voice-room/${encodeURIComponent(targetId)}`);
+        return;
+      }
       let target: Streamer | null = streamers.find((s: Streamer) => s.id === targetId || s.hostId === d.streamerId) || null;
       if (!target) {
         try {
@@ -3609,6 +3631,14 @@ if (locationPermissionStatus === 'granted') {
 
     if (!currentUser) return;
 
+    // 🎙️ SALA DE VOZ: o card da home aponta direto para a sala (sem portão,
+    // sem checar SRS/live de vídeo — a sala de voz é ao vivo por natureza).
+    const voiceRoomId = (streamer as any)?.voiceRoomId || (streamer.streamStatus === 'voice_room' ? streamer.id : '');
+    if (voiceRoomId) {
+      navigate(`/voice-room/${voiceRoomId}`);
+      return;
+    }
+
     // Bloquear entrada em outra stream enquanto PiP estiver ativo
     if (isPiPMode && pipStreamer) {
       addToast(ToastType.Info, 'Feche a janela flutuante antes de entrar em outra transmissão.');
@@ -3749,7 +3779,25 @@ if (locationPermissionStatus === 'granted') {
 
     // REMOVIDO: simpleEventManager.connect()
 
-    
+    // 🔔 DISPARO DE LIVE_STARTED: avisa o backend que o host entrou ao vivo.
+    // O backend notifica os SEGUIDORES — banner in-app (socket unread_notification)
+    // e push nativo (DeviceToken) para quem está com o app fechado.
+    try {
+      const uid = currentUser?.id || (streamer as any).hostId || streamer.id || '';
+      connectSocket().then((s) => {
+        try {
+          if (!s?.connected) return;
+          s.emit('live_started', {
+            streamId: (streamer as any).streamId || (streamer as any).streamKey || streamer.id || '',
+            userId: uid,
+            hostId: (streamer as any).hostId || uid,
+            userName: currentUser?.name || (streamer as any).name || '',
+            avatar: currentUser?.avatarUrl || '',
+          });
+          console.log('[LIVE] live_started emitido para notificação de seguidores');
+        } catch (e) { /* best effort */ }
+      });
+    } catch (e) { /* best effort */ }
 
     handleSelectStream(streamer);
 
@@ -3937,6 +3985,22 @@ if (locationPermissionStatus === 'granted') {
         }
       } catch (removeErr) {
         console.warn('[LIVE-END] removeLiveCard falhou (ignorado):', removeErr);
+      }
+
+      // 🎙️ Salas de voz: encerrar cartões próprios que ainda estejam marcados
+      // como ao vivo (evita "card fixo"). O início agora é live normal — não
+      // cria sala separada — aqui só limpamos sobras de versões antigas.
+      try {
+        const myRooms = voiceRooms.filter(r => r && r.roomId && r.hostId === currentUser?.id && r.isLive);
+        if (myRooms.length > 0) {
+          await Promise.all(
+            myRooms.map(r => api.voiceRoom.end(r.roomId, currentUser?.id || '').catch(() => {}))
+          );
+          setVoiceRooms(prev => prev.filter(r => r.hostId !== currentUser?.id || !r.isLive));
+          console.log('[LIVE-END] ✅ Salas de voz próprias encerradas:', myRooms.length);
+        }
+      } catch (roomErr) {
+        console.warn('[LIVE-END] cleanup de salas de voz falhou (ignorado):', roomErr);
       }
 
       // Recarregar a lista de streams para atualizar os cards
@@ -4629,6 +4693,54 @@ if (locationPermissionStatus === 'granted') {
 
 
 
+  // 🎙️ HOME: mistura as SALAS DE VOZ ao vivo com as lives de vídeo na tela
+  // principal. Cada sala de voz é convertida para o formato Streamer (mesmos
+  // dados que já chegam do banco via api.voiceRoom.list()) e marcada com
+  // isVoiceRoom/voiceRoomId para o card abrir a sala ao toque. Nada fake:
+  // tudo vem da API (banco), como o resto da home.
+  // ⚠️ Fica ANTES dos returns condicionais do login/loading — hook incondicional.
+  const homeStreamers = useMemo<Streamer[]>(() => {
+    const list: Streamer[] = Array.isArray(streamers) ? [...streamers] : [];
+
+    // 🗂️ Salas de voz também têm categoria: em abas específicas (música, dança
+    // etc.) só entram salas da MESMA categoria. Em abas gerais (popular, novo,
+    // seguindo, perto, privada e a própria voiceChat) entram todas.
+    const cat = (activeCategory || 'popular').toLowerCase();
+    const isGeneralTab = ['popular', 'all', 'new', 'followed', 'nearby', 'private', 'voicechat'].includes(cat);
+
+    const roomStreamers: Streamer[] = (Array.isArray(voiceRooms) ? voiceRooms : [])
+      .filter(r => r && r.isLive && r.hostId && r.roomId)
+      // 👻 Sem gente real dentro NÃO vira card: só mostra sala de voz onde há
+      // presença de verdade (host/participantes conectados). Card fixo vazio
+      // nunca aparece — a presença é mantida por heartbeat no VoiceRoom.
+      .filter(r => (r.viewers || 0) > 0 || (Array.isArray(r.slots) && r.slots.some(s => !!s.userId)))
+      .filter(r => isGeneralTab || (r.category || 'voice_chat').toLowerCase() === cat)
+      // Não duplicar quem já aparece como live de vídeo do mesmo host
+      .filter(r => !list.some(s => String(s.hostId) === String(r.hostId)))
+      .map(r => {
+        const s: Streamer & { isVoiceRoom?: boolean; voiceRoomId?: string } = {
+          id: r.roomId,
+          hostId: r.hostId,
+          name: r.hostName || r.name,
+          avatar: r.hostAvatar || r.avatar || '',
+          message: r.name || r.message || '',
+          tags: r.tags && r.tags.length > 0 ? r.tags : [r.category || 'voice_chat'],
+          category: r.category || 'voice_chat',
+          isLive: true,
+          streamStatus: 'voice_room',
+          viewers: r.viewers || 0,
+          onlineTotal: r.viewers || 0,
+          time: r.time || 'Ao Vivo',
+          location: r.location || '',
+          isVoiceRoom: true,
+          voiceRoomId: r.roomId,
+        };
+        return s as Streamer;
+      });
+
+    return [...list, ...roomStreamers];
+  }, [streamers, voiceRooms, activeCategory]);
+
   // Mostrar loading enquanto restaura sessão
   if (isLoadingCurrentUser) return <div className="h-full w-full bg-black flex items-center justify-center"><LoadingSpinner /></div>;
 
@@ -4969,15 +5081,13 @@ if (locationPermissionStatus === 'granted') {
                     onOpenRegionModal={() => setIsRegionModalOpen(true)}
                     onSelectStream={handleSelectStream}
                     onOpenSearch={() => setIsSearchScreenOpen(true)}
-                    streamers={streamers}
+                    streamers={homeStreamers}
                     isLoading={isLoadingStreamers}
                     activeTab={activeCategory}
                     onTabChange={handleTabChange}
                     showLocationBanner={showLocationBanner}
                     unreadCount={totalUnreadMessages}
                     invitedStreamIds={invitedStreamIds}
-                    voiceRooms={voiceRooms}
-                    onOpenVoiceRoom={(roomId) => navigate('/voice-room/' + roomId)}
                     onRefresh={() => {
                       // 🔄 Recarrega os cards da aba atual (pull-to-refresh / auto-refresh)
                       if (activeCategory !== 'nearby' || locationPermissionStatus === 'granted') {
@@ -5138,6 +5248,12 @@ if (locationPermissionStatus === 'granted') {
                         setIsWalletScreenOpen(true);
                       }}
                       onOpenVIPCenter={handleOpenVIPCenter}
+                      onFollowUser={handleFollowUser}
+                      onViewProfile={handleViewProfile}
+                      onOpenPrivateChat={() => setIsPrivateChatModalOpen(true)}
+                      onOpenPrivateInviteModal={() => setIsPrivateInviteModalOpen(true)}
+                      followingUsers={followingUsers}
+                      onKickedOut={() => navigate('/')}
                     />
                   ) : null;
                 })()
