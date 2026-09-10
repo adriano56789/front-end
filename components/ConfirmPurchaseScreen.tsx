@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { ToastType, PurchaseCurrency, PurchasePackage, CadastralData } from '../types';
+import { ToastType, PurchasePackage, CadastralData } from '../types';
 
-// ═══ LIVE GO — Compra de diamantes via Payoneer Checkout (hospedado) ═══
-// O usuário escolhe o método (Cartão / Pix / Payoneer) e é redirecionado ao
-// checkout 100% hospedado do Payoneer para concluir o pagamento com segurança.
-// Após pagar, volta para a LiveGo (return_url) e os diamantes são creditados
-// quando o webhook do Payoneer confirma a aprovação.
+// ═══ LIVE GO — Compra de diamantes via Stripe Checkout (hospedado) ═══
+// O usuário escolhe o método (Pix / Cartão) e é redirecionado ao
+// checkout 100% hospedado do Stripe para concluir o pagamento com segurança.
+// Após pagar, volta para a LiveGo (success_url) e os diamantes são creditados
+// quando o webhook do Stripe confirma a aprovação.
 
-type PayMethod = 'card' | 'pix' | 'payoneer';
+type PayMethod = 'card' | 'pix' | 'pix_card';
 
 interface ConfirmPurchaseScreenProps {
   onClose: () => void;
@@ -18,17 +18,22 @@ interface ConfirmPurchaseScreenProps {
 }
 
 const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, packageDetails, onConfirmPurchase, addToast }) => {
-  const [method, setMethod] = useState<PayMethod>('payoneer');
+  const currency = packageDetails.currency || 'BRL';
+  const isBRL = currency === 'BRL';
+
+  const [method, setMethod] = useState<PayMethod>(isBRL ? 'pix_card' : 'card');
   const [processing, setProcessing] = useState(false);
 
   const methods: { id: PayMethod; title: string; subtitle: string; icon: string }[] = [
-    { id: 'payoneer', title: 'Payoneer', subtitle: 'Checkout seguro internacional', icon: '🌐' },
-    { id: 'card', title: 'Cartão de crédito', subtitle: 'Visado pelo checkout do Payoneer', icon: '💳' },
-    { id: 'pix', title: 'Pix', subtitle: 'Disponível conforme o provedor', icon: '⚡' },
-  ];
+    ...(isBRL
+      ? [{ id: 'pix_card' as PayMethod, title: 'Pix + Cartão', subtitle: 'Escolha o método que preferir no checkout', icon: '⚡' }]
+      : []),
+    { id: 'pix', title: 'Pix', subtitle: 'Pagamento instantâneo (somente BRL)', icon: '⚡' },
+    { id: 'card', title: 'Cartão de crédito', subtitle: 'Visado pelo checkout do Stripe', icon: '💳' },
+  ].filter((m) => (m.id === 'pix' ? isBRL : true));
 
-  const displayPrice = packageDetails.currency
-    ? `${packageDetails.currency === 'BRL' ? 'R$' : packageDetails.currency === 'EUR' ? '€' : '$'} ${packageDetails.price.toFixed(2).replace('.', ',')}`
+  const displayPrice = currency
+    ? `${currency === 'BRL' ? 'R$' : currency === 'EUR' ? '€' : '$'} ${packageDetails.price.toFixed(2).replace('.', ',')}`
     : `R$ ${packageDetails.price.toFixed(2).replace('.', ',')}`;
 
   return (
@@ -84,7 +89,7 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
 
         <div className="bg-white/[0.03] border border-white/[0.05] rounded-2xl p-4 text-[12px] text-gray-500 font-medium leading-relaxed">
           <p className="font-bold text-gray-300 mb-1">🔒 Pagamento 100% seguro</p>
-          Você será redirecionado(a) à página protegida do Payoneer para concluir o pagamento.
+          Você será redirecionado(a) à página protegida do Stripe para concluir o pagamento.
           Os diamantes são creditados automaticamente assim que o pagamento for aprovado.
         </div>
       </main>
@@ -98,10 +103,10 @@ const ConfirmPurchaseScreen: React.FC<ConfirmPurchaseScreenProps> = ({ onClose, 
           disabled={processing}
           className="w-full bg-[#7a3be9] hover:bg-[#6b2ed3] text-white text-[15px] font-bold py-[14px] rounded-full transition-colors disabled:opacity-60"
         >
-          {processing ? 'Abrindo checkout...' : `Pagar via Payoneer`}
+          {processing ? 'Abrindo checkout...' : `Pagar via Stripe`}
         </button>
         <p className="text-center text-[11px] text-gray-600 font-medium mt-3">
-          Seguro e criptografado • Powered by Payoneer
+          Seguro e criptografado • Powered by Stripe
         </p>
       </footer>
     </div>

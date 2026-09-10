@@ -4,12 +4,13 @@ const OnlineUsersModalAny: any = OnlineUsersModal;
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
 import EntryChatMessage from './live/EntryChatMessage';
+import HostNoticePlaque from './live/HostNoticePlaque';
 import ChatScreen from './ChatScreen';
 import ToolsModal from './ToolsModal';
 const ToolsModalAny: any = ToolsModal;
 import ConnectionQualityIndicator from './live/ConnectionQualityIndicator';
 import { GiftIcon, MessageIcon, SendIcon, MoreIcon, CloseIcon, PlusIcon, SoundWaveIcon, ViewerIcon, GoldCoinWithGIcon, HeartIcon, TrophyIcon, BellIcon, RankIcon, LockIcon } from './icons';
-import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState, PurchasePackage } from '../types';
+import { Streamer, User, Gift, ToastType, RankedUser, LiveSessionState, SrsPublishStatus, SrsPublishState, PurchasePackage, HostNoticeState } from '../types';
 import ContributionRankingModal from './ContributionRankingModal';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import ResolutionPanel from './live/ResolutionPanel';
@@ -40,7 +41,8 @@ import { participationService } from '../services/participationService';
 import { callService } from '../services/callService';
 import type { ParticipationRequest } from './ToolsModal';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useHostNotice } from '../hooks/useHostNotice';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 import { useNativePiP } from '../hooks/useNativePiP';
 import { PublishEngine } from '../services/PublishEngine';
@@ -68,6 +70,8 @@ interface ChatMessageType {
     violationUserId?: string;
     violationUserName?: string;
     violationType?: 'print' | 'record' | 'capture' | 'contextmenu';
+    // 🪧 Plaquinha do host embutida como item de mensagem (fluxo normal do chat)
+    hostNotice?: HostNoticeState;
 }
 
 interface StreamRoomProps {
@@ -186,17 +190,18 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
     const [participationRequests, setParticipationRequests] = useState<ParticipationRequest[]>([]);
     const [activeParticipantName, setActiveParticipantName] = useState<string | null>(null);
     const [participationBadge, setParticipationBadge] = useState<string>('');
-    const chatInputRef = useRef<HTMLButtonElement>(null);
-    // ✨ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
-    // FIXA no fundo da live (bottom = safe-area, nunca sobe). Ao tocar nela,
-    // abre um SEGUNDO campo de digitação (composer) colado acima do teclado.
+    // ✨ Composer: BARRA PRINCIPAL FIXA no fundo da live (gatilho) + BARRA DE
+    // DIGITAÇÃO FLUTUANTE por cima do teclado. A barra principal não sobe nem
+    // sai do lugar; ao tocar nela o teclado abre e surge a barra de digitação —
+    // é nela que se escreve. A sala e a transmissão continuam paradas.
     const {
         isComposerOpen,
         openComposer,
         closeComposer,
         composerInputRef,
         composerRef,
-        bottom: chatBarBottom,
+        triggerBarRef,
+        keyboardBottom,
     } = useComposerKeyboard();
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(liveSession?.isAutoPrivateInviteEnabled ?? false);
 
@@ -548,6 +553,16 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
       }
     },
   });
+
+    // 🪧 Plaquinha de notificação do host (estado global da sala — host e espectadores)
+    const hostNoticeCtl = useHostNotice({
+      roomId: streamer?.id || '',
+      userId: currentUser?.id || '',
+      isHost: isBroadcaster,
+      hostName: currentUser?.name || streamer?.name || '',
+      hostAvatar: currentUser?.avatarUrl || currentUser?.avatar || streamer?.avatar || '',
+      disabled: streamEnded,
+    });
 
     // 📡 Sincronizar metadata do usuário atual (REST polling — no-op mantido p/ compatibilidade)
     useEffect(() => {
@@ -1218,19 +1233,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
 
 
 
-    // 📝 Altura EXTRA do textarea quando o texto quebra em várias linhas
-    // (cada linha nova = +20px). Serve para a lista de mensagens continuar
-    // parando EXATAMENTE acima da barra, mesmo com o campo crescendo.
-    const [composerExtraHeight, setComposerExtraHeight] = useState(0);
 
-    const autoResizeComposer = () => {};
-
-    // Campo vazio (enviou/apagou) → reset
-    useEffect(() => {
-        if (chatInput === '') {
-            setComposerExtraHeight(0);
-        }
-    }, [chatInput]);
 
     const MAX_CHAT_MESSAGE_LENGTH = 120;
     const handleSendMessage = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -1276,11 +1279,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         
         // 🔧 Manter foco para o teclado NÃO fechar após enviar (comportamento tipo app famoso)
         requestAnimationFrame(() => {
-            if (isComposerOpen) {
-                composerInputRef.current?.focus();
-            } else {
-                chatInputRef.current?.focus({ preventScroll: true } as any);
-            }
+            composerInputRef.current?.focus({ preventScroll: true } as any);
         });
     };
 
@@ -1360,6 +1359,34 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             return () => cancelAnimationFrame(frame);
         }
     }, [messages.length, isUserScrolledUp]);
+
+    // 🪧 Plaquinha do host como MENSAGEM DO CHAT: cada disparo (pulse) insere uma
+    // plaquinha NO FIM da lista de mensagens — exatamente como uma mensagem normal.
+    // Mensagens novas chegam depois e empurram a plaquinha anterior pra cima; o
+    // próximo disparo insere outra no fim de novo. Nunca fixa no topo/meio.
+    const hostNoticeActive = !!hostNoticeCtl.notice?.active;
+    useEffect(() => {
+        if (!hostNoticeActive || !hostNoticeCtl.notice) return;
+        const stamp = Date.now();
+        setMessages(prev => {
+            const id = `host_notice_${hostNoticeCtl.pulse}_${stamp}`;
+            if (prev.some(m => String(m.id) === id)) return prev;
+            return [...prev, { id, type: 'chat' as const, hostNotice: hostNoticeCtl.notice, timestamp: stamp }];
+        });
+        // Scroll pro fundo pra plaquinha ficar VISÍVEL NA HORA, mesmo que o usuário
+        // estivesse lendo mensagens antigas (que sobem pra cima). Duplo rAF garante
+        // que a plaquinha já montou/ocupou altura no layout.
+        let inner = 0;
+        const outer = requestAnimationFrame(() => {
+            inner = requestAnimationFrame(() => {
+                if (chatContainerRef.current) {
+                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                }
+            });
+        });
+        setIsUserScrolledUp(false);
+        return () => { cancelAnimationFrame(outer); if (inner) cancelAnimationFrame(inner); };
+    }, [hostNoticeCtl.pulse, hostNoticeActive]);
 
     // Cap de mensagens: limita o DOM do chat para manter o custo de layout baixo
     useEffect(() => {
@@ -1668,14 +1695,15 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
         setIsWalletOpen(false);
     };
 
-    const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'payoneer' = 'payoneer') => {
+    const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'pix_card' = 'pix_card') => {
         try {
             if (!currentUser) return;
-            const res = await api.createPayoneerDepositSession({
+            const res = await api.createStripeCheckoutSession({
                 userId: currentUser.id,
                 amountBRL: pkg.price,
                 diamonds: pkg.diamonds,
                 method,
+                currency: pkg.currency || 'BRL',
             });
             if (res && res.redirectUrl) {
                 window.location.href = res.redirectUrl;
@@ -1839,7 +1867,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             onTouchEnd={(e) => handlePointerUp(e.changedTouches[0].clientX, e.changedTouches[0].clientY)}
         >
             {/* 1. Video Layer (Bottom) */}
-            <div className="absolute inset-0 z-0 bg-black" onClick={() => { if (chatInputRef.current && document.activeElement === chatInputRef.current) chatInputRef.current.blur(); }}>
+            <div className="absolute inset-0 z-0 bg-black" onClick={() => { if (composerInputRef.current && document.activeElement === composerInputRef.current) composerInputRef.current.blur(); }}>
                 {/* Loading state - mostra gradiente sutil + spinner enquanto vídeo não carrega */}
                 {!isBroadcaster && !isVideoPlaying && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black">
@@ -2090,16 +2118,21 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             {/* 4. Chat & Footer UI */}
             {/* O container é FIXED e fica PARADO em bottom:0 (viewport) — igual ao
                 chat privado. Quem reserva o espaço no fundo é um ESPAÇADOR FORA da
-                área rolável (fechado = altura da 1ª barra; aberto = composer +
-                teclado). Assim o teclado NUNCA move a 1ª barra e as mensagens
-                ficam sempre visíveis ACIMA do espaçador (nunca escondidas). */}
+                área rolável (altura fixa da barra). O teclado NUNCA move a barra:
+                ele abre em modo SOBREPOSIÇÃO (VirtualKeyboard API) e cobre a parte
+                inferior da tela — nada acima da barra sobe. */}
             <div className={`fixed left-0 right-0 bottom-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[20vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '20lvh' }}>
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[36vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '36lvh' }}>
                         <div className="flex flex-col gap-px items-start w-full">
                             {messages.map((msg, index) => {
+                                // 🪧 Plaquinha do host — item de mensagem comum: nasce no fim,
+                                // sobe quando chegam mensagens novas (nunca fixa no topo/meio).
+                                if (msg.hostNotice) {
+                                    return <HostNoticePlaque key={`plaque-${msg.id}`} notice={msg.hostNotice} />;
+                                }
                                 if (msg.type === 'entry' && msg.fullUser) {
                                     const entryProps: any = {
                                         user: msg.fullUser,
@@ -2156,53 +2189,35 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             })}
                         </div>
                     </div>
-                    {/* Espaçador FORA da área rolável: reserva o espaço do fundo
-                        (1ª barra ou composer + teclado) sem esconder as mensagens —
-                        elas ficam sempre visíveis acima dele. */}
-                    <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT + composerExtraHeight : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                    {/* Espaçador FORA da área rolável: reserva o espaço fixo da
+                        barra no fundo, sem esconder as mensagens — elas ficam
+                        sempre visíveis acima dele. */}
+                    <div style={{ height: `calc(${MESSAGE_BAR_HEIGHT}px + ${keyboardBottom}px + env(safe-area-inset-bottom, 0px))` }} />
                 </div>
 
-                {/* 📝 1ª barra: renderiza APENAS quando o composer está fechado.
-                    Antes usávamos opacity-0 + pointer-events-none, mas isso mantinha
-                    a barra no DOM visível durante a transição de 200ms, causando
-                    overlap visual com a 2ª barra (composer) e o teclado. Agora o
-                    footer é removido do DOM quando o composer abre. */}
-                {!isComposerOpen && <footer className={`fixed left-0 right-0 z-30 p-3 pointer-events-auto ${isUiVisible ? '' : 'opacity-0 pointer-events-none'}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                    {/* 📡 Typing indicator */}
-                    {typingUsers.length > 0 && (
-                      <div className="px-2 py-1 text-xs text-gray-400 italic">
-                        {typingUsers.length === 1
-                          ? `${typingUsers[0]} está digitando...`
-                          : `${typingUsers.join(', ')} estão digitando...`
-                        }
-                      </div>
-                    )}
+                {/* ═══ BARRA PRINCIPAL FIXA (gatilho) ═══
+                    Fica parada em bottom:0 — não sobe, não mexe. O input é
+                    SOMENTE-LEITURA: ao tocar, abre o teclado e SURGE a barra de
+                    digitação flutuante por cima do teclado. */}
+                <footer
+                    ref={triggerBarRef as any}
+                    className={`fixed left-0 right-0 z-30 p-3 ${!isUiVisible ? 'pointer-events-none' : 'pointer-events-auto'}`}
+                    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+                >
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
-                                <button
-                                    type="button"
-                                    ref={chatInputRef}
-                                    tabIndex={-1}
-                                    onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
-                                >
-                                    {chatInput ? (
-                                        <span className="text-white">{chatInput}</span>
-                                    ) : (
-                                        <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
-                                    )}
-                                </button>
+                                <input
+                                    readOnly
+                                    type="text"
+                                    placeholder={t('streamRoom.sayHi')}
+                                    value={chatInput}
+                                    autoComplete="off"
+                                    onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                    onClick={() => { if (!isComposerOpen) openComposer(); }}
+                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                />
                         </div>
                         <div className="flex items-center gap-3">
-                            {/* Share/Send Action */}
-                            <button 
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={(e) => { console.log('[CHAT] onClick botão Enviar disparado'); handleSendMessage(e); }} 
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
                             {/* Gift Action */}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
@@ -2250,62 +2265,81 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                             </button>
                         </div>
                     </div>
-                </footer>}
+                </footer>
 
-            {isComposerOpen && (
-                <div
-                    ref={composerRef}
-                    className="fixed left-0 right-0 z-40"
-                    style={{ bottom: `${chatBarBottom}px` }}
-                >
-                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
-                        <div className="flex items-center gap-3">
-                            <div className="flex-grow">
-                                <input
-                                    ref={composerInputRef}
-                                    type="text"
-                                    placeholder={t('streamRoom.sayHi')}
-                                    value={chatInput}
-                                    enterKeyHint="send"
-                                    autoComplete="off"
-                                    onChange={(e) => {
-                                        setChatInput(e.target.value);
-                                        if (lkChatConnected && e.target.value.length > 0) {
-                                            lkSendTyping(true, currentUser.name);
-                                            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-                                            typingTimeoutRef.current = setTimeout(() => {
-                                                lkSendTyping(false, currentUser.name);
-                                            }, 2000);
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        setTimeout(() => {
-                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
-                                                if (lkChatConnected && typingTimeoutRef.current) {
-                                                    clearTimeout(typingTimeoutRef.current);
-                                                    lkSendTyping(false, currentUser.name);
+                {/* ═══ BARRA DE DIGITAÇÃO FLUTUANTE (por cima do teclado) ═══
+                    Surge APENAS quando o teclado abre, posicionada com
+                    bottom = altura do teclado (keyboardBottom) + safe-area.
+                    É NELA que a pessoa escreve; a barra principal fica fixa
+                    embaixo, sem subir nem mexer. */}
+                {isComposerOpen && (
+                    <footer
+                        ref={composerRef}
+                        className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
+                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
+                    >
+                        <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
+                            {/* 📡 Typing indicator */}
+                            {typingUsers.length > 0 && (
+                              <div className="px-2 py-0.5 text-xs text-gray-400 italic">
+                                {typingUsers.length === 1
+                                  ? `${typingUsers[0]} está digitando...`
+                                  : `${typingUsers.join(', ')} estão digitando...`
+                                }
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3">
+                                <div className="flex-grow">
+                                        <input
+                                            ref={composerInputRef}
+                                            type="text"
+                                            placeholder={t('streamRoom.sayHi')}
+                                            value={chatInput}
+                                            enterKeyHint="send"
+                                            autoComplete="off"
+                                            onChange={(e) => {
+                                                setChatInput(e.target.value);
+                                                if (lkChatConnected && e.target.value.length > 0) {
+                                                    lkSendTyping(true, currentUser.name);
+                                                    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                                                    typingTimeoutRef.current = setTimeout(() => {
+                                                        lkSendTyping(false, currentUser.name);
+                                                    }, 2000);
                                                 }
-                                                closeComposer();
-                                            }
-                                        }, 120);
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
-                                    maxLength={156}
-                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                                />
+                                            }}
+                                            onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                            onBlur={() => {
+                                                setTimeout(() => {
+                                                    if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                        if (lkChatConnected && typingTimeoutRef.current) {
+                                                            clearTimeout(typingTimeoutRef.current);
+                                                            lkSendTyping(false, currentUser.name);
+                                                        }
+                                                        closeComposer();
+                                                    }
+                                                }, 120);
+                                            }}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
+                                            maxLength={156}
+                                            // font 16px: impede o zoom automático do iOS ao focar (font <16px
+                                            // move o layout da live para "revelar" o campo).
+                                            className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                        />
+                                </div>
+                                {/* Share/Send Action */}
+                                <button 
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => { console.log('[CHAT] onClick botão Enviar disparado'); handleSendMessage(e); }} 
+                                    className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                                >
+                                    <SendIcon className="w-5 h-5 text-white" />
+                                </button>
                             </div>
-                            <button
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
                         </div>
                     </footer>
-                </div>
-            )}
+                )}
+
 
             {/* 📌 Presentes Fixados — CANTO inferior direito da transmissão. Só o
                 host fixa via Ferramentas (até 5); todos veem os presentes fixados
@@ -2408,6 +2442,11 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     onAcceptParticipation={handleAcceptParticipation}
                     onRejectParticipation={handleRejectParticipation}
                     onRemoveParticipant={handleRemoveParticipant}
+                    hostNotice={hostNoticeCtl.notice}
+                    hostNoticeActive={hostNoticeCtl.isActive}
+                    hostNoticeText={hostNoticeCtl.text}
+                    onHostNoticeToggle={(active: boolean) => hostNoticeCtl.update({ active })}
+                    onHostNoticeSave={(text: string) => hostNoticeCtl.update({ text })}
                 />
             )}
             {!isBroadcaster && (

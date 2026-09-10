@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ChevronRightIcon, BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
+import { ChevronRightIcon } from './icons';
 import { useTranslation } from '../i18n';
 import { User, ToastType } from '../types';
 import { api } from '../services/api';
@@ -36,33 +36,25 @@ interface WithdrawalCalculation {
     rate_source: string;
     gross_brl: number;
     platform_fee_brl: number;
+    stripe_fee_brl: number;
     net_brl: number;
-    gross_eur: number;
-    platform_fee_eur: number;
-    net_eur: number;
-    gross_usd: number;
-    platform_fee_usd: number;
-    net_usd: number;
     local_gross: number;
-    local_fee: number;
+    local_platform_fee: number;
+    local_stripe_fee: number;
     local_net: number;
-    breakdown: { conversion: string; fee: string; final: string; };
+    pix_transfer_amount_brl: number;
+    note?: string;
 }
 
-type DisplayCurrency = 'BRL' | 'EUR' | 'USD';
-
-const CURRENCY_OPTIONS: { code: DisplayCurrency; flag: React.ReactNode; label: string; symbol: string }[] = [
-    { code: 'BRL', flag: <BrazilFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Real', symbol: 'R$' },
-    { code: 'EUR', flag: <PortugalFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Euro', symbol: '€' },
-    { code: 'USD', flag: <USAFlagIcon className="w-9 h-9 rounded-full object-cover ring-2 ring-white/10" />, label: 'Dólar', symbol: 'US$' },
-];
+// ═══ LIVE GO — Saques exclusivamente via PIX (BRL) ═══
+// O criador converte seus diamantes em BRL e o Stripe envia via Pix
+// para a chave cadastrada (80%). A moeda é sempre Real (BRL).
 
 const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateUser, addToast }) => {
     const { t } = useTranslation();
     const [earningsInfo, setEarningsInfo] = useState<EarningsInfo | null>(null);
     const [withdrawAmount, setWithdrawAmount] = useState<string>('');
     const [calculation, setCalculation] = useState<WithdrawalCalculation | null>(null);
-    const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('BRL');
     const [isLoading, setIsLoading] = useState(true);
     const [isCalculating, setIsCalculating] = useState(false);
     const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -72,13 +64,6 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         try {
             const data = await api.getEarnings(currentUser.id);
             setEarningsInfo(data);
-            
-            // Moeda inicial segue a moeda do país do usuário
-            if (data.currency === 'EUR' || data.currency === 'USD') {
-                setDisplayCurrency(data.currency);
-            } else {
-                setDisplayCurrency('BRL');
-            }
             
             // Se a API retornar withdrawal_method, atualizar o usuário
             if (data.withdrawal_method && !currentUser.withdrawal_method) {
@@ -106,7 +91,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         fetchEarningsInfo();
     }, []);
 
-    // Calculate withdrawal value in real-time as user types (com debounce) — via Payoneer
+    // Calculate withdrawal value in real-time as user types (com debounce) — via Stripe
     useEffect(() => {
         const amount = parseInt(withdrawAmount);
 
@@ -124,7 +109,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
         // Debounce: esperar 500ms antes de calcular
         const timeoutId = setTimeout(() => {
             setIsCalculating(true);
-            api.getPayoneerQuote(amount, displayCurrency)
+            api.getStripeQuote(amount, 'BRL')
                 .then((result) => {
                     setCalculation(result as any);
                 })
@@ -137,7 +122,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
         // Limpar timeout se o valor mudar novamente
         return () => clearTimeout(timeoutId);
-    }, [withdrawAmount, displayCurrency, currentUser?.id]);
+    }, [withdrawAmount, currentUser?.id]);
 
     const handleMaxClick = () => {
         if (earningsInfo) {
@@ -160,14 +145,14 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
         setIsWithdrawing(true);
         try {
-            // Saque liquidado via Payoneer (Pix BRL / conta USD / conta EUR)
-            const response = await api.payoneerWithdraw(currentUser.id, calculation?.diamonds || Math.floor(amount), displayCurrency);
+            // Saque liquidado via Stripe Payout (Pix BRL)
+            const response = await api.stripeWithdraw(currentUser.id, calculation?.diamonds || Math.floor(amount), 'BRL');
 
             if (response.success) {
-                const symbol = response.currency === 'EUR' ? '€' : response.currency === 'USD' ? 'US$' : 'R$';
+                const symbol = 'R$';
                 addToast(ToastType.Success,
                     `Saque de ${symbol} ${(response.quote?.local_net ?? 0).toFixed(2).replace('.', ',')} confirmado! ` +
-                    (response.statusNote ? response.statusNote : 'O Payoneer processará a transferência para sua conta.') +
+                    (response.statusNote ? response.statusNote : 'O Pix será enviado para a sua chave cadastrada.') +
                     ` ID: ${response.withdrawalId}`
                 );
 
@@ -197,34 +182,17 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
     const displayAmount = withdrawAmount === '' ? 0 : (parseInt(withdrawAmount) || 0);
 
-    // Estimativa local (fallback enquanto o backend responde): diamante → BRL → taxas → Payoneer
-    const gross_brl = displayAmount * 0.00875;
-    const platform_fee_brl = gross_brl * 0.20;
-    const after_platform_brl = gross_brl - platform_fee_brl;
-    const payoneer_fee_brl_est = Math.min(after_platform_brl, after_platform_brl * 0.02 + 2);
-    const net_final_brl_est = after_platform_brl - payoneer_fee_brl_est;
-
-    const FX_EST: Record<string, number> = { BRL: 1, EUR: 0.1613, USD: 0.1786 };
-    const SYMBOL_MAP: Record<string, string> = { BRL: 'R$', USD: 'US$', EUR: '€' };
-    const sym = SYMBOL_MAP[displayCurrency] || 'R$';
-    const fxEst = FX_EST[displayCurrency] || 1;
-
-    // Quote real do Payoneer (backend) quando disponível para o valor digitado
+    // Quote real do Stripe (backend, taxas do banco) — a fonte dos valores do saque.
+    // Sem quote ainda, não exibe estimativa local (dados vêm do banco).
     const q = calculation as any;
     const hasQuote = !!q?.diamonds && q.diamonds === displayAmount && typeof q.local_net === 'number';
     const view = hasQuote ? {
         gross: q.local_gross ?? q.gross_brl,
         platformFee: q.local_platform_fee ?? q.platform_fee_brl,
-        payoneerFee: q.local_payoneer_fee ?? 0,
+        stripeFee: q.local_stripe_fee ?? q.stripe_fee_brl,
         net: q.local_net ?? q.net_brl,
         fxNote: q.note,
-    } : {
-        gross: gross_brl * fxEst,
-        platformFee: platform_fee_brl * fxEst,
-        payoneerFee: payoneer_fee_brl_est * fxEst,
-        net: net_final_brl_est * fxEst,
-        fxNote: undefined,
-    };
+    } : null;
 
     const isWithdrawButtonDisabled = isWithdrawing || displayAmount <= 0 || displayAmount > (earningsInfo?.available_diamonds || 0);
 
@@ -301,31 +269,24 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
 
             {shouldShowCalculation && (
                 <div className="bg-[#141316] rounded-2xl p-4 py-5 px-5 shadow-sm mt-5">
-                    <div className="flex justify-center gap-6 mb-6">
-                        {CURRENCY_OPTIONS.map((opt) => (
-                            <button
-                                key={opt.code}
-                                onClick={() => setDisplayCurrency(opt.code)}
-                                className={`flex flex-col items-center space-y-1.5 cursor-pointer transition-all outline-none ${
-                                    displayCurrency === opt.code
-                                        ? 'opacity-100 scale-105'
-                                        : 'opacity-40 hover:opacity-80'
-                                }`}
-                                id={`flag-${opt.code}`}
-                            >
-                                {opt.flag}
-                                <span className={`text-[11px] font-black uppercase tracking-wider ${displayCurrency === opt.code ? 'text-white' : 'text-[#8a8894]'}`}>
-                                    {opt.label}
-                                </span>
-                            </button>
-                        ))}
+                    <div className="flex items-center justify-center gap-2 mb-6">
+                        <span className="text-[12px] font-black uppercase tracking-wider text-[#8a3ffc]">Pix (BRL)</span>
                     </div>
 
                     {(() => {
+                        if (!view) {
+                            return (
+                                <div className="flex flex-col items-center justify-center py-4 space-y-2">
+                                    <LoadingSpinner />
+                                    <span className="text-[11px] text-[#5c5966] font-medium">Calculando...</span>
+                                </div>
+                            );
+                        }
+                        const sym = 'R$';
                         return (
                             <>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[#8a8894] font-bold text-[13px]">Valor Bruto ({displayCurrency})</span>
+                                    <span className="text-[#8a8894] font-bold text-[13px]">Valor Bruto (BRL)</span>
                                     <span className="text-white font-black text-[14px]">
                                         {formatCurrency(view.gross, sym)}
                                     </span>
@@ -338,18 +299,17 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                 </div>
                                 <div className="flex justify-between items-center mt-4">
                                     <span className="text-[#8a8894] font-bold text-[13px]">
-                                        Taxa do Payoneer (paga por você)
-                                        {displayCurrency !== 'BRL' && <span className="text-[10px] font-medium text-[#5c5966]"> · câmbio Payoneer</span>}
+                                        Taxa do Stripe (paga por você)
                                     </span>
                                     <span className="text-[#d97745] font-black text-[14px]">
-                                        - {formatCurrency(view.payoneerFee, sym)}
+                                        - {formatCurrency(view.stripeFee, sym)}
                                     </span>
                                 </div>
                                 {view.fxNote && (
                                     <p className="text-[10px] text-[#5c5966] font-medium mt-3 leading-snug">{view.fxNote}</p>
                                 )}
                                 <div className="flex justify-between items-center pt-5 pb-1">
-                                    <span className="text-white font-extrabold text-[15px]">Você Recebe</span>
+                                    <span className="text-white font-extrabold text-[15px]">Você Recebe (Pix)</span>
                                     <span className="text-[#10b981] font-black text-[20px] tracking-tight">
                                         {formatCurrency(view.net, sym)}
                                     </span>
@@ -372,17 +332,9 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                             (() => {
                                 const method = (earningsInfo?.withdrawal_method || currentUser.withdrawal_method);
                                 const rawMethod = (method.method || '').toString();
-                                const methodName = rawMethod.toUpperCase();
                                 let maskedDetails = '';
-                                let label = '';
 
-                                if (rawMethod === 'payoneer_account' || rawMethod === 'mercado_pago') {
-                                    label = 'Payoneer';
-                                    const email = method.details.payoneerEmail || method.details.email || '';
-                                    const emailMatch = email.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
-                                    maskedDetails = emailMatch ? `*********@${emailMatch[2]}` : '***';
-                                } else if (rawMethod === 'pix' && method.details.pixKey) {
-                                    label = 'Pix (Payoneer)';
+                                if (rawMethod === 'pix' && method.details?.pixKey) {
                                     const pixKey = method.details.pixKey;
                                     if (pixKey.includes('@')) {
                                         const emailMatch = pixKey.match(/([a-zA-Z0-9._-]+)@([a-zA-Z0-9.-]+)/);
@@ -397,14 +349,11 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                                     } else {
                                         maskedDetails = '***';
                                     }
-                                } else if ((rawMethod === 'bank_eur' || rawMethod === 'bank_usd' || rawMethod === 'bank') && method.details.bankName !== undefined) {
-                                    label = rawMethod === 'bank_usd' ? 'Conta USD' : rawMethod === 'bank_eur' ? 'Conta EUR' : 'Conta Bancária';
-                                    maskedDetails = `•••• ${(method.details.accountHolder || '').toUpperCase() || '...'}`;
                                 } else {
-                                    label = methodName;
+                                    maskedDetails = '***';
                                 }
-                                
-                                return `${label}: ${maskedDetails}`;
+
+                                return `Pix: ${maskedDetails}`;
                             })()
                             : 'Configurar Método'
                         }
@@ -412,9 +361,7 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, currentUser, updateU
                     <ChevronRightIcon className="w-4 h-4 text-[#4b4a52]" />
                 </button>
                 <p className="text-[10px] text-[#5c5966] text-center font-medium mt-3 leading-none">
-                    {displayCurrency !== 'BRL'
-                        ? `O valor será convertido pelo Payoneer e enviado para sua conta (${displayCurrency}).`
-                        : 'Saques liquidados via Payoneer — Pix, dólar ou euro.'}
+                    Saques liquidados via Stripe — Pix (BRL) para a chave cadastrada.
                 </p>
             </div>
 

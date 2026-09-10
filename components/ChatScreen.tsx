@@ -4,7 +4,7 @@ import { BackIcon, ThreeDotsIcon, SendIcon, GalleryIcon, CheckIcon, DoubleCheckI
 import BlockReportModal from './BlockReportModal';
 import { useTranslation } from '../i18n';
 import { api } from '../services/api';
-import { useComposerKeyboard, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 
 import LiveBadge from './ui/LiveBadge';
 import { formatMessageTime } from '../utils/formatMessageTime';
@@ -396,23 +396,18 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
     // (scrollTop), NUNCA a página. scrollIntoView fazia PAN na tela inteira e
     // empurrava a barra de mensagem para cima quando o teclado abria.
     const messagesScrollRef = useRef<HTMLDivElement>(null);
-    const chatInputRef = useRef<HTMLButtonElement>(null);
-    // ⌨️ Composer TikTok-style: a barra de mensagem principal fica TOTALMENTE
-    // FIXA no fundo (bottom = safe-area, nunca sai do lugar). Ao tocar nela,
-    // a barra fica INVISÍVEL (sem ser movida nem apagada) e abre um SEGUNDO
-    // campo de digitação (composer) colado acima do teclado.
-    // `bottom` = posição CORRETA da barra de digitação (sonda real, sem
-    // dupla-compensação: no iOS o navegador já sobe elementos fixos, então o
-    // composer fica em bottom:0). `keyboardInset` é só para ROLAR até a última
-    // mensagem quando o teclado abre.
+    // ⌨️ Composer: BARRA PRINCIPAL FIXA no fundo (gatilho) + BARRA DE
+    // DIGITAÇÃO FLUTUANTE por cima do teclado. A barra principal não sobe
+    // nem sai do lugar; ao tocar nela o teclado abre e surge a barra de
+    // digitação — é nela que se escreve.
     const {
         isComposerOpen,
         openComposer,
         closeComposer,
         composerInputRef,
         composerRef,
-        keyboardInset,
-        bottom,
+        triggerBarRef,
+        keyboardBottom,
     } = useComposerKeyboard();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const blobUrlsRef = useRef<string[]>([]);
@@ -581,17 +576,17 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         }
     }, [newMessage]);
 
-    // ⌨️ Quando o teclado abre (keyboardInset sobe), rolar a última mensagem
-    // para cima do input — rolagem INTERNA, sem mover a página nem a barra.
-    const prevInsetRef = useRef(0);
+    // ⌨️ Scroll da lista de mensagens — rolagem INTERNA (scrollTop), nunca a
+    // página. Quando o composer abre (input focado), a última mensagem é rolada
+    // para cima do input sem mover a barra nem a página.
+    const prevOpenRef = useRef(false);
     useEffect(() => {
-        const opened = keyboardInset > 0 && prevInsetRef.current === 0;
-        prevInsetRef.current = keyboardInset;
+        const opened = isComposerOpen && !prevOpenRef.current;
+        prevOpenRef.current = isComposerOpen;
         if (opened && effectiveMessages.length > 0) {
-            // Delay: espera a animação do teclado (e do re-layout) estabilizar
             setTimeout(scrollMessagesToBottom, 120);
         }
-    }, [keyboardInset, effectiveMessages.length]);
+    }, [isComposerOpen, effectiveMessages.length]);
 
     useEffect(() => {
         const handleNewMessage = (message: Message & { tempId?: string }) => {
@@ -993,184 +988,141 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     </div>
                                 </div>
                             )}
-                            <div style={{ height: `calc(4.5rem + ${isComposerOpen ? bottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                            <div style={{ height: `calc(4.5rem + ${keyboardBottom}px + env(safe-area-inset-bottom, 0px))` }} />
                         </div>
                     )}
                     </div>
                 </main>
-                {/* ⌨️ Barra de mensagem 100% FIXA: bottom é SEMPRE
-                    safe-area-inset-bottom — o teclado NUNCA a move. Ao digitar,
-                    ela fica apenas INVISÍVEL (opacity) e o composer (SEGUNDA
-                    barra) aparece colado acima do teclado, por cima dela.
-                    z-30 > avatar das bolhas (z-20): ao rolar, o avatar passa
-                    POR BAIXO da barra, nunca por cima. */}
-                <footer className={`fixed left-0 right-0 z-30 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128] transition-all duration-200 ${isComposerOpen ? 'opacity-0 pointer-events-none' : ''}`} style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                    {replyTo && (
-                        <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
-                            <div className="min-w-0 flex-1">
-                                <div className="text-[11px] font-black text-[#d21fff] truncate">
-                                    Respondendo a {replyTo.senderName || (replyTo.from === currentUser.id ? currentUser.name : user.name)}
-                                </div>
-                                <div className="text-[12px] text-zinc-300 truncate">
-                                    {replyTo.imageUrl && !replyTo.text ? '📷 Foto' : replyTo.text || ''}
-                                </div>
-                            </div>
-                            <button onClick={() => setReplyTo(null)} className="ml-2 p-1 text-[#888691] hover:text-white flex-shrink-0" aria-label="Cancelar resposta">
-                                <CloseIcon className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
-                    {selectedImage && (
-                        <div className="relative mb-2 w-fit">
-                            <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
-                            <button
-                            onClick={() => {
-                                setSelectedImage(null);
-                                setSelectedImageFile(null);
-                            }}
-                            className="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5"
-                        >
-                                <CloseIcon className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
-                    {sendError && (
-                        <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
-                            {sendError}
-                        </div>
-                    )}
+                {/* ═══ BARRA PRINCIPAL FIXA (gatilho) ═══
+                    Fica parada em bottom:0 — não sobe, não mexe. O input é
+                    SOMENTE-LEITURA: ao tocar, abre o teclado e SURGE a barra
+                    de digitação flutuante por cima do teclado. */}
+                <footer
+                    ref={triggerBarRef as any}
+                    className={`fixed left-0 right-0 z-30 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]`}
+                    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+                >
                     <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleImageSelect}
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-[#888691] hover:text-white transition-colors flex items-center justify-center w-10 h-10 flex-shrink-0 ml-1"
-                        >
-                            <GalleryIcon className="w-5 h-5" />
-                        </button>
-                        <div className="flex-grow min-h-[40px] flex items-center">
-                            <button
-                                type="button"
-                                ref={chatInputRef}
-                                tabIndex={-1}
-                                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                                className="w-full bg-transparent text-[14px] px-2 py-2 text-left focus:outline-none cursor-pointer select-none whitespace-normal break-words [overflow-wrap:anywhere] leading-relaxed line-clamp-2 overflow-hidden"
-                            >
-                                {newMessage ? (
-                                    <span className="text-white whitespace-normal break-words [overflow-wrap:anywhere]">{newMessage}</span>
-                                ) : (
-                                    <span className="text-[#5a5860]">Diga oi...</span>
-                                )}
-                            </button>
+                        <div className="flex-grow">
+                            <input
+                                readOnly
+                                type="text"
+                                placeholder="Diga oi..."
+                                value={newMessage}
+                                autoComplete="off"
+                                onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                onClick={() => { if (!isComposerOpen) openComposer(); }}
+                                className="w-full bg-transparent text-white placeholder-[#5a5860] text-base px-2 py-2.5 focus:outline-none"
+                            />
                         </div>
-                        <button
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => { handleSendMessage(); }}
-                            className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
-                            disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
-                        >
-                            {effectiveMessages.some(m => m.status === 'sending') ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                            ) : (
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M2.01 21L23 12L2.01 3L2 10l15 2-15 2z" fill="currentColor"/>
-                                </svg>
-                            )}
-                        </button>
                     </div>
                 </footer>
 
-                {/* ⌨️ Composer (SEGUNDA barra): container SEPARADO, `position:fixed`
-                    relativo ao VIEWPORT (não ao layout do chat) e z-index alto.
-                    Usa a altura REAL do teclado medida pela 🔬 sonda do
-                    visualViewport (`bottom` = fixedBottom): cola EXATAMENTE em
-                    cima do teclado, sem depender do auto-rise do navegador.
-                    `min()` garante que NUNCA ultrapassa o topo da tela — se o
-                    teclado for alto demais, a barra encosta no limite e não
-                    um fixo `bottom:0` realmente termina naquele aparelho — cola a
-                    barra EXATAMENTE em cima do teclado. ⚠️ SEM `min(..., 100dvh - X)`: com
-                    o teclado aberto o 100dvh é a altura VISÍVEL (tela − teclado), então
-                    o min empurrava a barra para baixo, para TRÁS do teclado. A sonda
-                    já mede o valor certo (0 em iOS que auto-sobe; altura do teclado
-                    em Android). */}
+                {/* ═══ BARRA DE DIGITAÇÃO FLUTUANTE (por cima do teclado) ═══
+                    Surge APENAS quando o teclado abre, posicionada com
+                    bottom = altura do teclado (keyboardBottom) + safe-area.
+                    É NELA que a pessoa escreve; a barra principal fica fixa
+                    embaixo, sem subir nem mexer. */}
                 {isComposerOpen && (
-                    <div
+                    <footer
                         ref={composerRef}
-                        className="fixed left-0 right-0 z-[999]"
-                        style={{ bottom: `${bottom}px` }}
+                        className={`fixed left-0 right-0 z-50 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]`}
+                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
                     >
-                        <footer className="bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]">
-                            {replyTo && (
-                                <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="text-[11px] font-black text-[#d21fff] truncate">
-                                            Respondendo a {replyTo.senderName || (replyTo.from === currentUser.id ? currentUser.name : user.name)}
-                                        </div>
-                                        <div className="text-[12px] text-zinc-300 truncate">
-                                            {replyTo.imageUrl && !replyTo.text ? '📷 Foto' : replyTo.text || ''}
-                                        </div>
+                        {replyTo && (
+                            <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
+                                <div className="min-w-0 flex-1">
+                                    <div className="text-[11px] font-black text-[#d21fff] truncate">
+                                        Respondendo a {replyTo.senderName || (replyTo.from === currentUser.id ? currentUser.name : user.name)}
                                     </div>
-                                    <button onClick={() => setReplyTo(null)} className="ml-2 p-1 text-[#888691] hover:text-white flex-shrink-0" aria-label="Cancelar resposta">
-                                        <CloseIcon className="w-4 h-4" />
-                                    </button>
+                                    <div className="text-[12px] text-zinc-300 truncate">
+                                        {replyTo.imageUrl && !replyTo.text ? '📷 Foto' : replyTo.text || ''}
+                                    </div>
                                 </div>
-                            )}
-                            {sendError && (
-                                <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
-                                    {sendError}
-                                </div>
-                            )}
-                            <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
-                                <div className="flex-grow min-h-[40px]">
-                                    <textarea
-                                        ref={composerInputRef}
-                                        rows={1}
-                                        placeholder="Diga oi..."
-                                        value={newMessage}
-                                        enterKeyHint="send"
-                                        autoComplete="off"
-                                        onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); autoResizeTextarea(); }}
-                                        onBlur={() => {
-                                            // Só fecha se o foco saiu do composer por completo.
-                                            // Não fecha em blur transitório do navegador (mobile).
-                                            setTimeout(() => {
-                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
-                                                    closeComposer();
-                                                }
-                                            }, 120);
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSendMessage();
-                                            }
-                                        }}
-                                        className="w-full bg-transparent text-white placeholder-[#5a5860] text-[14px] px-2 py-2.5 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
-                                        style={{ height: 'auto', minHeight: '40px' }}
-                                    />
-                                </div>
-                                <button
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onClick={() => { handleSendMessage(); }}
-                                    className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
-                                    disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
-                                >
-                                    {effectiveMessages.some(m => m.status === 'sending') ? (
-                                        <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                                    ) : (
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M2.01 21L23 12L2.01 3L2 10l15 2-15 2z" fill="currentColor"/>
-                                        </svg>
-                                    )}
+                                <button onClick={() => setReplyTo(null)} className="ml-2 p-1 text-[#888691] hover:text-white flex-shrink-0" aria-label="Cancelar resposta">
+                                    <CloseIcon className="w-4 h-4" />
                                 </button>
                             </div>
-                        </footer>
-                    </div>
+                        )}
+                        {selectedImage && (
+                            <div className="relative mb-2 w-fit">
+                                <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
+                                <button
+                                onClick={() => {
+                                    setSelectedImage(null);
+                                    setSelectedImageFile(null);
+                                }}
+                                className="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5"
+                            >
+                                    <CloseIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
+                        {sendError && (
+                            <div className="mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 text-[13px] text-red-400 leading-relaxed">
+                                {sendError}
+                            </div>
+                        )}
+                        <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleImageSelect}
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="text-[#888691] hover:text-white transition-colors flex items-center justify-center w-10 h-10 flex-shrink-0 ml-1"
+                            >
+                                <GalleryIcon className="w-5 h-5" />
+                            </button>
+                            <div className="flex-grow min-h-[40px]">
+                                <textarea
+                                    ref={composerInputRef}
+                                    rows={1}
+                                    placeholder="Diga oi..."
+                                    value={newMessage}
+                                    enterKeyHint="send"
+                                    autoComplete="off"
+                                    onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); autoResizeTextarea(); }}
+                                    onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                    onBlur={() => {
+                                        // Só fecha se o foco saiu do composer por completo.
+                                        // Não fecha em blur transitório do navegador (mobile).
+                                        setTimeout(() => {
+                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                closeComposer();
+                                            }
+                                        }, 120);
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                    // font 16px: impede o zoom automático do iOS ao focar (font <16px)
+                                    className="w-full bg-transparent text-white placeholder-[#5a5860] text-base px-2 py-2.5 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
+                                    style={{ height: 'auto', minHeight: '40px' }}
+                                />
+                            </div>
+                            <button
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => { handleSendMessage(); }}
+                                className="bg-[#b91bff] text-white rounded-full hover:bg-[#a617e6] transition-colors flex items-center justify-center w-9 h-9 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed mr-1"
+                                disabled={(!newMessage.trim() && !selectedImageFile) || effectiveMessages.some(m => m.status === 'sending')}
+                            >
+                                {effectiveMessages.some(m => m.status === 'sending') ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                ) : (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M2.01 21L23 12L2.01 3L2 10l15 2-15 2z" fill="currentColor"/>
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
+                    </footer>
                 )}
             </div>
             <BlockReportModal

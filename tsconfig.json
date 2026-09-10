@@ -34,6 +34,13 @@
     "node_modules",
     "dist",
     "scripts",
-    "deploy"
+    "deploy",
+    "tmp",
+    "backend",
+    "dev",
+    "temp_backend_routes",
+    "temp_server.js",
+    "dist_temp",
+    "dist_temp_beauty"
   ]
 }

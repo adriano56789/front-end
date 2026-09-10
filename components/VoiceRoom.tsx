@@ -4,7 +4,7 @@ import {
     ViewerIcon, GoldCoinWithGIcon, PlusIcon, SendIcon, BellIcon, LockIcon,
     MoreIcon, CheckIcon, UserPlusIcon
 } from './icons';
-import { VoiceRoom as VoiceRoomType, VoiceSlot, User, ToastType, Gift as GiftType, PurchasePackage } from '../types';
+import { VoiceRoom as VoiceRoomType, VoiceSlot, User, ToastType, Gift as GiftType, PurchasePackage, HostNoticeState } from '../types';
 import { api } from '../services/api';
 import { connectSocket, onSocketEvent } from '../services/socketService';
 import { useTranslation } from '../i18n';
@@ -18,6 +18,7 @@ import CoHostModal from './CoHostModal';
 import { VoiceSfuService } from '../services/VoiceSfuService';
 import ChatMessage from './live/ChatMessage';
 import EntryChatMessage from './live/EntryChatMessage';
+import HostNoticePlaque from './live/HostNoticePlaque';
 import { RankedAvatar } from './live/RankedAvatar';
 import GiftAnimationPanel, { GiftAnimationPanelHandle } from './live/GiftAnimationPanel';
 import type { GiftPayload } from './live/GiftAnimationOverlay';
@@ -28,7 +29,8 @@ import CadastralDataScreen from './CadastralDataScreen';
 import UserActionModal from './UserActionModal';
 import JoinEffectOverlay from './live/JoinEffectOverlay';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
-import { useComposerKeyboard, COMPOSER_BAR_HEIGHT, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useHostNotice } from '../hooks/useHostNotice';
 
 interface VoiceRoomProps {
     roomId: string;
@@ -83,6 +85,8 @@ interface VoiceChatMessage {
     isModerator?: boolean;
     isGift?: boolean;
     timestamp?: string | number;
+    // 🪧 Plaquinha do host embutida como item de mensagem (fluxo normal do chat)
+    hostNotice?: HostNoticeState | null;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -703,6 +707,44 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }
     }, [messages.length, isUserScrolledUp]);
 
+    // 🪧 Plaquinha de notificação do host (estado global da sala — host e espectadores)
+    const hostNoticeCtl = useHostNotice({
+        roomId,
+        userId: currentUser.id,
+        isHost: isHost,
+        hostName: currentUser.name,
+        hostAvatar: currentUser.avatarUrl || currentUser.avatar || '',
+        disabled: false,
+    });
+
+    // 🪧 Plaquinha do host como MENSAGEM DO CHAT: cada disparo (pulse) insere uma
+    // plaquinha NO FIM da lista de mensagens — exatamente como uma mensagem normal.
+    // Mensagens novas chegam depois e empurram a plaquinha anterior pra cima; o
+    // próximo disparo insere outra no fim de novo. Nunca fixa no topo/meio.
+    const hostNoticeActive = !!hostNoticeCtl.notice?.active;
+    useEffect(() => {
+        if (!hostNoticeActive || !hostNoticeCtl.notice) return;
+        const stamp = Date.now();
+        setMessages(prev => {
+            const id = `host_notice_${hostNoticeCtl.pulse}_${stamp}`;
+            if (prev.some(m => String(m.id) === id)) return prev;
+            return [...prev, { id, type: 'chat' as const, hostNotice: hostNoticeCtl.notice, timestamp: stamp }];
+        });
+        // Scroll pro fundo pra plaquinha ficar VISÍVEL NA HORA, mesmo que o usuário
+        // estivesse lendo mensagens antigas (que sobem pra cima). Duplo rAF garante
+        // que a plaquinha já montou/ocupou altura no layout.
+        let inner = 0;
+        const outer = requestAnimationFrame(() => {
+            inner = requestAnimationFrame(() => {
+                if (chatScrollRef.current) {
+                    chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                }
+            });
+        });
+        setIsUserScrolledUp(false);
+        return () => { cancelAnimationFrame(outer); if (inner) cancelAnimationFrame(inner); };
+    }, [hostNoticeCtl.pulse, hostNoticeActive]);
+
     // Cap de mensagens: limita o DOM do chat
     useEffect(() => {
         if (messages.length > MAX_CHAT_MESSAGES) {
@@ -710,14 +752,15 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         }
     }, [messages.length]);
 
-    // ─── Composer TikTok (2 barras) — MESMO do StreamRoom ───
+    // ─── Composer (barra única fixa) — MESMO do StreamRoom ───
     const {
         isComposerOpen,
         openComposer,
         closeComposer,
         composerInputRef,
         composerRef,
-        bottom: chatBarBottom,
+        triggerBarRef,
+        keyboardBottom,
     } = useComposerKeyboard();
 
     // ─── Enviar mensagem (otimista + eco do servidor deduplicado) ───
@@ -1034,14 +1077,15 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
         setIsWalletOpen(false);
     }, [currentUser]);
 
-    const handleConfirmPurchase = async (pkg: PurchasePackage) => {
+    const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'pix_card' = 'pix_card') => {
         try {
             if (!currentUser) return;
-            const res = await api.createPayoneerDepositSession({
+            const res = await api.createStripeCheckoutSession({
                 userId: currentUser.id,
                 amountBRL: pkg.price,
                 diamonds: pkg.diamonds,
-                method: 'payoneer',
+                method,
+                currency: pkg.currency || 'BRL',
             });
             if (res && res.redirectUrl) {
                 window.location.href = res.redirectUrl;
@@ -1439,12 +1483,17 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
                 {/* Chat messages */}
-                <div ref={chatScrollRef} onScroll={handleChatScroll} className="max-h-[20vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '20lvh' }}>
+                <div ref={chatScrollRef} onScroll={handleChatScroll} className="max-h-[36vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '36lvh' }}>
                     <div className="flex flex-col gap-px items-start w-full">
                         {messages.length === 0 && (
                             <p className="text-white/25 text-xs text-center w-full py-6">{t('voiceRoom.noMessages')}</p>
                         )}
                         {messages.map((msg, index) => {
+                            // 🪧 Plaquinha do host — item de mensagem comum: nasce no fim,
+                            // sobe quando chegam mensagens novas (nunca fixa no topo/meio).
+                            if (msg.hostNotice) {
+                                return <HostNoticePlaque key={`plaque-${msg.id}`} notice={msg.hostNotice} />;
+                            }
                             if (msg.type === 'entry' && msg.fullUser) {
                                 const entryProps: any = {
                                     user: msg.fullUser,
@@ -1478,37 +1527,34 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                         })}
                     </div>
                 </div>
-                {/* Espaçador FORA da área rolável: reserva o espaço do fundo
-                    (1ª barra ou composer + teclado) sem esconder as mensagens. */}
-                <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                {/* Espaçador FORA da área rolável: reserva o espaço fixo da
+                    barra no fundo, sem esconder as mensagens. */}
+                <div style={{ height: `calc(${MESSAGE_BAR_HEIGHT}px + ${keyboardBottom}px + env(safe-area-inset-bottom, 0px))` }} />
 
-                {/* 📝 1ª barra: renderiza APENAS quando o composer está fechado. */}
-                {!isComposerOpen && <footer className="fixed left-0 right-0 z-30 p-3 pointer-events-auto" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+{/* ═══ BARRA PRINCIPAL FIXA (gatilho) ═══
+                Fica parada em bottom:0 — não sobe, não mexe. O input é
+                SOMENTE-LEITURA: ao tocar, abre o teclado e SURGE a barra de
+                digitação flutuante por cima do teclado. */}
+                <footer
+                    ref={triggerBarRef as any}
+                    className="fixed left-0 right-0 z-30 p-3 pointer-events-auto"
+                    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+                >
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
-                            <button
-                                type="button"
-                                tabIndex={-1}
-                                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
-                            >
-                                {chatInput ? (
-                                    <span className="text-white">{chatInput}</span>
-                                ) : (
-                                    <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
-                                )}
-                            </button>
+                            <input
+                                readOnly
+                                type="text"
+                                placeholder={t('streamRoom.sayHi')}
+                                value={chatInput}
+                                autoComplete="off"
+                                onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                onClick={() => { if (!isComposerOpen) openComposer(); }}
+                                // font 16px: impede o zoom automático do iOS ao focar
+                                className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                            />
                         </div>
                         <div className="flex items-center gap-2">
-                            {/* Send */}
-                            <button
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={(e) => { sendMessage(e); }}
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
                             {/* Gift */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); setIsGiftOpen(true); }}
@@ -1546,15 +1592,20 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                             </button>
                         </div>
                     </div>
-                </footer>}
+                </footer>
 
+                {/* ═══ BARRA DE DIGITAÇÃO FLUTUANTE (por cima do teclado) ═══
+                    Surge APENAS quando o teclado abre, posicionada com
+                    bottom = altura do teclado (keyboardBottom) + safe-area.
+                    É NELA que a pessoa escreve; a barra principal fica fixa
+                    embaixo, sem subir nem mexer. */}
                 {isComposerOpen && (
-                    <div
+                    <footer
                         ref={composerRef}
-                        className="fixed left-0 right-0 z-40"
-                        style={{ bottom: `${chatBarBottom}px` }}
+                        className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
+                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
                     >
-                        <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
+                        <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
                             <div className="flex items-center gap-3">
                                 <div className="flex-grow">
                                     <input
@@ -1565,6 +1616,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                                         enterKeyHint="send"
                                         autoComplete="off"
                                         onChange={(e) => setChatInput(e.target.value)}
+                                        onFocus={() => { if (!isComposerOpen) openComposer(); }}
                                         onBlur={() => {
                                             setTimeout(() => {
                                                 if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
@@ -1574,20 +1626,22 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                                         }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(e); } }}
                                         maxLength={156}
-                                        className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                        // font 16px: impede o zoom automático do iOS ao focar
+                                        className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
                                     />
                                 </div>
+                                {/* Send */}
                                 <button
                                     onMouseDown={(e) => e.preventDefault()}
-                                    onClick={(e) => { e.stopPropagation(); sendMessage(e); }}
+                                    onClick={(e) => { sendMessage(e); }}
                                     className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
                                     style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
                                 >
                                     <SendIcon className="w-5 h-5 text-white" />
                                 </button>
                             </div>
-                        </footer>
-                    </div>
+                        </div>
+                    </footer>
                 )}
             </div>
 

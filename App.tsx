@@ -1067,15 +1067,21 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       
       const currentStreamId = activeStream?.id;
       if (currentStreamId && resp.status === 'accepted') {
-        const opponentUser = streamers.find((s: any) => s.id === resp.invitee_id || s.id === resp.inviteeId) || 
-                             listScreenUsers.find((u: any) => u.id === resp.invitee_id || u.id === resp.inviteeId);
+        const inviteeId = String(resp.invitee_id || resp.inviteeId || '');
+        const opponentUser = streamers.find((s: any) => String(s.id) === inviteeId || String(s.hostId) === inviteeId) || 
+                             listScreenUsers.find((u: any) => String(u.id) === inviteeId);
                              
         if (opponentUser) {
           addToast(ToastType.Success, `Desafio aceito por ${opponentUser.name}! Iniciando PK...`);
+          const pkOpponentObj: any = { ...opponentUser };
+          if (!pkOpponentObj.streamKey) {
+            const liveEntry = streamers.find((s: any) => String(s.hostId) === inviteeId);
+            if (liveEntry?.streamKey) pkOpponentObj.streamKey = liveEntry.streamKey;
+          }
           try {
-            const battleResp = await api.startPKBattle(currentUser.id, currentStreamId, opponentUser.id);
+            const battleResp = await api.startPKBattle(currentUser.id, currentStreamId, String(pkOpponentObj.id || inviteeId));
             if (battleResp?.battleId) setPkBattleId(String(battleResp.battleId));
-            setPkOpponent(opponentUser as unknown as User);
+            setPkOpponent(pkOpponentObj as unknown as User);
             setIsPKBattleActive(true);
           } catch (err) {
             console.error("Error starting battle:", err);
@@ -1260,11 +1266,11 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       const onLiveInviteRaw = (d: any) => openPKInvite(d);
       const onLiveInviteTimeout = (d: any) => {
         if (!d) return;
-        setActivePKInvite(prev => (prev && String(prev.id || prev.invite_id) === String(d.inviteId)) ? null : prev);
+        setActivePKInvite((prev: any) => (prev && String(prev.id || prev.invite_id) === String(d.inviteId)) ? null : prev);
       };
       const onLiveInviteConfirmed = (d: any) => {
         if (!d) return;
-        setActivePKInvite(prev => (prev && String(prev.id || prev.invite_id) === String(d.inviteId)) ? null : prev);
+        setActivePKInvite((prev: any) => (prev && String(prev.id || prev.invite_id) === String(d.inviteId)) ? null : prev);
       };
       const onLiveInviteResponse = (d: any) => {
         if (!d || !currentUser) return;
@@ -1828,7 +1834,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       const data = (e as CustomEvent).detail;
       if (!data || !data.userId) return;
       if (String(data.userId) === String(currentUser.id) && typeof data.diamonds === 'number') {
-        const updated = { ...currentUserRef.current, diamonds: data.diamonds };
+        const updated = { ...currentUserRef.current!, diamonds: data.diamonds };
         if (typeof data.receptores === 'number') (updated as any).receptores = data.receptores;
         if (typeof data.earnings === 'number') (updated as any).earnings = data.earnings;
         updateUserEverywhere(updated);
@@ -1867,7 +1873,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       const data = (e as CustomEvent).detail;
       if (!data || !data.userId) return;
       if (String(data.userId) !== String(currentUser.id)) return;
-      const updated = { ...currentUserRef.current };
+      const updated = { ...currentUserRef.current! };
       let changed = false;
       if (typeof data.totalEarnings === 'number') { (updated as any).earnings = data.totalEarnings; changed = true; }
       if (typeof data.receptores === 'number') { (updated as any).receptores = data.receptores; changed = true; }
@@ -1893,7 +1899,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       const newAvatarUrl = String(data.avatarUrl || '');
       // Atualizar o próprio currentUser se for ele quem trocou
       if (changedUserId === String(currentUser.id) && typeof data.avatarUrl === 'string') {
-        const updated = { ...currentUserRef.current, avatarUrl: newAvatarUrl };
+        const updated = { ...currentUserRef.current!, avatarUrl: newAvatarUrl };
         updateUserEverywhere(updated);
       }
       // Atualizar conversas (chat privado) — avatar do amigo mudou
@@ -2273,7 +2279,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
     const initPushNotifications = () => {
       if (!currentUserRef.current) return;
       import('./services/notificationService').then(async ({ initNotifications }) => {
-        const notifStatus = await initNotifications(currentUserRef.current.id);
+        const notifStatus = await initNotifications(currentUserRef.current!.id);
         if (notifStatus === 'denied') {
           if (!notifDeniedShownRef.current) {
             notifDeniedShownRef.current = true;
@@ -3537,13 +3543,17 @@ if (locationPermissionStatus === 'granted') {
       // Fallback local: se o pk_battle_start ainda não chegou, entra na disputa
       // configurando o oponente (o backend emitirá o start para ambos).
       if (inviterId) {
-        let opponentUser = streamers.find((s: any) => String(s.id) === inviterId || String(s.hostId) === inviterId) ||
+        let opponentUser: any = streamers.find((s: any) => String(s.id) === inviterId || String(s.hostId) === inviterId) ||
                            listScreenUsers.find((u: any) => String(u.id) === inviterId);
         if (!opponentUser) {
           try { opponentUser = await api.getUser(inviterId); } catch { opponentUser = null; }
         }
         if (opponentUser) {
-          setPkOpponent(opponentUser as unknown as User);
+          const opponentObj: any = { ...opponentUser };
+          if (!opponentObj.streamKey && invite?.streamId) {
+            opponentObj.streamKey = String(invite.streamId);
+          }
+          setPkOpponent(opponentObj as unknown as User);
           setIsPKBattleActive(true);
           // Se ainda não está numa live, entra na live do desafiante
           if (!activeStream && handleSelectStreamRef.current) {
@@ -3831,7 +3841,7 @@ if (locationPermissionStatus === 'granted') {
 
     if (currentUser && streamer.hostId === currentUser.id) {
 
-      const updatedUser = { ...currentUserRef.current, isLive: true, isOnline: true };
+      const updatedUser = { ...currentUserRef.current!, isLive: true, isOnline: true };
 
       updateUserEverywhere(updatedUser);
 
@@ -4206,7 +4216,7 @@ if (locationPermissionStatus === 'granted') {
 
         const updatedFollowed = { ...userToFollow, isFollowed: isNowFollowing };
 
-        const updatedFollower = { ...currentUserRef.current, following: Math.max(0, (currentUser.following || 0) + (isNowFollowing ? 1 : -1)) };
+        const updatedFollower = { ...currentUserRef.current!, following: Math.max(0, (currentUser.following || 0) + (isNowFollowing ? 1 : -1)) };
 
 
 
@@ -4388,17 +4398,18 @@ if (locationPermissionStatus === 'granted') {
 
 
 
-  const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'payoneer' = 'payoneer') => {
+  const handleConfirmPurchase = async (pkg: PurchasePackage, method: 'card' | 'pix' | 'pix_card' = 'pix_card') => {
 
     if (!currentUser) return;
 
     try {
-      // Criar ordem + sessão de checkout Payoneer e redirecionar ao checkout hospedado
-      const res = await api.createPayoneerDepositSession({
+      // Criar ordem + sessão de checkout Stripe e redirecionar ao checkout hospedado
+      const res = await api.createStripeCheckoutSession({
         userId: currentUser.id,
         amountBRL: pkg.price,
         diamonds: pkg.diamonds,
         method,
+        currency: pkg.currency || 'BRL',
       });
 
       if (res && res.redirectUrl) {
@@ -4549,7 +4560,7 @@ if (locationPermissionStatus === 'granted') {
 
     if (currentUser && currentUser.diamonds && gift.price && currentUser.diamonds >= gift.price) {
 
-      const updatedUser = { ...currentUserRef.current, diamonds: currentUser.diamonds - gift.price };
+      const updatedUser = { ...currentUserRef.current!, diamonds: currentUser.diamonds - gift.price };
 
       updateUserEverywhere(updatedUser);
 
@@ -4754,7 +4765,7 @@ if (locationPermissionStatus === 'granted') {
 
   return (
     <Suspense fallback={null}>
-    <div className={`app-container bg-black text-white font-sans ${((activeStream && streamRoomData) || chattingWith) && currentUser ? 'live-fixed' : ''}`}>
+    <div className={`app-container bg-black text-white font-sans ${((activeStream && streamRoomData) || chattingWith || location.pathname.startsWith('/voice-room/')) && currentUser ? 'live-fixed' : ''}`}>
 
 
       {/* ⚔️ PK Invite Pop-up Modal (global, com Aceitar/Recusar + preview) */}
@@ -5146,7 +5157,7 @@ if (locationPermissionStatus === 'granted') {
                   }}
                   onEnterMyStream={() => {
                     if (currentUser?.isLive) {
-                      const userStream = streamers.find(s => s.hostId === currentUser.id);
+const userStream = streamers.find((s: Streamer) => s.hostId === currentUser.id);
                       if (userStream) handleSelectStream(userStream);
                     }
                   }}
@@ -5252,7 +5263,7 @@ if (locationPermissionStatus === 'granted') {
                       onViewProfile={handleViewProfile}
                       onOpenPrivateChat={() => setIsPrivateChatModalOpen(true)}
                       onOpenPrivateInviteModal={() => setIsPrivateInviteModalOpen(true)}
-                      followingUsers={followingUsers}
+                      followingUsers={(followingUsers || []).map(u => u.id)}
                       onKickedOut={() => navigate('/')}
                     />
                   ) : null;
@@ -5531,7 +5542,7 @@ const ProfileRoutes: React.FC = () => {
           }}
           onEnterMyStream={() => {
             if (currentUser?.isLive) {
-              const userStream = streamers.find(s => s.hostId === currentUser.id);
+              const userStream = streamers.find((s: Streamer) => s.hostId === currentUser.id);
               if (userStream) handleSelectStream(userStream);
             }
           }}

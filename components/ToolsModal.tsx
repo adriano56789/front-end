@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Gift } from '../types';
+import React, { useEffect, useRef } from 'react';
+import { Gift, HostNoticeState } from '../types';
 import { streamPublishService } from '../services/streamPublishService';
 
 // Custom high-fidelity SVGs matching the mockup screenshots perfectly
@@ -100,6 +100,14 @@ const ModerarIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
+const PlaquinhaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M4 21V4h13.6l-2 3.6 2 3.6H4" />
+        <path d="M12 13v8" />
+        <circle cx="12" cy="17" r="2" />
+    </svg>
+);
+
 const ClarezaIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
         <circle cx="12" cy="12" r="10" />
@@ -173,6 +181,12 @@ interface ToolsModalProps {
   onAcceptParticipation?: (invitationId: string) => void;
   onRejectParticipation?: (invitationId: string) => void;
   onRemoveParticipant?: () => void;
+  // 🪧 Plaquinha de notificação do host (estado controlado pela tela)
+  hostNotice?: HostNoticeState | null;
+  hostNoticeActive?: boolean;
+  hostNoticeText?: string;
+  onHostNoticeToggle?: (active: boolean) => void;
+  onHostNoticeSave?: (text: string) => void;
 }
 
 export interface ParticipationRequest {
@@ -252,15 +266,78 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
     onAcceptParticipation,
     onRejectParticipation,
     onRemoveParticipant,
+    hostNotice,
+    hostNoticeActive,
+    hostNoticeText,
+    onHostNoticeToggle,
+    onHostNoticeSave,
 }) => {
     
     const [selectedPinnedGifts, setSelectedPinnedGifts] = React.useState<PinnedGiftEntry[]>([]);
+    const [noticeText, setNoticeText] = React.useState('');
+    const [noticeActive, setNoticeActive] = React.useState(false);
+    const modalBodyRef = useRef<HTMLDivElement>(null);
+    const hostNoticeCardRef = useRef<HTMLDivElement>(null);
+
+    const WELCOME_SUGGESTIONS = [
+        '👋 Bem-vindos à transmissão!',
+        'Você é especial por aqui! ❤️',
+        'Siga para não perder as próximas lives 🔔',
+        'Deixe seu like e dê as boas-vindas 💜',
+    ];
 
     useEffect(() => {
         if (isOpen) {
             setSelectedPinnedGifts(pinnedGifts.map((p) => ({ ...p })));
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, pinnedGifts]);
+
+    // Sincronizar o state local do modal com o estado real da sala (hostNoticeCtl).
+    // Sempre que o host abre o modal, ou quando o texto/estado mudam enquanto ele
+    // já está aberto (ex.: outro dispositivo do mesmo host, ou atualização externa),
+    // o campo e o toggle refletem o que está gravado no backend.
+    useEffect(() => {
+        if (!isOpen) return;
+        setNoticeText(hostNoticeText ?? hostNotice?.text ?? '');
+        setNoticeActive(hostNoticeActive !== undefined ? hostNoticeActive : (hostNotice?.active ?? false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, hostNoticeText, hostNoticeActive, hostNotice?.text, hostNotice?.active]);
+
+    const handleToggleHostNotice = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const next = !noticeActive;
+        if (next && !noticeText.trim()) {
+            if (addToast) addToast('error', 'Digite o texto da plaquinha antes de ativar.');
+            return;
+        }
+        setNoticeActive(next);
+        onHostNoticeToggle?.(next);
+        if (addToast) addToast(next ? 'success' : 'info', next ? 'Plaquinha ativada no chat!' : 'Plaquinha desativada.');
+    };
+
+    const handleSaveHostNoticeText = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const trimmed = noticeText.trim();
+        if (!trimmed) {
+            if (addToast) addToast('error', 'Digite o texto da plaquinha primeiro.');
+            return;
+        }
+        onHostNoticeSave?.(trimmed);
+        if (addToast) addToast('success', 'Texto da plaquinha salvo!');
+    };
+
+    const handleQuickAccessHostNotice = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const body = modalBodyRef.current;
+        const card = hostNoticeCardRef.current;
+        if (body && card) {
+            body.scrollTo({
+                top: body.scrollTop + (card.getBoundingClientRect().top - body.getBoundingClientRect().top) - 12,
+                behavior: 'smooth',
+            });
+        }
+    };
 
     const giftKey = (gift: Gift) => gift.id || gift.name;
 
@@ -363,6 +440,9 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
         onClose();
     };
 
+    // ⚔️ "Batalha / Encerrar PK" fica SEMPRE ao lado do botão Chamada
+    // (Ferramentas de Interação do host), NUNCA sobre o vídeo da batalha.
+    // Ordem no grid: Co-host · Convidar · Chamada · Encerrar PK/Batalha.
     const cohostTools = [
         { 
             icon: <CoHostIcon className="w-7 h-7" />, 
@@ -374,9 +454,11 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                 onClose();
             }
         },
+        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Convidar', hasDot: false, onClick: createAndCloseHandler(onOpenPrivateInviteModal) },
+        { icon: <ChamadaIcon className="w-7 h-7" />, label: 'Chamada', hasDot: true, onClick: createAndCloseHandler(onOpenVideoCall) },
         { 
             icon: <BatalhaIcon className="w-7 h-7" />, 
-            label: isPKBattleActive ? 'Fim da Batalha' : 'Batalha', 
+            label: isPKBattleActive ? 'Encerrar PK' : 'Batalha', 
             hasDot: false, 
             onClick: (e: React.MouseEvent) => {
                 e.stopPropagation();
@@ -388,11 +470,10 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
                 onClose();
             }
         },
-        { icon: <ConvidarIcon className="w-7 h-7" />, label: 'Convidar', hasDot: false, onClick: createAndCloseHandler(onOpenPrivateInviteModal) },
-        { icon: <ChamadaIcon className="w-7 h-7" />, label: 'Chamada', hasDot: true, onClick: createAndCloseHandler(onOpenVideoCall) },
     ];
 
     const anchorTools = [
+        { icon: <PlaquinhaIcon className="w-7 h-7" />, label: 'Plaquinha', hasDot: false, isActive: noticeActive, onClick: handleQuickAccessHostNotice },
         { icon: <EmbelezarIcon className="w-7 h-7" />, label: 'Embelezar', hasDot: true, onClick: createAndCloseHandler(onOpenBeautyPanel) },
         { icon: isMicrophoneMuted ? <MicrophoneOffIconCustom className="w-7 h-7" /> : <MicrophoneIconCustom className="w-7 h-7" />, label: 'Microfone', hasDot: false, isActive: !isMicrophoneMuted, onClick: onToggleMicrophone },
         { icon: isSoundMuted ? <SoundOffIconCustom className="w-7 h-7" /> : <SoundOnIconCustom className="w-7 h-7" />, label: 'Som', hasDot: false, isActive: !isSoundMuted, onClick: onToggleSound },
@@ -452,6 +533,7 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
           onClick={onClose}
         >
             <div
+                ref={modalBodyRef}
                 className={`bg-[#131124] w-full max-h-[88vh] rounded-t-3xl p-6 space-y-6 transform transition-all duration-300 ease-in-out border border-white/10 shadow-2xl pb-8 overflow-y-auto ${isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`}
                 onClick={e => e.stopPropagation()}
             >
@@ -467,6 +549,67 @@ const ToolsModal: React.FC<ToolsModalProps> = ({
 
                 {isHost ? (
                     <>
+                        {/* 🪧 Plaquinha de Notificação — aviso fixado no topo do chat */}
+                        <div ref={hostNoticeCardRef} id="host-notice-card" className="bg-white/[0.02] p-[14px] rounded-[22px] border border-amber-500/15 shadow-sm scroll-mt-4">
+                            <div className="flex items-center justify-between mb-3 px-1.5">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-white"
+                                        style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ec4899 50%, #a855f7 100%)' }}>
+                                        <PlaquinhaIcon className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-[13px] font-semibold text-white tracking-wide">Plaquinha de Notificação</h3>
+                                        <span className={`text-[10px] font-medium ${noticeActive ? 'text-emerald-400' : 'text-gray-500'}`}>
+                                            {noticeActive ? '● Ativa no Chat' : 'Desativada'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={handleToggleHostNotice}
+                                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer border-none shrink-0 ${noticeActive ? 'bg-gradient-to-r from-amber-400 via-pink-500 to-purple-600' : 'bg-white/10'}`}
+                                >
+                                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${noticeActive ? 'translate-x-5' : ''}`} />
+                                </button>
+                            </div>
+                            <div className="relative">
+                                <textarea
+                                    value={noticeText}
+                                    onChange={(e) => setNoticeText(e.target.value.slice(0, 140))}
+                                    maxLength={140}
+                                    rows={3}
+                                    placeholder="Digite o aviso que será enviado no chat..."
+                                    className="w-full resize-none rounded-xl bg-white/[0.06] border border-white/10 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00e5ff]"
+                                />
+                                <span className="absolute bottom-2 right-3 text-[10px] text-gray-500">{noticeText.length}/140</span>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {WELCOME_SUGGESTIONS.map(s => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        tabIndex={-1}
+                                        onClick={(e) => { e.stopPropagation(); setNoticeText(s); }}
+                                        className="px-2.5 h-7 rounded-full bg-white/[0.05] hover:bg-white/[0.1] active:scale-95 text-[10px] text-gray-300 transition-colors cursor-pointer border-none"
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex items-center gap-2 mt-3">
+                                <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={handleSaveHostNoticeText}
+                                    className="flex-1 h-10 rounded-xl hover:opacity-90 text-white text-xs font-bold tracking-wide uppercase transition-all active:scale-95 cursor-pointer"
+                                    style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ec4899 50%, #a855f7 100%)' }}
+                                >
+                                    Salvar Texto
+                                </button>
+                            </div>
+                        </div>
+
                         <div className="bg-white/[0.02] p-[14px] rounded-[22px] border border-white/[0.02] shadow-sm">
                             <h3 className="text-[13px] font-semibold text-gray-400 mb-4 px-1.5 tracking-wide">Ferramentas de Interação</h3>
                             <div className="grid grid-cols-5 gap-y-4 gap-x-2 justify-items-center">

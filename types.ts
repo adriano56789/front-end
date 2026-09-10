@@ -182,7 +182,7 @@ export interface Obra {
 }
 
 export interface User {
-  avatar: string;
+  avatar?: string;
   isBroadcaster?: boolean;
   id: string;
   identification: string;
@@ -667,4 +667,15 @@ export interface VoiceRoom {
   location: string;
   time: string;
   message: string;
+}
+
+/** 🪧 Plaquinha de notificação do host — estado sincronizado entre host e espectadores */
+export interface HostNoticeState {
+  roomId: string;
+  hostId: string;
+  hostName: string;
+  hostAvatar: string;
+  active: boolean;
+  text: string;
+  updatedAt?: string;
 }

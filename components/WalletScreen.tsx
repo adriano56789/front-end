@@ -28,7 +28,8 @@ const CURRENCY_OPTIONS: { code: PurchaseCurrency; flag: React.ReactNode; label: 
 
 const APP_OWNER_ID = '6771613';
 
-const diamondPackages = [
+// Fallback local (usado só se a API/banco falhar) — pacotes reais vêm do banco via /api/checkout/pack
+const DEFAULT_PACKAGES: PurchasePackage[] = [
   { diamonds: 800, price: 7.00 },
   { diamonds: 3000, price: 25.00 },
   { diamonds: 6000, price: 60.00 },
@@ -58,8 +59,28 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; curren
   const [freshDiamonds, setFreshDiamonds] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [packages, setPackages] = useState<PurchasePackage[] | null>(null);
   const countryCode = (currentUser?.country || '').trim().toLowerCase();
   const [displayCurrency, setDisplayCurrency] = useState<PurchaseCurrency>(countryCode === 'pt' ? 'EUR' : countryCode === 'us' ? 'USD' : 'BRL');
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getDiamondPackages()
+      .then((list) => {
+        if (cancelled) return;
+        // Pacotes do banco (via /api/checkout/pack) — converte para o formato local
+        const mapped: PurchasePackage[] = (list || []).map((p) => ({
+          diamonds: p.diamonds,
+          price: p.price,
+          isFreeDev: (p as any).isFreeDev || false,
+        }));
+        setPackages(mapped.length ? mapped : DEFAULT_PACKAGES);
+      })
+      .catch(() => {
+        if (!cancelled) setPackages(DEFAULT_PACKAGES);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (currentUser?.diamonds !== undefined && typeof currentUser.diamonds === 'number') {
@@ -75,8 +96,11 @@ const DiamanteTab: React.FC<{ onPurchase: (pkg: PurchasePackage) => void; curren
   const displayDiamonds = freshDiamonds !== null ? freshDiamonds : 0;
 
   const visiblePackages = useMemo(
-    () => currentUser?.id === APP_OWNER_ID ? diamondPackages : diamondPackages.filter((pkg) => !pkg.isFreeDev),
-    [currentUser?.id]
+    () => {
+      const source = packages || DEFAULT_PACKAGES;
+      return currentUser?.id === APP_OWNER_ID ? source : source.filter((pkg) => !pkg.isFreeDev);
+    },
+    [currentUser?.id, packages]
   );
   
   return (

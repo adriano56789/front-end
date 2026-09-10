@@ -1,138 +1,202 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useKeyboardInset, rememberKeyboardHeight } from './useKeyboardInset';
 
 /**
- * ⌨️ Composer de mensagem "TikTok-style":
- *   - A 1ª barra de mensagem fica TOTALMENTE FIXA no fundo (nunca sobe).
- *   - Ao tocar nela, abre uma 2ª barra (composer) que SOBE JUNTO com o teclado
- *     e para COLADA nele; a 1ª continua parada.
+ * ⌨️ Composer de mensagem — BARRA PRINCIPAL FIXA + BARRA DE DIGITAÇÃO FLUTUANTE
  *
- * ⚠️ A posição da 2ª barra é SEMPRE o `fixedBottom` medido pela 🔬 sonda do
- * useKeyboardInset (onde um `fixed bottom:0` REALMENTE termina naquele
- * aparelho). Assim a barra nunca passa da borda do teclado ("sobe alto
- * demais") nem fica coberta. O focus usa `preventScroll` + watchdog para o
- * navegador não fazer "pan" da página inteira (que fazia a 1ª barra subir).
+ * Comportamento (TikTok/PWA):
+ *   - A BARRA PRINCIPAL fica TOTALMENTE FIXA no fundo (bottom:0 + safe-area).
+ *     Não sobe, não mexe, nunca é reposicionada para acompanhar o teclado.
+ *   - Ao tocar nela → o input ganha foco e o teclado abre.
+ *   - Surge OUTRA barra de digitação "por cima do teclado" (position:fixed com
+ *     bottom = altura do teclado medida) — é NELA que a pessoa escreve.
+ *   - VirtualKeyboard API: overlaysContent=true → o teclado SOBREPÕE a parte
+ *     inferior da tela em vez de redimensionar o viewport. Nada acima da barra
+ *     sobe: sala, transmissão, botões e ícones permanecem parados.
+ *   - A altura do teclado é usada SOMENTE para posicionar a barra flutuante.
+ *     Jamais para mover a barra principal, a sala ou a transmissão.
+ *
+ * 🎬 FECHAMENTO (correção: barra desce JUNTO com o teclado, sem enganchar):
+ *   1. `closeComposer()` NÃO desmonta a barra na hora. Ele:
+ *      a) dá blur no input → o teclado começa a animação de descida AGORA;
+ *      b) zera `keyboardBottom` (bottom → 0) com a MESMA duração/curva da
+ *         animação nativa do teclado → a barra desce sincronizada com ele;
+ *      c) agenda a desmontagem real (isComposerOpen=false) para DEPOIS da
+ *         animação (~250ms). Sem isso a barra sumia instantâneo ou ficava
+ *         "enganchada" parada no ar até o próximo measurement.
+ *   2. O loop de medição (rAF) também zera `keyboardBottom` quando detecta
+ *      teclado fechado durante o fechamento — tolerância a timing do SO.
+ *   3. Clique fora fecha na hora via `pointerdown` → mesmo fluxo acima.
  */
 
-// Altura do composer aberto (input + padding).
-export const COMPOSER_BAR_HEIGHT = 56;
-
-// Altura da 1ª barra fechada (input + enviar + presente + roleta + 3pts + padding).
+// Altura da barra principal (input + enviar + presente + roleta + 3pts + padding).
 export const MESSAGE_BAR_HEIGHT = 72;
 
-export function useComposerKeyboard() {
-  const { inset: keyboardInset, fixedBottom } = useKeyboardInset();
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [gluedBottom, setGluedBottom] = useState(0);
-  const [vkBottom, setVkBottom] = useState(0);
-  // 📝 any = o mesmo ref atende <input> (ChatScreen/PK) e <textarea>
-  // (StreamRoom — campo "Diga oi" quebra linha em várias linhas).
-  const composerInputRef = useRef<any>(null);
-  const composerRef = useRef<HTMLDivElement>(null);
+// Mantido para compatibilidade de import existente.
+export const COMPOSER_BAR_HEIGHT = MESSAGE_BAR_HEIGHT;
 
-  // 📱 VirtualKeyboard API (Android WebView/Chrome 94+): dá a altura EXATA do
-  // teclado via `boundingRect` — mesmo em WebViews que NÃO reportam o
-  // visualViewport (o caso em que a barra ficava FLUTUANDO: a estimativa de
-  // ~42% chutava alto demais e sobrava folga entre a barra e o teclado).
-  // Também força `overlayContent = true`: o teclado fica POR CIMA da tela
-  // (sem encolher o layout) garantido por API, igual ao meta
-  // `interactive-widget=overlays-content`.
+// Duração da animação de descida da barra ao fechar. Aproxima a curva da
+// animação nativa do teclado Android/iOS (~250ms) para que a barra desça
+// "junto" com ele, sem ficar parada flutuando.
+const CLOSE_ANIM_MS = 240;
+
+export function useComposerKeyboard() {
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [keyboardBottom, setKeyboardBottom] = useState(0);
+  const composerInputRef = useRef<any>(null);
+
+  // 🎬 Estado "fechando": a barra ainda está montada descendo (bottom→0), mas
+  //   o teclado já está se recolhendo. isComposerOpen só vira false no fim.
+  const [isClosing, setIsClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Evita duplo agendamento de fechamento (pointerdown fora + blur simultâneos).
+  const closingRef = useRef(false);
+  // Última altura de teclado conhecida (para o rAF poder detectar "fechou").
+  const lastKbRef = useRef(0);
+  // Ref para closeComposer — o rAF (montado antes de closeComposer existir)
+  // dispara o fechamento sincronizado quando detecta o teclado fechado.
+  const closeRef = useRef<(() => void) | null>(null);
+
+  // 📐 Referência da altura de LAYOUT em tela cheia (SEM teclado). É o
+  //   denominador para medir o teclado: keyboardBottom = baseline − visualViewport.height.
+  //   No modo adjustResize, innerHeight/clientHeight encolhem com o teclado e
+  //   uma sonda fixed-bottom sobe junto (retorna ~0); no overlay o vv encolhe.
+  //   A referência fixa funciona nos DOIS modos. Só a rotação de tela redefine.
+  const baselineRef = useRef(0);
+
   useEffect(() => {
-    const nav = navigator as any;
-    const vk = nav?.virtualKeyboard;
-    if (!vk) return;
+    const refreshBaseline = () => {
+      baselineRef.current = Math.max(
+        baselineRef.current,
+        document.documentElement?.clientHeight || 0,
+        window.innerHeight || 0
+      );
+    };
+    refreshBaseline();
+    window.addEventListener('resize', refreshBaseline);
+    const onOrient = () => {
+      baselineRef.current = 0;
+      requestAnimationFrame(refreshBaseline);
+    };
+    window.addEventListener('orientationchange', onOrient);
+    return () => {
+      window.removeEventListener('resize', refreshBaseline);
+      window.removeEventListener('orientationchange', onOrient);
+    };
+  }, []);
+
+  // Barra de digitação FLUTUANTE (por cima do teclado) — ref para o input e
+  // para a detecção de clique fora.
+  const composerRef = useRef<HTMLDivElement>(null);
+  // Barra principal FIXA no fundo — é o gatilho que abre o composer.
+  const triggerBarRef = useRef<HTMLElement>(null);
+
+  // 📱 VirtualKeyboard API (documentada em MDN / Chrome Developers):
+  //   navigator.virtualKeyboard.overlaysContent = true
+  // Diz ao navegador que o APP controla a oclusão do teclado — assim o teclado
+  // sobrepõe o viewport (não redimensiona nem empurra o conteúdo para cima).
+  // Detecção: 'virtualKeyboard' in navigator.
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    if (!('virtualKeyboard' in navigator)) {
+      console.warn('[Keyboard] VirtualKeyboard API indisponível — overlay não aplicado.');
+      return;
+    }
     try {
+      const vk = (navigator as any).virtualKeyboard as { overlaysContent?: boolean; overlayContent?: boolean };
+      // ⚠️ Nome OFICIAL da API (Chrome 94+ / MDN): `overlaysContent` (com S).
+      //    O typo `overlayContent` (sem S) é silenciosamente ignorado — o
+      //    overlay NÃO ativa e o teclado redimensiona o viewport, empurrando
+      //      o app inteiro para cima. Setamos as duas formas por segurança.
+      vk.overlaysContent = true;
       vk.overlayContent = true;
-      const onGeometry = () => {
-        const h = Math.round(Number(vk?.boundingRect?.height) || 0);
-        setVkBottom((prev) => (prev === h ? prev : h));
-      };
-      vk.addEventListener?.('geometrychange', onGeometry);
-      onGeometry();
-      return () => vk.removeEventListener?.('geometrychange', onGeometry);
     } catch {
-      // API indisponível — seguem as demais camadas (sonda, cola-corretor, fallback)
+      console.warn('[Keyboard] Falha ao setar virtualKeyboard.overlaysContent.');
     }
   }, []);
 
-  // 🔧 COLA-CORRETOR da 2ª barra: em alguns WebViews a sonda/visualViewport
-  // não reporta a altura do teclado (ou reporta 0) → a barra renderiza em
-  // bottom:0 e fica ESCONDIDA ATRÁS do teclado (só o teclado aparece).
-  // Solução: enquanto o composer está aberto, calcular a altura EXATA do
-  // teclado como `layoutHeight − visibleHeight` e colar a barra nela. Isso
-  // ajusta para cima E para baixo sem oscilar (a altura é estável, não é um
-  // latch que só sobe — se a estimativa veio alta demais, a barra desce até
-  // encostar exatamente no teclado).
-  //   - Android (teclado por cima): visibleHeight < layout → sobe colada ✓
-  //   - iOS (navegador auto-sobe): visibleHeight = layout → 0 → não mexe ✓
-  // Usa o MENOR entre visualViewport.height e window.innerHeight (o sinal que
-  // cada WebView reporta pode ser um dos dois).
-  //
-  // ⚡ EVENT-DRIVEN (e não a 60fps): antes a medição rodava num requestAnimationFrame
-  // por frame enquanto o composer ficava aberto — cada frame lia layout + setState,
-  // gerando [Violation] 'requestAnimationFrame' handler (50-90ms) e forced reflow.
-  // Agora medimos só quando o teclado/viewport MUDOU de verdade (resize/scroll do
-  // visualViewport, focusin do input, geometrychange do VirtualKeyboard) e um
-  // fallback a 200ms cobre WebViews que não disparam esses eventos.
+  // 📏 Mede a altura do teclado enquanto o composer está aberto. Usa rAF (sem
+  // interval de 200ms — que causava o atraso/engasgo ao fechar). Usado SOMENTE
+  // para posicionar a barra de digitação flutuante no topo do teclado. NÃO
+  // move a barra principal nem a sala.
   useEffect(() => {
     if (!isComposerOpen) return;
 
-    const measureGluedBottom = () => {
+    const measure = () => {
+      // 🎬 Já está fechando: congela a medição — o bottom está animando p/ 0.
+      if (closingRef.current) return;
+
       const vv = window.visualViewport;
-      // 🔧 Conservador: usa o MENOR entre clientHeight e innerHeight como
-      // altura de layout — se um dos dois vier inflado (WebView bugado),
-      // chutar alto deixava a barra FLUTUANDO acima do teclado (reclamação:
-      // "teclado tem que abrir mais baixo"). Menor = barra mais baixa/colada.
-      const ch = document.documentElement?.clientHeight || 0;
-      const ih = window.innerHeight || 0;
-      const layoutH = Math.min(ch > 0 ? ch : Infinity, ih > 0 ? ih : Infinity);
-      const visibleH = Math.min(vv ? vv.height : Infinity, ih > 0 ? ih : Infinity);
-      const keyboardH = Math.max(0, layoutH - visibleH);
-      if (keyboardH > 0) rememberKeyboardHeight(keyboardH);
-      setGluedBottom((prev) => (Math.abs(prev - keyboardH) > 2 ? keyboardH : prev));
+      const baseline = baselineRef.current || window.innerHeight || 0;
+      // 🎯 Fonte mais precisa (VirtualKeyboard API): boundingRect.height dá a
+      // altura real do teclado no modo overlay. Fallback: baseline − vv.height
+      // (funciona em overlay E em adjustResize).
+      const nav = navigator as any;
+      const rectH = nav?.virtualKeyboard?.boundingRect?.height;
+      let kbH = Math.max(0, Math.round(baseline - (vv ? vv.height : baseline)));
+      if (typeof rectH === 'number' && rectH > 0) {
+        kbH = Math.round(rectH);
+      }
+      const MAX = Math.round(baseline * 0.6);
+      const next = Math.min(kbH, MAX);
+
+      // 🎬 Teclado SUMIU (vv voltou ao baseline) mas ainda "aberto": teclado
+      // fechou por conta própria (ex.: gesto do sistema). Fecha o composer
+      // sincronizado — sem esperar interação do usuário.
+      if (next <= 2 && lastKbRef.current > 60) {
+        closeRef.current?.();
+        return;
+      }
+      lastKbRef.current = next;
+      setKeyboardBottom((prev) => (Math.abs(prev - next) > 2 ? next : prev));
     };
 
-    measureGluedBottom();
-    const vv = window.visualViewport;
-    vv?.addEventListener('resize', measureGluedBottom);
-    vv?.addEventListener('scroll', measureGluedBottom);
-    window.addEventListener('resize', measureGluedBottom);
-    document.addEventListener('focusin', measureGluedBottom, true);
+    // rAF loop: reage ao teclado em TODO frame — sem atraso de interval.
+    let raf = 0;
+    const loop = () => {
+      measure();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+
     const nav = navigator as any;
     const vk = nav?.virtualKeyboard;
-    vk?.addEventListener?.('geometrychange', measureGluedBottom);
-
-    const fallback = window.setInterval(measureGluedBottom, 200);
+    vk?.addEventListener?.('geometrychange', measure);
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', measure);
+    vv?.addEventListener('scroll', measure);
 
     return () => {
-      window.clearInterval(fallback);
-      vv?.removeEventListener('resize', measureGluedBottom);
-      vv?.removeEventListener('scroll', measureGluedBottom);
-      window.removeEventListener('resize', measureGluedBottom);
-      document.removeEventListener('focusin', measureGluedBottom, true);
-      vk?.removeEventListener?.('geometrychange', measureGluedBottom);
+      cancelAnimationFrame(raf);
+      vv?.removeEventListener('resize', measure);
+      vv?.removeEventListener('scroll', measure);
+      vk?.removeEventListener?.('geometrychange', measure);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isComposerOpen]);
 
-  // 🎯 O input do composer é referenciado via composerInputRef para foco
-  // (openComposer) — sem estado de foco próprio: a posição da barra vem SEMPRE
-  // da sonda real (fixedBottom) + cola-corretor, que medem o teclado de fato.
-
   const openComposer = useCallback(() => {
-    setGluedBottom(0); // 🔧 novo ciclo: re-mede a posição do teclado
+    // 🎬 Reabertura durante o fechamento: cancela o fechamento pendente.
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    closingRef.current = false;
+    setIsClosing(false);
+
+    // Captura a referência ANTES de focar → teclado ainda fechado (tela cheia).
+    baselineRef.current = Math.max(
+      baselineRef.current,
+      document.documentElement?.clientHeight || 0,
+      window.innerHeight || 0
+    );
     setIsComposerOpen(true);
-    // Foco com rAF duplo: garante que o composer já pintou na posição certa
-    // antes de abrir o teclado por baixo (sem lag, sem pular por cima do vídeo).
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         try {
-          // 🚫 preventScroll: IMPEDE o navegador de rolar/pan a página para
-          // "revelar" o input. É isso que fazia a 1ª barra subir junto.
           composerInputRef.current?.focus({ preventScroll: true } as any);
         } catch {
           composerInputRef.current?.focus();
         }
-        // Backup anti-pan: garante scroll zero mesmo se o preventScroll falhar.
         window.scrollTo(0, 0);
         document.documentElement.scrollTop = 0;
         document.body.scrollTop = 0;
@@ -140,22 +204,52 @@ export function useComposerKeyboard() {
     });
   }, []);
 
+  // 🎬 Fluxo de fechamento: desce a barra JUNTO com o teclado.
+  //   1) marca fechando (barra continua montada);
+  //   2) blur no input → teclado inicia a descida AGORA;
+  //   3) keyboardBottom → 0 com transição CSS de ~240ms → barra desce sincronizada;
+  //   4) desmonta (isComposerOpen=false) após a animação.
   const closeComposer = useCallback(() => {
-    setIsComposerOpen(false);
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setIsClosing(true);
+
+    // 1️⃣ Blur imediato: o teclado começa a descer no MESMO frame do clique.
+    const el = composerInputRef.current as HTMLElement | null;
+    try {
+      el?.blur?.();
+    } catch { /* noop */ }
+
+    // 2️⃣ Barra desce junto: keyboardBottom → 0 (a transição CSS `bottom` faz
+    //     a animação; a duração casa com a do teclado ~240ms).
+    lastKbRef.current = 0;
+    setKeyboardBottom(0);
+
+    // 3️⃣ Desmonta DEPOIS da descida — nunca antes (era isso que fazia a barra
+    //     sumir de repente ou ficar enganchada parada no ar).
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      closingRef.current = false;
+      setIsClosing(false);
+      setIsComposerOpen(false);
+      setKeyboardBottom(0);
+    }, CLOSE_ANIM_MS);
   }, []);
 
-  // 🛡️ Watchdog anti-pan: enquanto o composer está aberto, cancela QUALQUER
-  // pan/scroll que o navegador fizer ao focar o input no fundo da tela
-  // (mobile). A página é overflow:hidden e o container é fixed no topo, então
-  // voltar o scroll para 0 garante que a 1ª barra nunca sai do lugar.
-  // ⚠️ NÃO usar vv.offsetTop aqui: no iOS ele fica >0 com o teclado aberto e
-  // resetar o scroll a cada frame briga com o pan do navegador → a barra
-  // sobe e desce (bounce). Só resetamos scroll de LAYOUT (scrollY).
-  //
-  // ⚡ EVENT-DRIVEN: um pan/scroll real dispara o evento 'scroll' → checamos
-  // nele (barato). Fallback a 300ms cobre WebViews que não disparam o evento.
-  // Antes era um requestAnimationFrame por frame sondando 3 propriedades de
-  // scroll — outra fonte dos [Violation] 'requestAnimationFrame' handler.
+  // Expõe o closeComposer ao rAF (que rola antes dele existir neste escopo).
+  useEffect(() => {
+    closeRef.current = closeComposer;
+  }, [closeComposer]);
+
+  // Cancela o fechamento pendente na desmontagem do hook.
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  // 🛡️ Watchdog anti-pan: mantém scroll zero enquanto o composer está aberto.
   useEffect(() => {
     if (!isComposerOpen) return;
 
@@ -181,51 +275,15 @@ export function useComposerKeyboard() {
     };
   }, [isComposerOpen]);
 
-  // 🧲 Posição final da 2ª barra (composer). Com o viewport
-  // `interactive-widget=overlays-content` o teclado fica SOBRE o conteúdo e um
-  // `fixed bottom:0` NÃO é auto-sobido pelo navegador — a barra precisa subir
-  // EXATAMENTE a altura real do teclado pra ficar VISÍVEL (senão o teclado a
-  // COBRE: "teclado abre em cima da barra de mensagem").
-  // Todas as medidas abaixo representam essa altura (≈ altura do teclado):
-  //   1. vkBottom      — VirtualKeyboard API (altura EXATA, quando suporta)
-  //   2. fixedBottom   — 🔬 sonda real: quanto um `fixed bottom:0` fica ATRÁS
-  //                      do teclado. **0 = o navegador JÁ auto-sobe o elemento
-  //                      acima do teclado** (iOS resizes-content) → bottom:0
-  //                      é o bastante; levantar de novo = sobe em dobro.
-  //   3. gluedBottom   — cola-corretor (layoutHeight − visibleHeight), seguro
-  //                      p/ WebViews em que a sonda/vk não reportam direito.
-  // ✅ Usamos o MÁXIMO dos sinais (>0): o que falhar, o maior que sobrou ainda
-  //    LEVANTA a barra — o teclado NUNCA cobre o campo.
-  // ⚠️ keyboardInset FICA **FORA** do cálculo do bottom: é a altura BRUTA do
-  //    teclado, e em iOS o navegador já compensa sozinho — somar de novo deixa
-  //    a barra flutuando com folga acima do teclado (dupla compensação, o
-  //    sintoma "a barra sobe junto com o teclado"). A sonda (fixedBottom) é a
-  //    verdade de posicionamento e vale 0 exatamente nesse cenário.
-  // O cap de 60% da tela guarda só contra uma medição completamente quebrada.
-  const MAX_KEYBOARD_RATIO = 0.60;
-  const maxKB = Math.round(window.innerHeight * MAX_KEYBOARD_RATIO);
-  const reliableMeasures = [
-    vkBottom,
-    fixedBottom,
-    gluedBottom,
-  ].filter((v) => v > 0);
-  const bottom = reliableMeasures.length
-    ? Math.min(Math.max(...reliableMeasures), maxKB)
-    : 0;
-
-  // Offsets do CHAT quando o composer está aberto:
-  //  - chatInset: quanto a lista de mensagens precisa subir para a ÚLTIMA
-  //    mensagem parar EXATAMENTE acima da barra (nada de texto atrás dela).
-  //    Usa o MESMO valor corrigido (max com gluedBottom) para a lista parar
-  //    acima do composer colado no teclado, não em cima dele.
-  //  - keyboardInset (mantido p/ compat): altura bruta do teclado.
-  const chatInset = bottom + COMPOSER_BAR_HEIGHT;
-
-  // Fechar o composer ao tocar em qualquer lugar fora dele (vídeo, fundo, etc.)
+  // Fechar ao tocar FORA da barra principal e da barra flutuante — o clique no
+  // meio da tela cai aqui e aciona o mesmo fluxo sincronizado de fechamento.
   useEffect(() => {
     if (!isComposerOpen) return;
     const onPointerDown = (e: PointerEvent) => {
-      if (composerRef.current && !composerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inFloating = composerRef.current?.contains(target);
+      const inTrigger = triggerBarRef.current?.contains(target);
+      if (!inFloating && !inTrigger) {
         closeComposer();
       }
     };
@@ -234,13 +292,13 @@ export function useComposerKeyboard() {
   }, [isComposerOpen, closeComposer]);
 
   return {
-    isComposerOpen,
+    isComposerOpen: isComposerOpen || isClosing,
+    isClosing,
     openComposer,
     closeComposer,
     composerInputRef,
     composerRef,
-    keyboardInset,
-    chatInset,
-    bottom,
+    triggerBarRef,
+    keyboardBottom,
   };
 }

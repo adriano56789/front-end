@@ -18,9 +18,11 @@ interface GiftModalProps {
     isVIP: boolean;
     onOpenVIPCenter: () => void;
     currentUser: User;
+    /** ⚔️ Durante batalha PK: presentes VIP são enviados direto (sem abrir centro VIP). */
+    inPKBattle?: boolean;
 }
 
-const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, onSendGift, onRecharge, gifts, receivedGifts, isBroadcaster = false, isSendingGift = false, isVIP, onOpenVIPCenter, currentUser }) => {
+const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, onSendGift, onRecharge, gifts, receivedGifts, isBroadcaster = false, isSendingGift = false, isVIP, onOpenVIPCenter, currentUser, inPKBattle = false }) => {
     const { t } = useTranslation();
     // 🔑 Dono do app (Adriano): único que, ao transmitir (host), pode enviar
     // presente para si mesmo. Hosts comuns não podem.
@@ -190,6 +192,13 @@ const GiftModal: React.FC<GiftModalProps> = ({ isOpen, onClose, userDiamonds, on
 
     const handleSelectGift = (gift: Gift) => {
         if (gift.category === 'VIP' && !isVIP) {
+            // 🎁 PK: durante batalha, presente deve SER ENVIADO direto na
+            // transmissão — nunca abrir o centro VIP (que parece um perfil)
+            // nem bloquear o envio. Regra: toque = envio.
+            if (inPKBattle) {
+                setSelectedGift(gift);
+                return;
+            }
             onOpenVIPCenter();
             return;
         }

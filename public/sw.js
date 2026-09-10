@@ -2,13 +2,15 @@
 // (v14: deploy roleta host-only + notificações WhatsApp + painel de beleza)
 // (v17: status de seguimento na busca + perfil com listas reais)
 // (v22: push "X entrou ao vivo" — clique abre /live/ ou /voice-room/)
-const CACHE_NAME = 'livenza-cache-v25';
+// (v26: push estilo YouTube — notificação do sistema SEMPRE na tela,
+//  mesmo com o app aberto; banner in-app adicional via PUSH_FOREGROUND)
+// (v29: deploy Sep/2026 — chat/notificações/publish refinados)
+const CACHE_NAME = 'livenza-cache-v29';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
   '/',
   '/manifest.json',
-  '/favicon.svg',
   '/favicon.ico',
   '/favicon-32x32.png',
   '/favicon-16x16.png',
@@ -115,12 +117,13 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Web Push NATIVO (protocolo Web Push + VAPID)
+// Web Push NATIVO (protocolo Web Push + VAPID) — estilo YouTube
 //
 // O servidor envia JSON: { title, body, tag?, image?, data? { type, ... } }
-// - App em segundo plano/fechado → showNotification (estilo WhatsApp).
-// - App aberto e visível   → postMessage para a página (banner in-app),
-//   replicando o comportamento do push em foreground.
+// - A notificação do SISTEMA aparece SEMPRE (showNotification), com o app
+//   ABERTO, em segundo plano ou FECHADO. Nunca suprimimos a notificação.
+// - Além disso, se o app estiver aberto e visível, também enviamos o banner
+//   in-app via postMessage (PUSH_FOREGROUND) — os dois juntos.
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function buildAndShowNotification(raw) {
@@ -215,41 +218,8 @@ self.addEventListener('push', async (event) => {
 
   event.waitUntil((async () => {
     // ════════════════════════════════════════════════════════════════════
-    // 📱 Verificar se app está aberto e visível (disablePostNotificationInForeground)
-    // Se sim: NÃO mostrar notificação do SO — enviar apenas PUSH_FOREGROUND
-    // Se não: mostrar notificação do SO (app fechado/em segundo plano)
-    // ════════════════════════════════════════════════════════════════════
-    let appIsVisible = false;
-    try {
-      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-      appIsVisible = clientList.some((c) => c.visibilityState === 'visible');
-    } catch { /* ignore */ }
-
-    if (appIsVisible) {
-      // ════════════════════════════════════════════════════════════════════
-      // 📱 App ABERTO e VISÍVEL → enviar PUSH_FOREGROUND (in-app)
-      // NÃO mostrar notificação do SO (estilo Tencent disablePostNotification)
-      // ════════════════════════════════════════════════════════════════════
-      try {
-        const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-        const visibleClients = clientList.filter((c) => c.visibilityState === 'visible');
-        visibleClients.forEach((client) => {
-          client.postMessage({
-            type: 'PUSH_FOREGROUND',
-            payload: {
-              title: payload.title || '',
-              body: payload.body || '',
-              data: payload.data || {},
-            },
-          });
-        });
-        console.log('[WEB-PUSH SW] 📱 App aberto — push enviado via POST_MESSAGE (sem notificação do SO)');
-      } catch { /* ignore */ }
-      return; // NÃO mostrar notificação do SO
-    }
-
-    // ════════════════════════════════════════════════════════════════════
-    // 🔔 App FECHADO/BACKGROUND → mostrar notificação do SO (estilo WhatsApp)
+    // 🔔 SEMPRE mostrar a notificação do SISTEMA — igual YouTube.
+    // App ABERTO, em segundo plano ou FECHADO: showNotification roda sempre.
     // ════════════════════════════════════════════════════════════════════
     try {
       await buildAndShowNotification(payload);
@@ -290,8 +260,27 @@ self.addEventListener('push', async (event) => {
       }
     }
 
-    // 📱 PUSH_FOREGROUND já enviado no início (quando app visível)
-    // Esta seção é reached only quando app FECHADO — notificação do SO já mostrada
+    // ════════════════════════════════════════════════════════════════════
+    // 📱 App ABERTO e VISÍVEL → TAMBÉM enviar banner in-app (PUSH_FOREGROUND).
+    // A notificação do sistema JÁ foi mostrada acima — os dois juntos.
+    // ════════════════════════════════════════════════════════════════════
+    try {
+      const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const visibleClients = clientList.filter((c) => c.visibilityState === 'visible');
+      if (visibleClients.length > 0) {
+        visibleClients.forEach((client) => {
+          client.postMessage({
+            type: 'PUSH_FOREGROUND',
+            payload: {
+              title: payload.title || '',
+              body: payload.body || '',
+              data: payload.data || {},
+            },
+          });
+        });
+        console.log('[WEB-PUSH SW] 📱 App aberto — banner in-app enviado (notificação do sistema também foi mostrada)');
+      }
+    } catch { /* ignore */ }
   })());
 });
 

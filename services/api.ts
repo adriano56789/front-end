@@ -5,7 +5,7 @@
 
 
 
-import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo, CoHostSession, VideoQualitySettings, BeautyStoreSettings, VoiceRoom, VoiceSlot } from '../types';
+import { User, Gift, Streamer, Message, RankedUser, Country, Conversation, NotificationSettings, BeautySettings, BeautyEffectsData, PurchaseRecord, EligibleUser, FeedPhoto, Obra, GoogleAccount, LiveSessionState, StreamHistoryEntry, Visitor, LevelInfo, Order, DiamondPackage, LiveNotification, Invitation, PixPaymentResponse, CreditCardPaymentRequest, SRSResponse, SRSPlayResponse, SRSStreamInfo, CoHostSession, VideoQualitySettings, BeautyStoreSettings, VoiceRoom, VoiceSlot, HostNoticeState } from '../types';
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 import { env } from '../src/config/environment';
 import { safeLog, safeError } from '../utils/maskSensitiveData';
@@ -831,33 +831,33 @@ export const api = {
         // Log mascarado - userId e details sensíveis ocultos
         safeLog('[API] setWithdrawalMethod:', { userId, method, details });
 
-        // Payoneer — único provedor de saques (Pix BRL / USD / EUR)
-        return callApi<{ success: boolean, withdrawal_method?: any, user?: User }>('POST', '/api/payoneer/method', { method, details });
+        // Stripe — saques via Pix (BRL)
+        return callApi<{ success: boolean, withdrawal_method?: any, user?: User }>('POST', '/api/stripe/method', { method, details });
     },
 
-    // --- Payoneer (único provedor de pagamentos/saques) ---
+    // --- Stripe (provedor de pagamentos/saques — compra Pix/cartão, saque Pix) ---
 
-    getPayoneerStatus: () =>
-        callApi<{ provider: string; configured: boolean; environment: string; currencies: string[]; fees: any }>('GET', '/api/payoneer/status'),
+    getStripeStatus: () =>
+        callApi<{ provider: string; configured: boolean; pix_destination_configured: boolean; environment: string; currencies: string[]; deposit_methods: any; methods: any; fees: any }>('GET', '/api/stripe/status'),
 
-    getPayoneerQuote: (amount: number, currency: string) =>
-        callApi<{ success: boolean; diamonds: number; currency: string; symbol?: string; gross_brl: number; platform_fee_brl: number; platform_fee_pct: number; payoneer_fee_brl: number; payoneer_fee_pct: number; net_brl: number; estimated_fx_rate: number | null; local_gross: number; local_platform_fee: number; local_payoneer_fee: number; local_net: number; note?: string }>('GET', `/api/payoneer/quote?amount=${amount}&currency=${currency}`),
+    getStripeQuote: (amount: number, currency: string) =>
+        callApi<{ success: boolean; diamonds: number; currency: string; symbol?: string; gross_brl: number; platform_fee_brl: number; platform_fee_pct: number; stripe_fee_brl: number; stripe_fee_pct: number; net_brl: number; estimated_fx_rate: number | null; local_net: number; local_gross: number; local_platform_fee: number; local_stripe_fee: number; pix_transfer_amount_brl: number; platform_payout_amount_brl: number; note?: string }>('GET', `/api/stripe/quote?amount=${amount}&currency=${currency}`),
 
-    payoneerWithdraw: (userId: string, amount: number, currency: string) => {
+    stripeWithdraw: (userId: string, amount: number, currency: string) => {
         const userIdFinal = getCurrentUserId() || userId;
-        return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/payoneer/withdraw', { userId: userIdFinal, amount, currency });
+        return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/stripe/withdraw', { userId: userIdFinal, amount, currency });
     },
 
-    // --- Depósito / Compra de diamantes via Payoneer Checkout (hospedado) ---
+    // --- Depósito / Compra de diamantes via Stripe Checkout (hospedado) ---
 
-    // Cria a sessão de checkout Payoneer para uma compra (redirect ao usuário).
+    // Cria a sessão de checkout Stripe para uma compra (Pix/cartão, redirect ao usuário).
     // Credenciais ausentes → 503 (pagamentos em configuração).
-    createPayoneerDepositSession: (data: { userId: string; amountBRL: number; diamonds: number; orderId?: string; method?: string }) =>
-        callApi<{ success: boolean; provider: string; sessionId?: string; redirectUrl?: string; reference?: string; configured?: boolean }>('POST', '/api/payoneer/deposit/session', data),
+    createStripeCheckoutSession: (data: { userId: string; amountBRL: number; diamonds: number; orderId?: string; method?: string; currency?: string }) =>
+        callApi<{ success: boolean; provider: string; sessionId?: string; redirectUrl?: string; currency?: string; configured?: boolean }>('POST', '/api/stripe/checkout/session', data),
 
     // Consulta o status de uma compra (usado no retorno do checkout para saber se caiu).
-    getPayoneerDepositStatus: (orderId: string) =>
-        callApi<{ orderId: string; status: string; paid: boolean; diamonds: number; amount: number; riskStatus?: string; paymentStatus?: string }>('GET', `/api/payoneer/deposit/status/${orderId}`),
+    getStripeCheckoutStatus: (orderId: string) =>
+        callApi<{ orderId: string; status: string; paid: boolean; diamonds: number; amount: number; riskStatus?: string; paymentStatus?: string }>('GET', `/api/stripe/checkout/status/${orderId}`),
 
     // --- Estorno / Chargeback (anti-fraude) ---
 
@@ -1492,6 +1492,13 @@ export const api = {
     getStreamMessages: (streamId: string) => callApi<Message[]>('GET', `/api/streams/${streamId}/messages`),
 
     sendLiveMessage: (streamId: string, text: string) => callApi<{ success: boolean; message: string; data: { id: string; userId: string; userName: string; avatarUrl: string; level: number; text: string; timestamp: Date } }>('POST', `/api/streams/${streamId}/live-message`, { text }),
+
+    // 🪧 Plaquinha de notificação do host
+    getHostNotice: (streamId: string) =>
+      callApi<{ success: boolean; notice: HostNoticeState | null }>('GET', `/api/streams/${streamId}/host-notice`),
+
+    setHostNotice: (streamId: string, payload: { active?: boolean; text?: string; hostId?: string; hostName?: string; hostAvatar?: string }) =>
+      callApi<{ success: boolean; notice: HostNoticeState }>('POST', `/api/streams/${streamId}/host-notice`, payload),
 
 
     // --- Feed & Photos ---

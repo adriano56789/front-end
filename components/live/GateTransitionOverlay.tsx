@@ -1,16 +1,20 @@
 import React, { useEffect, useRef } from 'react';
 
-// 🚪 PORTÃO 3D de ENTRADA/SAÍDA da transmissão (portão automático).
+// 🚪 PORTÃO de ENTRADA/SAÍDA da transmissão (split vertical / travessa horizontal).
 //
-// Ao clicar na sala → o portão desliza PRA FRENTE (vem de trás, cresce e cobre
-// a tela) e abre na nossa direção, revelando a transmissão no meio.
-// Ao sair → o portão FECHA e desliza PRA TRÁS (diminui e some), revelando a
-// lista de salas. Entrada e saída são espelhos uma da outra.
+// ENTRAR (espectador clica na sala): as duas folhas do portão abrem COMO SE
+// fossem um portão de garagem automático de folhas duplas — a emenda vertical
+// se abre NO CENTRO e cada folha desliza para a sua borda (esquerda/direita),
+// revelando a transmissão que já está carregando por trás da animação.
+//
+// SAIR: fechamento NA TRAVESSA (horizontal) — as folhas voltam das bordas em
+// direção ao centro até se encontrarem (fecha o portão diante da tela) e então
+// o overlay some, revelando a lista de salas.
 //
 // 100% CSS/transform (GPU) — sem fetch, sem tocar em player/câmera/resolução.
 interface GateTransitionOverlayProps {
   phase: 'enter' | 'exit';
-  /** EXIT: dispara no instante em que o portão cobre a tela (hora de navegar). */
+  /** EXIT: dispara no instante em que o portão fecha e cobre a tela (hora de navegar). */
   onCovered?: () => void;
   /** Fim da animação → desmontar o overlay. */
   onFinished: () => void;
@@ -28,10 +32,9 @@ const GATE_CSS = `
   pointer-events: none;
   user-select: none;
   overflow: hidden;
-  perspective: 1300px;
   background: #000;
 }
-/* Escurece/clareia o fundo conforme o portão se abre/fecha */
+/* Escurece/clareia o fundo conforme o portão abre ou fecha */
 .gate-dim {
   position: absolute;
   inset: 0;
@@ -46,12 +49,12 @@ const GATE_CSS = `
 .gate-assembly {
   position: absolute;
   inset: 0;
-  transform-style: preserve-3d;
   will-change: transform, opacity;
 }
 .gate-assembly-enter { animation: gate-assembly-enter 1.5s linear forwards; }
 .gate-assembly-exit  { animation: gate-assembly-exit 1.6s linear forwards; }
 
+/* Folha do portão: cada metade vertical da tela. Deslizam no eixo X. */
 .gate-leaf {
   position: absolute;
   top: 0;
@@ -61,8 +64,8 @@ const GATE_CSS = `
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
-.gate-leaf-left  { left: 0;  transform-origin: 0% 50%; }
-.gate-leaf-right { right: 0; transform-origin: 100% 50%; }
+.gate-leaf-left  { left: 0; }
+.gate-leaf-right { right: 0; }
 .gate-leaf-left.gate-leaf-enter  { animation: gate-leaf-left-enter 1.5s linear forwards; }
 .gate-leaf-right.gate-leaf-enter { animation: gate-leaf-right-enter 1.5s linear forwards; }
 .gate-leaf-left.gate-leaf-exit   { animation: gate-leaf-left-exit 1.6s linear forwards; }
@@ -96,6 +99,7 @@ const GATE_CSS = `
   border-bottom: none;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
+/* Borda iluminada na emenda central (dobradiça visível abrindo/fechando) */
 .gate-edge {
   position: absolute;
   top: 0;
@@ -107,53 +111,52 @@ const GATE_CSS = `
 .gate-edge-left  { right: -3px; }
 .gate-edge-right { left: -3px; }
 
-/* ===== ENTRAR: porta vem de trás PRA FRENTE fechada, ABRE, e desliza
-         pra trás revelando a transmissão no meio ===== */
-@keyframes gate-assembly-enter {
-  0%   { transform: scale(0.55) translateZ(-420px); opacity: 0; }
-  16%  { transform: scale(1.05) translateZ(20px);   opacity: 1; }
-  58%  { transform: scale(1.05) translateZ(20px);   opacity: 1; }
-  100% { transform: scale(0.68) translateZ(-650px); opacity: 0; }
-}
+/* ===== ENTRAR: folhas fechadas no centro deslizam PARA AS BORDAS,
+         abrindo a emenda do centro → bordas (portão automático) ===== */
 @keyframes gate-leaf-left-enter {
-  0%, 16% { transform: rotateY(0deg); }
-  58%     { transform: rotateY(-78deg); }
-  100%    { transform: rotateY(-78deg); }
+  0%   { transform: translateX(0); }
+  60%  { transform: translateX(-100%); }
+  100% { transform: translateX(-100%); }
 }
 @keyframes gate-leaf-right-enter {
-  0%, 16% { transform: rotateY(0deg); }
-  58%     { transform: rotateY(78deg); }
-  100%    { transform: rotateY(78deg); }
+  0%   { transform: translateX(0); }
+  60%  { transform: translateX(100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes gate-assembly-enter {
+  0%   { opacity: 1; }
+  62%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 @keyframes gate-dim-enter {
-  0%   { opacity: 0.9; }
-  42%  { opacity: 0.9; }
-  100% { opacity: 0.12; }
+  0%   { opacity: 0.92; }
+  55%  { opacity: 0.08; }
+  100% { opacity: 0; }
 }
 
-/* ===== SAIR: porta ABERTA vem de trás PRA FRENTE FECHANDO, cobre a tela
-         e então desliza PRA TRÁS revelando a lista de salas ===== */
-@keyframes gate-assembly-exit {
-  0%   { transform: scale(0.68) translateZ(-650px); opacity: 0; }
-  14%  { transform: scale(1.05) translateZ(20px);   opacity: 1; }
-  50%  { transform: scale(1.05) translateZ(20px);   opacity: 1; }
-  100% { transform: scale(0.68) translateZ(-650px); opacity: 0; }
-}
+/* ===== SAIR: folhas nas bordas deslizam AO CENTRO na horizontal (travessa),
+         fechando o portão. Quando se encontram (50%) → onCovered (navegar).
+         Depois o overlay some revelando a lista de salas ===== */
 @keyframes gate-leaf-left-exit {
-  0%, 14% { transform: rotateY(-78deg); }
-  50%     { transform: rotateY(0deg); }
-  100%    { transform: rotateY(0deg); }
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0); }
+  100% { transform: translateX(0); }
 }
 @keyframes gate-leaf-right-exit {
-  0%, 14% { transform: rotateY(78deg); }
-  50%     { transform: rotateY(0deg); }
-  100%    { transform: rotateY(0deg); }
+  0%   { transform: translateX(100%); }
+  50%  { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+@keyframes gate-assembly-exit {
+  0%   { opacity: 1; }
+  62%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 @keyframes gate-dim-exit {
-  0%   { opacity: 0.12; }
-  34%  { opacity: 0.12; }
-  50%  { opacity: 0.92; }
-  100% { opacity: 0.12; }
+  0%   { opacity: 0.08; }
+  50%  { opacity: 0.96; }
+  62%  { opacity: 0.96; }
+  100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

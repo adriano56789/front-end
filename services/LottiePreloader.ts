@@ -112,18 +112,28 @@ function enqueueImageWarm(url: string): Promise<void> {
     });
 }
 
-/** URL exata que o lottie-web vai pedir para cada asset do JSON. */
+/**
+ * URL exata que o lottie-web vai pedir para cada asset do JSON.
+ * Replica a lógica interna de imagePreloader.getAssetsPath():
+ *  1. quando assetsPath está definido (GiftLottiePlayer o define como
+ *     <dirDoJson>/) o lottie-web ignora asset.u e usa:
+ *       assetsPath + (asset.p com prefixo "images/" removido)
+ *  2. sem assetsPath (fallback): originalPath + u + p.
+ *
+ * Nosso GiftLottiePlayer SEMPRE passa assetsPath, então o path correto é:
+ *   <diretório do json>/ + <asset.p sem "images/">
+ * Ex.: /animations/rosa.json + asset p="1.webp" → /animations/rosa/1.webp
+ *      (NÃO /animations/images/1.webp — que dá 404).
+ */
 function lottieAssetUrl(jsonUrl: string, asset: any): string | null {
-    // Assets embutidos (data URI / `e:1`) não precisam de rede.
     if (!asset?.p || asset.e === 1 || String(asset.p).startsWith('data:')) return null;
     const p = String(asset.p);
     if (/^https?:\/\//i.test(p)) return p;
-    // Diretório do JSON (remove o nome do arquivo e a query), garantindo "/" final,
-    // e relativo u+p normalizado SEM barras iniciais/duplicadas — evita
-    // "//images/55.webp" (404 poluindo o console) quando asset.u vem com "/".
-    const dir = jsonUrl.replace(/\/[^/]*\.json(\?.*)?$/i, '/').replace(/\/+$/, '/');
-    const rel = ((asset.u ? String(asset.u) : '') + p).replace(/^\/+/, '');
-    return dir + rel;
+    // assetsPath = diretório do JSON, igual ao que GiftLottiePlayer usa
+    const assetsPath = jsonUrl.replace(/\/[^/]*\.json(\?.*)?$/i, '') + '/';
+    // lottie-web: se imagePath contém 'images/', pega só o nome do arquivo (depois do /)
+    const imagePath = p.indexOf('images/') !== -1 ? p.split('/')[1] : p;
+    return assetsPath + imagePath;
 }
 
 /**

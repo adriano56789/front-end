@@ -15,6 +15,8 @@
  * - Receiving end does not exist → extensão sem background
  * - content.js / polyfill.js → scripts injetados por extensões
  * - useCache → erro comum do Grammarly
+ * - reading 'startTime' / reportAllChanges → extensão "Web Vitals"
+ *   injeta a lib web-vitals na página e estoura sem a lib estar no app
  * ═══════════════════════════════════════════════════════
  */
 
@@ -22,13 +24,16 @@
 window.addEventListener('error', (event) => {
   const msg = event.message || '';
   const filename = event.filename || '';
+  const stack = event.error && event.error.stack ? String(event.error.stack) : '';
   if (
     msg.includes('Receiving end does not exist') ||
     msg.includes('useCache') ||
     filename.includes('content.js') ||
     filename.includes('polyfill.js') ||
     msg.includes('content.js') ||
-    msg.includes('polyfill.js')
+    msg.includes('polyfill.js') ||
+    msg.includes("reading 'startTime'") ||
+    stack.includes('reportAllChanges')
   ) {
     event.preventDefault();
     event.stopImmediatePropagation();

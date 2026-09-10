@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { onSocketEvent } from '../services/socketService';
 import { useStreamChat } from '../hooks/useStreamChat';
-import { useComposerKeyboard, MESSAGE_BAR_HEIGHT, COMPOSER_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
+import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
 import OnlineUsersModal from './live/OnlineUsersModal';
 import ChatMessage from './live/ChatMessage';
 import CoHostModal from './CoHostModal';
@@ -25,6 +25,7 @@ import { RankedAvatar } from './live/RankedAvatar';
 import FullScreenGiftAnimation from './live/FullScreenGiftAnimation';
 import GiftQueueManager from './live/GiftQueueManager';
 import LivePlayer from './LivePlayer';
+import PKBattleStartAnimation from './PKBattleStartAnimation';
 import BeautyEffectsPanel from './live/BeautyEffectsPanel';
 import RouletteModal from './RouletteModal';
 const RouletteModalAny: any = RouletteModal;
@@ -105,7 +106,7 @@ export default function PKBattleScreen({
     onFollowUser, onOpenPrivateChat, onOpenPrivateInviteModal, onStartChatWithStreamer,
     onOpenPKTimerSettings, onOpenFans, onOpenFriendRequests, gifts, receivedGifts, liveSession,
     updateLiveSession, logLiveEvent, updateUser, onStreamUpdate, refreshStreamRoomData, addToast,
-    followingUsers, pkBattleDuration, onOpenVIPCenter, pkBattleId
+    followingUsers, pkBattleDuration, onOpenVIPCenter, pkBattleId, streamers
 }: PKBattleScreenProps) {
     const { t } = useTranslation();
     
@@ -117,15 +118,14 @@ export default function PKBattleScreen({
     const [messages, setMessages] = useState<ChatMessageType[]>([]);
     const [chatInput, setChatInput] = useState('');
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const chatInputRef = useRef<HTMLButtonElement>(null);
     const {
         isComposerOpen,
         openComposer,
         closeComposer,
         composerInputRef,
         composerRef,
-        keyboardInset,
-        bottom: chatBarBottom,
+        triggerBarRef,
+        keyboardBottom,
     } = useComposerKeyboard();
     
     const [myScore, setMyScore] = useState(0);
@@ -160,6 +160,15 @@ export default function PKBattleScreen({
     const [isLocalMuted, setIsLocalMuted] = useState(false);
 
     const isBroadcaster = !!streamer?.hostId && !!currentUser?.id && String(streamer.hostId) === String(currentUser.id);
+
+    const opponentStreamId = useMemo(() => {
+        const anyOpponent: any = opponent;
+        if (anyOpponent?.streamKey) return String(anyOpponent.streamKey);
+        const liveEntry = Array.isArray(streamers)
+            ? streamers.find((s: any) => String(s.hostId) === String(opponent?.id))
+            : undefined;
+        return String(liveEntry?.streamKey || anyOpponent?.id || '');
+    }, [opponent, streamers]);
 
     const lkConnectedRef = useRef(false);
 
@@ -462,6 +471,36 @@ export default function PKBattleScreen({
         return () => window.removeEventListener('livego:pk_battle_ended', handleBattleEnded);
     }, [onEndPKBattle]);
 
+    // ── ⚔️ Animação VS de início de batalha (aparece IGUAL nos dois lados) ──
+    // Gatilhos: evento global livego:pk_battle_started (ambos os participantes
+    // recebem) ou, caso a tela monte já com battle ativo, via pkBattleId.
+    const [showBattleStartAnim, setShowBattleStartAnim] = useState(false);
+    const battleStartShownRef = useRef(false);
+
+    const triggerBattleStartAnim = useCallback(() => {
+        if (battleStartShownRef.current) return;
+        battleStartShownRef.current = true;
+        setShowBattleStartAnim(true);
+    }, []);
+
+    useEffect(() => {
+        const handleBattleStarted = (e: Event) => {
+            const detail: any = (e as CustomEvent).detail;
+            if (detail && (detail.streamerA || detail.streamerB)) {
+                const participants = [String(detail.streamerA || ''), String(detail.streamerB || '')].filter(Boolean);
+                const myId = String(currentUser?.id || '');
+                const myHostId = String(streamer?.hostId || '');
+                const myStreamKey = String(streamer?.streamKey || streamer?.id || '');
+                const isMine = participants.some(p => String(p) === myId || String(p) === myHostId || String(p) === myStreamKey);
+                if (!isMine) return;
+            }
+            triggerBattleStartAnim();
+        };
+        window.addEventListener('livego:pk_battle_started', handleBattleStarted);
+        if (pkBattleId) triggerBattleStartAnim();
+        return () => window.removeEventListener('livego:pk_battle_started', handleBattleStarted);
+    }, [pkBattleId, triggerBattleStartAnim, currentUser?.id, streamer?.hostId, streamer?.streamKey, streamer?.id]);
+
     // ── Heart update from backend ──
     useEffect(() => {
         const handleHeartUpdate = (e: Event) => {
@@ -667,11 +706,7 @@ export default function PKBattleScreen({
             .catch((err: any) => console.warn('[PK CHAT] Erro ao enviar mensagem:', err));
         setChatInput('');
         requestAnimationFrame(() => {
-            if (isComposerOpen) {
-                composerInputRef.current?.focus();
-            } else {
-                chatInputRef.current?.focus({ preventScroll: true } as any);
-            }
+            composerInputRef.current?.focus({ preventScroll: true } as any);
         });
     };
 
@@ -740,7 +775,7 @@ export default function PKBattleScreen({
                     {/* Opponent Camera Stream (Right) */}
                     <div className="relative w-full h-full bg-zinc-950 overflow-hidden">
                         <LivePlayer
-                            streamId={opponent.id}
+                            streamId={opponentStreamId}
                             userId={currentUser.id}
                         />
                         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/70 pointer-events-none z-10" />
@@ -804,12 +839,30 @@ export default function PKBattleScreen({
                             >
                                 <BellIcon className="w-4 h-4 text-yellow-400" />
                             </button>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); isBroadcaster ? onRequestEndStream() : onLeaveStreamView(); }}
-                                className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
-                            >
-                                <CloseIcon className="w-4 h-4 text-white" />
-                            </button>
+                            {/* ⚔️ Encerrar Batalha — botão VISÍVEL do host (âncora)
+                            durante o PK, junto aos controles do topo à direita.
+                            O X abaixo fica só para espectadores (sai da tela). */}
+                            {isBroadcaster && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onEndPKBattle(); }}
+                                    className="bg-red-600/85 hover:bg-red-500 px-2.5 h-7 rounded-full flex items-center gap-1 text-white text-[11px] font-bold tracking-wide transition-all scale-90 border-none cursor-pointer focus:outline-none shadow-md"
+                                >
+                                    <CloseIcon className="w-3 h-3" />
+                                    Encerrar PK
+                                </button>
+                            )}
+                            {/* ❌→🔧 O X só fica para ESPECTADOR (sai da tela). Para o host,
+                            o "Encerrar PK" agora vive dentro de Ferramentas →
+                            Ferramentas de Interação (junto de Co-host/Batalha/Chamada),
+                            para não ficar sobre a área de batalha. */}
+                            {!isBroadcaster && (
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onLeaveStreamView(); }}
+                                    className="bg-black/30 hover:bg-black/50 p-1.5 rounded-full flex items-center justify-center text-white transition-all scale-90 border-none cursor-pointer focus:outline-none"
+                                >
+                                    <CloseIcon className="w-4 h-4 text-white" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </header>
@@ -875,35 +928,33 @@ export default function PKBattleScreen({
                     })}
                     </div>
                 </div>
-                <div style={{ height: `calc(${isComposerOpen ? COMPOSER_BAR_HEIGHT : MESSAGE_BAR_HEIGHT}px + ${isComposerOpen ? chatBarBottom : 0}px + env(safe-area-inset-bottom, 0px))` }} />
+                <div style={{ height: `calc(${MESSAGE_BAR_HEIGHT}px + ${keyboardBottom}px + env(safe-area-inset-bottom, 0px))` }} />
             </div>
 
-            {!isComposerOpen && <footer className="fixed left-0 right-0 z-30 p-3 pointer-events-auto" style={{ bottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            {/* ═══ BARRA PRINCIPAL FIXA (gatilho) ═══
+                Fica parada em bottom:0 — não sobe, não mexe. O input é
+                SOMENTE-LEITURA: ao tocar, abre o teclado e SURGE a barra de
+                digitação flutuante por cima do teclado. */}
+                <footer
+                    ref={triggerBarRef as any}
+                    className="fixed left-0 right-0 z-30 p-3 pointer-events-auto"
+                    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+                >
                 <div className="flex items-center gap-3" data-purpose="bottom-controls">
                     <div className="flex-grow">
-                        <button
-                            type="button"
-                            ref={chatInputRef}
-                            tabIndex={-1}
-                            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); openComposer(); }}
-                            className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-left focus:ring-0 focus:outline-none focus:bg-white/15 transition-all cursor-pointer select-none"
-                        >
-                            {chatInput ? (
-                                <span className="text-white">{chatInput}</span>
-                            ) : (
-                                <span className="text-gray-450">{t('streamRoom.sayHi')}</span>
-                            )}
-                        </button>
+                        <input
+                            readOnly
+                            type="text"
+                            placeholder={t('streamRoom.sayHi')}
+                            value={chatInput}
+                            autoComplete="off"
+                            onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                            onClick={() => { if (!isComposerOpen) openComposer(); }}
+                            // font 16px: impede o zoom automático do iOS ao focar
+                            className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                        />
                     </div>
                     <div className="flex items-center gap-3">
-                        <button 
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={(e) => { console.log('[PK CHAT] onClick botão Enviar'); handleSendMessage(e); }} 
-                            className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                            style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                        >
-                            <SendIcon className="w-5 h-5 text-white" />
-                        </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setGiftModalOpen(true); }} 
                             className="text-yellow-400 hover:scale-105 active:scale-95 transition-transform cursor-pointer shrink-0 border-none bg-transparent"
@@ -925,46 +976,57 @@ export default function PKBattleScreen({
                             </svg>
                         </button>
                     </div>
-                </div>
-            </footer>}
+</div>
+                </footer>
 
-            {/* ═══ Composer flutuante (TikTok-style) — matches StreamRoom exactly ═══ */}
-            {isComposerOpen && (
-                <div ref={composerRef} className="fixed left-0 right-0 z-40" style={{ bottom: `${chatBarBottom}px` }}>
-                    <footer className="px-3 pt-2 pb-3 pointer-events-auto bg-[#131317] border-t border-[#232128] shadow-[0_-8px_30px_rgba(0,0,0,0.45)]">
-                        <div className="flex items-center gap-3">
-                            <div className="flex-grow">
-                                <input
-                                    ref={composerInputRef}
-                                    type="text"
-                                    placeholder={t('streamRoom.sayHi')}
-                                    value={chatInput}
-                                    enterKeyHint="send"
-                                    autoComplete="off"
-                                    onChange={(e) => setChatInput(e.target.value)}
-                                    onBlur={() => {
-                                        setTimeout(() => {
-                                            if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
-                                                closeComposer();
-                                            }
-                                        }, 120);
-                                    }}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
-                                    className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-sm text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
-                                />
+                {/* ═══ BARRA DE DIGITAÇÃO FLUTUANTE (por cima do teclado) ═══
+                    Surge APENAS quando o teclado abre, posicionada com
+                    bottom = altura do teclado (keyboardBottom) + safe-area.
+                    É NELA que a pessoa escreve; a barra principal fica fixa
+                    embaixo, sem subir nem mexer. */}
+                {isComposerOpen && (
+                    <footer
+                        ref={composerRef}
+                        className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
+                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
+                    >
+                        <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-grow">
+                                    <input
+                                        ref={composerInputRef}
+                                        type="text"
+                                        placeholder={t('streamRoom.sayHi')}
+                                        value={chatInput}
+                                        enterKeyHint="send"
+                                        autoComplete="off"
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onFocus={() => { if (!isComposerOpen) openComposer(); }}
+                                        onBlur={() => {
+                                            setTimeout(() => {
+                                                if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
+                                                    closeComposer();
+                                                }
+                                            }, 120);
+                                        }}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
+                                        // font 16px: impede o zoom automático do iOS ao focar
+                                        className="w-full bg-white/10 border-none rounded-full px-4 py-2 text-base text-white placeholder-gray-450 focus:ring-0 focus:outline-none focus:bg-white/15 transition-all"
+                                    />
+                                </div>
+                                <button 
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => { console.log('[PK CHAT] onClick botão Enviar'); handleSendMessage(e); }} 
+                                    className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
+                                    style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+                                >
+                                    <SendIcon className="w-5 h-5 text-white" />
+                                </button>
                             </div>
-                            <button
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={(e) => { e.stopPropagation(); handleSendMessage(e); }}
-                                className="rounded-full p-2 flex items-center justify-center shadow-lg transform hover:scale-105 active:scale-95 transition-all shrink-0 cursor-pointer border-none"
-                                style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-                            >
-                                <SendIcon className="w-5 h-5 text-white" />
-                            </button>
                         </div>
                     </footer>
-                </div>
-            )}
+                )}
+
 
             {hearts.map(heart => (
               <div key={heart.id} className="heart-anim pointer-events-none fixed" style={{ left: `${heart.x - 16}px`, top: `${heart.y - 16}px` }}>
@@ -1030,7 +1092,7 @@ export default function PKBattleScreen({
                 streamId={streamer.id}
                 canEdit={isBroadcaster}
             />
-            <GiftModal isOpen={isGiftModalOpen} onClose={() => setGiftModalOpen(false)} userDiamonds={currentUser.diamonds ?? 0} onSendGift={handleSendGift} onRecharge={() => setGiftModalOpen(false)} gifts={gifts} receivedGifts={receivedGifts} isBroadcaster={isBroadcaster} onOpenVIPCenter={onOpenVIPCenter} isVIP={currentUser.isVIP || false} currentUser={currentUser} />
+            <GiftModal isOpen={isGiftModalOpen} onClose={() => setGiftModalOpen(false)} userDiamonds={currentUser.diamonds ?? 0} onSendGift={handleSendGift} onRecharge={() => setGiftModalOpen(false)} gifts={gifts} receivedGifts={receivedGifts} isBroadcaster={isBroadcaster} onOpenVIPCenter={onOpenVIPCenter} isVIP={currentUser.isVIP || false} currentUser={currentUser} inPKBattle={true} />
             {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
             {isCoHostModalOpen && (
                 <CoHostModal 
@@ -1052,6 +1114,7 @@ export default function PKBattleScreen({
                 isMuted={userActionModalState.user ? mutedIds.includes(userActionModalState.user.id) : false}
                 isAlreadyModerator={userActionModalState.user ? moderatorIds.includes(userActionModalState.user.id) : false}
             />
+            <PKBattleStartAnimation active={showBattleStartAnim} onDone={() => setShowBattleStartAnim(false)} />
         </div>
     );
 }

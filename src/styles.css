@@ -40,6 +40,11 @@ html, body {
   position: fixed;
   top: 0;
   left: 0;
+  /* 📌 transform: translateZ(0) torna este container o "containing block" dos
+     elementos fixed internos (barra de mensagem, composer flutuante). Assim
+     eles ficam presos ao container tela-cheia e NUNCA sobem com o teclado,
+     inclusive em WebViews sem VirtualKeyboard API (modo adjustResize). */
+  transform: translateZ(0);
   padding-bottom: env(safe-area-inset-bottom, 0);
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), left 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   /* ⌨️ height: var(--app-height) = visualViewport.height (setado via JS no

@@ -312,11 +312,19 @@ class StreamPublishService {
     // Pedir nova stream
     let newStream: MediaStream | null = null;
 
-    // Tier 1: deviceId do cache (instantâneo)
+    // Tier 1: deviceId do cache (instantâneo) + facingMode ideal como dica
+    // (alguns Androids escolhem a câmera errada quando o deviceId do cache
+    // está desatualizado — o facingMode ideal resolve sem quebrar o exact).
+    // ⚠️ Se o cache aponta pra MESMA câmera atual (cache duplicado/aparelho
+    // com 1 câmera lógica), pular Tier 1 — reabrir a mesma câmera não é troca.
+    if (targetDeviceId && oldDeviceId && targetDeviceId === oldDeviceId) {
+      console.log('[PUBLISH_SERVICE] Cache aponta pra câmera atual — usando facingMode');
+      targetDeviceId = null;
+    }
     if (targetDeviceId) {
       try {
         newStream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: targetDeviceId } },
+          video: { deviceId: { exact: targetDeviceId }, facingMode: nextFacing },
           audio: false,
         });
         console.log('[PUBLISH_SERVICE] ✅ Tier 1 (deviceId exact) OK');
@@ -391,10 +399,20 @@ class StreamPublishService {
       deviceId: newDeviceId?.substring(0, 8) + '...',
     });
 
-    const facingChanged = newFacingMode && newFacingMode !== this.currentFacingMode;
-    const deviceChanged = newDeviceId && newDeviceId !== oldDeviceId;
+    // ═══ Verificar se a câmera realmente mudou ═══
+    // ⚠️ iOS Safari e vários Androids NÃO reportam facingMode em getSettings()
+    // e podem reportar o MESMO deviceId para as duas câmeras. Nesses aparelhos
+    // o getUserMedia com facingMode:{exact} JÁ abriu a câmera pedida (browsers
+    // que suportam 'exact' honram a constraint ou lançam erro). Descartar a
+    // troca por falta de relatório quebrava o botão nesses celulares.
+    const facingReported = typeof newFacingMode === 'string' && newFacingMode.length > 0;
+    const deviceReported = !!newDeviceId && !!oldDeviceId;
+    const facingChanged = facingReported && newFacingMode !== this.currentFacingMode;
+    const deviceChanged = deviceReported && newDeviceId !== oldDeviceId;
+    // Sem relatório confiável (iOS): confiar na solicitação — a câmera pedida abriu.
+    const signalsUnreliable = !facingReported;
 
-    if (!facingChanged && !deviceChanged) {
+    if (!facingChanged && !deviceChanged && !signalsUnreliable) {
       console.warn('[PUBLISH_SERVICE] ⚠️ Câmera NÃO mudou!');
       newStream.getTracks().forEach(t => t.stop());
       return;

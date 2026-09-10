@@ -102,20 +102,20 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             return (
                 <div
                     onClick={onAvatarClick}
-                    className="text-[8px] bg-purple-950/40 backdrop-blur-md border border-purple-500/40 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_12px_rgba(168,85,247,0.25)] hover:bg-purple-900/50 transition-all duration-200 break-words leading-tight"
+                    className="text-[9.5px] bg-purple-950/40 backdrop-blur-md border border-purple-500/40 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_12px_rgba(168,85,247,0.25)] hover:bg-purple-900/50 transition-all duration-200 break-words leading-tight"
                 >
-                    <span className="font-extrabold text-[#c084fc] font-sans tracking-wide text-[8px] shrink-0">Sistema:</span>{' '}
-                    <span className="text-purple-100 font-sans font-semibold tracking-wide text-[8px] break-words">{message}</span>
+                    <span className="font-extrabold text-[#c084fc] font-sans tracking-wide text-[9.5px] shrink-0">Sistema:</span>{' '}
+                    <span className="text-purple-100 font-sans font-semibold tracking-wide text-[9.5px] break-words">{message}</span>
                 </div>
             );
         } else {
             return (
                 <div
                     onClick={onAvatarClick}
-                    className="text-[8px] bg-amber-950/40 backdrop-blur-md border border-amber-500/40 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_12px_rgba(245,158,11,0.25)] hover:bg-amber-900/50 transition-all duration-200 break-words leading-tight"
+                    className="text-[9.5px] bg-amber-950/40 backdrop-blur-md border border-amber-500/40 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start animate-chat-message cursor-pointer select-none shadow-[0_0_12px_rgba(245,158,11,0.25)] hover:bg-amber-900/50 transition-all duration-200 break-words leading-tight"
                 >
-                    <span className="font-extrabold text-[#fbbf24] font-sans tracking-wide text-[8px] shrink-0">Sistema:</span>{' '}
-                    <span className="text-amber-100 font-sans font-semibold tracking-wide text-[8px] break-words">{message}</span>
+                    <span className="font-extrabold text-[#fbbf24] font-sans tracking-wide text-[9.5px] shrink-0">Sistema:</span>{' '}
+                    <span className="text-amber-100 font-sans font-semibold tracking-wide text-[9.5px] break-words">{message}</span>
                 </div>
             );
         }
@@ -124,7 +124,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
     return (
         <div
             onClick={onAvatarClick}
-            className="text-[8px] bg-black/20 backdrop-blur-sm border border-white/5 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/30 active:scale-[0.98] animate-chat-message break-words leading-tight"
+            className="text-[9.5px] bg-black/20 backdrop-blur-sm border border-white/5 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/30 active:scale-[0.98] animate-chat-message break-words leading-tight"
         >
             {(avatarUrl || userObject.avatarUrl) && (
                 <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 bg-black/30 border border-white/15 align-middle inline-block mr-0.5">
@@ -141,7 +141,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             )}
 
             <span
-                className="font-extrabold tracking-wide shrink-0 font-sans text-[8px] pr-0.5"
+                className="font-extrabold tracking-wide shrink-0 font-sans text-[9.5px] pr-0.5"
                 style={{ color: nameColor, textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {user}:
@@ -160,7 +160,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ userObject, message, onAvatar
             <AgeBadge gender={userObject.gender} age={userObject.age} />
 
             <span
-                className="text-white font-sans font-semibold break-words tracking-wide text-[8px]"
+                className="text-white font-sans font-semibold break-words tracking-wide text-[9.5px]"
                 style={{ textShadow: '0 1px 1.5px rgba(0,0,0,0.85)' }}
             >
                 {showTranslated && translatedText ? (
