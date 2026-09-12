@@ -4,8 +4,8 @@
 // (v22: push "X entrou ao vivo" — clique abre /live/ ou /voice-room/)
 // (v26: push estilo YouTube — notificação do sistema SEMPRE na tela,
 //  mesmo com o app aberto; banner in-app adicional via PUSH_FOREGROUND)
-// (v29: deploy Sep/2026 — chat/notificações/publish refinados)
-const CACHE_NAME = 'livenza-cache-v29';
+// (v33: deploy Sep/2026 — fix version.json modal update)
+const CACHE_NAME = 'livenza-cache-v33';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [

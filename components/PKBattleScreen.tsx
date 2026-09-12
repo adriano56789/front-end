@@ -988,7 +988,7 @@ export default function PKBattleScreen({
                     <footer
                         ref={composerRef}
                         className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
-                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
+                        style={{ bottom: 0, transform: `translateY(-${keyboardBottom}px)`, transition: 'transform 0ms' }}
                     >
                         <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
                             <div className="flex items-center gap-3">
@@ -1007,7 +1007,7 @@ export default function PKBattleScreen({
                                                 if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
                                                     closeComposer();
                                                 }
-                                            }, 120);
+                                            }, 150);
                                         }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSendMessage(e); } }}
                                         // font 16px: impede o zoom automático do iOS ao focar

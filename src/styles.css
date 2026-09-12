@@ -40,16 +40,14 @@ html, body {
   position: fixed;
   top: 0;
   left: 0;
-  /* 📌 transform: translateZ(0) torna este container o "containing block" dos
-     elementos fixed internos (barra de mensagem, composer flutuante). Assim
-     eles ficam presos ao container tela-cheia e NUNCA sobem com o teclado,
-     inclusive em WebViews sem VirtualKeyboard API (modo adjustResize). */
-  transform: translateZ(0);
+  /* ⚠️ REMOVIDO: transform: translateZ(0) — criava um "containing block"
+     que fazia position: fixed se comportar como absolute dentro do container.
+     No mobile, quando o teclado abria via adjustResize (sem VirtualKeyboard
+     API), o input ficava "travado no ar" porque o fixed não seguia o
+     viewport real. Sem o transform, fixed = viewport de verdade, e a
+     Visual Viewport API pode medir/compensar o teclado corretamente. */
   padding-bottom: env(safe-area-inset-bottom, 0);
-  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), left 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  /* ⌨️ height: var(--app-height) = visualViewport.height (setado via JS no
-     App.tsx). O container encolhe com o teclado → a caixa de mensagem fica
-     fixa no fundo sem se mexer, e o teclado aparece por baixo (TikTok). */
+  transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Responsividade de Tela para Laptops, Desktops, Ultrawide e Tablets */

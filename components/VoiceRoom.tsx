@@ -25,6 +25,7 @@ import type { GiftPayload } from './live/GiftAnimationOverlay';
 import RouletteModal from './RouletteModal';
 import WalletScreen from './WalletScreen';
 import ConfirmPurchaseScreen from './ConfirmPurchaseScreen';
+import StripeCheckoutOverlay from './StripeCheckoutOverlay';
 import CadastralDataScreen from './CadastralDataScreen';
 import UserActionModal from './UserActionModal';
 import JoinEffectOverlay from './live/JoinEffectOverlay';
@@ -228,6 +229,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     const [isAutoPrivateInviteEnabled, setIsAutoPrivateInviteEnabled] = useState(false);
     const [isRouletteOpen, setIsRouletteOpen] = useState(false);
     const [isWalletOpen, setIsWalletOpen] = useState(false);
+    const [stripeCheckout, setStripeCheckout] = useState<{ clientSecret: string; publishableKey: string; orderId: string; openUrl?: string } | null>(null);
     const [selectedPackage, setSelectedPackage] = useState<PurchasePackage | null>(null);
     const [isCadastralScreenOpen, setIsCadastralScreenOpen] = useState(false);
     const [pendingPurchase, setPendingPurchase] = useState<PurchasePackage | null>(null);
@@ -1086,7 +1088,18 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                 diamonds: pkg.diamonds,
                 method,
                 currency: pkg.currency || 'BRL',
+                embed: true,
             });
+            // Pagamento embutido dentro do app (página real do Stripe carregada aqui)
+            if (res && res.clientSecret && res.publishableKey) {
+                setStripeCheckout({
+                    clientSecret: res.clientSecret,
+                    publishableKey: res.publishableKey,
+                    orderId: res.orderId || '',
+                    openUrl: res.redirectUrl || undefined,
+                });
+                return;
+            }
             if (res && res.redirectUrl) {
                 window.location.href = res.redirectUrl;
                 return;
@@ -1603,7 +1616,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     <footer
                         ref={composerRef}
                         className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
-                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
+                        style={{ bottom: 0, transform: `translateY(-${keyboardBottom}px)`, transition: 'transform 0ms' }}
                     >
                         <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
                             <div className="flex items-center gap-3">
@@ -1622,7 +1635,7 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                                                 if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
                                                     closeComposer();
                                                 }
-                                            }, 120);
+                                            }, 150);
                                         }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(e); } }}
                                         maxLength={156}
@@ -1751,6 +1764,21 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     onConfirmPurchase={handleConfirmPurchase}
                     addToast={addToast}
                     currentUser={currentUser}
+                />
+            )}
+            {stripeCheckout && (
+                <StripeCheckoutOverlay
+                    clientSecret={stripeCheckout.clientSecret}
+                    publishableKey={stripeCheckout.publishableKey}
+                    orderId={stripeCheckout.orderId}
+                    openUrl={stripeCheckout.openUrl}
+                    onPaid={() => {
+                        setStripeCheckout(null);
+                        addToast(ToastType.Success, 'Pagamento aprovado! Seus diamantes serão creditados em instantes.');
+                        window.dispatchEvent(new CustomEvent('livego:refresh_wallet'));
+                    }}
+                    onClose={() => setStripeCheckout(null)}
+                    addToast={addToast}
                 />
             )}
             {isCadastralScreenOpen && pendingPurchase && (

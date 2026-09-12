@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackIcon, BrazilFlagIcon } from './icons';
 import { User, ToastType, CadastralData } from '../types';
 import { api } from '../services/api';
@@ -72,7 +72,8 @@ const TextInput: React.FC<{
   placeholder?: string;
   maxLength?: number;
   inputMode?: 'text' | 'numeric' | 'email';
-}> = ({ value, onChange, placeholder, maxLength, inputMode = 'text' }) => (
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+}> = ({ value, onChange, placeholder, maxLength, inputMode = 'text', onFocus }) => (
   <input
     type="text"
     inputMode={inputMode}
@@ -80,6 +81,7 @@ const TextInput: React.FC<{
     maxLength={maxLength}
     onChange={(e) => onChange(e.target.value)}
     placeholder={placeholder}
+    onFocus={onFocus}
     className="w-full bg-[#1b1c21] text-white placeholder-[#5a5c63] text-[14px] font-medium rounded-xl p-[16px] focus:outline-none border border-white/[0.05] focus:border-[#1cb15f]/40 transition-colors"
   />
 );
@@ -91,6 +93,56 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
   const [documentType, setDocumentType] = useState<'cpf' | 'cnpj'>(existing?.documentType || 'cpf');
   const [document, setDocument] = useState(existing?.document || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [keyboardBottom, setKeyboardBottom] = useState(0);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const baselineRef = useRef(0);
+
+  useEffect(() => {
+    const refresh = () => {
+      baselineRef.current = Math.max(
+        baselineRef.current,
+        document.documentElement?.clientHeight || 0,
+        window.innerHeight || 0
+      );
+    };
+    refresh();
+    window.addEventListener('resize', refresh);
+    return () => window.removeEventListener('resize', refresh);
+  }, []);
+
+  useEffect(() => {
+    const vv = window.visualViewport as VisualViewport | undefined;
+    if (!vv) return;
+    const measure = () => {
+      const baseline = baselineRef.current || window.innerHeight || 0;
+      const nav = navigator as any;
+      const rectH = nav?.virtualKeyboard?.boundingRect?.height;
+      let kbH = Math.max(0, Math.round(baseline - (vv ? vv.height : baseline)));
+      if (typeof rectH === 'number' && rectH > 0) kbH = Math.round(rectH);
+      setKeyboardBottom((prev) => (Math.abs(prev - kbH) > 2 ? kbH : prev));
+    };
+    vv.addEventListener('resize', measure);
+    vv.addEventListener('scroll', measure);
+    const nav = navigator as any;
+    nav?.virtualKeyboard?.addEventListener?.('geometrychange', measure);
+    return () => {
+      vv.removeEventListener('resize', measure);
+      vv.removeEventListener('scroll', measure);
+      nav?.virtualKeyboard?.removeEventListener?.('geometrychange', measure);
+    };
+  }, []);
+
+  const scrollToInput = useCallback((el: HTMLElement | null) => {
+    if (!el || !mainRef.current) return;
+    setTimeout(() => {
+      const container = mainRef.current;
+      if (!container) return;
+      const inputTop = el.getBoundingClientRect().top;
+      const containerTop = container.getBoundingClientRect().top;
+      const scrollTarget = container.scrollTop + inputTop - containerTop - 16;
+      container.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
+    }, 300);
+  }, []);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -145,7 +197,7 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
         <h1 className="text-[17px] font-bold text-white ml-2">Dados Cadastrais</h1>
       </header>
 
-      <main className="flex-grow px-5 py-2 space-y-6 overflow-y-auto no-scrollbar">
+      <main ref={mainRef} className="flex-grow px-5 py-2 space-y-6 overflow-y-auto no-scrollbar" style={{ paddingBottom: Math.max(16, keyboardBottom + 20) }}>
         <div className="bg-[#1b1c21] border border-[#1cb15f]/20 rounded-xl p-4">
           <p className="text-[#1cb15f] text-[13px] font-bold">Identificação</p>
           <p className="text-[#8e9196] text-[13px] font-medium leading-relaxed mt-1">
@@ -156,7 +208,7 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
         <div className="space-y-4">
           <div className="space-y-2">
             <FieldLabel text="Nome Completo" required />
-            <TextInput value={name} onChange={setName} placeholder="Como no seu documento oficial" />
+            <TextInput value={name} onChange={setName} placeholder="Como no seu documento oficial" onFocus={(e) => scrollToInput(e.target as HTMLElement)} />
           </div>
 
           <div className="space-y-2">
@@ -191,6 +243,7 @@ const CadastralDataScreen: React.FC<CadastralDataScreenProps> = ({ onClose, onSa
               placeholder={documentType === 'cpf' ? '000.000.000-00' : '00.000.000/0000-00'}
               inputMode="numeric"
               maxLength={documentType === 'cpf' ? 14 : 18}
+              onFocus={(e) => scrollToInput(e.target as HTMLElement)}
             />
           </div>
         </div>

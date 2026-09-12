@@ -586,7 +586,7 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
         if (opened && effectiveMessages.length > 0) {
             setTimeout(scrollMessagesToBottom, 120);
         }
-    }, [isComposerOpen, effectiveMessages.length]);
+    }, [isComposerOpen, effectiveMessages.length, keyboardBottom]);
 
     useEffect(() => {
         const handleNewMessage = (message: Message & { tempId?: string }) => {
@@ -993,13 +993,10 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     )}
                     </div>
                 </main>
-                {/* ═══ BARRA PRINCIPAL FIXA (gatilho) ═══
-                    Fica parada em bottom:0 — não sobe, não mexe. O input é
-                    SOMENTE-LEITURA: ao tocar, abre o teclado e SURGE a barra
-                    de digitação flutuante por cima do teclado. */}
+                {/* ═══ BARRA FIXA (gatilho) — SEMPRE em bottom:0, NUNCA mexe ═══ */}
                 <footer
                     ref={triggerBarRef as any}
-                    className={`fixed left-0 right-0 z-30 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]`}
+                    className="fixed left-0 right-0 z-30 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]"
                     style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
                 >
                     <div className="flex items-center space-x-2 bg-[#1b191e] rounded-[24px] p-1 border border-[#232128]">
@@ -1018,16 +1015,19 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                     </div>
                 </footer>
 
-                {/* ═══ BARRA DE DIGITAÇÃO FLUTUANTE (por cima do teclado) ═══
-                    Surge APENAS quando o teclado abre, posicionada com
-                    bottom = altura do teclado (keyboardBottom) + safe-area.
-                    É NELA que a pessoa escreve; a barra principal fica fixa
-                    embaixo, sem subir nem mexer. */}
+                {/* ═══ BARRA FLUTUANTE — COLADA NO TECLADO via translateY ═══
+                    Aparece quando o teclado abre. translateY(-keyboardBottom)
+                    a move exatamente a mesma altura que o teclado sobe —
+                    sobe JUNTO, desce JUNTO, como uma peça só. */}
                 {isComposerOpen && (
                     <footer
                         ref={composerRef}
-                        className={`fixed left-0 right-0 z-50 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]`}
-                        style={{ bottom: `calc(${keyboardBottom}px + env(safe-area-inset-bottom, 0px))`, transition: 'bottom 240ms cubic-bezier(0.2, 0.7, 0.3, 1)' }}
+                        className="fixed left-0 right-0 z-50 bg-[#131317] px-4 pt-3 pb-3 border-t border-[#232128]"
+                        style={{
+                            bottom: 0,
+                            transform: `translateY(-${keyboardBottom}px)`,
+                            transition: 'transform 0ms',
+                        }}
                     >
                         {replyTo && (
                             <div className="relative mb-2 rounded-xl bg-[#2a1334]/70 border-l-4 border-[#d21fff] px-3 py-2 flex items-center justify-between">
@@ -1048,12 +1048,12 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                             <div className="relative mb-2 w-fit">
                                 <img src={selectedImage} alt="Preview" className="max-h-24 rounded-lg" />
                                 <button
-                                onClick={() => {
-                                    setSelectedImage(null);
-                                    setSelectedImageFile(null);
-                                }}
-                                className="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5"
-                            >
+                                    onClick={() => {
+                                        setSelectedImage(null);
+                                        setSelectedImageFile(null);
+                                    }}
+                                    className="absolute -top-1 -right-1 bg-black/50 text-white rounded-full p-0.5"
+                                >
                                     <CloseIcon className="w-4 h-4" />
                                 </button>
                             </div>
@@ -1088,13 +1088,11 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                     onChange={(e) => { setNewMessage(e.target.value); setSendError(null); handleUserTyping(); autoResizeTextarea(); }}
                                     onFocus={() => { if (!isComposerOpen) openComposer(); }}
                                     onBlur={() => {
-                                        // Só fecha se o foco saiu do composer por completo.
-                                        // Não fecha em blur transitório do navegador (mobile).
                                         setTimeout(() => {
                                             if (composerRef.current && !composerRef.current.contains(document.activeElement)) {
                                                 closeComposer();
                                             }
-                                        }, 120);
+                                        }, 150);
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1102,7 +1100,6 @@ const ChatScreen: React.FC<ChatScreenProps> = ({ user, onBack, isModal, currentU
                                             handleSendMessage();
                                         }
                                     }}
-                                    // font 16px: impede o zoom automático do iOS ao focar (font <16px)
                                     className="w-full bg-transparent text-white placeholder-[#5a5860] text-base px-2 py-2.5 focus:outline-none resize-none overflow-y-auto max-h-[120px] leading-relaxed break-words whitespace-pre-wrap [overflow-wrap:anywhere]"
                                     style={{ height: 'auto', minHeight: '40px' }}
                                 />
