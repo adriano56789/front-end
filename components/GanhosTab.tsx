@@ -55,6 +55,7 @@ interface ConnectStatus {
     payouts_enabled?: boolean;
     charges_enabled?: boolean;
     onboarded_at?: string;
+    hasPixKey?: boolean;
     message?: string;
 }
 
@@ -505,15 +506,24 @@ const GanhosTab: React.FC<GanhosTabProps> = ({ onConfigure, onOpenConnect, curre
                         ? 'conta bancária em Dólar (ACH)'
                         : 'conta com IBAN em Euro (SEPA)';
 
+                const hasPixKey = !!connectStatus?.hasPixKey;
+
                 if (!connectReady) {
                     return (
                         <div className="bg-[#241a38] border border-[#7a3be9]/40 rounded-[14px] p-4">
                             <p className="text-[12px] font-black text-white tracking-wide">
-                                Cadastre sua conta de recebimento ({selectedCurrency === 'EUR' ? 'IBAN e Euro' : selectedCurrency === 'USD' ? 'Dólar · ACH' : 'Pix ou banco em Real'})
+                                {hasPixKey
+                                    ? 'Sua chave Pix está configurada'
+                                    : 'Cadastre sua conta de recebimento'
+                                }
                             </p>
                             <p className="text-[11px] text-[#a1a1aa] font-medium mt-1 leading-snug">
-                                O cadastro é feito no formulário oficial do Stripe (KYC, uma única vez). Depois disso, todo saque vai
-                                automático, direto para a sua conta: {receiveInfo}. Sem aprovação manual.
+                                {hasPixKey ? (
+                                    <>Chave Pix já salva. Para sacar em <strong>USD ou EUR</strong>, cadastre sua conta Stripe (KYC). Para sacar em <strong>BRL</strong>, a chave Pix já é suficiente.</>
+                                ) : (
+                                    <>O cadastro é feito no formulário oficial do Stripe (KYC, uma única vez). Depois disso, todo saque vai
+                                    automático, direto para a sua conta: {receiveInfo}. Sem aprovação manual.</>
+                                )}
                             </p>
                             <button
                                 onClick={onOpenConnect}
