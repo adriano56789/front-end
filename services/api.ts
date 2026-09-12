@@ -845,15 +845,26 @@ export const api = {
 
     stripeWithdraw: (userId: string, amount: number, currency: string) => {
         const userIdFinal = getCurrentUserId() || userId;
-        return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/stripe/withdraw', { userId: userIdFinal, amount, currency });
+        return callApi<{ success: boolean; withdrawalId: string; payoutId: string | null; transferId: string | null; status: string; statusNote?: string; currency: string; quote: any; newBalance: number; message: string }>('POST', '/api/stripe/withdraw', { userId: userIdFinal, amount, currency });
     },
+
+    // --- Stripe Connect (saques em USD/EUR e Pix via conta da hoste) ---
+
+    // Inicia o cadastro da conta de recebimento: app coleta só CPF + e-mail e
+    // retorna o link oficial do Stripe (documentos/dados bancários ficam lá).
+    stripeConnectOnboarding: (data: { document: string; email: string; country: string }) =>
+        callApi<{ success: boolean; url: string; accountId?: string; provider?: string; error?: string; details?: string; connectNotEnabled?: boolean; actionUrl?: string }>('POST', '/api/stripe/connect/onboarding', data),
+
+    // Consulta a situação da conta conectada (KYC/payouts liberados)
+    stripeConnectStatus: () =>
+        callApi<{ connected: boolean; provider: string; accountId?: string; details_submitted?: boolean; payouts_enabled?: boolean; charges_enabled?: boolean; onboarded_at?: string; message?: string }>('GET', '/api/stripe/connect/status'),
 
     // --- Depósito / Compra de diamantes via Stripe Checkout (hospedado) ---
 
     // Cria a sessão de checkout Stripe para uma compra (Pix/cartão, redirect ao usuário).
     // Credenciais ausentes → 503 (pagamentos em configuração).
-    createStripeCheckoutSession: (data: { userId: string; amountBRL: number; diamonds: number; orderId?: string; method?: string; currency?: string }) =>
-        callApi<{ success: boolean; provider: string; sessionId?: string; redirectUrl?: string; currency?: string; configured?: boolean }>('POST', '/api/stripe/checkout/session', data),
+    createStripeCheckoutSession: (data: { userId: string; amountBRL: number; diamonds: number; orderId?: string; method?: string; currency?: string; embed?: boolean }) =>
+        callApi<{ success: boolean; provider: string; sessionId?: string; redirectUrl?: string; clientSecret?: string; publishableKey?: string; orderId?: string; currency?: string; configured?: boolean }>('POST', '/api/stripe/checkout/session', data),
 
     // Consulta o status de uma compra (usado no retorno do checkout para saber se caiu).
     getStripeCheckoutStatus: (orderId: string) =>

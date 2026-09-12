@@ -23,13 +23,36 @@ const LockBadge = () => (
     </svg>
 );
 
-// Máscara simples de CPF: 000.000.000-00
+// Máscara de CPF: 000.000.000-00
 const maskCpf = (v: string): string => {
     const d = v.replace(/\D/g, '').slice(0, 11);
     if (d.length <= 3) return d;
     if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
     if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
     return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+};
+
+// Máscara de SSN (EUA): 000-00-0000
+const maskSsn = (v: string): string => {
+    const d = v.replace(/\D/g, '').slice(0, 9);
+    if (d.length <= 3) return d;
+    if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+};
+
+// Máscara de NIF (Portugal): 000000000 (9 dígitos, sem formatação)
+const maskNif = (v: string): string => {
+    return v.replace(/\D/g, '').slice(0, 9);
+};
+
+// Máscara de documento por país
+const maskDocumentByCountry = (v: string, country: CountryCode): string => {
+    switch (country) {
+        case 'US': return maskSsn(v);
+        case 'PT': return maskNif(v);
+        case 'BR':
+        default: return maskCpf(v);
+    }
 };
 
 const isValidEmail = (v: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
@@ -161,18 +184,19 @@ const StripeConnectRegistrationScreen: React.FC<StripeConnectRegistrationScreenP
         setConnectActionUrl(null);
 
         if (!isValidEmail(email)) {
-            setError('Digite um e-mail válido.');
+            setError('Digite um e-mail v\u00e1lido.');
             return;
         }
-        const cpfDigits = cpf.replace(/\D/g, '');
-        if (cpfDigits.length !== 11) {
-            setError(`Digite o documento completo (apenas números) — conforme o país: ${countryInfo.docLabel}.`);
+        const docDigits = cpf.replace(/\D/g, '');
+        const expectedLength = selectedCountry === 'BR' ? 11 : 9;
+        if (docDigits.length !== expectedLength) {
+            setError(`Digite o documento completo (apenas n\u00fameros) \u2014 conforme o pa\u00eds: ${countryInfo.docLabel}.`);
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const res = await api.stripeConnectOnboarding({ cpf: cpfDigits, email: email.trim(), country: selectedCountry });
+            const res = await api.stripeConnectOnboarding({ document: docDigits, email: email.trim(), country: selectedCountry });
             if (res.url) {
                 setStripeUrl(res.url);
                 window.open(res.url, '_blank', 'noopener,noreferrer');
@@ -333,7 +357,7 @@ const StripeConnectRegistrationScreen: React.FC<StripeConnectRegistrationScreenP
                                     inputMode="numeric"
                                     autoComplete="off"
                                     value={cpf}
-                                    onChange={(e) => setCpf(maskCpf(e.target.value))}
+                                    onChange={(e) => setCpf(maskDocumentByCountry(e.target.value, selectedCountry))}
                                     placeholder={countryInfo.placeholder}
                                     onFocus={(e) => scrollToInput(e.target as HTMLElement)}
                                     className="w-full bg-[#131215] text-white placeholder-gray-600 rounded-[14px] p-3 px-4 font-semibold text-[15px] border border-[#27262a] focus:border-[#8a3ffc]/50 focus:outline-none transition-all h-[52px] tracking-wider"
