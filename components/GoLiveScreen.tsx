@@ -224,16 +224,16 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         'Alisar a pele': mergedSettings.smoothing,
                         'Ruborizar': mergedSettings.saturation,
                         'Contraste': mergedSettings.contrast,
-                        'Balanço de Branco': mergedSettings.whiteBalance,
+                        'Balanço de Branco': mergedSettings.whiteBalance ?? 0,
                         'Rosto Bebê': mergedSettings.babyFace,
-                        'Clarear dentes': mergedSettings.teethWhitening,
-                        'Suavizar rugas': mergedSettings.wrinkleSmoothing,
-                        'Clarear olheiras': mergedSettings.darkCircle,
-                        'Remover manchas': mergedSettings.acneRemoval,
-                        'Reduzir brilho': mergedSettings.shineReduction,
-                        'Nitidez': mergedSettings.sharpness,
-                        'Efeito 3D': mergedSettings.faceVolume3D,
-                        'Limpar Chiado': mergedSettings.noiseReduction,
+                        'Clarear dentes': mergedSettings.teethWhitening ?? 0,
+                        'Suavizar rugas': mergedSettings.wrinkleSmoothing ?? 0,
+                        'Clarear olheiras': mergedSettings.darkCircle ?? 0,
+                        'Remover manchas': mergedSettings.acneRemoval ?? 0,
+                        'Reduzir brilho': mergedSettings.shineReduction ?? 0,
+                        'Nitidez': mergedSettings.sharpness ?? 0,
+                        'Efeito 3D': mergedSettings.faceVolume3D ?? 0,
+                        'Limpar Chiado': mergedSettings.noiseReduction ?? 0,
                     };
                     const missing = Object.keys(allKeys).filter(k => !(k in (saved || {})));
                     if (missing.length > 0) {
@@ -617,7 +617,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                 }} 
                 selectedCountryCode={streamManager.selectedRegion} 
             />
-            {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} videoRef={cameraPreview.videoRef} />}
+            {isBeautyPanelOpen && <BeautyEffectsPanel onClose={() => setIsBeautyPanelOpen(false)} currentUser={currentUser} addToast={addToast} />}
 
             {isManualOpen && <LiveStreamManualModal onClose={() => setIsManualOpen(false)} />}
         </div>

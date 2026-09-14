@@ -52,6 +52,7 @@ import { videoProcessor } from '../services/VideoProcessor';
 interface ChatMessageType {
     id: string | number;
     type: 'chat' | 'entry' | 'friend_request' | 'follow';
+    userId?: string | number;
     user?: string;
     fullUser?: User;
     follower?: User;
@@ -932,7 +933,14 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 if (r && r.banned) {
                     console.log('[PROTECTION] Usuário banido desta sala — saída forçada');
                     addToast(ToastType.Error, 'Você foi bloqueado pelo host desta transmissão.');
-                    setTimeout(() => { try { onBannedFromStream(); } catch { try { onLeaveStreamView(); } catch {} } }, 1600);
+                    setTimeout(() => {
+                        try {
+                            if (onBannedFromStream) onBannedFromStream();
+                            else onLeaveStreamView();
+                        } catch {
+                            try { onLeaveStreamView(); } catch {}
+                        }
+                    }, 1600);
                 }
             }).catch(() => {});
         }
@@ -1394,12 +1402,13 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
     // próximo disparo insere outra no fim de novo. Nunca fixa no topo/meio.
     const hostNoticeActive = !!hostNoticeCtl.notice?.active;
     useEffect(() => {
-        if (!hostNoticeActive || !hostNoticeCtl.notice) return;
+        const notice = hostNoticeCtl.notice;
+        if (!hostNoticeActive || !notice) return;
         const stamp = Date.now();
         setMessages(prev => {
             const id = `host_notice_${hostNoticeCtl.pulse}_${stamp}`;
             if (prev.some(m => String(m.id) === id)) return prev;
-            return [...prev, { id, type: 'chat' as const, hostNotice: hostNoticeCtl.notice, timestamp: stamp }];
+            return [...prev, { id, type: 'chat' as const, hostNotice: notice, timestamp: stamp }];
         });
         // Scroll pro fundo pra plaquinha ficar VISÍVEL NA HORA, mesmo que o usuário
         // estivesse lendo mensagens antigas (que sobem pra cima). Duplo rAF garante
@@ -2164,7 +2173,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 área rolável (altura fixa da barra). O teclado NUNCA move a barra:
                 ele abre em modo SOBREPOSIÇÃO (VirtualKeyboard API) e cobre a parte
                 inferior da tela — nada acima da barra sobe. */}
-            <div className={`fixed left-0 right-0 bottom-0 w-full z-30 transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
+            <div className={`absolute inset-x-0 bottom-0 w-full z-30 flex flex-col justify-end transition-opacity duration-300 ${isUiVisible ? 'opacity-105' : 'opacity-0 pointer-events-none'}`}>
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
@@ -2244,8 +2253,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                     digitação flutuante por cima do teclado. */}
                 <footer
                     ref={triggerBarRef as any}
-                    className={`fixed left-0 right-0 z-30 p-3 ${!isUiVisible ? 'pointer-events-none' : 'pointer-events-auto'}`}
-                    style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px))' }}
+                    className={`relative z-30 p-3 ${isComposerOpen || !isUiVisible ? 'hidden' : 'pointer-events-auto'}`}
                 >
                     <div className="flex items-center gap-3" data-purpose="bottom-controls">
                         <div className="flex-grow">
@@ -2318,8 +2326,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 {isComposerOpen && (
                     <footer
                         ref={composerRef}
-                        className="fixed left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
-                        style={{ bottom: 0, transform: `translateY(-${keyboardBottom}px)`, transition: 'transform 0ms' }}
+                        className="relative left-0 right-0 z-50 px-3 pb-2 pointer-events-auto"
                     >
                         <div className="rounded-2xl border border-white/10 bg-black/85 backdrop-blur-md shadow-2xl p-2">
                             {/* 📡 Typing indicator */}

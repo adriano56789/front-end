@@ -2249,35 +2249,14 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       });
     }
 
-    // ⌨️ Ajusta o container do app à área visível. Na tela de LIVE o container
-    // NUNCA encolhe com o teclado (--app-height = MAIOR altura de layout já
-    // vista) — assim a tela da live não sobe nem se move: a barra de mensagem
-    // fica fixa no fundo e um composer flutua acima do teclado. Só a rotação
-    // de tela redefine a referência. Nas demais telas, mantém o comportamento
-    // adjustResize (--app-height = visualViewport.height) para o input ficar
-    // acima do teclado.
+    // ⌨️ Mantém o app na área realmente visível. Isso também vale para a live:
+    // quando o teclado abre, a lista e a barra precisam participar do mesmo
+    // redimensionamento, em vez de ficarem presas na altura anterior.
     const vv = window.visualViewport;
-    let maxLayoutRef = Math.max(
-      document.documentElement?.clientHeight || 0,
-      window.innerHeight || 0
-    );
     const setAppHeight = () => {
       const cur = Math.max(document.documentElement?.clientHeight || 0, window.innerHeight || 0);
-      const container = document.querySelector<HTMLElement>('.app-container');
-      const isLiveFixed = !!container?.classList.contains('live-fixed');
-      if (isLiveFixed) {
-        // 🚫 NUNCA reduzir --app-height aqui: `cur` encolhe com o teclado
-        // (browsers/WebViews sem interactive-widget) e durante a animação de
-        // abrir/fechar. Reduzir empurra a barra de mensagem para cima e deixa
-        // um fundo preto piscando embaixo ao fechar. maxLayoutRef só cresce;
-        // a rotação de tela redefine a referência.
-        maxLayoutRef = Math.max(maxLayoutRef, cur);
-        const h = Math.max(maxLayoutRef, vv ? vv.height : cur);
-        document.documentElement.style.setProperty('--app-height', `${h}px`);
-      } else {
-        const h = vv ? vv.height : cur;
-        document.documentElement.style.setProperty('--app-height', `${h}px`);
-      }
+      const h = Math.round(vv?.height || cur);
+      document.documentElement.style.setProperty('--app-height', `${h}px`);
     };
     if (vv) {
       vv.addEventListener('resize', setAppHeight);
