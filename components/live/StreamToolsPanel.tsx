@@ -10,6 +10,10 @@ interface StreamToolsPanelProps {
   onTogglePrivate: () => void;
   entryFee?: number;
   onEntryFeeChange?: (value: number) => void;
+  /** 💾 Salvar a taxa de entrada NO BANCO (persistente). */
+  onSaveEntryFee?: () => void;
+  /** true enquanto a taxa está sendo salva (feedback no botão). */
+  isSavingEntryFee?: boolean;
   isVoiceRoom?: boolean;
   onToggleVoiceRoom?: () => void;
   isInviteMode?: boolean;
@@ -31,6 +35,8 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
   onTogglePrivate,
   entryFee = 0,
   onEntryFeeChange,
+  onSaveEntryFee,
+  isSavingEntryFee = false,
   isVoiceRoom = false,
   onToggleVoiceRoom,
   isInviteMode = false,
@@ -152,9 +158,24 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
                     value={entryFee || ''}
                     onChange={(e) => onEntryFeeChange(Number(e.target.value) || 0)}
                     placeholder="0"
-                    className="w-20 text-right bg-[#2a2a2e] text-[14px] font-semibold text-[#e2e2e2] rounded-lg px-2.5 py-1.5 outline-none border border-[#ffffff15] focus:border-[#9747FF] transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-16 text-right bg-[#2a2a2e] text-[14px] font-semibold text-[#e2e2e2] rounded-lg px-2 py-1.5 outline-none border border-[#ffffff15] focus:border-[#9747FF] transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-[12px] text-[#9747FF] font-bold">💎</span>
+                  {/* 💾 SALVAR: grava a taxa no banco — valor persiste entre sessões */}
+                  {onSaveEntryFee && (
+                    <button
+                      onClick={onSaveEntryFee}
+                      disabled={isSavingEntryFee}
+                      title="Salvar taxa de entrada"
+                      className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-[14px] font-bold transition-all active:scale-90 ${
+                        isSavingEntryFee
+                          ? 'bg-[#9747FF]/30 text-white/60 animate-pulse'
+                          : 'bg-[#9747FF]/20 text-[#c084fc] hover:bg-[#9747FF]/40'
+                      }`}
+                    >
+                      {isSavingEntryFee ? '⏳' : '💾'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

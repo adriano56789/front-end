@@ -5,7 +5,9 @@
 // (v26: push estilo YouTube — notificação do sistema SEMPRE na tela,
 //  mesmo com o app aberto; banner in-app adicional via PUSH_FOREGROUND)
 // (v33: deploy Sep/2026 — fix version.json modal update)
-const CACHE_NAME = 'livenza-cache-v36';
+// (v37: push live_started — tag por stream (sem duplicado SRS+socket), auto-some;
+//  salas de voz agora também notificam seguidores)
+const CACHE_NAME = 'livenza-cache-v37';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -147,6 +149,16 @@ async function buildAndShowNotification(raw) {
     vibrate: [180, 80, 180], // 📳 vibra estilo WhatsApp
     data: d,
   };
+
+  if (d.type === 'live_started') {
+    // 🔔 1 notificação por live: mesmo streamId = mesmo tag → o SO sobrescreve
+    // em vez de empilhar (evita duplicado entre SRS webhook e socket live_started).
+    const streamKey = d.streamKey || d.streamId || d.hostId || '';
+    if (streamKey) notifTag = `live_${streamKey}`;
+    notificationOptions.tag = notifTag;
+    // Live é evento pontual: some sozinha (não gruda na tela como um chat).
+    notificationOptions.requireInteraction = false;
+  }
 
   if (d.type === 'new_message') {
     // 📸 Estilo WhatsApp: FOTO de quem mandou como ícone da notificação

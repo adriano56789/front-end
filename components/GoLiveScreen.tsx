@@ -100,6 +100,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
     const [countries, setCountries] = useState<any[]>([]);
     const [isBeautyPanelOpen, setIsBeautyPanelOpen] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
+    const [isSavingEntryFee, setIsSavingEntryFee] = useState(false);
     const [categories] = useState<Category[]>(CATEGORIES);
 
     const isInviteMode = Boolean(inviteData);
@@ -142,6 +143,29 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
             }).catch(err => console.error("Error fetching regions:", err));
         }
     }, [isOpen, isInviteMode, inviteData, currentUser.name, currentUser.country, streamManager, countries.length]);
+
+    // 🔒💎 REIDRATAÇÃO: sala privada + taxa de entrada salvos no banco voltam
+    // marcados ao abrir a tela. A host não precisa refazer a configuração a
+    // cada live — o que foi salvo com o botão 💾 persiste.
+    const entryFeeHydratedRef = useRef(false);
+    useEffect(() => {
+        if (!isOpen || !currentUser?.id || entryFeeHydratedRef.current) return;
+        entryFeeHydratedRef.current = true;
+        api.getLiveDetails(currentUser.id)
+            .then((s: any) => {
+                if (!s) return;
+                const savedPrivate = typeof s.isPrivate === 'boolean' ? s.isPrivate : null;
+                const savedFee = Number(s.entryFee) || 0;
+                if (savedPrivate !== null || savedFee > 0) {
+                    streamManager.updateState({
+                        ...(savedPrivate !== null ? { isPrivate: savedPrivate } : {}),
+                        ...(savedFee > 0 ? { entryFee: savedFee } : {}),
+                    });
+                    console.log(`[GOLIVE] Config salva restaurada: privada=${savedPrivate}, taxa=${savedFee}💎`);
+                }
+            })
+            .catch(() => { /* sem dados salvos — segue com padrão */ });
+    }, [isOpen, currentUser?.id]);
 
     // 🎨 FILTRO PADRÃO AUTOMÁTICO na abertura da câmera (estilo Tencent/Bigo):
     // nitidez + efeito 3D + clareza aplicados JÁ quando o preview liga, sem o
@@ -375,6 +399,35 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
         }
     };
 
+    // 💾 SALVAR TAXA DE ENTRADA: persiste a taxa NO BANCO imediatamente —
+    // o valor fica salvo sempre (não some ao fechar a tela nem ao F5).
+    // Marca a sala como privada (a taxa só faz sentido em sala privada)
+    // e grava no Streamer + LiveCard via POST /api/streams/:id/save.
+    const handleSaveEntryFee = async () => {
+        if (isSavingEntryFee) return;
+        setIsSavingEntryFee(true);
+        try {
+            const fee = streamManager.entryFee || 0;
+            // Taxa > 0 exige sala privada marcada
+            if (fee > 0 && !streamManager.isPrivate) {
+                streamManager.updateState({ isPrivate: true });
+            }
+            const saved = await streamManager.persistPrivacySettings();
+            if (saved) {
+                addToast(ToastType.Success, fee > 0
+                    ? `💾 Taxa salva: ${fee}💎 para entrar na sala privada!`
+                    : '💾 Taxa removida — entrada gratuita.');
+            } else {
+                addToast(ToastType.Error, 'Erro ao salvar a taxa. Tente novamente.');
+            }
+        } catch (err) {
+            console.error('[GOLIVE] Erro ao salvar taxa de entrada:', err);
+            addToast(ToastType.Error, 'Erro ao salvar a taxa. Tente novamente.');
+        } finally {
+            setIsSavingEntryFee(false);
+        }
+    };
+
     const handleToggleVoiceRoom = () => {
         // ⚙️ Somente marca a opção "Sala de Voz". A CRIACAO da sala NÃO é
         // automática aqui — só vai acontecer ao clicar em "Iniciar Sala de Voz",
@@ -508,6 +561,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         onTogglePrivate={handleTogglePrivate}
                         entryFee={streamManager.entryFee}
                         onEntryFeeChange={(value) => streamManager.updateState({ entryFee: value })}
+                        onSaveEntryFee={handleSaveEntryFee}
+                        isSavingEntryFee={isSavingEntryFee}
                         isVoiceRoom={streamManager.isVoiceRoom}
                         onToggleVoiceRoom={handleToggleVoiceRoom}
                         isInviteMode={isInviteMode}

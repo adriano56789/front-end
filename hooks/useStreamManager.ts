@@ -22,6 +22,8 @@ interface StreamManagerActions {
   uploadCover: (file?: File) => Promise<void>;
   initiateStream: (onStartStream: (streamer: Streamer) => void, onJoinStream?: (streamer: Streamer) => void, inviteData?: any) => Promise<void>;
   updateState: (updates: Partial<StreamManagerState>) => void;
+  /** 💾 Persiste isPrivate/entryFee no banco (Streamer + LiveCard). */
+  persistPrivacySettings: () => Promise<boolean>;
 }
 
 export const useStreamManager = (
@@ -221,14 +223,18 @@ export const useStreamManager = (
 
       if (registeredStream && (registeredStream.playbackUrl || registeredStream.webrtcUrl)) {
         // Draft veio do backend — já tem URLs reais. Só marcar como live.
+        // 🔒💎 SEMPRE re-aplicar isPrivate/entryFee do ESTADO ATUAL: o draft pode
+        // ter sido criado antes da host marcar a caixinha/definir a taxa.
         streamer = {
           ...registeredStream,
           id: registeredStream.id,
           isLive: true,
           streamStatus: 'active',
+          isPrivate: isPrivate,
+          entryFee: entryFee,
           startTime: new Date()
         };
-        console.log('[STREAM_MANAGER] 📡 Usando draft do backend (já tem URLs):', registeredStream.id);
+        console.log('[STREAM_MANAGER] 📡 Usando draft do backend (já tem URLs):', registeredStream.id, '| privada=' + isPrivate + ' taxa=' + entryFee);
       } else {
         // Draft local ou inexistente — criar no backend conforme documentação
         console.log('[STREAM_MANAGER] 📡 Criando stream no backend (ARCHITECTURE.md §13.a)...');
@@ -283,13 +289,34 @@ export const useStreamManager = (
       }
 
       setDraftStream(streamer);
-      onStartStream(streamer);
-    } catch (error) {
+      onStartStream(streamer);    } catch (error) {
       console.warn('[STREAM_MANAGER] Erro ao iniciar live (continuando mesmo assim):', error);
       // NÃO parar publicação nem mostrar toast de erro
       // O fluxo continua com os dados locais disponíveis
     }
   }, [currentUser, streamTitle, streamDescription, selectedCategoryKey, isPrivate, entryFee, videoRef, addToast, draftStream]);
+
+  /**
+   * 💾 Sincroniza isPrivate/entryFee do estado atual para o BANCO (Streamer +
+   * LiveCard via POST /api/streams/:id/save). Usado pelo botão 💾 do painel.
+   */
+  const persistPrivacySettings = useCallback(async (): Promise<boolean> => {
+    try {
+      let target = draftStream;
+      if (!target) {
+        target = await createDraftStream();
+      }
+      if (!target?.id) return false;
+      const { success } = await api.saveStream(target.id, { isPrivate, entryFee });
+      if (success) {
+        setDraftStream((prev) => ({ ...(prev || target), isPrivate, entryFee } as Streamer));
+      }
+      return !!success;
+    } catch (error) {
+      console.warn('[STREAM_MANAGER] persistPrivacySettings falhou:', error);
+      return false;
+    }
+  }, [draftStream, isPrivate, entryFee, createDraftStream]);
 
   return {
     draftStream,
@@ -305,6 +332,7 @@ export const useStreamManager = (
     updateStreamDetails,
     uploadCover,
     initiateStream,
-    updateState
+    updateState,
+    persistPrivacySettings
   };
 };

@@ -2137,12 +2137,16 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                         {isBroadcaster ? (
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleTogglePrivacy(); }}
-                                className="text-[13px] font-medium text-white/90 hover:text-white cursor-pointer select-none focus:outline-none border-none bg-transparent transition-colors"
+                                className="flex items-center gap-1 text-[13px] font-medium text-white/90 hover:text-white cursor-pointer select-none focus:outline-none border-none bg-transparent transition-colors"
                             >
+                                {/* 🔒 Cadeado SEMPRE visível quando a sala é privada */}
+                                {streamer.isPrivate && <LockIcon className="w-3 h-3 text-[#f2d7a2] flex-shrink-0 drop-shadow" />}
                                 {streamer.isPrivate ? 'Privada' : 'Pública'}
                             </button>
                         ) : (
-                            <span className="text-white/80">
+                            <span className="flex items-center gap-1 text-white/80">
+                                {/* 🔒 Cadeado SEMPRE visível quando a sala é privada */}
+                                {streamer.isPrivate && <LockIcon className="w-3 h-3 text-[#f2d7a2] flex-shrink-0 drop-shadow" />}
                                 {streamer.isPrivate ? 'Privada' : 'Pública'}
                             </span>
                         )}
