@@ -182,7 +182,16 @@ const MarketScreen: React.FC<MarketScreenProps> = ({ onClose, user, updateUser, 
            )}
            
            {SelectedFrameComponent && activeTab === 'Quadro de avatar' && (
-             <div className="absolute -top-[35%] -left-[35%] w-[170%] h-[170%] pointer-events-none">
+             <div 
+               className="absolute pointer-events-none"
+               style={{
+                 top: '50%',
+                 left: '50%',
+                 width: '98px',
+                 height: '98px',
+                 transform: 'translate(-50%, -50%)',
+               }}
+             >
                <SelectedFrameComponent className="w-full h-full drop-shadow-[0_0_15px_rgba(255,215,0,0.2)]" />
              </div>
            )}

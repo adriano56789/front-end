@@ -238,6 +238,32 @@ const StreamRoom: React.FC<StreamRoomProps> = ({ streamer, onRequestEndStream, o
         };
     }, []);
 
+    // 🔒 SEGURANÇA: Verificação REDUNDANTE de acesso à sala privada.
+    //   Mesmo que o handleSelectStream no App.tsx já tenha verificado, este
+    //   recheck pega qualquer bypass (ex.: URL direta, deep-link, erro de race
+    //   condition). Se o viewer NÃO pagou e NÃO foi convidado, é expulso.
+    useEffect(() => {
+        if (isBroadcaster) return; // Host nunca precisa pagar
+        if (!streamer.isPrivate) return; // Sala pública não precisa check
+
+        let cancelled = false;
+        const recheckAccess = async () => {
+            try {
+                const access = await api.checkPrivateStreamAccess(streamer.id, currentUser.id);
+                if (cancelled) return;
+                if (!access?.canJoin || (access?.requiresPayment && access?.entryFee)) {
+                    // ❌ Viewer não tem acesso → expulsa da sala
+                    addToast(ToastType.Error, access?.reason || 'Esta é uma sala privada. Acesso negado.');
+                    onLeaveStreamView();
+                }
+            } catch {
+                // Erro de rede: não expulsa (pode ser momentâneo)
+            }
+        };
+        recheckAccess();
+        return () => { cancelled = true; };
+    }, [streamer.id, streamer.isPrivate, currentUser.id]);
+
     // ═══ Sincronizar viewer count com a lista de onlineUsers (REST polling) ═══
     useEffect(() => {
         updateLiveSession({ viewers: Math.max(1, onlineUsers.length) });
@@ -1360,7 +1386,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
             });
             return () => cancelAnimationFrame(frame);
         }
-    }, [messages.length, isUserScrolledUp]);
+    }, [messages.length, isUserScrolledUp, keyboardBottom]);
 
     // 🪧 Plaquinha do host como MENSAGEM DO CHAT: cada disparo (pulse) insere uma
     // plaquinha NO FIM da lista de mensagens — exatamente como uma mensagem normal.
@@ -2138,7 +2164,7 @@ window.removeEventListener('livego:chat_message', handleWindowChat);
                 {/* PUBLIC CHAT SHADING (Sombreamento de Bate Papo Público) - Creates high contrast to make text pop over live feeds */}
                 <div className="absolute inset-x-0 bottom-0 top-[-10px] bg-gradient-to-t from-black/95 via-black/45 to-transparent -z-10 pointer-events-none" />
 
-                <div ref={chatContainerRef} onScroll={handleChatScroll} className="max-h-[36vh] overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '36lvh' }}>
+                <div ref={chatContainerRef} onScroll={handleChatScroll} className="overflow-y-auto no-scrollbar overscroll-contain flex flex-col justify-end pointer-events-auto px-1.5 relative z-10" style={{ maxHeight: '36lvh' }}>
                         <div className="flex flex-col gap-px items-start w-full">
                             {messages.map((msg, index) => {
                                 // 🪧 Plaquinha do host — item de mensagem comum: nasce no fim,

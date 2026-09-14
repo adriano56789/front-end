@@ -370,6 +370,13 @@ body {
   width: 100vw;
 }
 
+/* ⌨️ Altura dinâmica do viewport visível (exclui o teclado virtual).
+   --app-height é atualizado pelo JS via Visual Viewport API em tempo real.
+   Usa-se var() para que o layout acompanhe a animação do teclado sem atraso. */
+.vh-app {
+  height: var(--app-height, 100dvh);
+}
+
 /* Perfect Circular Avatar Wrapper and Image */
 .perfect-avatar-wrapper {
   width: 100% !important;

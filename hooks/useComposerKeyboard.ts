@@ -39,6 +39,34 @@ export const COMPOSER_BAR_HEIGHT = MESSAGE_BAR_HEIGHT;
 // "junto" com ele, sem ficar parada flutuando.
 const CLOSE_ANIM_MS = 240;
 
+// 🔬 Sonda de teclado: div oculto `fixed bottom:0` que mede onde o navegador
+//   coloca elementos fixos naquele aparelho. Funciona em TODO modo de teclado
+//   (overlay, adjustResize, resizes-visual, iOS). Se o navegador auto-sobe
+//   elementos fixos quando o teclado abre, a sonda termina acima do fundo
+//   visível → sabemos que o teclado está sendo tratado pelo browser. Se não,
+//   medimos a altura real.
+let kbProbe: HTMLDivElement | null = null;
+function getKeyboardProbeBottom(): number {
+  if (!kbProbe) {
+    kbProbe = document.createElement('div');
+    kbProbe.style.cssText =
+      'position:fixed;left:0;bottom:0;width:1px;height:1px;visibility:hidden;pointer-events:none;z-index:-1;';
+    document.body.appendChild(kbProbe);
+  }
+  return kbProbe.getBoundingClientRect().bottom;
+}
+
+// Cache da ÚLTIMA altura conhecida do teclado — usada como chute inicial
+// quando a medição em tempo real ainda não retornou (primeiros frames).
+const LS_KEY = 'lastKnownKeyboardHeight';
+let lastKnownKeyboardH = 0;
+try { lastKnownKeyboardH = Number(localStorage.getItem(LS_KEY) || 0) || 0; } catch { /* */ }
+function persistKeyboardHeight(h: number): void {
+  if (h <= 0 || Math.abs(h - lastKnownKeyboardH) < 2) return;
+  lastKnownKeyboardH = h;
+  try { localStorage.setItem(LS_KEY, String(h)); } catch { /* */ }
+}
+
 export function useComposerKeyboard() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [keyboardBottom, setKeyboardBottom] = useState(0);
@@ -90,29 +118,29 @@ export function useComposerKeyboard() {
   // Barra principal FIXA no fundo — é o gatilho que abre o composer.
   const triggerBarRef = useRef<HTMLElement>(null);
 
-  // 📱 VirtualKeyboard API (documentada em MDN / Chrome Developers):
-  //   navigator.virtualKeyboard.overlaysContent = true
-  // Diz ao navegador que o APP controla a oclusão do teclado — assim o teclado
-  // sobrepõe o viewport (não redimensiona nem empurra o conteúdo para cima).
-  // Detecção: 'virtualKeyboard' in navigator.
+  // 📱 VirtualKeyboard API — NÃO usar overlaysContent.
+  //   O viewport meta tag já define interactive-widget=resizes-content, que faz
+  //   o browser redimensionar o viewport nativamente quando o teclado abre.
+  //   O rAF loop abaixo só atualiza --app-height para containers que usam a
+  //   variável CSS (ex.: MessagesScreen).
+
+  // 🎯 Sync do container do app com a Visual Viewport:
+  //   Atualiza --app-height enquanto o composer está aberto para containers
+  //   que dependem dessa variável CSS. NÃO move a barra nem o layout.
   useEffect(() => {
-    if (typeof navigator === 'undefined') return;
-    if (!('virtualKeyboard' in navigator)) {
-      console.warn('[Keyboard] VirtualKeyboard API indisponível — overlay não aplicado.');
-      return;
-    }
-    try {
-      const vk = (navigator as any).virtualKeyboard as { overlaysContent?: boolean; overlayContent?: boolean };
-      // ⚠️ Nome OFICIAL da API (Chrome 94+ / MDN): `overlaysContent` (com S).
-      //    O typo `overlayContent` (sem S) é silenciosamente ignorado — o
-      //    overlay NÃO ativa e o teclado redimensiona o viewport, empurrando
-      //      o app inteiro para cima. Setamos as duas formas por segurança.
-      vk.overlaysContent = true;
-      vk.overlayContent = true;
-    } catch {
-      console.warn('[Keyboard] Falha ao setar virtualKeyboard.overlaysContent.');
-    }
-  }, []);
+    if (!isComposerOpen) return;
+    let raf = 0;
+    const sync = () => {
+      const vv = window.visualViewport;
+      if (vv) {
+        const h = Math.round(vv.height);
+        document.documentElement.style.setProperty('--app-height', `${h}px`);
+      }
+      raf = requestAnimationFrame(sync);
+    };
+    raf = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(raf);
+  }, [isComposerOpen]);
 
   // 📏 Mede a altura do teclado enquanto o composer está aberto. Usa rAF (sem
   // interval de 200ms — que causava o atraso/engasgo ao fechar). Usado SOMENTE
@@ -127,15 +155,35 @@ export function useComposerKeyboard() {
 
       const vv = window.visualViewport;
       const baseline = baselineRef.current || window.innerHeight || 0;
-      // 🎯 Fonte mais precisa (VirtualKeyboard API): boundingRect.height dá a
-      // altura real do teclado no modo overlay. Fallback: baseline − vv.height
-      // (funciona em overlay E em adjustResize).
+
+      // ── FONTES DE MEDIDA (em ordem de precisão) ──
+
+      // 1) VirtualKeyboard API (Chrome 94+): boundingRect.height = altura real
       const nav = navigator as any;
       const rectH = nav?.virtualKeyboard?.boundingRect?.height;
-      let kbH = Math.max(0, Math.round(baseline - (vv ? vv.height : baseline)));
+
+      // 2) visualViewport: baseline − vv.height (funciona em overlay E adjustResize)
+      let vvH = Math.max(0, Math.round(baseline - (vv ? vv.height : baseline)));
+
+      // 3) 🔬 SONDAS: mede onde um `position:fixed;bottom:0` realmente termina
+      //    no DOM — funciona em TODOS os modos de teclado, incluindo WebViews
+      //    que não disparam eventos do visualViewport.
+      const probeBottom = getKeyboardProbeBottom();
+      const vvHeight = vv ? vv.height : baseline;
+      const probeOffset = Math.max(0, Math.round(probeBottom - vvHeight));
+
+      // Escolhe a melhor medida disponível.
+      let kbH = 0;
       if (typeof rectH === 'number' && rectH > 0) {
-        kbH = Math.round(rectH);
+        kbH = Math.round(rectH);           // VirtualKeyboard API — mais precisa
+      } else if (probeOffset > 2) {
+        kbH = probeOffset;                 // Sonda real — funciona em TODO caso
+      } else if (vvH > 2) {
+        kbH = vvH;                         // visualViewport fallback
+      } else if (lastKnownKeyboardH > 0) {
+        kbH = lastKnownKeyboardH;          // Cache: chute inicial nos primeiros frames
       }
+
       const MAX = Math.round(baseline * 0.6);
       const next = Math.min(kbH, MAX);
 
@@ -147,6 +195,8 @@ export function useComposerKeyboard() {
         return;
       }
       lastKbRef.current = next;
+      // Salva no cache para futuras aberturas.
+      persistKeyboardHeight(next);
       setKeyboardBottom((prev) => (Math.abs(prev - next) > 2 ? next : prev));
     };
 
@@ -165,11 +215,25 @@ export function useComposerKeyboard() {
     vv?.addEventListener('resize', measure);
     vv?.addEventListener('scroll', measure);
 
+    // ⚠️ Fallback: WebViews/PWA que não disparam eventos do visualViewport
+    // de forma confiável. Recomputar com delay quando QUALQUER input ganha/perde foco.
+    const timers: number[] = [];
+    const recomputeLate = () => {
+      timers.push(window.setTimeout(measure, 100));
+      timers.push(window.setTimeout(measure, 300));
+      timers.push(window.setTimeout(measure, 500));
+    };
+    document.addEventListener('focus', recomputeLate, true);
+    document.addEventListener('blur', recomputeLate, true);
+
     return () => {
       cancelAnimationFrame(raf);
+      timers.forEach((id) => window.clearTimeout(id));
       vv?.removeEventListener('resize', measure);
       vv?.removeEventListener('scroll', measure);
       vk?.removeEventListener?.('geometrychange', measure);
+      document.removeEventListener('focus', recomputeLate, true);
+      document.removeEventListener('blur', recomputeLate, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isComposerOpen]);
@@ -189,6 +253,11 @@ export function useComposerKeyboard() {
       document.documentElement?.clientHeight || 0,
       window.innerHeight || 0
     );
+    // 🎯 Se já temos altura cacheada do teclado, antecipa o posicionamento da
+    //    barra — evita o flash de "barra no fundo" nos primeiros frames.
+    if (lastKnownKeyboardH > 0) {
+      setKeyboardBottom(lastKnownKeyboardH);
+    }
     setIsComposerOpen(true);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {

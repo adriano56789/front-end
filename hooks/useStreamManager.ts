@@ -11,6 +11,7 @@ interface StreamManagerState {
   streamDescription: string;
   selectedCategoryKey: string;
   isPrivate: boolean;
+  entryFee: number;
   isVoiceRoom: boolean;
   selectedRegion: string;
 }
@@ -33,6 +34,7 @@ export const useStreamManager = (
   const [streamDescription, setStreamDescription] = useState('');
   const [selectedCategoryKey, setSelectedCategoryKey] = useState('popular');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [entryFee, setEntryFee] = useState(0);
   const [isVoiceRoom, setIsVoiceRoom] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState(currentUser.country || 'global');
 
@@ -51,6 +53,7 @@ export const useStreamManager = (
     if (updates.streamDescription !== undefined) setStreamDescription(updates.streamDescription);
     if (updates.selectedCategoryKey !== undefined) setSelectedCategoryKey(updates.selectedCategoryKey);
     if (updates.isPrivate !== undefined) setIsPrivate(updates.isPrivate);
+    if (updates.entryFee !== undefined) setEntryFee(updates.entryFee);
     if (updates.isVoiceRoom !== undefined) setIsVoiceRoom(updates.isVoiceRoom);
     if (updates.selectedRegion !== undefined) setSelectedRegion(updates.selectedRegion);
   }, []);
@@ -62,7 +65,8 @@ export const useStreamManager = (
         message: streamDescription || '',
         category: selectedCategoryKey,
         tags: [selectedCategoryKey],
-        isPrivate: isPrivate
+        isPrivate: isPrivate,
+        entryFee: entryFee
       });
 
       if (newStream && newStream.id) {
@@ -86,6 +90,7 @@ export const useStreamManager = (
       tags: [selectedCategoryKey],
       isLive: false,
       isPrivate: isPrivate,
+      entryFee: entryFee,
       streamStatus: 'draft',
       streamKey: `stream_${currentUser.id}`,
       viewers: 0,
@@ -93,7 +98,7 @@ export const useStreamManager = (
     };
     setDraftStream(localStream);
     return localStream;
-  }, [currentUser.id, streamTitle, streamDescription, selectedCategoryKey, isPrivate, currentUser.name, currentUser.avatarUrl, currentUser.country]);
+  }, [currentUser.id, streamTitle, streamDescription, selectedCategoryKey, isPrivate, entryFee, currentUser.name, currentUser.avatarUrl, currentUser.country]);
 
   const updateStreamDetails = useCallback(async (data: Partial<Streamer>) => {
     // Garantir que sempre temos um stream para salvar (criar fallback local se necessário)
@@ -110,6 +115,7 @@ export const useStreamManager = (
       tags: [selectedCategoryKey || 'popular'],
       isLive: false,
       isPrivate: isPrivate,
+      entryFee: entryFee,
       streamStatus: 'draft',
       streamKey: `stream_${currentUser.id || Date.now()}`,
       viewers: 0,
@@ -140,7 +146,7 @@ export const useStreamManager = (
     }
 
     addToast(ToastType.Success, "Detalhes da live salvos!");
-  }, [draftStream, streamTitle, streamDescription, selectedCategoryKey, isPrivate, currentUser, addToast]);
+  }, [draftStream, streamTitle, streamDescription, selectedCategoryKey, isPrivate, entryFee, currentUser, addToast]);
 
   const uploadCover = useCallback(async (file?: File) => {
     if (!file) return;
@@ -231,7 +237,8 @@ export const useStreamManager = (
           message: streamDescription || registeredStream?.message || '',
           category: selectedCategoryKey,
           tags: [selectedCategoryKey],
-          isPrivate: isPrivate
+          isPrivate: isPrivate,
+          entryFee: entryFee
         });
 
         if (createdStream && createdStream.id) {
@@ -282,7 +289,7 @@ export const useStreamManager = (
       // NÃO parar publicação nem mostrar toast de erro
       // O fluxo continua com os dados locais disponíveis
     }
-  }, [currentUser, streamTitle, streamDescription, selectedCategoryKey, isPrivate, videoRef, addToast, draftStream]);
+  }, [currentUser, streamTitle, streamDescription, selectedCategoryKey, isPrivate, entryFee, videoRef, addToast, draftStream]);
 
   return {
     draftStream,
@@ -291,6 +298,7 @@ export const useStreamManager = (
     streamDescription,
     selectedCategoryKey,
     isPrivate,
+    entryFee,
     isVoiceRoom,
     selectedRegion,
     createDraftStream,

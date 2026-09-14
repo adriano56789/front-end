@@ -1,0 +1,1 @@
+﻿[{"_id":{"$oid":"6a8f57507efc7dbc132da431"},"hostId":"user1","streamId":"live123","status":"waiting","coHostId":null,"isMuted":false,"createdAt":{"$date":"2026-08-26T21:14:56.213Z"},"updatedAt":{"$date":"2026-08-26T21:14:56.213Z"}}]

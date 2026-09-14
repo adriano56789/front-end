@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import GanhosTab from './GanhosTab';
 import PurchaseHistoryScreen from './PurchaseHistoryScreen';
 import ConfigureWithdrawalMethodScreen from './ConfigureWithdrawalMethodScreen';
+import StripeConnectRegistrationScreen from './StripeConnectRegistrationScreen';
 import { useTranslation } from '../i18n';
 import { User, ToastType, PurchaseRecord, PurchaseCurrency, PurchasePackage } from '../types';
 import { BrazilFlagIcon, PortugalFlagIcon, USAFlagIcon } from './icons';
@@ -211,6 +212,10 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ onClose, onPurchase, initia
     return <ConfigureWithdrawalMethodScreen onClose={() => setView('main')} currentUser={currentUser} updateUser={updateUser} addToast={addToast} />;
   }
 
+  if (view === 'connect_registration') {
+    return <StripeConnectRegistrationScreen onClose={() => setView('main')} currentUser={currentUser} addToast={addToast} />;
+  }
+
   return (
     <div className="absolute inset-0 bg-[#09080b] z-50 flex flex-col text-[#e1e2eb] font-sans overflow-x-hidden select-text">
       
@@ -250,7 +255,7 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ onClose, onPurchase, initia
       
       <main className="flex-grow overflow-y-auto px-4 py-3 pb-8 w-full max-w-md mx-auto space-y-4 no-scrollbar">
         {activeTab === 'Diamante' && <DiamanteTab onPurchase={handleWalletPurchase} currentUser={currentUser} />}
-        {activeTab === 'Ganhos' && <GanhosTab onConfigure={() => setView('configure_withdrawal')} currentUser={currentUser} updateUser={updateUser} addToast={addToast} />}
+        {activeTab === 'Ganhos' && <GanhosTab onConfigure={() => setView('configure_withdrawal')} onOpenConnect={() => setView('connect_registration')} currentUser={currentUser} updateUser={updateUser} addToast={addToast} />}
       </main>
     </div>
   );

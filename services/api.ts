@@ -526,6 +526,39 @@ export const api = {
     checkStreamKicked: (streamId: string, userId: string) =>
         callApi<{ kicked: boolean }>('GET', `/api/protection/kick/check?streamId=${encodeURIComponent(streamId)}&userId=${encodeURIComponent(userId)}`),
 
+    checkStreamAccess: (streamId: string, userId: string) =>
+        callApi<{ canJoin: boolean; reason?: string; requiresPayment?: boolean; entryFee?: number; userDiamonds?: number }>('GET', `/api/interactions/streams/${encodeURIComponent(streamId)}/access-check?userId=${encodeURIComponent(userId)}`),
+
+    payEntryFee: (streamId: string) =>
+        callApi<{ success: boolean; message: string; remainingDiamonds?: number; reason?: string; entryFee?: number; userDiamonds?: number }>('POST', `/api/streams/${encodeURIComponent(streamId)}/pay-entry`),
+
+    // ── Sala Privada: Taxa de Entrada (5 APIs dedicadas) ──────────────────────
+    setPrivateFee: (liveId: string, valorTaxa: number, tipo: 'convite' | 'pago' = 'pago') =>
+        callApi<{ success: boolean; liveId: string; isPrivate: boolean; entryFee: number; roomType: string; message: string }>(
+            'POST', '/api/live/set-private-fee', { liveId, valorTaxa, tipo }
+        ),
+
+    checkPrivateAccess: (liveId: string, userId: string) =>
+        callApi<{ canJoin: boolean; reason: string; requiresPayment?: boolean; requiresInvite?: boolean; entryFee?: number; userDiamonds?: number; missing?: number; isHost?: boolean }>(
+            'GET', `/api/live/check-access/${encodeURIComponent(liveId)}?userId=${encodeURIComponent(userId)}`
+        ),
+
+    payPrivateFee: (liveId: string) =>
+        callApi<{ success: boolean; message: string; entryFee?: number; remainingDiamonds?: number; accessGranted?: boolean; alreadyPaid?: boolean; reason?: string; missing?: number }>(
+            'POST', '/api/live/pay-fee', { liveId }
+        ),
+
+    grantPrivateAccess: (liveId: string, guestId?: string) =>
+        callApi<{ success: boolean; liveId: string; userId: string; message: string }>(
+            'POST', '/api/live/grant-access', { liveId, guestId }
+        ),
+
+    addPrivateGuest: (liveId: string, guestId: string) =>
+        callApi<{ success: boolean; liveId: string; guestId: string; guestName: string; message: string }>(
+            'POST', '/api/live/add-guest', { liveId, guestId }
+        ),
+    // ─────────────────────────────────────────────────────────────────────────
+
     getHostBans: (hostId: string) => callApi<any[]>('GET', `/api/protection/bans/${encodeURIComponent(hostId)}`),
 
     getBlockedUsers: () => callApi<User[]>('GET', '/api/users/me/blocklist'),
@@ -858,6 +891,12 @@ export const api = {
     // Consulta a situação da conta conectada (KYC/payouts liberados)
     stripeConnectStatus: () =>
         callApi<{ connected: boolean; provider: string; accountId?: string; details_submitted?: boolean; payouts_enabled?: boolean; charges_enabled?: boolean; onboarded_at?: string; message?: string }>('GET', '/api/stripe/connect/status'),
+
+    getStripeBalance: () =>
+        callApi<{ available: { brl: number; usd: number; eur: number }; pending: { brl: number; usd: number; eur: number }; configured: boolean }>('GET', '/api/stripe/balance'),
+
+    getStripeWithdrawalStatus: (withdrawalId: string) =>
+        callApi<{ id: string; status: string; amountBRL: number; amountCoins: number; metadata: any; createdAt: string }>('GET', `/api/stripe/withdraw/${withdrawalId}`),
 
     // --- Depósito / Compra de diamantes via Stripe Checkout (hospedado) ---
 
@@ -1355,7 +1394,9 @@ export const api = {
             streamId: options.streamId || options.streamKey,
             // 🔒 Sala privada: repassar a opção do GoLive (checkbox "Sala Privada")
             // para o backend persistir no Streamer → on_publish espelha no LiveCard.
-            ...(typeof options.isPrivate === 'boolean' ? { isPrivate: options.isPrivate } : {})
+            ...(typeof options.isPrivate === 'boolean' ? { isPrivate: options.isPrivate } : {}),
+            // 💎 Taxa de entrada da sala privada (0 = sem taxa → todo mundo entra de graça)
+            ...(typeof options.entryFee === 'number' ? { entryFee: options.entryFee } : {})
         };
         const response = await callApi<{ success: boolean, stream: Streamer }>('POST', `/api/streams`, payload);
         return response?.stream;
@@ -1455,7 +1496,7 @@ export const api = {
 
     inviteUserToPrivateStream: (streamId: string, userId: string) => callApi<{ success: boolean }>('POST', `/api/interactions/streams/${streamId}/private-invite`, { userId }),
 
-    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean, reason?: string }>('GET', `/api/interactions/streams/${streamId}/access-check?userId=${userId}`),
+    checkPrivateStreamAccess: (streamId: string, userId: string) => callApi<{ canJoin: boolean, reason?: string, requiresPayment?: boolean, entryFee?: number, userDiamonds?: number }>('GET', `/api/interactions/streams/${streamId}/access-check?userId=${userId}`),
 
     getInvitedStreams: (userId: string) => callApi<{ success: boolean, streamIds: string[] }>('GET', `/api/interactions/streams/invited-streams?userId=${userId}`),
 
@@ -2603,14 +2644,10 @@ export const api = {
     // (GET /api/version/livego). Tudo passa pelo api.ts; nenhum fetch direto.
     getAppVersion: async (): Promise<{ version: string; buildTime?: string } | null> => {
         try {
-            // 📡 A versão do APP vem do version.json servido pelo frontend
-            // (regenerado a cada deploy pelo scripts/gen-version.cjs). NÃO usar
-            // /api/version/livego: o backend devolve um valor fixo que nunca
-            // muda, então o modal de atualização nunca disparava.
-            // /version.json é same-origin (servido pelo frontend) — sem token/headers extras
-            const res = await callApi<{ version: string; buildTime?: string }>('GET', '/version.json');
-            if (res?.version) {
-                return { version: res.version, buildTime: res.buildTime };
+            const res = await fetch('/version.json', { cache: 'no-store' });
+            const data = await res.json();
+            if (data?.version) {
+                return { version: data.version, buildTime: data.buildTime };
             }
             return null;
         } catch {
@@ -2642,7 +2679,7 @@ export const api = {
         },
 
         /** Criar nova sala de voz */
-        create: (options: { hostId: string; name?: string; category?: string; minLevelToSpeak?: number; message?: string; hostName?: string; hostAvatar?: string; location?: string; tags?: string[] }) =>
+        create: (options: { hostId: string; name?: string; category?: string; minLevelToSpeak?: number; message?: string; hostName?: string; hostAvatar?: string; location?: string; tags?: string[]; isPrivate?: boolean; entryFee?: number }) =>
             callApi<{ success: boolean; room: VoiceRoom }>('POST', '/api/voice-rooms', options),
 
         /** Buscar detalhes de uma sala */
@@ -2706,6 +2743,18 @@ export const api = {
                 avatar: user?.avatar || '',
                 level: user?.level || 1,
             }),
+
+        /** Verificar acesso à sala de voz (entry fee / convidado) */
+        accessCheck: (roomId: string, userId: string) =>
+            callApi<{ canJoin: boolean; reason?: string; requiresPayment?: boolean; entryFee?: number; userDiamonds?: number }>(
+                'GET', `/api/voice-rooms/${encodeURIComponent(roomId)}/access-check?userId=${encodeURIComponent(userId)}`
+            ),
+
+        /** Pagar taxa de entrada da sala de voz com diamantes */
+        payEntry: (roomId: string, userId: string) =>
+            callApi<{ success: boolean; message: string; remainingDiamonds?: number; reason?: string; entryFee?: number; userDiamonds?: number }>(
+                'POST', `/api/voice-rooms/${encodeURIComponent(roomId)}/pay-entry`, { userId }
+            ),
     },
 };
 

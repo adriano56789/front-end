@@ -323,6 +323,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         name: streamManager.streamTitle || `Sala de ${currentUser.name}`,
                         category: 'voice_chat',
                         minLevelToSpeak: 1,
+                        isPrivate: streamManager.isPrivate,
+                        entryFee: streamManager.entryFee || 0,
                     });
                     if (response?.success && response.room) {
                         onOpenVoiceRoom(response.room.roomId);
@@ -367,9 +369,9 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
 
     const handleTogglePrivate = () => {
         if (!streamManager.isPrivate) {
-            streamManager.updateState({ isPrivate: true, isVoiceRoom: false });
+            streamManager.updateState({ isPrivate: true });
         } else {
-            streamManager.updateState({ isPrivate: false });
+            streamManager.updateState({ isPrivate: false, entryFee: 0 });
         }
     };
 
@@ -378,7 +380,7 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
         // automática aqui — só vai acontecer ao clicar em "Iniciar Sala de Voz",
         // evitando duplicar salas ao simplesmente marcar a caixinha.
         if (!streamManager.isVoiceRoom) {
-            streamManager.updateState({ isVoiceRoom: true, isPrivate: false });
+            streamManager.updateState({ isVoiceRoom: true });
         } else {
             streamManager.updateState({ isVoiceRoom: false });
         }
@@ -504,6 +506,8 @@ const GoLiveScreen: React.FC<GoLiveScreenProps> = ({
                         onOpenBeautyPanel={() => setIsBeautyPanelOpen(true)}
                         isPrivate={streamManager.isPrivate}
                         onTogglePrivate={handleTogglePrivate}
+                        entryFee={streamManager.entryFee}
+                        onEntryFeeChange={(value) => streamManager.updateState({ entryFee: value })}
                         isVoiceRoom={streamManager.isVoiceRoom}
                         onToggleVoiceRoom={handleToggleVoiceRoom}
                         isInviteMode={isInviteMode}

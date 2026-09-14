@@ -28,6 +28,7 @@ import ConfirmPurchaseScreen from './ConfirmPurchaseScreen';
 import StripeCheckoutOverlay from './StripeCheckoutOverlay';
 import CadastralDataScreen from './CadastralDataScreen';
 import UserActionModal from './UserActionModal';
+import PrivateRoomEntryModal from './PrivateRoomEntryModal';
 import JoinEffectOverlay from './live/JoinEffectOverlay';
 import { getAnimationUrl, getAnimationDuration } from '../services/GiftAnimationUrls';
 import { useComposerKeyboard, MESSAGE_BAR_HEIGHT } from '../hooks/useComposerKeyboard';
@@ -236,6 +237,10 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     const [userActionModalState, setUserActionModalState] = useState<{ isOpen: boolean; user: User | null }>({ isOpen: false, user: null });
     const [joinEffect, setJoinEffect] = useState<{ userName: string; avatarUrl?: string; entranceEffect?: { id?: string; url?: string; configUrl?: string; w?: number; h?: number } } | null>(null);
     const joinEffectShownRef = useRef(false);
+    // 💎 Entry fee modal state for private voice rooms
+    const [entryFeeModal, setEntryFeeModal] = useState<{ isOpen: boolean; entryFee: number; userDiamonds: number }>({ isOpen: false, entryFee: 0, userDiamonds: 0 });
+    const [isPaying, setIsPaying] = useState(false);
+    const accessCheckedRef = useRef(false);
     const giftPanelRef = useRef<GiftAnimationPanelHandle>(null);
     const roomRef = useRef<VoiceRoomType | null>(null);
     const recentGiftEventsRef = useRef<Set<string>>(new Set());
@@ -383,6 +388,55 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
     }, [roomId, addToast, t]);
 
     useEffect(() => { loadRoom(); }, [loadRoom]);
+
+    // 💎 Verificar acesso à sala de voz (entry fee) — roda UMA vez após room carregar
+    useEffect(() => {
+        if (!room || accessCheckedRef.current) return;
+        if (room.hostId === currentUser.id) return;
+        if (!room.isPrivate) return;
+        accessCheckedRef.current = true;
+        (async () => {
+            try {
+                const access = await api.voiceRoom.accessCheck(room.roomId, currentUser.id);
+                if (access?.requiresPayment && access.entryFee) {
+                    setEntryFeeModal({ isOpen: true, entryFee: access.entryFee, userDiamonds: access.userDiamonds || currentUser.diamonds || 0 });
+                } else if (!access?.canJoin) {
+                    addToast(ToastType.Error, (access?.reason || 'Você não tem permissão para entrar nesta sala.'));
+                    onClose();
+                }
+            } catch {
+                // Silencioso — não expulsar por falha de rede
+            }
+        })();
+    }, [room?.roomId, room?.isPrivate, room?.hostId, currentUser.id, currentUser.diamonds, addToast, onClose]);
+
+    // 💎 Pagar taxa de entrada da sala de voz
+    const handlePayEntryFee = async () => {
+        if (!room || isPaying) return;
+        setIsPaying(true);
+        try {
+            const result = await api.voiceRoom.payEntry(room.roomId, currentUser.id);
+            if (result?.success) {
+                setEntryFeeModal({ isOpen: false, entryFee: 0, userDiamonds: 0 });
+                addToast(ToastType.Success, 'Pagamento realizado! Bem-vindo à sala!');
+                if (result.remainingDiamonds !== undefined) {
+                    // Atualizar saldo do usuário localmente
+                    const updatedUser = { ...currentUser, diamonds: result.remainingDiamonds };
+                    updateUser(updatedUser);
+                }
+            } else {
+                addToast(ToastType.Error, result?.message || 'Erro ao pagar taxa de entrada');
+                if (result?.reason === 'diamonds_insufficient') {
+                    addToast(ToastType.Info, `Você tem ${result.userDiamonds || 0}💎 mas precisa de ${result.entryFee || 0}💎`);
+                    setEntryFeeModal(prev => ({ ...prev, userDiamonds: result.userDiamonds || 0 }));
+                }
+            }
+        } catch {
+            addToast(ToastType.Error, 'Erro ao processar pagamento');
+        } finally {
+            setIsPaying(false);
+        }
+    };
 
     // ─── 💓 Heartbeat de presença: enquanto o usuário está DENTRO da sala,
     // mantém a sala viva no backend a cada 25s. Se parar (fechou o app/saída
@@ -1917,6 +1971,21 @@ export const VoiceRoom: React.FC<VoiceRoomProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* 💎 Modal de taxa de entrada — sala de voz privada */}
+            <PrivateRoomEntryModal
+                isOpen={entryFeeModal.isOpen}
+                entryFee={entryFeeModal.entryFee}
+                userDiamonds={entryFeeModal.userDiamonds}
+                streamerName={room?.hostName || ''}
+                streamerAvatar={room?.hostAvatar}
+                onPay={handlePayEntryFee}
+                onCancel={() => {
+                    setEntryFeeModal({ isOpen: false, entryFee: 0, userDiamonds: 0 });
+                    onClose();
+                }}
+                isPaying={isPaying}
+            />
         </div>
     );
 };

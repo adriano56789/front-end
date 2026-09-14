@@ -60,6 +60,7 @@ android/.kotlin/
 # Arquivos de distribuição empacotados
 dist-frontend.*
 dist_to_deploy.*
+dist-parts/
 *.tar
 *.tar.gz
 *.zip
@@ -105,5 +106,14 @@ public/openmakeup/
 
 # Saida de typecheck/diagnostico
 tsc-out.txt
+
+# Arquivos locais (não subir)
+AGENTS.md
+opencode.json
+DEPLOY-NOTES.md
+sftp-batch.txt
+sftp-upload.mjs
+scripts/deploy-scp.mjs
+*.vhdx
 
 nul

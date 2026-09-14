@@ -16,7 +16,8 @@ export interface Streamer {
   isPrivate?: boolean;
   quality?: string;
   demoVideoUrl?: string;
-  diamonds?: number; // 🔧 CORREÇÃO: Adicionar diamonds para o contador da live
+  diamonds?: number;
+  entryFee?: number;
   category?: string; // Categoria da stream
   // Ingest & Playback fields
   rtmpIngestUrl?: string;
@@ -667,6 +668,9 @@ export interface VoiceRoom {
   location: string;
   time: string;
   message: string;
+  isPrivate?: boolean;
+  entryFee?: number;
+  invitedUsers?: string[];
 }
 
 /** 🪧 Plaquinha de notificação do host — estado sincronizado entre host e espectadores */

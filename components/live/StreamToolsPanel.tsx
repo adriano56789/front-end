@@ -8,6 +8,8 @@ interface StreamToolsPanelProps {
   onOpenBeautyPanel: () => void;
   isPrivate: boolean;
   onTogglePrivate: () => void;
+  entryFee?: number;
+  onEntryFeeChange?: (value: number) => void;
   isVoiceRoom?: boolean;
   onToggleVoiceRoom?: () => void;
   isInviteMode?: boolean;
@@ -27,6 +29,8 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
   onOpenBeautyPanel,
   isPrivate,
   onTogglePrivate,
+  entryFee = 0,
+  onEntryFeeChange,
   isVoiceRoom = false,
   onToggleVoiceRoom,
   isInviteMode = false,
@@ -130,6 +134,30 @@ export const StreamToolsPanel: React.FC<StreamToolsPanelProps> = ({
                 <div className="w-11 h-6 bg-[#2a2a2e] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#9747FF]"></div>
               </label>
             </div>
+
+            {isPrivate && onEntryFeeChange && (
+              <div className="flex items-center justify-between py-3.5 border-t border-[#ffffff10]">
+                <div className="flex items-center space-x-3">
+                  <span className="text-lg">💎</span>
+                  <div>
+                    <span className="text-[14px] font-medium text-[#e2e2e2]">Taxa de Entrada</span>
+                    <p className="text-[11px] text-gray-500">Cobrar diamantes para entrar</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="99999"
+                    value={entryFee || ''}
+                    onChange={(e) => onEntryFeeChange(Number(e.target.value) || 0)}
+                    placeholder="0"
+                    className="w-20 text-right bg-[#2a2a2e] text-[14px] font-semibold text-[#e2e2e2] rounded-lg px-2.5 py-1.5 outline-none border border-[#ffffff15] focus:border-[#9747FF] transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-[12px] text-[#9747FF] font-bold">💎</span>
+                </div>
+              </div>
+            )}
 
             {onToggleVoiceRoom && (
               <div className="flex items-center justify-between py-3.5 border-t border-[#ffffff10]">

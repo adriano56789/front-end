@@ -173,6 +173,15 @@ const StreamerCard: React.FC<{streamer: Streamer; onSelect: (streamer: Streamer)
                     </div>
                 </div>
             )}
+            {/* 💎 TAXA DE ENTRADA — badge abaixo do cadeado quando cobra diamantes */}
+            {isPrivateRoom && (streamer as any).entryFee > 0 && (
+                <div className="absolute z-10 pointer-events-none" style={{ top: 'calc(50% + 30px)', left: '50%', transform: 'translateX(-50%)' }}>
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md border border-[#9747FF]/50">
+                        <span className="text-[10px]">💎</span>
+                        <span className="text-[11px] font-bold text-[#c084fc]">{(streamer as any).entryFee}</span>
+                    </div>
+                </div>
+            )}
 
             {/* 🎙️ SALA DE VOZ AO VIVO — badge no topo do card para deixar claro
                 que é uma sala de voz (sem vídeo), igual ao padrão de apps de chat. */}

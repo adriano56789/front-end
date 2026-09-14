@@ -109,7 +109,7 @@ const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({
 
   return (
     <div 
-      className={`relative inline-block rounded-full flex-shrink-0 ${avatarSize} ${className}`}
+      className={`relative inline-block flex-shrink-0 ${avatarSize} ${className}`}
       style={{
         width: `${sizePx}px`,
         height: `${sizePx}px`,
@@ -117,31 +117,39 @@ const AvatarWithFrame: React.FC<AvatarWithFrameProps> = ({
         overflow: 'visible'
       }}
     >
-      {/* Frame - perfeitamente centralizado */}
+      {/* Frame - perfeitamente centralizado e escalado */}
       {hasValidFrame && FrameComponent && (
-        <div className={`absolute inset-0 flex items-center justify-center pointer-events-auto z-10`} onClick={onClick}>
+        <div 
+          className="absolute pointer-events-auto z-10"
+          style={{
+            top: '50%',
+            left: '50%',
+            width: `${sizePx * 1.4}px`,
+            height: `${sizePx * 1.4}px`,
+            transform: 'translate(-50%, -50%)',
+          }}
+          onClick={onClick}
+        >
           <FrameComponent 
             className="w-full h-full pointer-events-none" 
-            style={{ 
-              transform: 'scale(1.4)',
-              transformOrigin: 'center'
-            }}
           />
         </div>
       )}
       
-      {/* Avatar */}
+      {/* Avatar - centralizado e escalado quando tem frame */}
       <div 
         className="perfect-avatar-wrapper cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all duration-200 z-0 relative p-0 m-0"
         style={{
-          width: '100%',
-          height: '100%',
+          width: `${sizePx}px`,
+          height: `${sizePx}px`,
           borderRadius: '50%',
           overflow: 'hidden',
           display: 'block',
           backgroundColor: '#111111',
-          aspectRatio: '1/1',
-          transform: hasValidFrame ? 'scale(1.3)' : 'none',
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: hasValidFrame ? 'translate(-50%, -50%) scale(0.85)' : 'translate(-50%, -50%)',
           transformOrigin: 'center'
         }}
         onClick={onClick}

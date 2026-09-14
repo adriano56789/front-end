@@ -13,16 +13,11 @@ const dataCache = new Map<string, any>();
 const inflight = new Map<string, Promise<any>>();
 
 /**
- * Pré-carrega SOMENTE o JSON da animação Lottie (presentes) ANTES do presente
- * chegar, para a animação aparecer quase instantaneamente no evento do gift.
- *
- * ⚠️ NÃO baixa as imagens webp do JSON em background (removido): pré-aquecer
- * centenas de webps por gift gerava uma enxurrada de requisições (centenas de
- * *.webp ao mesmo tempo → erros 408 no log). As imagens são baixadas pelo
- * lottie-web sob demanda, no momento do presente — sem flood no servidor.
- *
- * O áudio do efeito fica EMBUTIDO no próprio JSON (asset data URI + camada
- * ty:6), então pré-carregar o JSON já pré-carrega o som junto.
+ * Pré-carrega JSON + FRAMES (webp) + áudio externo de uma animação Lottie.
+ * O JSON é baixado e parseado em memória; os frames .webp são pré-aquecidos
+ * via Image() com fila de concorrência (6 por vez) para não sobrecarregar.
+ * Com tudo no cache HTTP + service worker Cache First, a 1ª exibição do
+ * presente já toca a animação instantaneamente.
  */
 
 /** Inicia o download do JSON em segundo plano (idempotente). */
@@ -74,7 +69,7 @@ export function ensureLottieJson(url: string): Promise<any> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const warmedImages = new Set<string>();
-const IMAGE_CONCURRENCY = 3;
+const IMAGE_CONCURRENCY = 6;
 let activeImageJobs = 0;
 const imageQueue: Array<() => void> = [];
 
@@ -129,8 +124,9 @@ function lottieAssetUrl(jsonUrl: string, asset: any): string | null {
     if (!asset?.p || asset.e === 1 || String(asset.p).startsWith('data:')) return null;
     const p = String(asset.p);
     if (/^https?:\/\//i.test(p)) return p;
-    // assetsPath = diretório do JSON, igual ao que GiftLottiePlayer usa
-    const assetsPath = jsonUrl.replace(/\/[^/]*\.json(\?.*)?$/i, '') + '/';
+    // assetsPath = diretório do JSON sem extensão, igual ao que GiftLottiePlayer usa
+    // Ex.: /animations/coracao.json → /animations/coracao/ (NÃO /animations/)
+    const assetsPath = jsonUrl.replace(/\.json(\?.*)?$/i, '') + '/';
     // lottie-web: se imagePath contém 'images/', pega só o nome do arquivo (depois do /)
     const imagePath = p.indexOf('images/') !== -1 ? p.split('/')[1] : p;
     return assetsPath + imagePath;

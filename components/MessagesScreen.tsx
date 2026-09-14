@@ -309,7 +309,7 @@ const MessagesScreen: React.FC<MessagesScreenProps> = ({ onStartChat, onViewProf
     };
 
     return (
-        <div className="h-full flex flex-col bg-[#111111] text-white">
+        <div className="flex flex-col bg-[#111111] text-white" style={{ height: 'var(--app-height, 100dvh)' }}>
             <header className="flex-shrink-0 border-b border-[#2C2C2E]/80">
                 <nav className="flex w-full px-4">
                     <button

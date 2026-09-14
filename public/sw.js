@@ -5,7 +5,7 @@
 // (v26: push estilo YouTube — notificação do sistema SEMPRE na tela,
 //  mesmo com o app aberto; banner in-app adicional via PUSH_FOREGROUND)
 // (v33: deploy Sep/2026 — fix version.json modal update)
-const CACHE_NAME = 'livenza-cache-v33';
+const CACHE_NAME = 'livenza-cache-v36';
 
 // Assets do app shell para pré-cache (críticos para o PWA funcionar offline)
 const PRECACHE_URLS = [
@@ -70,13 +70,13 @@ self.addEventListener('activate', (event) => {
 });
 
 // ── Interceptação de Fetch ─────────────────────────────────────────────────
-// Estratégia: Network First, Cache Fallback
-// Prioriza conteúdo fresco da rede, mas usa cache como fallback para offline
+// SW configurado APENAS para notificações push. O fetch handler mantém
+// Network First básico para PWA (app shell offline), mas NÃO intercepta
+// assets de animação — esses ficam no cache HTTP do browser e no
+// LottiePreloader (em memória).
 self.addEventListener('fetch', (event) => {
-  // Ignorar requisições que não são GET
   if (event.request.method !== 'GET') return;
 
-  // Ignorar requisições de API e streaming (não devem ser cacheadas)
   const url = new URL(event.request.url);
   if (url.pathname.startsWith('/api/') ||
       url.pathname.startsWith('/rtc/') ||
@@ -85,15 +85,13 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estratégia: tentar rede primeiro, cair no cache em caso de falha
+  // Network First simples — não bloqueia assets de animação
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Verificar se a resposta é válida
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
-        // Clonar a resposta para poder armazenar no cache
         const responseClone = response.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseClone);
@@ -101,15 +99,9 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => {
-        // Falha na rede — tentar servir do cache
         return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          // Se não tem no cache nem na rede, retorna um fallback para a página inicial
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
+          if (cachedResponse) return cachedResponse;
+          if (event.request.mode === 'navigate') return caches.match('/');
           return new Response('', { status: 408, statusText: 'Sem conexão' });
         });
       })

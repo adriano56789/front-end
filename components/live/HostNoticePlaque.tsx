@@ -31,25 +31,25 @@ const HostNoticePlaque: React.FC<HostNoticePlaqueProps> = ({ notice, pulse = 0, 
           animation: hostNoticeIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
       `}</style>
-      <div key={`host-notice-${pulse}`} className="w-full my-0.5 select-none host-notice-in">
+      <div key={`host-notice-${pulse}`} className="w-full my-1 select-none host-notice-in">
         <div
-          className="rounded-xl px-2.5 py-1.5 shadow-md border border-white/25"
+          className="rounded-2xl px-4 py-3 shadow-lg border border-white/25"
           style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ec4899 50%, #a855f7 100%)' }}
         >
           {showTitle && (
-            <div className="flex items-center gap-1.5 mb-0.5">
+            <div className="flex items-center gap-2 mb-1.5">
               {avatar ? (
-                <img src={avatar} alt={hostName} className="w-4 h-4 rounded-full object-cover border border-white/50 shrink-0" />
+                <img src={avatar} alt={hostName} className="w-7 h-7 rounded-full object-cover border-2 border-white/50 shrink-0" />
               ) : (
-                <div className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
+                <div className="w-7 h-7 rounded-full bg-white/30 flex items-center justify-center text-white text-xs font-bold shrink-0">
                   {hostName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="text-[9px] font-bold text-white/95 tracking-wide uppercase truncate">{hostName}</span>
-              <span className="ml-auto text-[7px] font-bold text-white bg-black/25 rounded-full px-1.5 py-0 tracking-widest shrink-0">AVISO</span>
+              <span className="text-[11px] font-bold text-white/95 tracking-wide uppercase truncate">{hostName}</span>
+              <span className="ml-auto text-[9px] font-black text-white bg-black/30 rounded-full px-2 py-0.5 tracking-widest shrink-0">AVISO</span>
             </div>
           )}
-          <p className="text-[11px] leading-tight text-white font-medium break-words">{notice.text}</p>
+          <p className="text-[13px] leading-snug text-white font-semibold break-words">{notice.text}</p>
         </div>
       </div>
     </>

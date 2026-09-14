@@ -33,13 +33,29 @@ window.addEventListener('error', (event) => {
     msg.includes('content.js') ||
     msg.includes('polyfill.js') ||
     msg.includes("reading 'startTime'") ||
-    stack.includes('reportAllChanges')
+    msg.includes('reportAllChanges') ||
+    stack.includes('reportAllChanges') ||
+    filename.includes('VM') ||
+    filename.includes('extension')
   ) {
     event.preventDefault();
     event.stopImmediatePropagation();
     return false;
   }
 }, true); // ← capture phase para interceptar antes de qualquer handler da página
+
+// 🛡️ Handler global de erros não capturados (ErrorEvent) — BUBBLE phase fallback
+window.addEventListener('error', (event) => {
+  const msg = event.message || '';
+  if (
+    msg.includes("reading 'startTime'") ||
+    msg.includes('reportAllChanges')
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  }
+}, false);
 
 // 🛡️ Handler global de promessas rejeitadas não capturadas
 window.addEventListener('unhandledrejection', (event) => {

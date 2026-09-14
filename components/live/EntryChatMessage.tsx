@@ -4,6 +4,19 @@ import { PlusIcon, MaleIcon, FemaleIcon } from '../icons';
 import { useTranslation } from '../../i18n';
 import { translateText } from '../../services/translate';
 
+const frameColors: Record<string, string> = {
+  'FrameBlueCrystal': 'rgba(255,215,0,0.7)',
+  'FrameRoseGarden': 'rgba(236,72,153,0.7)',
+  'FrameCopperPearls': 'rgba(180,83,9,0.7)',
+  'FrameOrnateMagenta': 'rgba(168,85,247,0.7)',
+  'FrameNeonFeathers': 'rgba(245,158,11,0.7)',
+  'FrameBaroqueElegance': 'rgba(255,215,0,0.7)',
+  'FrameMysticalWings': 'rgba(139,92,246,0.7)',
+  'FrameCosmicFire': 'rgba(239,68,68,0.7)',
+  'FrameCelestialCrown': 'rgba(251,191,36,0.7)',
+  'Frame20275': 'rgba(168,85,247,0.7)',
+};
+
 interface EntryChatMessageProps {
     user: User;
     currentUser: User;
@@ -67,13 +80,24 @@ const EntryChatMessage: React.FC<EntryChatMessageProps> = ({ user, currentUser, 
             className="text-[8px] bg-black/20 backdrop-blur-sm border border-white/5 rounded-[10px] px-1.5 py-0.5 my-0.5 max-w-[70%] self-start select-none cursor-pointer transition-all duration-200 hover:bg-black/30 active:scale-[0.98] animate-chat-message break-words leading-tight"
             data-purpose="system-notification"
         >
-            <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 bg-black/30 border border-white/15 align-middle inline-block mr-0.5">
-                <img
-                    src={user.avatarUrl || user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true&font-size=0.4`}
-                    alt={user.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true&font-size=0.4`; }}
-                />
+            <div className="relative w-5 h-5 shrink-0 align-middle inline-block mr-0.5">
+                {user.activeFrameId && frameColors[user.activeFrameId] && (
+                    <div
+                        className="absolute -inset-[1.5px] rounded-full"
+                        style={{
+                            background: `linear-gradient(135deg, ${frameColors[user.activeFrameId]}, transparent 60%, ${frameColors[user.activeFrameId]})`,
+                            boxShadow: `0 0 5px ${frameColors[user.activeFrameId]}`,
+                        }}
+                    />
+                )}
+                <div className="w-5 h-5 rounded-full overflow-hidden bg-black/30 relative z-[1]">
+                    <img
+                        src={user.avatarUrl || user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true&font-size=0.4`}
+                        alt={user.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&color=fff&bold=true&font-size=0.4`; }}
+                    />
+                </div>
             </div>
 
             <TranslateButton active={showTranslated && !!translatedText} loading={translating} onClick={handleTranslate} />

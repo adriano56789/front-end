@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo, ReactNode, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import './src/styles.css';
+import { LockIcon } from './components/icons';
 
 // Error Boundary funcional como alternativa
 interface ErrorBoundaryState {
@@ -130,6 +131,7 @@ const ChatScreen = lazy(() => import('./components/ChatScreen'));
 import FooterNav from './components/FooterNav';
 
 import ReminderModal from './components/ReminderModal';
+import NotificationCenter from './components/NotificationCenter';
 
 import RegionModal from './components/RegionModal';
 
@@ -186,6 +188,7 @@ import FAQScreen from './components/FAQScreen';
 import SettingsScreen from './components/settings/SettingsScreen';
 
 import ConfirmPurchaseScreen from './components/ConfirmPurchaseScreen';
+import StripeCheckoutOverlay from './components/StripeCheckoutOverlay';
 
 import CadastralDataScreen from './components/CadastralDataScreen';
 
@@ -213,6 +216,7 @@ import { LoadingSpinner } from './components/Loading';
 import PipSettingsModal from './components/settings/PipSettingsModal';
 
 import PrivateInviteModal from './components/PrivateInviteModal';
+import PrivateRoomEntryModal from './components/PrivateRoomEntryModal';
 
 import VideoScreen from './components/VideoScreen';
 import GateTransitionOverlay from './components/live/GateTransitionOverlay';
@@ -480,6 +484,10 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [messagesInitialTab, setMessagesInitialTab] = useState<'messages' | 'friends'>('messages');
 
   const [isReminderModalOpen, setIsReminderModalOpen] = useState<boolean>(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState<boolean>(false);
+
+  // 💎 Modal de taxa de entrada para salas privadas
+  const [entryFeeModal, setEntryFeeModal] = useState<{ isOpen: boolean; streamer: Streamer | null; entryFee: number; userDiamonds: number }>({ isOpen: false, streamer: null, entryFee: 0, userDiamonds: 0 });
 
   const [isRegionModalOpen, setIsRegionModalOpen] = useState<boolean>(false);
 
@@ -561,6 +569,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
   const [walletInitialTab, setWalletInitialTab] = useState<'Diamante' | 'Ganhos'>('Diamante');
 
   const [isConfirmingPurchase, setIsConfirmingPurchase] = useState<boolean>(false);
+  const [stripeCheckout, setStripeCheckout] = useState<{ clientSecret: string; publishableKey: string; orderId: string; openUrl?: string } | null>(null);
 
   const [selectedPackage, setSelectedPackage] = useState<PurchasePackage | null>(null);
 
@@ -1321,6 +1330,34 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
       s.on('pk_battle_start', onPKBattleStart);
       s.on('pk_battle_end', onPKBattleEnd);
       s.on('voice_stage_invite', onStageInvite);
+
+      const onVoiceRoomCreated = (roomData: any) => {
+        if (!roomData?.roomId) return;
+        setVoiceRooms(prev => {
+          if (prev.some((r: any) => r.roomId === roomData.roomId)) return prev;
+          return [roomData, ...prev];
+        });
+      };
+      const onVoiceRoomUpdated = (update: any) => {
+        if (!update?.roomId) return;
+        setVoiceRooms(prev => prev.map(r => {
+          if (r.roomId !== update.roomId) return r;
+          if (update.isLive === false) return null;
+          return { ...r, viewers: update.viewers ?? r.viewers, slots: update.slots ?? r.slots, isLive: update.isLive ?? r.isLive };
+        }).filter(Boolean) as any[]);
+      };
+      const onVoiceRoomEnded = (data: any) => {
+        if (!data?.roomId) return;
+        setVoiceRooms(prev => prev.filter(r => r.roomId !== data.roomId));
+      };
+
+      s.on('voice_room_created', onVoiceRoomCreated);
+      s.on('voice_room_updated', onVoiceRoomUpdated);
+      s.on('voice_room_ended', onVoiceRoomEnded);
+      unsubs.push(() => s.off('voice_room_created', onVoiceRoomCreated));
+      unsubs.push(() => s.off('voice_room_updated', onVoiceRoomUpdated));
+      unsubs.push(() => s.off('voice_room_ended', onVoiceRoomEnded));
+
       unsubs.push(() => s.off('live_invite', onLiveInviteRaw));
       unsubs.push(() => s.off('live_invite_timeout', onLiveInviteTimeout));
       unsubs.push(() => s.off('live_invite_confirmed', onLiveInviteConfirmed));
@@ -2192,8 +2229,7 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
           if (!newWorker) return;
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('[PWA] ✅ Versão nova instalada — ativando automaticamente...');
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
+              console.log('[PWA] Nova versão detectada — modal de atualização será exibido.');
             }
           });
         });
@@ -2204,13 +2240,8 @@ const AppContent: React.FC<{ navigate: any; location: any }> = ({ navigate, loca
         let refreshing = false;
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (refreshing) return;
-          // Se há uma live ativa (transmitindo ou em sala), adia o reload
-          if (activeStreamRef.current) {
-            console.log('[PWA] ⏸️ Live ativa — adiando auto-reload para não derrubar a transmissão');
-            return;
-          }
           refreshing = true;
-          console.log('[PWA] 🔄 Recarregando com a versão nova...');
+          console.log('[PWA] Service Worker atualizado — recarregando...');
           window.location.reload();
         });
       }).catch((err) => {
@@ -3444,14 +3475,29 @@ if (locationPermissionStatus === 'granted') {
     }
     if (n.type === 'private_invite') {
       const d = n.data || {};
-      setPrivateInviteData({
-        streamId: d.streamId,
-        hostId: d.fromUserId || d.hostId || '',
-        streamName: d.streamName || d.message || 'Transmissão privada',
-        hostName: d.fromUserName || d.fromName || 'Usuário',
-        hostAvatar: d.fromUserAvatar || '',
-      });
-      navigate('/golive');
+      const targetId = d.streamId;
+      if (!targetId) {
+        addToast(ToastType.Error, 'Convite inválido — stream não identificada.');
+        return;
+      }
+      // 🔑 Sala de voz privada
+      if (String(targetId).startsWith('voice_')) {
+        navigate(`/voice-room/${encodeURIComponent(targetId)}`);
+        return;
+      }
+      // 🔒 Sala privada: entra DIRETO na transmissão (sem passar pelo GoLive)
+      let target: Streamer | null = streamers.find((s: Streamer) => s.id === targetId || s.hostId === (d.fromUserId || d.hostId)) || null;
+      if (!target) {
+        try {
+          const data = await api.getLiveDetails(targetId);
+          if (data) target = data;
+        } catch { /* live pode ter acabado */ }
+      }
+      if (target) {
+        handleSelectStreamRef.current?.(target);
+      } else {
+        addToast(ToastType.Error, 'Transmissão não encontrada ou já encerrada.');
+      }
       return;
     }
     if (n.type === 'pk_invite') {
@@ -3641,10 +3687,24 @@ if (locationPermissionStatus === 'granted') {
 
     if (!currentUser) return;
 
-    // 🎙️ SALA DE VOZ: o card da home aponta direto para a sala (sem portão,
-    // sem checar SRS/live de vídeo — a sala de voz é ao vivo por natureza).
+    // 🎙️ SALA DE VOZ: verificar acesso (entry fee) antes de navegar
     const voiceRoomId = (streamer as any)?.voiceRoomId || (streamer.streamStatus === 'voice_room' ? streamer.id : '');
     if (voiceRoomId) {
+      try {
+        const access = await api.voiceRoom.accessCheck(voiceRoomId, currentUser.id);
+        if (access && typeof access === 'object') {
+          if (access.requiresPayment && access.entryFee) {
+            setEntryFeeModal({ isOpen: true, streamer, entryFee: access.entryFee, userDiamonds: access.userDiamonds || currentUser?.diamonds || 0 });
+            return;
+          }
+          if (!access.canJoin) {
+            addToast(ToastType.Error, access.reason || 'Você não tem permissão para entrar nesta sala.');
+            return;
+          }
+        }
+      } catch {
+        // Se falhar o check, permite entrar (a sala pode ser pública)
+      }
       navigate(`/voice-room/${voiceRoomId}`);
       return;
     }
@@ -3685,6 +3745,19 @@ if (locationPermissionStatus === 'granted') {
 
           const access = await api.checkPrivateStreamAccess(streamer.id, currentUser.id);
 
+          // 🔒 Resposta inesperada / nula → BLOQUEIA (nunca assumir "pode entrar")
+          if (!access || typeof access !== 'object') {
+            addToast(ToastType.Error, "Não foi possível verificar o acesso à sala privada.");
+            endGate();
+            return;
+          }
+
+          if (access?.requiresPayment && access?.entryFee) {
+            endGate();
+            setEntryFeeModal({ isOpen: true, streamer, entryFee: access.entryFee, userDiamonds: access.userDiamonds || currentUser?.diamonds || 0 });
+            return;
+          }
+
           if (!access?.canJoin) {
 
             addToast(ToastType.Error, access?.reason || "Você não tem permissão para entrar nesta sala privada.");
@@ -3697,7 +3770,7 @@ if (locationPermissionStatus === 'granted') {
 
         } catch (err) {
 
-          addToast(ToastType.Error, "Falha ao verificar permissão de acesso.");
+          addToast(ToastType.Error, "Falha ao verificar permissão de acesso. Tente novamente.");
 
           endGate();
 
@@ -3738,6 +3811,41 @@ if (locationPermissionStatus === 'granted') {
 
   };
   handleSelectStreamRef.current = handleSelectStream;
+
+  // 💎 Pagar taxa de entrada na sala privada
+  const handlePayEntryFee = async () => {
+    const { streamer } = entryFeeModal;
+    if (!streamer || !currentUser) return;
+
+    try {
+      // Detectar se é sala de voz
+      const voiceRoomId = (streamer as any)?.voiceRoomId || (streamer.streamStatus === 'voice_room' ? streamer.id : '');
+      let result: any;
+      if (voiceRoomId) {
+        result = await api.voiceRoom.payEntry(voiceRoomId, currentUser.id);
+      } else {
+        result = await api.payEntryFee(streamer.id);
+      }
+      if (result?.success) {
+        setEntryFeeModal({ isOpen: false, streamer: null, entryFee: 0, userDiamonds: 0 });
+        addToast(ToastType.Success, 'Pagamento realizado! Entrando na sala...');
+        if (currentUser && result.remainingDiamonds !== undefined) {
+          setCurrentUser({ ...currentUser, diamonds: result.remainingDiamonds });
+        }
+        // ⚠️ Re-entra na stream/sala SEM o gate (já pagou)
+        setTimeout(() => handleSelectStream(streamer), 300);
+      } else {
+        addToast(ToastType.Error, result?.message || 'Erro ao pagar taxa de entrada');
+        if (result?.reason === 'diamonds_insufficient') {
+          addToast(ToastType.Info, `Você tem ${result.userDiamonds || 0}💎 mas precisa de ${result.entryFee || 0}💎`);
+          // Atualiza saldo no modal sem fechar
+          setEntryFeeModal(prev => ({ ...prev, userDiamonds: result.userDiamonds || 0 }));
+        }
+      }
+    } catch {
+      addToast(ToastType.Error, 'Erro ao processar pagamento');
+    }
+  };
 
   // 🔴 Indicador AO VIVO (LiveBadge): clicou em qualquer avatar ao vivo → entra na transmissão
   const handleOpenUserLive = async (user: User) => {
@@ -4403,14 +4511,26 @@ if (locationPermissionStatus === 'granted') {
     if (!currentUser) return;
 
     try {
-      // Criar ordem + sessão de checkout Stripe e redirecionar ao checkout hospedado
+      // Criar ordem + sessão de checkout Stripe (embedded) e abrir o pagamento DENTRO do app
       const res = await api.createStripeCheckoutSession({
         userId: currentUser.id,
         amountBRL: pkg.price,
         diamonds: pkg.diamonds,
         method,
         currency: pkg.currency || 'BRL',
+        embed: true,
       });
+
+      // Pagamento embutido dentro do app (página real do Stripe carregada aqui)
+      if (res && res.clientSecret && res.publishableKey) {
+        setStripeCheckout({
+          clientSecret: res.clientSecret,
+          publishableKey: res.publishableKey,
+          orderId: res.orderId || '',
+          openUrl: res.redirectUrl || undefined,
+        });
+        return;
+      }
 
       if (res && res.redirectUrl) {
         window.location.href = res.redirectUrl;
@@ -4729,7 +4849,7 @@ if (locationPermissionStatus === 'granted') {
       // Não duplicar quem já aparece como live de vídeo do mesmo host
       .filter(r => !list.some(s => String(s.hostId) === String(r.hostId)))
       .map(r => {
-        const s: Streamer & { isVoiceRoom?: boolean; voiceRoomId?: string } = {
+        const s: Streamer & { isVoiceRoom?: boolean; voiceRoomId?: string; entryFee?: number } = {
           id: r.roomId,
           hostId: r.hostId,
           name: r.hostName || r.name,
@@ -4745,6 +4865,8 @@ if (locationPermissionStatus === 'granted') {
           location: r.location || '',
           isVoiceRoom: true,
           voiceRoomId: r.roomId,
+          isPrivate: (r as any).isPrivate || false,
+          entryFee: (r as any).entryFee || 0,
         };
         return s as Streamer;
       });
@@ -5249,7 +5371,7 @@ const userStream = streamers.find((s: Streamer) => s.hostId === currentUser.id);
                     <VoiceRoom
                       roomId={voiceRoomId}
                       currentUser={currentUser}
-                      onClose={() => navigate(-1)}
+                      onClose={() => navigate('/')}
                       addToast={addToast}
                       gifts={allGifts}
                       receivedGifts={streamRoomData?.receivedGifts || []}
@@ -5298,6 +5420,29 @@ const userStream = streamers.find((s: Streamer) => s.hostId === currentUser.id);
 
       <ReminderModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)} onSelectStream={handleSelectStream} streamers={reminderStreamers} onOpenLiveHistory={() => setIsLiveHistoryOpen(true)} />
 
+      <NotificationCenter
+        isOpen={isNotificationCenterOpen}
+        onClose={() => setIsNotificationCenterOpen(false)}
+        onNavigate={(url) => {
+          if (url.startsWith('/live/')) {
+            const streamId = url.replace('/live/', '');
+            const stream = homeStreamers.find((s: any) => s.id === streamId);
+            if (stream) handleSelectStream(stream);
+          }
+        }}
+      />
+
+      {/* 💎 Modal de taxa de entrada para sala privada */}
+      <PrivateRoomEntryModal
+        isOpen={entryFeeModal.isOpen}
+        entryFee={entryFeeModal.entryFee}
+        userDiamonds={entryFeeModal.userDiamonds}
+        streamerName={entryFeeModal.streamer?.name || ''}
+        streamerAvatar={entryFeeModal.streamer?.avatar}
+        onPay={handlePayEntryFee}
+        onCancel={() => setEntryFeeModal({ isOpen: false, streamer: null, entryFee: 0, userDiamonds: 0 })}
+      />
+
       <RegionModal isOpen={isRegionModalOpen} onClose={() => setIsRegionModalOpen(false)} countries={countries} onSelectRegion={handleSelectRegion} selectedCountryCode={selectedCountry || 'ICON_GLOBE'} />
 
       {/* Banner de instalação PWA para dispositivos móveis */}
@@ -5319,6 +5464,22 @@ const userStream = streamers.find((s: Streamer) => s.hostId === currentUser.id);
       {isWalletScreenOpen && <WalletScreen onClose={() => setIsWalletScreenOpen(false)} onPurchase={handlePurchase} initialTab={walletInitialTab} isBroadcaster={true} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} purchaseHistory={purchaseHistory} />}
 
       {isConfirmingPurchase && selectedPackage && <ConfirmPurchaseScreen onClose={() => setIsConfirmingPurchase(false)} packageDetails={selectedPackage} onConfirmPurchase={handleConfirmPurchase} addToast={addToast} currentUser={currentUser} />}
+
+      {stripeCheckout && (
+        <StripeCheckoutOverlay
+          clientSecret={stripeCheckout.clientSecret}
+          publishableKey={stripeCheckout.publishableKey}
+          orderId={stripeCheckout.orderId}
+          openUrl={stripeCheckout.openUrl}
+          onPaid={() => {
+            setStripeCheckout(null);
+            addToast(ToastType.Success, 'Pagamento aprovado! Seus diamantes serão creditados em instantes.');
+            window.dispatchEvent(new CustomEvent('livego:refresh_wallet'));
+          }}
+          onClose={() => setStripeCheckout(null)}
+          addToast={addToast}
+        />
+      )}
 
       {isCadastralScreenOpen && pendingPurchase && currentUser && <CadastralDataScreen onClose={() => { setIsCadastralScreenOpen(false); setPendingPurchase(null); }} onSaved={handleCadastralSaved} currentUser={currentUser} updateUser={updateUserEverywhere} addToast={addToast} />}
 
